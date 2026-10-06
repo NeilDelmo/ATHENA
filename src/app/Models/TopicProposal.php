@@ -140,6 +140,39 @@ class TopicProposal extends Model
         };
     }
 
+    public function submissionCategory(): string
+    {
+        return match (true) {
+            $this->status === 'rejected' || $this->isCompletedProject() => 'closed',
+            $this->status === 'revision_requested' => 'revision',
+            $this->hasIssuedNoticeToProceed() => 'monitoring',
+            in_array($this->status, [self::STATUS_READY_FOR_SIGNATURE, 'approved'], true) => 'signing',
+            default => 'review',
+        };
+    }
+
+    /** @param Builder<TopicProposal> $query */
+    public function scopeInSubmissionCategory(Builder $query, string $category): Builder
+    {
+        return match ($category) {
+            'active' => $query->where(fn (Builder $active): Builder => $active
+                ->where(fn (Builder $review): Builder => $review->inSubmissionCategory('review'))
+                ->orWhere(fn (Builder $revision): Builder => $revision->inSubmissionCategory('revision'))
+                ->orWhere(fn (Builder $signing): Builder => $signing->inSubmissionCategory('signing'))),
+            'revision' => $query->where('status', 'revision_requested'),
+            'review' => $query->whereNotIn('status', ['revision_requested', self::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected']),
+            'signing' => $query->where(function (Builder $signing): void {
+                $signing->where('status', self::STATUS_READY_FOR_SIGNATURE)
+                    ->orWhere(fn (Builder $approved): Builder => $approved->awaitingDocumentRelease()->where('status', 'approved'));
+            }),
+            'monitoring' => $query->where('status', 'approved')->whereNotNull('notice_to_proceed_issued_at')
+                ->where(fn (Builder $active): Builder => $active->whereNull('project_status')->orWhere('project_status', '!=', self::PROJECT_STATUS_COMPLETED)),
+            'closed' => $query->where(fn (Builder $closed): Builder => $closed->where('status', 'rejected')
+                ->orWhere(fn (Builder $completed): Builder => $completed->where('status', 'approved')->where('project_status', self::PROJECT_STATUS_COMPLETED))),
+            default => $query,
+        };
+    }
+
     public function researchHeadQueueStatusLabel(?ProposalVersion $latestVersion = null): string
     {
         $latestVersionViewed = $latestVersion !== null
@@ -450,7 +483,7 @@ class TopicProposal extends Model
 
     public function reviews(): HasMany
     {
-        return $this->hasMany(TopicReview::class, 'topic_id');
+        return $this->hasMany(TopicReview::class, 'topic_id')->chaperone('topic');
     }
 
     public function researchCall(): BelongsTo
@@ -470,7 +503,7 @@ class TopicProposal extends Model
 
     public function versions(): HasMany
     {
-        return $this->hasMany(ProposalVersion::class, 'topic_id')->orderBy('version_number');
+        return $this->hasMany(ProposalVersion::class, 'topic_id')->chaperone('topic')->orderBy('version_number');
     }
 
     public function documentHistory(): HasMany

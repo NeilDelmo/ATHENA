@@ -1,10 +1,23 @@
 
 import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';
-import Swal from 'sweetalert2';
+import Swal from './proposal-dialog';
+import { researchAssistantHistory } from './research-assistant-history';
+import { normalizeAssistantLiterature, researchAssistantLiterature, serializeAssistantLiterature } from './research-assistant-literature';
+import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from './research-assistant-paper-insertion';
+import { createManilaClock } from './manila-clock';
+import { initializeWorkspaceSwitching } from './workspace-switching';
 import { journalFinder } from './journal-finder';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
+import { detailedProposalPreviewWorkspace, initializeDetailedProposalWritingTools } from './detailed-proposal-workspace';
+import { proposalSourceWorkspace } from './proposal-source-workspace';
+import { prepareReviewedSourceDraft } from './proposal-source-draft-insertion';
+import { proposalPaperPreviewWorkspace } from './proposal-paper-workspace';
+import { proposalAssessmentPreview } from './proposal-assessment-preview';
+import { curriculumVitaePaperWorkspace } from './curriculum-vitae-workspace';
+import { commentResponsePaperPreview } from './comment-response-paper-preview';
+import '../css/proposal-paper-workspace.css';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import { projectDocumentDrawer } from './project-document-drawer';
 import { projectStatusManager } from './project-status-manager';
@@ -26,6 +39,8 @@ import {
     orderedCitationSourceIds,
     proposalCitationField,
     proposalCitationFieldIds,
+    proposalCitationSelection,
+    proposalCitationLocator,
     synchronizeCitationMarkerLabels,
 } from './proposal-semantic-editor';
 import {
@@ -244,7 +259,7 @@ themeMediaQuery.addEventListener('change', () => {
 initializeThemeToggles();
 document.addEventListener('livewire:navigated', initializeThemeToggles);
 
-function sanitizedSemanticHtml(value) {
+function sanitizedSemanticHtml(value, allowTables = false) {
     const template = document.createElement('template');
     template.innerHTML = String(value || '');
     const escapeHtml = (text) => String(text)
@@ -257,6 +272,15 @@ function sanitizedSemanticHtml(value) {
     const sanitizeNode = (node) => {
         if (node.nodeType === Node.TEXT_NODE) return escapeHtml(node.textContent || '');
         if (!(node instanceof HTMLElement)) return '';
+        if (['SCRIPT', 'STYLE'].includes(node.tagName)) return '';
+        if (allowTables && node.tagName === 'TABLE') {
+            const rows = [...node.rows].slice(0, 100).map((row) => [...row.cells].slice(0, 12).map((cell) => {
+                const tag = cell.tagName.toLowerCase();
+                return `<${tag}>${sanitizedSemanticHtml(cell.innerHTML)}</${tag}>`;
+            })).filter((cells) => cells.length);
+            const columns = Math.max(0, ...rows.map((cells) => cells.length));
+            return rows.length ? `<table><tbody>${rows.map((cells) => `<tr>${cells.join('')}${'<td><p><br></p></td>'.repeat(columns - cells.length)}</tr>`).join('')}</tbody></table>` : '';
+        }
 
         const content = [...node.childNodes].map(sanitizeNode).join('');
         const tag = ({
@@ -272,15 +296,17 @@ function sanitizedSemanticHtml(value) {
             ul: 'ul',
             li: 'li',
             span: 'span',
+            ...(allowTables ? { table: 'table', thead: 'thead', tbody: 'tbody', tfoot: 'tbody', tr: 'tr', th: 'th', td: 'td' } : {}),
         })[node.tagName.toLowerCase()];
 
         if (!tag || ['script', 'style'].includes(node.tagName.toLowerCase())) return content;
         if (tag === 'br') return '<br>';
         if (tag === 'span') {
             const citationSourceId = String(node.getAttribute('data-proposal-citation') || '').trim();
+            const locator = String(node.getAttribute('data-proposal-locator') || '').trim().slice(0, 100);
 
             return /^\d+$/.test(citationSourceId)
-                ? `<span data-proposal-citation="${citationSourceId}">${content}</span>`
+                ? `<span data-proposal-citation="${citationSourceId}"${locator ? ` data-proposal-locator="${escapeHtml(locator)}"` : ''}>${content}</span>`
                 : content;
         }
 
@@ -302,8 +328,9 @@ function initializeSemanticEditors() {
 
         textarea.dataset.semanticEditorReady = 'true';
         const largeEditor = textarea.dataset.semanticEditorSize === 'large';
+        const sharedToolbar = Boolean(textarea.closest('[data-detailed-proposal-workspace]'));
         const container = document.createElement('div');
-        container.className = 'mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600';
+        container.className = 'proposal-semantic-field mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600';
         const toolbar = document.createElement('div');
         toolbar.className = 'flex flex-wrap gap-1 border-b border-gray-200 bg-gray-50 p-2';
         toolbar.setAttribute('aria-label', 'Text formatting');
@@ -323,7 +350,8 @@ function initializeSemanticEditors() {
         editor.contentEditable = 'true';
         editor.setAttribute('role', 'textbox');
         editor.setAttribute('aria-multiline', 'true');
-        editor.innerHTML = sanitizedSemanticHtml(textarea.value);
+        editor.setAttribute('aria-label', textarea.labels?.[0]?.textContent?.trim() || textarea.getAttribute('aria-label') || textarea.name || 'Writing field');
+        editor.innerHTML = sanitizedSemanticHtml(textarea.value, sharedToolbar);
         textarea._semanticEditor = editor;
         const actions = [
             ['bold', 'Bold', 'B'],
@@ -336,19 +364,19 @@ function initializeSemanticEditors() {
         let syncingFromEditor = false;
         const sync = () => {
             syncingFromEditor = true;
-            mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML), { preserveEditorDom: true });
+            mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML, sharedToolbar), { preserveEditorDom: true });
             notifySemanticEditorInput(textarea);
             syncingFromEditor = false;
         };
         const refreshFromTextarea = () => {
             if (syncingFromEditor) return false;
 
-            return mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(textarea.value));
+            return mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(textarea.value, sharedToolbar));
         };
         textarea._syncSemanticEditor = refreshFromTextarea;
         textarea.addEventListener('input', refreshFromTextarea);
         const normalize = () => {
-            editor.innerHTML = sanitizedSemanticHtml(editor.innerHTML);
+            editor.innerHTML = sanitizedSemanticHtml(editor.innerHTML, sharedToolbar);
             sync();
         };
         let savedRange = null;
@@ -360,11 +388,21 @@ function initializeSemanticEditors() {
             savedRange = selection.getRangeAt(0).cloneRange();
         };
         const restoreSelection = () => {
-            if (!savedRange) return;
+            if (!savedRange || !editor.contains(savedRange.startContainer)) {
+                savedRange = document.createRange();
+                savedRange.selectNodeContents(editor);
+                savedRange.collapse(false);
+            }
 
             const selection = window.getSelection();
             selection?.removeAllRanges();
             selection?.addRange(savedRange);
+        };
+        const focusWithSelection = () => {
+            const range = savedRange?.cloneRange();
+            editor.focus();
+            savedRange = range;
+            restoreSelection();
         };
         const actionButtons = new Map();
         let citationButton = null;
@@ -380,9 +418,9 @@ function initializeSemanticEditors() {
             });
 
             if (citationButton) {
-                const canCite = savedRange instanceof Range && !savedRange.collapsed && savedRange.toString().trim() !== '';
+                const canCite = Boolean(proposalCitationSelection(textarea.id, editor, savedRange));
 
-                citationButton.hidden = !canCite;
+                citationButton.hidden = false;
                 citationButton.disabled = !canCite;
             }
         };
@@ -404,8 +442,7 @@ function initializeSemanticEditors() {
                 event.preventDefault();
             });
             button.addEventListener('click', () => {
-                editor.focus();
-                restoreSelection();
+                focusWithSelection();
                 document.execCommand(command);
                 sync();
                 updateActionButtons();
@@ -417,28 +454,23 @@ function initializeSemanticEditors() {
             citationButton = document.createElement('button');
             citationButton.type = 'button';
             citationButton.className = 'rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-800 shadow-sm transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40';
-            citationButton.title = 'Support the selected text with a verified literature source';
-            citationButton.setAttribute('aria-label', 'Support selected text with a literature source');
-            citationButton.textContent = 'Support with source';
-            citationButton.hidden = true;
+            citationButton.title = 'Insert a citation at the cursor or after selected text';
+            citationButton.setAttribute('aria-label', 'Insert citation');
+            citationButton.textContent = 'Insert citation';
+            citationButton.hidden = false;
             citationButton.disabled = true;
             citationButton.addEventListener('mousedown', (event) => {
                 saveSelection();
                 event.preventDefault();
             });
             citationButton.addEventListener('click', () => {
-                if (!(savedRange instanceof Range) || savedRange.collapsed) return;
+                const citationSelection = proposalCitationSelection(textarea.id, editor, savedRange);
 
-                const selectedText = savedRange.toString().trim();
-
-                if (!selectedText) return;
+                if (!citationSelection) return;
 
                 textarea._semanticCitationRange = savedRange.cloneRange();
                 window.dispatchEvent(new CustomEvent('proposal-cite-selection', {
-                    detail: {
-                        fieldId: textarea.id,
-                        selectedText,
-                    },
+                    detail: citationSelection,
                 }));
             });
             toolbar.appendChild(citationButton);
@@ -452,7 +484,9 @@ function initializeSemanticEditors() {
             sync();
             updateActionButtons();
         });
-        editor.addEventListener('blur', normalize);
+        editor.addEventListener('blur', () => {
+            if (!sharedToolbar) normalize();
+        });
         editor.addEventListener('keydown', (event) => {
             if (!event.ctrlKey && !event.metaKey) return;
 
@@ -475,29 +509,50 @@ function initializeSemanticEditors() {
             event.preventDefault();
             const clipboard = event.clipboardData;
             const value = clipboard?.getData('text/html') || clipboard?.getData('text/plain') || '';
-            document.execCommand('insertHTML', false, sanitizedSemanticHtml(value));
+            document.execCommand('insertHTML', false, sanitizedSemanticHtml(value, sharedToolbar));
             sync();
         });
 
         textarea.classList.add('hidden');
         textarea.insertAdjacentElement('afterend', container);
-        container.append(toolbar, editor);
+        container.append(...(sharedToolbar ? [editor] : [toolbar, editor]));
+        textarea._semanticApi = {
+            saveSelection,
+            restoreSelection,
+            selection: () => savedRange && editor.contains(savedRange.startContainer) && editor.contains(savedRange.endContainer) ? savedRange : null,
+            canCite: Boolean(citationButton),
+            cite: () => citationButton?.click(),
+            execute(command, value = null) {
+                focusWithSelection();
+                document.execCommand(command, false, value);
+                saveSelection();
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
+                updateActionButtons();
+            },
+        };
     });
 }
 
-window.insertProposalCitationMarker = (fieldId, sourceLinkId, referenceNumber) => {
+window.insertProposalCitationMarker = (fieldId, sourceLinkId, referenceNumber, locator = '') => {
     const textarea = document.getElementById(fieldId);
 
-    if (!(textarea instanceof HTMLTextAreaElement)
+    if (!Number.isInteger(Number(sourceLinkId)) || Number(sourceLinkId) < 1
+        || !Number.isInteger(referenceNumber) || referenceNumber < 1
+        || !(textarea instanceof HTMLTextAreaElement)
         || !(textarea._semanticEditor instanceof HTMLElement)
         || !(textarea._semanticCitationRange instanceof Range)) {
         return false;
     }
 
     const range = textarea._semanticCitationRange.cloneRange();
+
+    if (!proposalCitationSelection(fieldId, textarea._semanticEditor, range)) return false;
+
     const marker = document.createElement('span');
     marker.dataset.proposalCitation = String(sourceLinkId);
-    marker.textContent = ` [${referenceNumber}]`;
+    const normalizedLocator = proposalCitationLocator(locator);
+    if (normalizedLocator) marker.dataset.proposalLocator = normalizedLocator;
+    marker.textContent = ` [${referenceNumber}${normalizedLocator ? `, ${normalizedLocator}` : ''}]`;
     range.collapse(false);
     range.insertNode(marker);
     range.setStartAfter(marker);
@@ -704,6 +759,16 @@ async function showProposalConfirmation({
     return result.isConfirmed;
 }
 
+function revisionGenerationConfig(config = {}) {
+    if (!isEmbeddedRevisionEditor()) return config;
+
+    return {
+        ...config,
+        revisionDocumentVersion: document.querySelector('[data-paper-form] [name="document_version"]')?.value,
+        revisionSourceFingerprint: window.athenaRevisionEditor?.sourceFingerprint?.(),
+    };
+}
+
 async function offerRevisionUpload(blob, filename, config = {}) {
     if (!config.revisionUploadUrl || !config.revisionDocumentType) return;
 
@@ -721,7 +786,16 @@ async function offerRevisionUpload(blob, filename, config = {}) {
     const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
 
     if (isEmbeddedRevisionEditor()) {
-        formData.append('document_version', document.querySelector('[data-paper-form] [name="document_version"]').value);
+        const currentVersion = document.querySelector('[data-paper-form] [name="document_version"]')?.value;
+        const currentFingerprint = window.athenaRevisionEditor?.sourceFingerprint?.();
+
+        if (config.revisionDocumentVersion === undefined
+            || config.revisionDocumentVersion !== currentVersion
+            || config.revisionSourceFingerprint !== currentFingerprint) {
+            throw new Error('The paper changed while its PDF was being prepared. Finish the paper again to include your latest edits.');
+        }
+
+        formData.append('document_version', config.revisionDocumentVersion);
     }
     formData.append('document_type', config.revisionDocumentType);
     formData.append('file', file);
@@ -1653,11 +1727,22 @@ function highlightAssistantText(value, query) {
     return highlighted + escapeAssistantHtml(text.slice(lastIndex));
 }
 
+function assistantLiteratureHandoff() {
+    let storage = null;
+    try {
+        storage = window.sessionStorage;
+    } catch {
+        // The paper remains editable when browser storage is blocked.
+    }
+    return literatureInsertionHandoff(storage, Number(document.body.dataset.authUserId));
+}
+
 Alpine.store('researchAssistant', {
     drawerOpen: false,
     workspaceOpen: false,
     draft: '',
     isLoading: false,
+    sendInProgress: false,
     error: '',
     errorTitle: '',
     retryAfter: 0,
@@ -1676,7 +1761,8 @@ Alpine.store('researchAssistant', {
     activePaperField: null,
     pageActions: assistantPageActions,
     pageScope: assistantPageScope(),
-    history: assistantHistory,
+    ...researchAssistantHistory(assistantHistory),
+    ...researchAssistantLiterature(),
     currentConversationId: null,
     historySearchOpen: false,
     historySearchQuery: '',
@@ -1689,8 +1775,10 @@ Alpine.store('researchAssistant', {
     documentOptions: [],
     selectedDocumentToken: '',
     documentLoading: false,
+    documentRequestSequence: 0,
     documentError: '',
     retryAction: null,
+    retryContext: null,
     messages: [],
 
     init() {
@@ -1718,6 +1806,32 @@ Alpine.store('researchAssistant', {
         );
     },
 
+    syncWorkspaceContext() {
+        this.stop();
+        this.contextOptions = Array.isArray(window.athenaResearchAssistantContexts) ? window.athenaResearchAssistantContexts : [];
+        const activeContextId = window.athenaResearchAssistantActiveContextId ?? null;
+        this.selectedContextId = defaultAssistantContextId(this.contextOptions, activeContextId);
+        this.contextEnabled = Boolean(activeContextId);
+        this.paperContext = document.body.dataset.researchAssistantPaperSlug ? {
+            paperSlug: document.body.dataset.researchAssistantPaperSlug,
+            paperLabel: document.body.dataset.researchAssistantPaperLabel || document.body.dataset.researchAssistantPaperSlug,
+        } : null;
+        this.proposalDraftId = Number(document.body.dataset.researchAssistantProposalDraftId || 0);
+        this.liveFormContextEnabled = Boolean(this.paperContext || activeContextId);
+        this.activePaperField = null;
+        this.pageActions = Array.isArray(window.athenaResearchAssistantPageActions) ? window.athenaResearchAssistantPageActions : [];
+        this.pageScope = assistantPageScope();
+        this.documentRequestSequence++;
+        this.documentPickerOpen = false;
+        this.documentOptions = [];
+        this.selectedDocumentToken = '';
+        this.documentLoading = false;
+        this.documentError = '';
+        this.drawerOpen = false;
+        this.workspaceOpen = false;
+        this.syncPageScroll();
+    },
+
     toggleDrawer(trigger = null) {
         if (this.drawerOpen) {
             this.closeDrawer();
@@ -1728,6 +1842,7 @@ Alpine.store('researchAssistant', {
     },
 
     openDrawer(trigger = null) {
+        void this.loadHistory();
         this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
         this.workspaceOpen = false;
         this.drawerOpen = true;
@@ -1736,6 +1851,7 @@ Alpine.store('researchAssistant', {
     },
 
     openWorkspace() {
+        void this.loadHistory();
         this.workspaceOpen = true;
         this.drawerOpen = false;
         this.syncPageScroll();
@@ -1790,6 +1906,13 @@ Alpine.store('researchAssistant', {
 
         return [
             ...focusedFieldAction,
+            ...(document.body.hasAttribute('data-faculty-shell') && (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)) ? [{
+                label: 'Find related studies',
+                description: 'Find studies for this proposal and review an RRL draft before adding it.',
+                evidence: 'Uses this proposal and retrieved academic sources',
+                prompt: 'Suggest three recent studies relevant to my proposal objectives and help me add them to my RRL.',
+                action: { type: 'search_literature' },
+            }] : []),
             ...this.pageActions.filter((action) => !action.scope || action.scope === this.currentPageScope()),
         ].slice(0, 6);
     },
@@ -1979,9 +2102,9 @@ Alpine.store('researchAssistant', {
         });
     },
 
-    async sendPrompt(prompt, action = null) {
+    async sendPrompt(prompt, action = null, contextOverride = null) {
         this.draft = prompt;
-        await this.send(action);
+        return this.send(action, contextOverride);
     },
 
     hasContextOptions() {
@@ -2048,6 +2171,7 @@ Alpine.store('researchAssistant', {
     },
 
     async loadDocumentOptions() {
+        const requestSequence = ++this.documentRequestSequence;
         const baseUrl = this.documentsUrl();
         const query = assistantDocumentQuery(this.contextPayload(false));
 
@@ -2071,6 +2195,8 @@ Alpine.store('researchAssistant', {
             });
             const payload = await response.json().catch(() => ({}));
 
+            if (requestSequence !== this.documentRequestSequence) return;
+
             if (!response.ok) {
                 throw new Error(payload.message || 'Documents could not be loaded.');
             }
@@ -2083,11 +2209,12 @@ Alpine.store('researchAssistant', {
                 this.documentError = 'No PDF or DOCX is available for this proposal.';
             }
         } catch (error) {
+            if (requestSequence !== this.documentRequestSequence) return;
             this.documentError = error instanceof Error
                 ? error.message
                 : 'Documents could not be loaded.';
         } finally {
-            this.documentLoading = false;
+            if (requestSequence === this.documentRequestSequence) this.documentLoading = false;
         }
     },
 
@@ -2149,6 +2276,7 @@ Alpine.store('researchAssistant', {
     },
 
     openHistorySearch() {
+        void this.loadHistory();
         this.historySearchOpen = true;
         this.historySearchQuery = '';
         this.historySearchResults = this.history;
@@ -2222,7 +2350,10 @@ Alpine.store('researchAssistant', {
 
         const payload = JSON.stringify({
             id: this.currentConversationId,
-            messages: this.messages,
+            messages: this.messages.map((message) => ({
+                ...message,
+                literature: serializeAssistantLiterature(message.literature),
+            })),
             context: this.contextPayload(false),
         });
 
@@ -2295,9 +2426,11 @@ Alpine.store('researchAssistant', {
                     role: message.role,
                     content: String(message.content).trim(),
                     sources: Array.isArray(message.sources) ? message.sources : [],
+                    literature: normalizeAssistantLiterature(message.literature),
                 }));
             this.currentConversationId = conversation.id;
             this.retryAction = null;
+            this.retryContext = null;
             this.closeDocumentPicker();
             const contextId = Number(conversation.context?.topic_id || 0);
             this.contextEnabled = Boolean(contextId && this.contextOptions.some((context) => Number(context.id) === contextId));
@@ -2321,11 +2454,55 @@ Alpine.store('researchAssistant', {
         this.error = message;
     },
 
-    async send(action = null) {
-        const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
-        if (!content || this.isLoading || this.retryAfter > 0) return;
+    async applyLiteratureInsertion(message) {
+        const packet = message.literature;
+        const detail = { ...packet, handled: false };
+        window.dispatchEvent(new CustomEvent('athena-insert-literature', { detail }));
+        if (detail.handled) {
+            packet.applied = true;
+            packet.notice = detail.added
+                ? 'Reviewed RRL paragraphs and matching references were added to the paper. Autosaving now.'
+                : 'These reviewed paragraphs already appear in the paper.';
+            return false;
+        }
 
+        if (!assistantLiteratureHandoff().stage(packet)) {
+            packet.notice = 'The reviewed drafts are saved in the proposal literature library. Open the paper and add them from Saved sources.';
+            this.setError('Open the paper to finish', 'Browser storage could not prepare the insertion. Your reviewed drafts remain saved in the proposal literature library.');
+            return false;
+        }
+        packet.notice = 'Reviewed drafts are ready. Opening the paper will add their paragraphs and references.';
+        return true;
+    },
+
+    async openLiteraturePaper(message) {
+        const packet = message?.literature;
+        if (packet?.kind !== 'insertion') return;
+        if (packet.applied && Number(this.proposalDraftId) === Number(packet.proposal_draft_id)
+            && document.querySelector('[data-detailed-proposal-workspace]')) {
+            this.closeWorkspace();
+            document.getElementById('related-literature')?.closest('section')?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+        const url = sameOriginPaperUrl(packet.editor_url, window.location.origin);
+        if (!url || !assistantLiteratureHandoff().stage(packet)) {
+            this.setError('Open the paper to finish', 'Open this proposal’s detailed paper and add the reviewed drafts from Saved sources.');
+            return;
+        }
+        if (!await finishPendingNavigationChanges()) return;
+        const saved = await this.saveConversation();
+        if (this.hasConversation() && !saved) return;
+        window.location.assign(url);
+    },
+
+    async send(action = null, contextOverride = null) {
+        const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
+        if (!content || this.isLoading || this.sendInProgress || this.retryAfter > 0) return;
+
+        this.sendInProgress = true;
+        const sendSequence = this.requestSequence;
         this.retryAction = action;
+        this.retryContext = contextOverride;
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
         this.draft = '';
         this.resetComposers();
@@ -2333,11 +2510,32 @@ Alpine.store('researchAssistant', {
         this.errorTitle = '';
         this.scrollToLatest();
 
-        await this.saveConversation();
-        await this.requestReply(action);
+        try {
+            await this.saveConversation();
+            if (sendSequence !== this.requestSequence) return null;
+            return await this.requestReply(action, contextOverride);
+        } finally {
+            this.sendInProgress = false;
+        }
     },
 
-    async requestReply(action = this.retryAction) {
+    replyContext(contextOverride, action) {
+        if (!contextOverride) return this.contextPayload();
+        const context = { ...contextOverride };
+        if (Number(context.proposal_draft_id) === Number(this.proposalDraftId)) {
+            const form = this.formContext();
+            if (form) context.form = form;
+            const rrl = document.getElementById('related-literature');
+            if (action?.type === 'draft_literature' && rrl) {
+                const value = redactAssistantText(rrl._semanticEditor?.innerText || rrl.value || '').slice(-400);
+                const values = (context.form?.values || []).filter((item) => item.field !== 'related_literature').slice(0, 15);
+                context.form = { ...(context.form || {}), values: [...values, { field: 'related_literature', label: 'Current end of RRL', value }] };
+            }
+        }
+        return context;
+    },
+
+    async requestReply(action = this.retryAction, contextOverride = this.retryContext) {
         const chatUrl = document.body.dataset.researchAssistantUrl;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
@@ -2355,6 +2553,7 @@ Alpine.store('researchAssistant', {
 
         const requestSequence = ++this.requestSequence;
         const abortController = new AbortController();
+        let paperToOpen = null;
         this.isLoading = true;
         this.error = '';
         this.abortController = abortController;
@@ -2372,13 +2571,15 @@ Alpine.store('researchAssistant', {
                 },
                 body: JSON.stringify({
                     messages: this.contextMessages(),
-                    context: this.contextPayload(),
+                    context: this.replyContext(contextOverride, action),
                     conversation_id: this.currentConversationId,
                     action,
                 }),
             });
 
             const payload = await response.json().catch(() => ({}));
+
+            if (requestSequence !== this.requestSequence || abortController.signal.aborted) return null;
 
             if (!response.ok) {
                 if (response.status === 419) {
@@ -2416,15 +2617,29 @@ Alpine.store('researchAssistant', {
                 return;
             }
 
-            this.messages.push({
+            const assistantMessage = {
                 id: this.nextMessageId++,
                 role: 'assistant',
                 content: payload.reply.trim(),
                 model: payload.model,
                 sources: Array.isArray(payload.sources) ? payload.sources : [],
-            });
+                literature: normalizeAssistantLiterature(payload.literature),
+            };
+            this.messages.push(assistantMessage);
+            if (action?.type === 'confirm_literature' && assistantMessage.literature?.kind === 'insertion') {
+                const confirmedTokens = new Set((action.drafts || []).map((draft) => draft.draft_token));
+                this.messages.forEach((message) => {
+                    if (message.literature?.kind === 'draft' && message.literature.drafts.length
+                        && message.literature.drafts.every((draft) => confirmedTokens.has(draft.draft_token))) {
+                        message.literature.confirmed = true;
+                    }
+                });
+                if (await this.applyLiteratureInsertion(assistantMessage)) paperToOpen = assistantMessage;
+            }
             this.copiedConversation = false;
             this.retryAction = null;
+            this.retryContext = null;
+            return payload;
         } catch (error) {
             if (error.name !== 'AbortError') {
                 this.setError('Network interrupted', error instanceof Error && error.message
@@ -2437,6 +2652,7 @@ Alpine.store('researchAssistant', {
                 this.abortController = null;
                 this.scrollToLatest();
                 await this.saveConversation();
+                if (paperToOpen && requestSequence === this.requestSequence) await this.openLiteraturePaper(paperToOpen);
             }
         }
     },
@@ -2561,6 +2777,7 @@ Alpine.store('researchAssistant', {
         this.errorTitle = '';
         this.retryAfter = 0;
         this.retryAction = null;
+        this.retryContext = null;
         this.documentPickerOpen = false;
         this.documentOptions = [];
         this.selectedDocumentToken = '';
@@ -4597,125 +4814,141 @@ Alpine.data('fileDropzone', (config = {}) => ({
     },
 }));
 
-const documentPreviewForm = (config = {}) => ({
-    submitting: false,
-    previewHtml: '',
-    previewError: '',
-    previewLoading: false,
-    previewReady: false,
-    previewObjectUrls: [],
+const documentPreviewForm = (config = {}) => {
+    const paperPreview = proposalPaperPreviewWorkspace({ workspaceSelector: '[data-monitoring-paper-workspace]' });
+    return {
+        ...paperPreview,
+        previewTitle: config.previewTitle || 'Report preview',
+        submitting: false,
+        previewHtml: '',
+        previewError: '',
+        previewLoading: false,
+        previewReady: false,
+        previewObjectUrls: [],
+        validationMessage: '',
 
-    clearPreviewObjectUrls() {
-        this.previewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
-        this.previewObjectUrls = [];
-    },
+        showProposalPreview() {
+            if (!this.$refs.form.reportValidity()) return;
+            paperPreview.showProposalPreview.call(this);
+        },
 
-    async hydratePreview() {
-        this.previewReady = false;
-        this.clearPreviewObjectUrls();
+        clearPreviewObjectUrls() {
+            this.previewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+            this.previewObjectUrls = [];
+        },
 
-        const previewDocument = this.$refs.previewFrame?.contentDocument;
-        const form = this.$refs.form;
+        async hydratePreview() {
+            this.previewReady = false;
+            this.clearPreviewObjectUrls();
 
-        if (!previewDocument || !form) {
-            this.previewReady = true;
+            const previewDocument = this.$refs.previewFrame?.contentDocument;
+            const form = this.$refs.form;
 
-            return;
-        }
-
-        const inputs = new Map(
-            Array.from(form.querySelectorAll('input[type="file"][name]'))
-                .map((input) => [input.name, input]),
-        );
-        const imageLoads = Array.from(previewDocument.querySelectorAll('[data-preview-file-input]'))
-            .map((image) => {
-                const input = inputs.get(image.dataset.previewFileInput);
-                const file = input instanceof HTMLInputElement ? input.files?.[0] : null;
-
-                if (!file || !(image instanceof HTMLImageElement)) {
-                    image.closest('figure')?.remove();
-
-                    return null;
-                }
-
-                const url = URL.createObjectURL(file);
-                this.previewObjectUrls.push(url);
-                image.closest('figure')?.removeAttribute('hidden');
-
-                return new Promise((resolve) => {
-                    image.addEventListener('load', resolve, { once: true });
-                    image.addEventListener('error', resolve, { once: true });
-                    image.src = url;
-                });
-            })
-            .filter(Boolean);
-
-        await Promise.all(imageLoads);
-        this.previewReady = true;
-    },
-
-    async generatePreview() {
-        if (!this.$refs.form.reportValidity()) return;
-
-        this.previewError = '';
-        this.previewLoading = true;
-        this.previewReady = false;
-
-        try {
-            const formData = new FormData(this.$refs.form);
-            (config.omitPreviewFields || []).forEach((field) => formData.delete(field));
-
-            const response = await fetch(config.previewUrl, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': config.csrfToken,
-                },
-                body: formData,
-            });
-
-            if (response.status === 422) {
-                const payload = await response.json();
-                this.clearPreviewObjectUrls();
-                this.previewHtml = '';
-                this.previewError = Object.values(payload.errors || {}).flat().join(' ')
-                    || config.validationMessage
-                    || 'Please review the form information.';
+            if (!previewDocument || !form) {
+                this.previewReady = true;
 
                 return;
             }
 
-            if (!response.ok) {
-                throw new Error(config.failureMessage || 'The document preview could not be generated. Please try again.');
+            const inputs = new Map(
+                Array.from(form.querySelectorAll('input[type="file"][name]'))
+                    .map((input) => [input.name, input]),
+            );
+            const imageLoads = Array.from(previewDocument.querySelectorAll('[data-preview-file-input]'))
+                .map((image) => {
+                    const input = inputs.get(image.dataset.previewFileInput);
+                    const file = input instanceof HTMLInputElement ? input.files?.[0] : null;
+
+                    if (!file || !(image instanceof previewDocument.defaultView.HTMLImageElement)) {
+                        image.closest('figure')?.remove();
+
+                        return null;
+                    }
+
+                    const url = URL.createObjectURL(file);
+                    this.previewObjectUrls.push(url);
+                    image.closest('figure')?.removeAttribute('hidden');
+
+                    return new Promise((resolve) => {
+                        image.addEventListener('load', resolve, { once: true });
+                        image.addEventListener('error', resolve, { once: true });
+                        image.src = url;
+                    });
+                })
+                .filter(Boolean);
+
+            await Promise.all(imageLoads);
+            paperPreview.proposalPreviewLoaded.call(this);
+        },
+
+        async proposalPreviewLoaded() {
+            await this.hydratePreview();
+        },
+
+        previewFormData(form) {
+            return new FormData(form);
+        },
+
+        async generatePreview() {
+            if (this.previewLoading || this.submitting || !this.$refs.form.checkValidity()) return;
+
+            this.previewError = '';
+            this.previewLoading = true;
+            this.previewReady = false;
+            const previewRevision = this.previewRevision;
+
+            try {
+                const formData = this.previewFormData(this.$refs.form);
+                (config.omitPreviewFields || []).forEach((field) => formData.delete(field));
+
+                const response = await fetch(config.previewUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': config.csrfToken,
+                    },
+                    body: formData,
+                });
+
+                if (response.status === 422) {
+                    const payload = await response.json();
+                    this.previewError = Object.values(payload.errors || {}).flat().join(' ')
+                        || config.validationMessage
+                        || 'Please review the form information.';
+
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(config.failureMessage || 'The document preview could not be generated. Please try again.');
+                }
+
+                this.previewHtml = await response.text();
+                this.previewStale = this.previewRevision !== previewRevision;
+                if (this.previewStale) this.scheduleProposalPaperPreview();
+            } catch (error) {
+                this.previewError = error instanceof Error
+                    ? error.message
+                    : (config.failureMessage || 'The document preview could not be generated. Please try again.');
+            } finally {
+                this.previewLoading = false;
             }
+        },
 
-            this.previewHtml = await response.text();
-            this.$nextTick(() => {
-                const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-                this.$refs.previewSection?.scrollIntoView({ behavior, block: 'start' });
-            });
-        } catch (error) {
+        printPreview() {
+            if (!this.previewReady || this.previewStale || this.previewLoading || !this.$refs.previewFrame?.contentWindow) return;
+
+            this.$refs.previewFrame.contentWindow.focus();
+            this.$refs.previewFrame.contentWindow.print();
+        },
+
+        destroy() {
             this.clearPreviewObjectUrls();
-            this.previewHtml = '';
-            this.previewError = error instanceof Error
-                ? error.message
-                : (config.failureMessage || 'The document preview could not be generated. Please try again.');
-        } finally {
-            this.previewLoading = false;
-        }
-    },
-
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
-    },
-
-    destroy() {
-        this.clearPreviewObjectUrls();
-    },
-});
+            this.destroyProposalPaperPreview();
+            window.clearTimeout(this.autoSaveTimer);
+        },
+    };
+};
 
 Alpine.data('monitoringToolForm', (config = {}) => ({
     ...documentPreviewForm({
@@ -4726,6 +4959,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     }),
     submissionOpen: config.submissionOpen ?? true,
     submissionOpensAt: config.submissionOpensAt || '',
+    scheduleCheckedOn: config.scheduleCheckedOn || '',
     entries: Array.isArray(config.entries) && config.entries.length > 0
         ? config.entries.map(entry => ({ ...entry, completion: Number(entry.percent_weight) > 0 ? Number((Number(entry.accomplished_percentage || 0) / Number(entry.percent_weight) * 100).toFixed(2)) : 0 }))
         : [{
@@ -4741,6 +4975,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     approvedWorkPlanAvailable: Boolean(config.approvedWorkPlanAvailable),
     currentPeriodKey: config.initialPeriodKey || '',
     reportCount: Number(config.reportCount || 0),
+    previousProgressByPeriod: config.previousProgressByPeriod || {},
     autoSaveTimer: null,
     autoSaveInFlight: false,
     autoSaveBlocked: false,
@@ -4748,12 +4983,111 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     lastSavedMonitoringDraft: '',
 
     init() {
+        for (const entry of this.entries) {
+            if (!this.isApprovedEntry(entry)) entry.activity_id ||= this.newActivityId();
+            this.updateEntryProgress(entry, false);
+        }
+        this.initializeProposalPaperPreview();
         this.$nextTick(() => this.startMonitoringDraftAutoSave());
     },
 
-    updateEntryProgress(entry) {
-        entry.accomplished_percentage = Number((Number(entry.percent_weight || 0) * Number(entry.completion || 0) / 100).toFixed(2));
-        this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
+    updateEntryProgress(entry, save = true) {
+        entry.completed_units ??= 0;
+        const hasEvidence = (entry.evidence?.length || 0) + (entry.pendingEvidenceCount || 0) > 0;
+        const target = Math.max(1, Number(entry.target_units || 1));
+        if (target === 1) entry.completed_units = hasEvidence ? 1 : 0;
+        const quantity = Math.min(target, Math.max(0, Number(entry.completed_units || 0)));
+        entry.completion = hasEvidence && Number.isFinite(quantity) ? Number((quantity / target * 100).toFixed(2)) : 0;
+        const weightInHundredths = Math.round(Number(entry.percent_weight || 0) * 100);
+        entry.accomplished_percentage = hasEvidence && Number.isFinite(quantity) ? Math.round(weightInHundredths * quantity / target) / 100 : 0;
+        if (save) this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
+    },
+
+    updateActivityTarget(entry) {
+        const matches = [...String(entry.physical_target || '').matchAll(/(?<![\d.,])([1-9]\d{0,5})\s+(interviews?|responses?|respondents?|participants?|sessions?|workshops?|surveys?|reports?|datasets?|prototypes?|modules?|samples?|records?|outputs?)\b/gi)];
+        entry.target_units = matches.length === 1 ? Number(matches[0][1]) : 1;
+        entry.progress_unit = matches.length === 1 ? matches[0][2].toLowerCase() : 'completed output';
+        this.updateEntryProgress(entry);
+    },
+
+    evidenceKey(entry, index) {
+        return this.isApprovedEntry(entry) ? `plan-${entry.source_work_plan_index}` : `row-${entry.activity_id || index}`;
+    },
+
+    newActivityId() {
+        return window.crypto?.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, letter => {
+            const number = Math.floor(Math.random() * 16);
+            return (letter === 'x' ? number : (number & 3) | 8).toString(16);
+        });
+    },
+
+    evidenceUrl(id) {
+        return (config.evidenceUrlTemplate || '').replace('__EVIDENCE__', encodeURIComponent(id));
+    },
+
+    setEvidenceFiles(entry, event) {
+        const files = [...event.target.files];
+        entry.evidenceError = '';
+        if (files.length + (entry.evidence?.length || 0) > 5 || files.some(file => file.size > 10 * 1024 * 1024 || !/\.(pdf|docx?|xlsx?|jpe?g|png)$/i.test(file.name))) {
+            entry.evidenceError = 'Choose up to five PDF, Word, Excel or image files, each no larger than 10 MB.';
+            event.target.value = '';
+            entry.pendingEvidenceCount = 0;
+        } else {
+            entry.pendingEvidenceCount = files.length;
+        }
+        this.updateEntryProgress(entry);
+    },
+
+    removeEvidence(entry, id) {
+        entry.evidence = (entry.evidence || []).filter(file => file.id !== id);
+        this.updateEntryProgress(entry);
+    },
+
+    acceptSavedEvidence(rows, snapshot, form) {
+        for (const [index, entry] of this.entries.entries()) {
+            const key = this.evidenceKey(entry, index);
+            const saved = rows.find((row, rowIndex) => this.evidenceKey(row, rowIndex) === key);
+            if (!saved || !snapshot[key]) continue;
+            const retained = new Set((entry.evidence || []).map(file => file.id));
+            entry.evidence = (saved.evidence || []).filter(file => !snapshot[key].ids.includes(file.id) || retained.has(file.id));
+            const field = [...form.querySelectorAll('input[type="file"]')].find(input => input.name === `activity_evidence[${key}][]`);
+            if (field && this.evidenceFileFingerprint([...field.files]) === snapshot[key].files) {
+                field.value = '';
+                entry.pendingEvidenceCount = 0;
+            }
+            this.updateEntryProgress(entry, false);
+        }
+    },
+
+    evidenceFileFingerprint(files) {
+        return JSON.stringify(files.map(file => [file.name, file.size, file.lastModified]));
+    },
+
+    rejectEvidenceFiles(errors, snapshot, form) {
+        for (const [index, entry] of this.entries.entries()) {
+            const key = this.evidenceKey(entry, index);
+            const messages = Object.entries(errors).filter(([name]) => name === `activity_evidence.${key}` || name.startsWith(`activity_evidence.${key}.`)).flatMap(([,value]) => value);
+            const field = [...form.querySelectorAll('input[type="file"]')].find(input => input.name === `activity_evidence[${key}][]`);
+            if (messages.length && field && this.evidenceFileFingerprint([...field.files]) === snapshot[key]?.files) {
+                field.value = '';
+                entry.pendingEvidenceCount = 0;
+                entry.evidenceError = messages.join(' ');
+                this.updateEntryProgress(entry, false);
+            }
+        }
+    },
+
+    async prepareMonitoringPdf(event) {
+        event.preventDefault();
+        if (!this.submissionOpen || this.submitting || !this.$refs.form.reportValidity()) return;
+        this.submitting = true;
+        if (!await this.finishMonitoringDraftAutoSave()) {
+            this.submitting = false;
+            return;
+        }
+        this.autoSaveBlocked = true;
+        window.clearTimeout(this.autoSaveTimer);
+        HTMLFormElement.prototype.submit.call(this.$refs.form);
     },
 
     isApprovedEntry(entry) {
@@ -4766,6 +5100,13 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         return this.entries.some(entry => this.isApprovedEntry(entry));
     },
 
+    isEntryOverdue(entry) {
+        return this.isApprovedEntry(entry)
+            && Boolean(this.scheduleCheckedOn && entry.target_completion_date)
+            && entry.target_completion_date < this.scheduleCheckedOn
+            && Number(entry.completion || 0) < 100;
+    },
+
     currentReportNumber() {
         const parts = String(this.currentPeriodKey).split('-');
         const number = Number(parts.at(-1));
@@ -4774,10 +5115,9 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     },
 
     totalProjectProgress() {
-        return this.entries.reduce(
-            (total, entry) => total + Number(entry.accomplished_percentage || 0),
-            0,
-        );
+        const progress = { ...(this.previousProgressByPeriod[this.currentPeriodKey] || {}) };
+        this.entries.forEach((entry, index) => { progress[this.evidenceKey(entry, index)] = entry; });
+        return Math.min(100, Object.values(progress).reduce((total, entry) => total + Number(entry.accomplished_percentage || 0), 0));
     },
 
     monthLabel(months) {
@@ -4829,6 +5169,10 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
                 accomplished_percentage: '',
                 findings: '',
             }];
+        for (const entry of this.entries) {
+            if (!this.isApprovedEntry(entry)) entry.activity_id ||= this.newActivityId();
+            this.updateEntryProgress(entry, false);
+        }
         this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
     },
 
@@ -4836,6 +5180,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         if (this.entries.length >= 11) return;
 
         this.entries.push({
+            activity_id: this.newActivityId(),
             activity: '',
             completion: 0,
             percent_weight: '',
@@ -4880,13 +5225,17 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     monitoringDraftFormData(form) {
         const formData = new FormData(form);
         formData.delete('attachment');
+        for (const [name, value] of formData.entries()) {
+            if (value instanceof File && value.size === 0) formData.delete(name);
+        }
 
         return formData;
     },
 
     monitoringDraftFingerprint(form) {
         return JSON.stringify([...this.monitoringDraftFormData(form).entries()]
-            .filter(([name]) => !['_token', 'draft_version'].includes(name)));
+            .filter(([name]) => !['_token', 'draft_version'].includes(name))
+            .map(([name, value]) => [name, value instanceof File ? [value.name, value.size, value.lastModified] : value]));
     },
 
     monitoringDraftAutoSaveStatus(message, state = 'idle') {
@@ -4907,6 +5256,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     },
 
     triggerMonitoringDraftAutoSave() {
+        this.markProposalPreviewStale();
         this.autoSaveRevision += 1;
         this.scheduleMonitoringDraftAutoSave();
     },
@@ -4950,9 +5300,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             if (fingerprint === this.lastSavedMonitoringDraft) return true;
 
             if (fingerprint === lastAttemptedFingerprint) {
-                await new Promise((resolve) => window.setTimeout(resolve, 50));
-
-                continue;
+                return false;
             }
 
             lastAttemptedFingerprint = fingerprint;
@@ -4973,6 +5321,12 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         if (fingerprint === this.lastSavedMonitoringDraft) return;
 
         const savedRevision = this.autoSaveRevision;
+        const evidenceSnapshot = {};
+        this.entries.forEach((entry, index) => {
+            const key = this.evidenceKey(entry, index);
+            const field = [...form.querySelectorAll('input[type="file"]')].find(input => input.name === `activity_evidence[${key}][]`);
+            evidenceSnapshot[key] = { ids: (entry.evidence || []).map(file => file.id), files: this.evidenceFileFingerprint(field ? [...field.files] : []) };
+        });
         this.autoSaveInFlight = true;
         this.monitoringDraftAutoSaveStatus('Saving draft...', 'saving');
 
@@ -4989,6 +5343,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             const payload = await response.json();
 
             if (response.status === 422) {
+                this.rejectEvidenceFiles(payload.errors || {}, evidenceSnapshot, form);
                 const message = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the monitoring information.';
 
@@ -5012,6 +5367,9 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 
             if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
 
+            this.acceptSavedEvidence(payload.work_plan || [], evidenceSnapshot, form);
+            await this.$nextTick();
+
             this.lastSavedMonitoringDraft = fingerprint;
 
             if (this.autoSaveRevision !== savedRevision) {
@@ -5026,6 +5384,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             this.monitoringDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
         } finally {
             this.autoSaveInFlight = false;
+            if (this.autoSaveRevision !== savedRevision) this.scheduleMonitoringDraftAutoSave();
         }
     },
 }));
@@ -5044,18 +5403,108 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     autoSaveRevision: 0,
     lastSavedNarrativeDraft: '',
 
-    accomplishmentRows: (config.initialAccomplishments || []).map((row, id) => ({ ...row, id })),
+    accomplishmentRows: (config.initialAccomplishments || []).map((row, id) => ({
+        ...row, id, evidence: row.evidence || [], pendingEvidenceFiles: [], evidenceError: '',
+        evidence_key: row.evidence_key || `row-00000000-0000-4000-8000-${String(id).padStart(12, '0')}`,
+    })),
     figureRows: (config.initialFigures || []).map((row, id) => ({ caption: '', section: 'results_discussion', after_paragraph: 0, ...row, id, previewUrl: '' })),
     nextRowId: Math.max((config.initialAccomplishments || []).length, (config.initialFigures || []).length),
 
     addAccomplishment() {
-        this.accomplishmentRows.push({ id: this.nextRowId++, objective: '', target: '', actual: '', activities: '' });
+        const id = this.nextRowId++;
+        this.accomplishmentRows.push({
+            id, objective: '', target: '', actual: '', activities: '', evidence: [], pendingEvidenceFiles: [], evidenceError: '',
+            evidence_key: `row-${window.crypto?.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+                const value = Math.floor(Math.random() * 16);
+                return (character === 'x' ? value : (value & 3) | 8).toString(16);
+            })}`,
+        });
         this.rowsChanged();
     },
     removeAccomplishment(index) {
         if (this.accomplishmentRows.length <= 1) return;
         this.accomplishmentRows.splice(index, 1);
         this.rowsChanged();
+    },
+    evidenceUrl(id) {
+        return (config.evidenceUrlTemplate || '').replace('__EVIDENCE__', encodeURIComponent(id));
+    },
+    accomplishmentEvidenceInput(row, form = this.$refs.form) {
+        return [...form.querySelectorAll('input[type="file"]')]
+            .find(input => input.name === `accomplishment_evidence[${row.evidence_key}][]`);
+    },
+    accomplishmentEvidenceFileFingerprint(files) {
+        return JSON.stringify(files.map(file => [file.name, file.size, file.lastModified, file.type]));
+    },
+    selectAccomplishmentEvidence(row, event) {
+        const files = [...(event.target.files || [])];
+        row.evidenceError = '';
+        if (files.length + row.evidence.length > 5 || files.some(file => file.size > 10 * 1024 * 1024 || !/\.(pdf|docx?|xlsx?|jpe?g|png)$/i.test(file.name))) {
+            event.target.value = '';
+            row.pendingEvidenceFiles = [];
+            row.evidenceError = 'Choose up to five PDF, Word, Excel or image files, each no larger than 10 MB.';
+        } else {
+            row.pendingEvidenceFiles = files;
+        }
+        this.triggerNarrativeDraftAutoSave();
+    },
+    clearPendingAccomplishmentEvidence(row) {
+        const field = this.accomplishmentEvidenceInput(row);
+        if (field) field.value = '';
+        row.pendingEvidenceFiles = [];
+        row.evidenceError = '';
+        this.triggerNarrativeDraftAutoSave();
+    },
+    removeAccomplishmentEvidence(row, id) {
+        row.evidence = row.evidence.filter(file => file.id !== id);
+        row.evidenceError = '';
+        this.$nextTick(() => this.triggerNarrativeDraftAutoSave());
+    },
+    acceptSavedAccomplishmentEvidence(rows, snapshot, form) {
+        for (const row of this.accomplishmentRows) {
+            const saved = rows.find(savedRow => savedRow.evidence_key === row.evidence_key);
+            const sent = snapshot[row.evidence_key];
+            if (!saved || !sent) continue;
+            const retained = new Set(row.evidence.map(file => file.id));
+            row.evidence = (saved.evidence || []).filter(file => !sent.ids.includes(file.id) || retained.has(file.id));
+            const field = this.accomplishmentEvidenceInput(row, form);
+            if (field && this.accomplishmentEvidenceFileFingerprint([...field.files]) === sent.files) {
+                field.value = '';
+                row.pendingEvidenceFiles = [];
+            }
+        }
+    },
+    rejectAccomplishmentEvidence(errors, snapshot, form) {
+        for (const row of this.accomplishmentRows) {
+            const key = row.evidence_key;
+            const messages = Object.entries(errors)
+                .filter(([name]) => name === `accomplishment_evidence.${key}` || name.startsWith(`accomplishment_evidence.${key}.`))
+                .flatMap(([, values]) => values);
+            const field = this.accomplishmentEvidenceInput(row, form);
+            if (messages.length && field && this.accomplishmentEvidenceFileFingerprint([...field.files]) === snapshot[key]?.files) {
+                field.value = '';
+                row.pendingEvidenceFiles = [];
+                row.evidenceError = messages.join(' ');
+            }
+        }
+    },
+    previewFormData(form) {
+        const data = new FormData(form);
+        [...data.keys()].filter(name => name.startsWith('accomplishment_evidence[')
+            || /^accomplishments\[\d+\]\[evidence(?:_key|_ids)?\]/.test(name))
+            .forEach(name => data.delete(name));
+        return data;
+    },
+    async submitNarrativeReport(event) {
+        event.preventDefault();
+        if (!this.submissionOpen || this.submitting) return;
+        this.submitting = true;
+        if (!await this.finishNarrativeDraftAutoSave()) {
+            this.submitting = false;
+            this.narrativeDraftAutoSaveStatus('Save your draft and evidence before preparing the PDF.', 'error');
+            return;
+        }
+        this.$refs.form.submit();
     },
     addFigure() {
         this.figureRows.push({ id: this.nextRowId++, caption: '', section: 'results_discussion', after_paragraph: 0, previewUrl: '' });
@@ -5081,9 +5530,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         this.invalidateNarrativePreview();
     },
     invalidateNarrativePreview() {
-        this.clearPreviewObjectUrls();
-        this.previewHtml = '';
-        this.previewReady = false;
+        this.markProposalPreviewStale();
     },
     rowsChanged() {
         this.invalidateNarrativePreview();
@@ -5092,10 +5539,12 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     destroy() {
         this.figureRows.forEach((figure) => { if (figure.previewUrl) URL.revokeObjectURL(figure.previewUrl); });
         this.clearPreviewObjectUrls();
+        this.destroyProposalPaperPreview();
         window.clearTimeout(this.autoSaveTimer);
     },
 
     init() {
+        this.initializeProposalPaperPreview();
         this.$nextTick(() => this.startNarrativeDraftAutoSave());
     },
 
@@ -5105,14 +5554,18 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         if (!(form instanceof HTMLFormElement)) return;
 
         this.lastSavedNarrativeDraft = this.narrativeDraftFingerprint(form);
-        form.addEventListener('input', () => {
-            this.invalidateNarrativePreview();
+        form.addEventListener('input', (event) => {
+            if (!this.isAccomplishmentEvidenceField(event.target?.name)) this.invalidateNarrativePreview();
             this.triggerNarrativeDraftAutoSave();
         });
-        form.addEventListener('change', () => {
-            this.invalidateNarrativePreview();
+        form.addEventListener('change', (event) => {
+            if (!this.isAccomplishmentEvidenceField(event.target?.name)) this.invalidateNarrativePreview();
             this.triggerNarrativeDraftAutoSave();
         });
+    },
+
+    isAccomplishmentEvidenceField(name = '') {
+        return name.startsWith('accomplishment_evidence[') || /^accomplishments\[\d+\]\[evidence(?:_key|_ids)?\]/.test(name);
     },
 
     narrativeDraftAutoSaveForm() {
@@ -5131,7 +5584,8 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 
     narrativeDraftFingerprint(form) {
         return JSON.stringify([...this.narrativeDraftFormData(form).entries()]
-            .filter(([name]) => !['_token', 'draft_version'].includes(name)));
+            .filter(([name, value]) => !['_token', 'draft_version'].includes(name) && (typeof value === 'string' || value.size > 0))
+            .map(([name, value]) => [name, typeof value === 'string' ? value : [value.name, value.size, value.lastModified, value.type]]));
     },
 
     narrativeDraftAutoSaveStatus(message, state = 'idle') {
@@ -5218,6 +5672,14 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         if (fingerprint === this.lastSavedNarrativeDraft) return;
 
         const savedRevision = this.autoSaveRevision;
+        const evidenceSnapshot = {};
+        for (const row of this.accomplishmentRows) {
+            const field = this.accomplishmentEvidenceInput(row, form);
+            evidenceSnapshot[row.evidence_key] = {
+                ids: row.evidence.map(file => file.id),
+                files: this.accomplishmentEvidenceFileFingerprint(field ? [...field.files] : []),
+            };
+        }
         this.autoSaveInFlight = true;
         this.narrativeDraftAutoSaveStatus('Saving draft...', 'saving');
 
@@ -5234,6 +5696,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             const payload = await response.json();
 
             if (response.status === 422) {
+                this.rejectAccomplishmentEvidence(payload.errors || {}, evidenceSnapshot, form);
                 const message = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the progress-report information.';
 
@@ -5257,6 +5720,8 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 
             if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
 
+            this.acceptSavedAccomplishmentEvidence(payload.accomplishments || [], evidenceSnapshot, form);
+            await this.$nextTick();
             this.lastSavedNarrativeDraft = fingerprint;
 
             if (this.autoSaveRevision !== savedRevision) {
@@ -5271,6 +5736,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             this.narrativeDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
         } finally {
             this.autoSaveInFlight = false;
+            if (this.autoSaveRevision !== savedRevision) this.scheduleNarrativeDraftAutoSave();
         }
     },
 }));
@@ -5724,6 +6190,7 @@ Alpine.data('workPlanWizard', (config = {}) => ({
         this.downloadLoading = true;
 
         try {
+            const generationConfig = isEmbeddedRevisionEditor() ? revisionGenerationConfig(config) : config;
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
@@ -5754,7 +6221,7 @@ Alpine.data('workPlanWizard', (config = {}) => ({
                 ? 'attachment-a-work-plan.pdf'
                 : 'attachment-a-work-plan.docx');
             const blob = await response.blob();
-            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, generationConfig);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
 
@@ -5763,7 +6230,7 @@ Alpine.data('workPlanWizard', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
-            await offerRevisionUpload(blob, filename, config);
+            await offerRevisionUpload(blob, filename, generationConfig);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error
@@ -5788,32 +6255,16 @@ Alpine.data('workPlanWizard', (config = {}) => ({
     },
 }));
 
-Alpine.data('proposalStaticDocumentPreview', () => ({
-    ...proposalPreviewWorkspace(),
-    previewHtml: true,
-    previewLoading: false,
-    previewReady: false,
-    previewError: '',
-    validationMessage: '',
-
-    generatePreview() {
-        this.previewPaneOpen = true;
-    },
-
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
-    },
-}));
+Alpine.data('proposalAssessmentPreview', proposalAssessmentPreview);
+Alpine.data('commentResponsePaperPreview', commentResponsePaperPreview);
 
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
-    ...proposalPreviewWorkspace(),
+    ...proposalPaperPreviewWorkspace(),
     objectivesLinked: Boolean(config.objectivesLinked),
     nextEntryId: 0,
     entries: [],
     expandedEntryId: null,
+    activeEntryId: null,
     maxEntries: Number(config.maxEntries || 20),
     durationMonths: Number(config.durationMonths || 12),
     months: Array.from(
@@ -5846,8 +6297,26 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             ? revisionEntryId
             : (this.entries.at(-1)?.id ?? null);
         this.limitMonthsToDuration();
+        this.activeEntryId = this.expandedEntryId;
 
-        this.$nextTick(() => this.startWorkPlanAutoSave());
+        this.$nextTick(() => {
+            this.startWorkPlanAutoSave();
+            this.initializeProposalPaperPreview();
+        });
+    },
+
+    destroy() {
+        this.destroyProposalPaperPreview();
+        window.clearTimeout(this.autoSaveTimer);
+    },
+
+    get activeWorkPlanEntry() {
+        return this.entries.find((entry) => entry.id === this.activeEntryId) || this.entries.at(-1) || null;
+    },
+
+    focusWorkPlanEntry(event) {
+        const entryElement = event.target.closest('[data-work-plan-entry-id]');
+        if (entryElement) this.activeEntryId = Number(entryElement.dataset.workPlanEntryId);
     },
 
     newEntry(values = {}) {
@@ -5903,6 +6372,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     toggleEntry(entry) {
+        this.activeEntryId = entry.id;
         this.expandedEntryId = this.isEntryExpanded(entry) ? null : entry.id;
     },
 
@@ -6197,6 +6667,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     triggerWorkPlanAutoSave() {
+        this.markProposalPreviewStale();
         this.autoSaveRevision += 1;
         this.scheduleWorkPlanAutoSave();
     },
@@ -6314,6 +6785,10 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     async generatePreview() {
+        if (this.previewLoading) return;
+        this.previewPaneOpen = true;
+        const revision = this.previewRevision;
+        this.validationMessage = '';
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -6334,7 +6809,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Work Plan information.';
-                this.previewHtml = '';
+                this.previewStale = true;
 
                 return;
             }
@@ -6342,13 +6817,18 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             if (!response.ok) throw new Error('The preview service is unavailable. Please try again.');
 
             this.previewHtml = await response.text();
+            this.previewStale = revision !== this.previewRevision;
         } catch (error) {
-            this.previewHtml = '';
+            this.previewStale = true;
             this.previewError = error instanceof Error
                 ? error.message
                 : 'The preview service is unavailable. Please try again.';
         } finally {
             this.previewLoading = false;
+            this.previewReady = Boolean(this.previewHtml);
+            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+                this.scheduleProposalPaperPreview();
+            }
         }
     },
 
@@ -6359,6 +6839,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.downloadLoading = true;
 
         try {
+            const generationConfig = isEmbeddedRevisionEditor() ? revisionGenerationConfig(config) : config;
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
@@ -6386,7 +6867,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
                 ? 'attachment-a-work-plan.pdf'
                 : 'attachment-a-work-plan.docx');
             const blob = await response.blob();
-            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, generationConfig);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
 
@@ -6395,7 +6876,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
-            await offerRevisionUpload(blob, filename, config);
+            await offerRevisionUpload(blob, filename, generationConfig);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error
@@ -6527,7 +7008,7 @@ Alpine.data('proposalDraftMembers', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
-    ...proposalPreviewWorkspace(),
+    ...proposalPaperPreviewWorkspace(),
     nextId: 0,
     staff: [],
     budgetCeiling: Number(config.budgetCeiling || 0),
@@ -6589,7 +7070,25 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         this.resolutionNumber = String(data.resolution_number ?? '');
         this.resolutionYear = String(data.resolution_year ?? '');
 
-        this.$nextTick(() => this.startLineItemBudgetAutoSave());
+        this.$nextTick(() => {
+            this.startLineItemBudgetAutoSave();
+            this.initializeProposalPaperPreview();
+        });
+    },
+
+    destroy() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.destroyProposalPaperPreview();
+    },
+
+    focusLineItemBudgetSection(section) {
+        const target = this.$refs.form?.querySelector(`#line-item-budget-section-${section}`);
+
+        if (!(target instanceof HTMLElement)) return;
+
+        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        target.scrollIntoView({ behavior, block: 'start' });
+        target.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true });
     },
 
     newStaff(values = {}) {
@@ -6790,6 +7289,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
     triggerLineItemBudgetAutoSave() {
         this.autoSaveRevision += 1;
+        this.markProposalPreviewStale();
         this.scheduleLineItemBudgetAutoSave();
     },
 
@@ -6908,6 +7408,11 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     },
 
     async generatePreview() {
+        if (this.previewLoading) return;
+
+        this.previewPaneOpen = true;
+        const revision = this.previewRevision;
+        this.validationMessage = '';
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -6924,18 +7429,25 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
                 const payload = await response.json();
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Line-Item Budget information.';
-                this.previewHtml = '';
+                this.previewStale = true;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The preview could not be generated. Please try again.');
+
             this.previewHtml = await response.text();
+            this.previewStale = revision !== this.previewRevision;
         } catch (error) {
-            this.previewHtml = '';
+            this.previewStale = true;
             this.previewError = error instanceof Error ? error.message : 'The preview could not be generated.';
         } finally {
             this.previewLoading = false;
+            this.previewReady = Boolean(this.previewHtml);
+
+            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+                this.scheduleProposalPaperPreview();
+            }
         }
     },
 
@@ -6950,6 +7462,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         this.downloadLoading = true;
 
         try {
+            const generationConfig = isEmbeddedRevisionEditor() ? revisionGenerationConfig(config) : config;
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
@@ -6972,7 +7485,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'attachment-b-line-item-budget.pdf';
             const blob = await response.blob();
-            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, generationConfig);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -6980,7 +7493,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
-            await offerRevisionUpload(blob, filename, config);
+            await offerRevisionUpload(blob, filename, generationConfig);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The PDF could not be generated.';
@@ -6998,7 +7511,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
-    ...proposalPreviewWorkspace(),
+    ...proposalPaperPreviewWorkspace({ initiallyOpen: true, workspaceSelector: '[data-expense-breakdown-workspace]' }),
     nextId: 0,
     items: [],
     expandedItemId: null,
@@ -7031,7 +7544,15 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             ? revisionItemId
             : (this.items.at(-1)?.id ?? null);
 
-        this.$nextTick(() => this.startExpenseBreakdownAutoSave());
+        this.$nextTick(() => {
+            this.startExpenseBreakdownAutoSave();
+            this.initializeProposalPaperPreview();
+        });
+    },
+
+    destroy() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.destroyProposalPaperPreview();
     },
 
     newItem(values = {}) {
@@ -7315,6 +7836,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
     triggerExpenseBreakdownAutoSave() {
         this.autoSaveRevision += 1;
+        this.markProposalPreviewStale();
         this.$nextTick(() => this.refreshExpenseBreakdownCompletion());
         this.scheduleExpenseBreakdownAutoSave();
     },
@@ -7434,6 +7956,10 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     },
 
     async generatePreview() {
+        if (this.previewLoading) return;
+        this.previewPaneOpen = true;
+        const revision = this.previewRevision;
+        this.validationMessage = '';
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -7450,18 +7976,23 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
                 const payload = await response.json();
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Estimated Expense Breakdown information.';
-                this.previewHtml = '';
+                this.previewStale = true;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The preview could not be generated. Please try again.');
             this.previewHtml = await response.text();
+            this.previewStale = revision !== this.previewRevision;
         } catch (error) {
-            this.previewHtml = '';
+            this.previewStale = true;
             this.previewError = error instanceof Error ? error.message : 'The preview could not be generated.';
         } finally {
             this.previewLoading = false;
+            this.previewReady = Boolean(this.previewHtml);
+            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+                this.scheduleProposalPaperPreview();
+            }
         }
     },
 
@@ -7476,6 +8007,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         this.downloadLoading = true;
 
         try {
+            const generationConfig = isEmbeddedRevisionEditor() ? revisionGenerationConfig(config) : config;
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
@@ -7498,7 +8030,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'estimated-expense-breakdown.xlsx';
             const blob = await response.blob();
-            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, generationConfig);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -7506,7 +8038,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
-            await offerRevisionUpload(blob, filename, config);
+            await offerRevisionUpload(blob, filename, generationConfig);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The Excel file could not be generated.';
@@ -7524,9 +8056,12 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
-    ...proposalPreviewWorkspace(),
+    ...curriculumVitaePaperWorkspace(),
     nextId: 0,
     people: [],
+    activeCvPersonId: null,
+    activeCvSection: 'personal',
+    cvMemberManagerOpen: false,
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
     workspacePersonQuery: '',
     workspacePickerOpen: false,
@@ -7549,7 +8084,77 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             ? initialPeople.map((person) => this.newPerson(person))
             : [this.newPerson()];
 
-        this.$nextTick(() => this.startCurriculumVitaeAutoSave());
+        this.activeCvPersonId = this.people[0].id;
+        this.$nextTick(() => {
+            this.startCurriculumVitaeAutoSave();
+            this.initializeProposalPaperPreview();
+            this.initializeCurriculumVitaeMemberTarget();
+            this.focusCurriculumVitaePreview();
+        });
+    },
+
+    destroy() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.destroyProposalPaperPreview();
+    },
+
+    get activeCvPersonIndex() {
+        return this.people.findIndex((person) => person.id === this.activeCvPersonId);
+    },
+
+    curriculumVitaeSectionOptions() {
+        return Object.entries(config.sections || {}).map(([key, section]) => ({ key, label: section.label }));
+    },
+
+    toggleCurriculumVitaeMemberManager() {
+        this.cvMemberManagerOpen = !this.cvMemberManagerOpen;
+        if (this.cvMemberManagerOpen) {
+            this.$nextTick(() => this.$el.querySelector('#workspace-cv-person-search')?.focus());
+        }
+    },
+
+    initializeCurriculumVitaeMemberTarget() {
+        const targetId = String(config.revisionTarget || this.$el.querySelector('[data-revision-context]')?.dataset.revisionTarget || '');
+        if (!targetId || !/^[a-zA-Z0-9_-]+$/.test(targetId)) return;
+
+        const target = document.getElementById(targetId)
+            || [...this.$el.querySelectorAll('[data-revision-section]')]
+                .find((element) => element.dataset.revisionSection.split(/\s+/).includes(targetId));
+        if (!target || !this.$el.contains(target)) return;
+
+        const member = target.closest('[data-cv-person-id]');
+        if (!member) return;
+
+        this.activeCvPersonId = Number(member.dataset.cvPersonId);
+        const section = target.closest('details[data-cv-section]');
+        this.activeCvSection = section?.dataset.cvSection || 'personal';
+        section?.setAttribute('open', '');
+    },
+
+    focusCurriculumVitaeField(event) {
+        const member = event.target.closest('[data-cv-person-id]');
+        if (!member) return;
+
+        this.activeCvPersonId = Number(member.dataset.cvPersonId);
+        this.activeCvSection = event.target.closest('details[data-cv-section]')?.dataset.cvSection || 'personal';
+        this.focusCurriculumVitaePreview();
+    },
+
+    focusCurriculumVitaeSection({ focus = true, scroll = true } = {}) {
+        const member = this.$refs.form?.querySelector(`[data-cv-person-id="${this.activeCvPersonId}"]`);
+        const target = [...(member?.querySelectorAll('details[data-cv-section]') || [])]
+            .find((section) => section.dataset.cvSection === this.activeCvSection);
+        if (!target) return;
+
+        target.open = true;
+        if (scroll) {
+            const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+            target.scrollIntoView({ behavior, block: 'start' });
+        }
+        if (focus) {
+            const field = target.querySelector('input:not(:disabled), textarea, select') || target.querySelector('summary');
+            window.requestAnimationFrame(() => field?.focus({ preventScroll: true }));
+        }
     },
 
     newPerson(values = {}) {
@@ -7674,7 +8279,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         if (!workspacePerson) return;
 
         if (this.workspacePersonHasCv(workspacePerson)) {
-            this.validationMessage = `${workspacePerson.name} already has a CV in this package.`;
+            this.validationMessage = `${workspacePerson.name} already has a CV in this proposal.`;
             return;
         }
 
@@ -7691,8 +8296,14 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     removePerson(index) {
         if (this.people.length === 1) return;
 
-        this.people.splice(index, 1);
-        this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
+        const [removedPerson] = this.people.splice(index, 1);
+        if (removedPerson.id === this.activeCvPersonId) {
+            this.focusPerson(Math.min(index, this.people.length - 1));
+        }
+        this.$nextTick(() => {
+            this.focusCurriculumVitaePreview();
+            this.triggerCurriculumVitaeAutoSave();
+        });
     },
 
     personLabel(person) {
@@ -7710,18 +8321,32 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         return fields.every((field) => field.disabled || field.checkValidity());
     },
 
-    focusPerson(index) {
-        const target = this.$root.querySelector(`[data-person-index="${index}"]`);
+    focusPerson(index, { focus = true } = {}) {
+        const person = this.people[index];
+        if (!person) return;
 
-        if (!target) return;
-
-        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-        target.scrollIntoView({ behavior, block: 'start' });
+        this.activeCvPersonId = person.id;
+        this.activeCvSection = 'personal';
+        this.cvMemberManagerOpen = false;
+        this.$nextTick(() => {
+            this.focusCurriculumVitaeSection({ focus });
+            this.focusCurriculumVitaePreview();
+        });
     },
 
     addSectionRow(personIndex, sectionKey) {
-        this.people[personIndex][sectionKey].push(this.newSectionRow(sectionKey));
-        this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
+        const person = this.people[personIndex];
+        if (!person || !Array.isArray(person[sectionKey])) return;
+
+        const row = this.newSectionRow(sectionKey);
+        person[sectionKey].push(row);
+        this.activeCvPersonId = person.id;
+        this.activeCvSection = sectionKey;
+        this.$nextTick(() => {
+            this.focusCurriculumVitaeSection({ focus: false, scroll: false });
+            focusNewFormEntry(this.$refs.form, `[data-cv-row-id="${row.id}"] input, [data-cv-row-id="${row.id}"] textarea, [data-cv-row-id="${row.id}"] select`);
+            this.triggerCurriculumVitaeAutoSave();
+        });
     },
 
     removeSectionRow(personIndex, sectionKey, rowIndex) {
@@ -7745,16 +8370,23 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
         if (!invalidField) return true;
 
-        invalidField.closest('details')?.setAttribute('open', '');
+        const member = invalidField.closest('[data-cv-person-id]');
+        if (member) this.activeCvPersonId = Number(member.dataset.cvPersonId);
+        const section = invalidField.closest('details[data-cv-section]');
+        this.activeCvSection = section?.dataset.cvSection || 'personal';
+        section?.setAttribute('open', '');
         invalidField.setAttribute('data-curriculum-vitae-invalid', 'true');
         invalidField.setAttribute('aria-invalid', 'true');
         this.validationMessage = forExit
             ? 'Complete the highlighted required fields before exiting the editor.'
             : 'Complete the highlighted required fields.';
         this.$nextTick(() => {
-            invalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            invalidField.focus({ preventScroll: true });
-            invalidField.reportValidity();
+            window.requestAnimationFrame(() => {
+                const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+                invalidField.scrollIntoView({ behavior, block: 'center' });
+                invalidField.focus({ preventScroll: true });
+                invalidField.reportValidity();
+            });
         });
 
         return false;
@@ -7807,6 +8439,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
     triggerCurriculumVitaeAutoSave() {
         this.autoSaveRevision += 1;
+        this.markProposalPreviewStale();
         this.scheduleCurriculumVitaeAutoSave();
     },
 
@@ -7923,6 +8556,11 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     },
 
     async generatePreview() {
+        if (this.previewLoading) return;
+
+        this.previewPaneOpen = true;
+        const revision = this.previewRevision;
+        this.validationMessage = '';
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -7939,18 +8577,25 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
                 const payload = await response.json();
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Curriculum Vitae information.';
-                this.previewHtml = '';
+                this.previewStale = true;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The CV preview could not be generated. Please try again.');
+
             this.previewHtml = await response.text();
+            this.previewStale = revision !== this.previewRevision;
         } catch (error) {
-            this.previewHtml = '';
+            this.previewStale = true;
             this.previewError = error instanceof Error ? error.message : 'The CV preview could not be generated.';
         } finally {
             this.previewLoading = false;
+            this.previewReady = Boolean(this.previewHtml);
+
+            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+                this.scheduleProposalPaperPreview();
+            }
         }
     },
 
@@ -7961,6 +8606,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         this.downloadLoading = true;
 
         try {
+            const generationConfig = isEmbeddedRevisionEditor() ? revisionGenerationConfig(config) : config;
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
@@ -7986,7 +8632,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
                 ? 'attachment-c-curriculum-vitae.pdf'
                 : 'attachment-c-curriculum-vitae.docx');
             const blob = await response.blob();
-            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, generationConfig);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -7994,7 +8640,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
-            await offerRevisionUpload(blob, filename, config);
+            await offerRevisionUpload(blob, filename, generationConfig);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
@@ -8012,7 +8658,19 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
+    ...proposalSourceWorkspace({
+        csrfToken: config.csrfToken,
+        libraryUrl: config.literatureLibrarySearchUrl,
+        storeUrl: config.literatureLibrarySaveUrl,
+        searchUrl: config.literatureSearchUrl,
+        linkUrlTemplate: config.literatureAttachUrlTemplate,
+        evidenceBase: config.literatureEvidenceBase,
+        assistanceUrl: config.literatureEvidenceAssistanceUrl,
+        metadataUrl: config.literatureMetadataUrl,
+    }),
+    sourceWorkspaceInsertedDrafts: [],
     ...proposalPreviewWorkspace(),
+    ...detailedProposalPreviewWorkspace(),
     nextId: 0,
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
     selectedWorkspacePerson: '',
@@ -8180,17 +8838,37 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.references = String(data.references ?? '');
         this.refreshSuggestedLiteratureQuery();
         this.applyInitialLiteratureSource();
+        const pendingLiterature = assistantLiteratureHandoff().read(config.proposalDraftId);
+        if (pendingLiterature) {
+            const { sources, changed } = currentReviewedLiteratureSources(pendingLiterature, this.literatureSources);
+            this.applyAssistantLiterature({ proposal_draft_id: config.proposalDraftId, sources });
+            if (changed) this.literatureSourceNotice = 'Some sources have newer or removed drafts. Review them in Saved sources before adding them. Any unchanged reviewed paragraphs were added.';
+            assistantLiteratureHandoff().clear(config.proposalDraftId);
+        }
         this.$nextTick(() => {
             this.synchronizeLiteratureCitations();
             this.startDetailedProposalAutoSave();
+            if (this.$el.matches('[data-detailed-proposal-workspace]')) {
+                this.initializeDetailedProposalPreview();
+                initializeSemanticEditors();
+                this.writingToolsCleanup = initializeDetailedProposalWritingTools(this.$el, {
+                    openImagePicker: (section) => this.openMethodologyImagePicker(section),
+                    dropImages: (event, section) => this.handleMethodologyDrop(event, section),
+                    onActiveSection: (fieldId) => this.focusDetailedProposalPreview(fieldId),
+                });
+            }
         });
     },
 
+    destroy() {
+        this.writingToolsCleanup?.();
+        this.destroySourceWorkspace();
+        this.destroyDetailedProposalPreview();
+        window.clearTimeout(this.autoSaveTimer);
+    },
+
     openLiteratureWorkspace(tab = 'search') {
-        this.literatureWorkspaceTab = tab === 'sources' ? 'sources' : 'search';
-        this.literatureWorkspaceView = 'browse';
-        this.literatureWorkspaceOpen = true;
-        document.body.classList.add('overflow-y-hidden');
+        this.openSourceWorkspace(tab === 'sources' ? 'paper' : 'search');
     },
 
     closeLiteratureWorkspace() {
@@ -8214,6 +8892,24 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     literatureWorkspaceCitedSourcesCount() {
         return this.literatureSources.filter((source) => this.citationReferenceNumber(source) !== null).length;
+    },
+
+    applyAssistantLiterature(packet) {
+        if (Number(packet?.proposal_draft_id) !== Number(config.proposalDraftId)) return;
+        let added = 0;
+        (Array.isArray(packet.sources) ? packet.sources : []).slice(0, 3).forEach((source) => {
+            if (!Number(source.id) || source.rrl_draft_status !== 'confirmed') return;
+            const safeSource = { ...source, rrl_note: escapeAssistantHtml(String(source.rrl_note || '')) };
+            this.upsertLiteratureSource(safeSource);
+            if (this.addLiteratureSourceToRrl(safeSource, true)) added++;
+        });
+        packet.handled = true;
+        packet.added = added;
+        if (added) {
+            this.autoSaveInitialContent = true;
+            this.literatureSourceNotice = 'Reviewed RRL paragraphs and matching references were added. Autosaving now.';
+            this.triggerDetailedProposalAutoSave();
+        }
     },
 
     applyInitialLiteratureSource() {
@@ -8341,6 +9037,11 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     activeProposalCitations() {
         return this.literatureCitations.filter((citation) => {
             const field = proposalCitationField(citation.field);
+            const template = document.createElement('template');
+            template.innerHTML = this.literatureCitationFieldValue(field?.key);
+            const hasMarker = [...template.content.querySelectorAll('[data-proposal-citation]')]
+                .some((marker) => Number(marker.getAttribute('data-proposal-citation')) === citation.source_link_id);
+            if (hasMarker) return true;
             const selectedText = this.plainText(citation.selected_text).toLowerCase().replace(/\s+/g, ' ');
             const fieldText = this.plainText(this.literatureCitationFieldValue(field?.key))
                 .toLowerCase()
@@ -8481,7 +9182,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     recordLiteratureCitation(source, field, selectedText = '', locator = '') {
         const sourceLinkId = Number(source?.id);
         const normalizedSelectedText = String(selectedText || '').trim().slice(0, 2000);
-        const normalizedLocator = String(locator || '').trim().slice(0, 100);
+        const normalizedLocator = proposalCitationLocator(locator);
 
         if (!sourceLinkId) return null;
 
@@ -8522,21 +9223,114 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     openCitationPicker(selection) {
         const field = proposalCitationField(selection?.fieldId);
+        const textarea = field ? document.getElementById(field.id) : null;
+        const currentSelection = proposalCitationSelection(field?.id, textarea?._semanticEditor, textarea?._semanticCitationRange);
 
-        if (!field || !String(selection?.selectedText || '').trim()) return;
+        if (!field || !currentSelection) return;
 
         this.citationPickerSelection = {
             fieldId: field.id,
             fieldKey: field.key,
             sectionLabel: field.label,
-            selectedText: String(selection.selectedText).trim(),
+            selectedText: currentSelection.selectedText,
+            collapsed: currentSelection.collapsed,
+            contextText: currentSelection.contextText,
         };
         this.citationPickerQuery = '';
         this.citationPickerResults = [];
         this.citationPickerError = '';
         this.citationPickerLocator = '';
-        this.citationPickerOpen = true;
-        document.body.classList.add('overflow-y-hidden');
+        this.openSourceWorkspace('paper', true);
+    },
+
+    openSourceWorkspaceFromToolbar(selection) {
+        const field = proposalCitationField(selection?.fieldId);
+        const textarea = field ? document.getElementById(field.id) : null;
+        const savedRange = textarea?._semanticApi?.selection?.();
+        if (savedRange && proposalCitationSelection(field.id, textarea._semanticEditor, savedRange)) {
+            textarea._semanticCitationRange = savedRange.cloneRange();
+        }
+        const currentSelection = proposalCitationSelection(field?.id, textarea?._semanticEditor, textarea?._semanticCitationRange);
+        this.citationPickerSelection = currentSelection || null;
+        this.citationPickerLocator = '';
+        this.citationPickerError = '';
+        this.openSourceWorkspace('paper');
+    },
+
+    sourceWorkspaceCanCite() {
+        const field = proposalCitationField(this.citationPickerSelection?.fieldId);
+        const textarea = field ? document.getElementById(field.id) : null;
+        return Boolean(proposalCitationSelection(field?.id, textarea?._semanticEditor, textarea?._semanticCitationRange));
+    },
+
+    insertSourceWorkspaceDraft(draft, fieldId = this.sourceWorkspaceDestination || 'related-literature') {
+        const textarea = document.getElementById(fieldId);
+        if (!(textarea instanceof HTMLTextAreaElement)) {
+            this.sourceWorkspaceError = 'Choose an available writing section before inserting the draft.';
+            return false;
+        }
+
+        const currentEvidence = Array.isArray(draft?.evidence) && draft.evidence.every((item) => {
+            const passage = this.sourceWorkspaceEvidenceCache?.[item.source_link_id]?.passages
+                ?.find((saved) => String(saved.id) === String(item.passage_id));
+            return passage && String(passage.quote || '').trim() === String(item.quote || '').trim()
+                && String(passage.note || '').trim() === String(item.note || '').trim()
+                && Number(passage.page || 0) === Number(item.page || 0);
+        });
+        if (!currentEvidence) {
+            this.sourceWorkspaceError = 'The source evidence changed. Review its current passages and prepare a new draft.';
+            return false;
+        }
+
+        const insertion = prepareReviewedSourceDraft(draft, this.literatureSources, fieldId,
+            (source) => this.citationReferenceNumber(source) ?? this.citationReferenceNumberIncluding(source));
+        if (!insertion) {
+            this.sourceWorkspaceError = 'This draft needs saved evidence from sources linked to this paper.';
+            return false;
+        }
+        const currentHtml = textarea._semanticEditor?.innerHTML ?? textarea.value;
+        const currentDocument = document.createElement('template');
+        currentDocument.innerHTML = currentHtml;
+        const alreadyPresent = [...currentDocument.content.querySelectorAll('p, li')].some((block) => {
+            const copy = block.cloneNode(true);
+            copy.querySelectorAll('[data-proposal-citation]').forEach((marker) => marker.remove());
+            const sameParagraph = String(copy.textContent || '').replace(/\s+/g, ' ').trim()
+                === insertion.paragraph.replace(/\s+/g, ' ').trim();
+            return sameParagraph && insertion.citations.every(({ source, locator }) => (
+                [...block.querySelectorAll('[data-proposal-citation]')].some((marker) =>
+                    Number(marker.getAttribute('data-proposal-citation')) === Number(source.id)
+                    && proposalCitationLocator(marker.getAttribute('data-proposal-locator')) === locator)
+            ));
+        });
+        if (alreadyPresent || this.sourceWorkspaceInsertedDrafts.includes(insertion.identity)) {
+            this.sourceWorkspaceNotice = 'This reviewed draft is already inserted in the selected section.';
+            return false;
+        }
+
+        const html = `${currentHtml}${insertion.html}`;
+        const field = insertion.field;
+        if (field.key.startsWith('methodology.')) {
+            this.methodology[field.key.split('.')[1]] = html;
+        } else {
+            const property = {
+                executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective',
+                introduction: 'introduction', related_literature: 'relatedLiterature',
+            }[field.key];
+            if (!property) return false;
+            this[property] = html;
+        }
+        textarea.value = html;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        insertion.citations.forEach(({ source, locator }) => {
+            this.recordLiteratureCitation(source, field.key, insertion.paragraph, locator);
+        });
+        this.synchronizeLiteratureCitations();
+        this.sourceWorkspaceInsertedDrafts = [...this.sourceWorkspaceInsertedDrafts, insertion.identity].slice(-20);
+        this.sourceWorkspaceNotice = `Reviewed text was added to ${field.label}; its citations and references are synchronized.`;
+        this.literatureSourceNotice = this.sourceWorkspaceNotice;
+        this.markProposalPreviewStale();
+        this.triggerDetailedProposalAutoSave();
+        return true;
     },
 
     closeCitationPicker() {
@@ -8611,13 +9405,17 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async citeSelectedText(source, sourceIsLinked = true) {
-        if (!this.citationPickerSelection || this.citationPickerSaving) return;
+        if (!this.sourceWorkspaceCanCite() || this.citationPickerSaving) return false;
 
         this.citationPickerSaving = true;
         this.citationPickerError = '';
+        const previousCitations = [...this.literatureCitations];
+        let markerInserted = false;
 
         try {
-            const linkedSource = sourceIsLinked ? source : await this.linkExistingLibrarySource(source);
+            const linkedSource = sourceIsLinked
+                ? this.literatureSources.find((item) => Number(item.id) === Number(source?.id))
+                : await this.linkExistingLibrarySource(source);
 
             if (!linkedSource) throw new Error('Choose a paper from the proposal library or shared library first.');
 
@@ -8627,22 +9425,28 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                 this.citationPickerSelection.selectedText,
                 this.citationPickerLocator,
             );
-            const inserted = window.insertProposalCitationMarker?.(
+            markerInserted = window.insertProposalCitationMarker?.(
                 this.citationPickerSelection.fieldId,
                 linkedSource.id,
                 referenceNumber,
+                this.citationPickerLocator,
             );
 
-            if (!inserted) {
-                this.literatureCitations.pop();
-                throw new Error('Select the text again, then choose Support with source.');
+            if (!markerInserted) {
+                this.literatureCitations = previousCitations;
+                throw new Error('Place the cursor in the writing field again, then choose Insert citation.');
             }
 
             this.synchronizeLiteratureCitations();
-            this.literatureSourceNotice = `Citation [${referenceNumber}] now supports the selected text in ${this.citationPickerSelection.sectionLabel}; its IEEE reference is synchronized in Section XVI.`;
+            this.literatureSourceNotice = `Citation added to ${this.citationPickerSelection.sectionLabel}; its IEEE reference is synchronized in Section XVI.`;
+            this.closeSourceWorkspace();
             this.closeCitationPicker();
+            return true;
         } catch (error) {
+            if (!markerInserted) this.literatureCitations = previousCitations;
             this.citationPickerError = error.message || 'The citation could not be added.';
+            this.sourceWorkspaceError = this.citationPickerError;
+            return false;
         } finally {
             this.citationPickerSaving = false;
         }
@@ -10386,7 +11190,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                 const payload = await response.json();
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Detailed Research Proposal information.';
-                this.previewHtml = '';
+                this.previewStale = true;
 
                 return;
             }
@@ -10395,10 +11199,14 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             this.previewHtml = await response.text();
             this.previewStale = revision !== this.previewRevision;
         } catch (error) {
-            this.previewHtml = '';
+            this.previewStale = true;
             this.previewError = error instanceof Error ? error.message : 'The content preview could not be generated.';
         } finally {
             this.previewLoading = false;
+            this.previewReady = Boolean(this.previewHtml);
+            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+                this.scheduleDetailedProposalPreview();
+            }
         }
     },
 
@@ -10409,6 +11217,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.downloadLoading = true;
 
         try {
+            const generationConfig = isEmbeddedRevisionEditor() ? revisionGenerationConfig(config) : config;
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
@@ -10434,7 +11243,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                 ? 'detailed-research-proposal.pdf'
                 : 'detailed-research-proposal.docx');
             const blob = await response.blob();
-            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, generationConfig);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -10442,7 +11251,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
-            await offerRevisionUpload(blob, filename, config);
+            await offerRevisionUpload(blob, filename, generationConfig);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The exact Word file could not be generated.';
@@ -10460,7 +11269,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 }));
 
 registerPdfAnnotationWorkspace(Alpine);
+document.addEventListener('athena:workspace-switched', () => Alpine.store('researchAssistant').syncWorkspaceContext());
+initializeWorkspaceSwitching((url) => Livewire.navigate(url));
+const initializeManilaClock = createManilaClock();
+document.addEventListener('livewire:navigated', initializeManilaClock);
 Livewire.start();
+initializeManilaClock();
 initializeAnnouncementImageUploads();
 initializeResearchCallCarousels();
 initializeResearchCallImageExtractors();

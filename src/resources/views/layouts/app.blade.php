@@ -214,37 +214,6 @@
             </div>
         @endauth
 
-        <script>
-            function initializeManilaClock() {
-                const clock = document.getElementById('manila-system-time');
-                if (!clock) return;
-
-                const formatter = new Intl.DateTimeFormat('en-PH', {
-                    timeZone: 'Asia/Manila',
-                    month: 'short',
-                    day: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: true,
-                });
-
-                const updateClock = () => {
-                    const now = new Date();
-                    clock.textContent = formatter.format(now).replace(',', ' |');
-                    clock.dateTime = now.toISOString();
-                };
-
-                updateClock();
-                if (window.manilaClockInterval) clearInterval(window.manilaClockInterval);
-                window.manilaClockInterval = setInterval(updateClock, 1000);
-            }
-
-            initializeManilaClock();
-            document.addEventListener('livewire:navigated', initializeManilaClock);
-        </script>
-
         @livewireScriptConfig
     </body>
 </html>

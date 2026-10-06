@@ -1,10 +1,12 @@
-@props(['section'])
-<div data-proposal-figure-section="{{ $section }}" class="mt-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-950" x-on:dragover.prevent x-on:drop.prevent.stop="handleMethodologyDrop($event, '{{ $section }}')">
+@props(['section', 'compact' => false])
+<div data-proposal-figure-section="{{ $section }}" @if ($compact) x-show="methodologyImagesFor('{{ $section }}').length > 0" x-cloak @endif class="{{ $compact ? 'proposal-section-figures mt-3' : 'mt-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-950' }}" x-on:dragover.prevent x-on:drop.prevent.stop="handleMethodologyDrop($event, '{{ $section }}')">
+    @unless ($compact)
     <div class="flex flex-wrap items-center justify-between gap-2">
         <p class="text-xs font-semibold text-gray-600 dark:text-slate-300">Drop images here for {{ config('detailed_proposal.image_sections.'.$section) }}.</p>
         <button type="button" x-on:click="openMethodologyImagePicker('{{ $section }}')" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Choose images</button>
     </div>
     <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">PNG, JPG, GIF, or BMP · up to 10 MB each · 20 figures per proposal. Figures appear before this section’s text.</p>
+    @endunless
     <div class="mt-3 space-y-3">
         <template x-for="image in methodologyImagesFor('{{ $section }}')" :key="image.clientId">
             <article class="rounded-xl border border-gray-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">

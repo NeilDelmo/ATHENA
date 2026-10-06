@@ -12,6 +12,7 @@
     'selectedReportNumber' => null,
     'monitoringReportCount' => null,
     'initialWorkPlanRows' => [],
+    'previousProgressByPeriod' => [],
 ])
 @php
     $schedule = app(\App\Services\MonitoringQuarterService::class);
@@ -101,11 +102,16 @@
 @endphp
 
 <section
-    class="overflow-hidden rounded-xl bg-white dark:bg-slate-900"
+    class="rounded-xl bg-white dark:bg-slate-900"
+    data-proposal-paper-workspace
+    data-monitoring-paper-workspace
     data-monitoring-tool-autosave="true"
     x-data="monitoringToolForm({
         entries: @js($workPlanRows),
+        previousProgressByPeriod: @js($previousProgressByPeriod),
+        evidenceUrlTemplate: @js(route('project-progress.evidence', ['topic' => $topic, 'evidence' => '__EVIDENCE__'])),
         previewUrl: @js(route('project-progress.preview', $topic)),
+        previewTitle: 'Monitoring Tool preview',
         draftSaveUrl: @js(route('project-progress.draft', $topic)),
         initialDraftVersion: @js((int) ($monitoringDraft?->lock_version ?? 0)),
         csrfToken: @js(csrf_token()),
@@ -115,6 +121,7 @@
         reportCount: @js($monitoringReportCount),
         submissionOpen: @js((bool) $submissionOpen),
         submissionOpensAt: @js($submissionOpensAt),
+        scheduleCheckedOn: @js(now()->toDateString()),
     })"
 >
     @if (! $standalone)
@@ -127,20 +134,34 @@
     </header>
     @endif
 
+    <x-monitoring-writing-toolbar
+        :topic="$topic"
+        report-label="Monitoring Tool"
+        panel-id="monitoring-preview-{{ $topic->id }}"
+        form-id="monitoring-form-{{ $topic->id }}"
+        save-method="saveMonitoringDraft"
+        :standalone="$standalone"
+        class="mb-4"
+    />
+
+    <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+    <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
     <form
+        id="monitoring-form-{{ $topic->id }}"
         x-ref="form"
         data-monitoring-tool-autosave-form
         method="POST"
         action="{{ route('project-progress.prepare', $topic) }}"
         enctype="multipart/form-data"
-        class="space-y-8 bg-white p-4 sm:p-6 dark:bg-slate-900 {{ $standalone ? 'pb-80 sm:pb-44' : 'border-t border-red-200 dark:border-red-950' }}"
-        @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }"
+        class="space-y-8 bg-white p-4 sm:p-6 dark:bg-slate-900 {{ $standalone ? '' : 'border-t border-red-200 dark:border-red-950' }}"
+        @submit="prepareMonitoringPdf($event)"
     >
         @csrf
         @if ($revisionReport)
             <input type="hidden" name="source_report_id" value="{{ $revisionReport->id }}">
         @endif
         <input type="hidden" name="draft_version" value="{{ $monitoringDraft?->lock_version ?? 0 }}">
+        <input type="hidden" name="progress_mode" value="evidence">
 
         @if ($errors->any())
             <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
@@ -152,8 +173,6 @@
                 </ul>
             </div>
         @endif
-
-        <x-proposal-autosave-status />
 
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">You can fill, save, and preview this draft now. Official PDF preparation and submission open <span class="font-semibold" x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>, after the reporting period ends.</p>
 
@@ -199,7 +218,7 @@
                 </div>
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100" x-show="hasApprovedEntries()">
                     <p class="font-bold">From your approved work plan</p>
-                    <p>Objectives, activities, targets, weights, and dates are locked to the approved plan. Fill in Actual Accomplishment, Activity Completion (%), Findings, and budget utilization below.</p>
+                    <p>Add evidence for completed work. Progress is calculated against each approved target and its activity weight.</p>
                 </div>
             </div>
         </section>
@@ -229,6 +248,7 @@
                                         <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-bold text-white dark:bg-white dark:text-slate-950">Activity <span x-text="index + 1"></span></span>
                                         <span x-show="isApprovedEntry(entry)" class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">Approved plan</span>
                                         <span x-show="isApprovedEntry(entry)" class="text-xs font-semibold text-slate-500" x-text="monthLabel(entry.work_plan_months)"></span>
+                                        <span data-monitoring-activity-overdue x-show="isEntryOverdue(entry)" x-cloak role="status" class="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">Past target date</span>
                                     </div>
                                     <template x-if="isApprovedEntry(entry)">
                                         <div class="mt-3 space-y-3">
@@ -274,7 +294,7 @@
                                                 <input type="date" :name="`work_plan[${index}][target_completion_date]`" x-model="entry.target_completion_date" required autocomplete="off" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                                             </label>
                                             <label class="text-sm font-medium text-slate-700 dark:text-slate-200 sm:col-span-2">Expected Output
-                                                <textarea :name="`work_plan[${index}][physical_target]`" x-model="entry.physical_target" rows="2" maxlength="500" required autocomplete="off" placeholder="Example: Interview dataset with 20 complete responses…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+                                                <textarea :name="`work_plan[${index}][physical_target]`" x-model="entry.physical_target" @input="updateActivityTarget(entry)" rows="2" maxlength="500" required autocomplete="off" placeholder="Example: Interview dataset with 20 responses…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                                             </label>
                                         </div>
                                     </template>
@@ -286,16 +306,36 @@
                         <div class="grid content-start gap-4 p-4 sm:p-5 sm:grid-cols-2">
                             <div class="sm:col-span-2">
                                 <h3 class="text-sm font-bold text-slate-950 dark:text-white">Progress this quarter</h3>
-                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Record the results and completion level for this activity.</p>
+                                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Describe the completed work and attach its evidence.</p>
                             </div>
                             <label class="text-sm font-semibold text-slate-800 dark:text-slate-100 sm:col-span-2">Actual Accomplishment
                                 <textarea :name="`work_plan[${index}][actual_accomplishment]`" x-model="entry.actual_accomplishment" rows="3" maxlength="500" required autocomplete="off" placeholder="State the measurable result completed during this reporting period…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
-                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100">Activity Completion (%)
-                                <input type="number" inputmode="decimal" x-model="entry.completion" @input="updateEntryProgress(entry)" min="0" max="100" step="0.01" required autocomplete="off" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <div class="space-y-3 sm:col-span-2" data-monitoring-evidence>
+                                <input type="hidden" :name="`work_plan[${index}][activity_id]`" :value="entry.activity_id || ''">
+                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence of completed work</label>
+                                <input :id="`activity-evidence-${index}`" :name="`activity_evidence[${evidenceKey(entry, index)}][]`" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" @change="setEvidenceFiles(entry, $event)" class="block w-full rounded-lg border border-slate-300 text-sm text-slate-600 file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:font-semibold file:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
+                                <p class="text-sm leading-6 text-slate-500 dark:text-slate-400" x-text="Number(entry.target_units || 1) > 1 ? 'Enter the total completed quantity supported by these files. Extra files do not increase progress.' : 'Attach proof that this activity’s approved output is complete. The milestone is counted once, regardless of file count.'"></p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Up to 5 files per activity · PDF, Word, Excel, JPG or PNG · 10 MB each</p>
+                                <p x-show="entry.evidenceError" x-text="entry.evidenceError" role="alert" class="text-sm font-semibold text-red-700 dark:text-red-300"></p>
+                                <template x-for="file in (entry.evidence || [])" :key="file.id">
+                                    <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-950">
+                                        <input type="hidden" :name="`work_plan[${index}][evidence_ids][]`" :value="file.id">
+                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words text-sm font-medium text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-red-700 dark:text-slate-200"></a>
+                                        <button type="button" @click="removeEvidence(entry, file.id)" :aria-label="`Remove ${file.name}`" title="Remove evidence" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-red-300 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6" /></svg></button>
+                                    </div>
+                                </template>
+                                <p x-show="entry.pendingEvidenceCount" class="text-sm text-slate-500 dark:text-slate-400">New evidence saves with your draft.</p>
+                                <label x-show="Number(entry.target_units || 1) > 1" class="block text-sm font-semibold text-slate-800 dark:text-slate-100">Total completed <span class="font-normal text-slate-500" x-text="`(of ${entry.target_units} ${entry.progress_unit})`"></span>
+                                    <input :name="`work_plan[${index}][completed_units]`" type="number" inputmode="numeric" x-model="entry.completed_units" @input="updateEntryProgress(entry)" min="0" :max="entry.target_units || 1" step="1" required autocomplete="off" class="mt-1 block w-full rounded-xl border-slate-300 text-base shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                                </label>
                                 <input type="hidden" :name="`work_plan[${index}][accomplished_percentage]`" :value="entry.accomplished_percentage">
-                                <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Completion is converted to its weighted contribution to overall project progress.</span>
-                            </label>
+                                <div class="flex items-baseline justify-between gap-3 border-t border-slate-200 pt-3 dark:border-slate-700" role="status" aria-live="polite">
+                                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Calculated completion</span>
+                                    <span class="text-xl font-bold tabular-nums text-slate-950 dark:text-white"><span x-text="Number(entry.completion || 0).toFixed(2)"></span>%</span>
+                                </div>
+                                <p class="text-sm text-slate-500 dark:text-slate-400"><span x-text="Number(entry.accomplished_percentage || 0).toFixed(2)"></span>% toward overall project progress</p>
+                            </div>
                             <label class="text-sm font-semibold text-slate-800 dark:text-slate-100 sm:col-span-2">Findings or Challenges <span class="font-normal text-slate-400">(optional)</span>
                                 <textarea :name="`work_plan[${index}][findings]`" x-model="entry.findings" rows="2" maxlength="500" autocomplete="off" placeholder="Describe a blocker, variance, or finding that needs attention…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
@@ -310,7 +350,7 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-950">
-                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Weighted overall project progress in this report</p>
+                <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Overall project progress, including earlier quarters</p>
                 <p class="text-lg font-black tabular-nums text-slate-950 dark:text-white"><span x-text="totalProjectProgress().toFixed(2)"></span>%</p>
             </div>
         </section>
@@ -399,33 +439,9 @@
         <p class="border-t border-gray-100 pt-5 text-sm text-gray-500">Your draft stays private until you prepare the PDF and submit it.</p>
         <p x-show="!submissionOpen" class="text-sm font-semibold text-amber-900 dark:text-amber-200">Official PDF preparation opens <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>. Save or preview your draft now.</p>
 
-        <x-monitoring-action-dock :fixed="$standalone">
-            @if ($standalone)
-                <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
-            @endif
-            <button type="button" @click="saveMonitoringDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
-            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
-                <span x-show="!previewLoading">Preview monitoring tool</span>
-                <span x-show="previewLoading" x-cloak>Generating preview…</span>
-            </button>
-            <button type="submit" :disabled="!submissionOpen || submitting || previewLoading" :title="!submissionOpen ? 'Official PDF preparation opens ' + submissionOpensAt : ''" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
-                <span x-show="!submitting">Prepare official PDF</span>
-                <span x-show="submitting" x-cloak>Preparing PDF…</span>
-            </button>
-        </x-monitoring-action-dock>
-
-        <p x-show="previewError" x-cloak x-text="previewError" role="alert" aria-live="polite" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"></p>
-
-        <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <p class="text-base font-semibold text-gray-900 dark:text-white">Monitoring form preview</p>
-                    <p class="text-xs text-gray-500">This preview is generated from the current form values and has not been submitted.</p>
-                </div>
-                <button type="button" @click="printPreview" :disabled="!previewReady" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50">Print Preview</button>
-            </div>
-            <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Monitoring tool document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
-        </section>
     </form>
+    </div>
+    <x-proposal-paper-preview panel-id="monitoring-preview-{{ $topic->id }}" preview-label="Monitoring Tool preview" frame-title="Monitoring tool document preview" />
+    </div>
 </section>
 @endif

@@ -17,11 +17,12 @@ body {
 }
 
 .expense-breakdown-preview-page {
+    min-width: 8.5in;
     padding: 24px;
 }
 
 .expense-breakdown-sheet {
-    width: min(8.5in, 100%);
+    width: 8.5in;
     min-height: 13in;
     margin: 0 auto;
     padding: 0.75in 0.25in;
@@ -146,7 +147,9 @@ body {
     }
 
     .expense-breakdown-preview-page {
+        min-width: 0;
         padding: 0;
+        zoom: 1 !important;
     }
 
     .expense-breakdown-sheet {

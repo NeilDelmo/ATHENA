@@ -14,6 +14,7 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
     const context = {
         Alpine: { data: (_, callback) => { factory = callback; } },
         proposalPreviewWorkspace: () => ({}),
+        detailedProposalPreviewWorkspace: () => ({}),
         window: { crypto: { randomUUID: () => 'client-id' } },
         document: { body: { classList: { add() {} } }, getElementById: () => null },
         HTMLElement: class {},
@@ -34,6 +35,52 @@ test('new and reopened figures keep the selected narrative section', () => {
     state.handleMethodologyDrop({ dataTransfer: { files: [{ type: 'image/png', name: 'chart.png', size: 100 }] } }, 'data_analysis');
     assert.equal(state.methodologyImages[0].section, 'data_analysis');
     assert.equal(state.methodologyImages[0].currentFile.name, 'chart.png');
+});
+
+test('preview validation and server failures retain the last rendered paper and allow retry', async () => {
+    let result = { status: 422, ok: false, json: async () => ({ errors: { rationale: ['Check the rationale.'] } }) };
+    const state = editor({ fetch: async () => result });
+    state.formData = () => new FormData();
+    state.previewRevision = 0;
+    state.previewHtml = '<p>Last rendered paper</p>';
+    await state.generatePreview();
+    assert.equal(state.previewHtml, '<p>Last rendered paper</p>');
+    assert.equal(state.previewReady, true);
+    assert.equal(state.previewLoading, false);
+    assert.equal(state.previewStale, true);
+    assert.equal(state.validationMessage, 'Check the rationale.');
+
+    result = { status: 500, ok: false };
+    await state.generatePreview();
+    assert.equal(state.previewHtml, '<p>Last rendered paper</p>');
+    assert.match(state.previewError, /could not be generated/);
+
+    result = { status: 200, ok: true, text: async () => '<p>Current paper</p>' };
+    await state.generatePreview();
+    assert.equal(state.previewHtml, '<p>Current paper</p>');
+    assert.equal(state.previewStale, false);
+    assert.equal(state.previewError, '');
+});
+
+test('edits during a preview request schedule another refresh without concurrent requests', async () => {
+    let complete;
+    let requests = 0;
+    const state = editor({ fetch: () => {
+        requests++;
+        return new Promise((resolve) => { complete = resolve; });
+    } });
+    state.formData = () => new FormData();
+    state.previewRevision = 0;
+    let scheduled = 0;
+    state.scheduleDetailedProposalPreview = () => scheduled++;
+    const pending = state.generatePreview();
+    await state.generatePreview();
+    assert.equal(requests, 1);
+    state.previewRevision++;
+    complete({ ok: true, status: 200, text: async () => '<p>Earlier revision</p>' });
+    await pending;
+    assert.equal(state.previewStale, true);
+    assert.equal(scheduled, 1);
 });
 
 test('source usage recognizes the official literature heading and its saved opening paragraphs', () => {
@@ -224,6 +271,7 @@ test('the objective editor shows and focuses the required field when only a gene
             await page.setContent(`<div x-data="objectiveTest"><button id="missing-objective" @click="focusProposalRequirement('specific_objectives')">Missing Specific Objective</button><form x-ref="form">${section}</form></div>`);
             await page.addScriptTag({ content: `
                 const proposalPreviewWorkspace = () => ({});
+                const detailedProposalPreviewWorkspace = () => ({});
                 const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
                 ${app.slice(start, end)}
                 document.addEventListener('alpine:init', () => {
@@ -283,6 +331,7 @@ test('an abstract-based generated draft enables insertion and adds its matching 
         await page.setContent(`<div x-data="rrlTest">${generateButton}${insertButton}</div>`);
         await page.addScriptTag({ content: `${helpers}
             const proposalPreviewWorkspace = () => ({});
+            const detailedProposalPreviewWorkspace = () => ({});
             const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
             ${app.slice(start, end)}
             window.state = window.proposalFactory({ literatureSynthesisUrl: '/synthesize', literatureDraftUpdateUrlTemplate: '/draft/__proposal_literature_source__' });
@@ -407,6 +456,7 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 await page.addScriptTag({ content: `
                     ${helpers}
                     const proposalPreviewWorkspace = () => ({});
+                const detailedProposalPreviewWorkspace = () => ({});
                     const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
                     ${app.slice(start, end)}
                     const missing = { 'responsibilities.0.percentage': ['The member responsibility percentage field is required.'] };

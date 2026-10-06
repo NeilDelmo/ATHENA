@@ -41,6 +41,7 @@
                 @endif
             </x-monitoring-action-dock>
         </div>
+        <x-progress-report-evidence :report="$preparedReport" class="mt-5 border-t border-red-200 pt-4 dark:border-red-900" />
     </section>
 @else
 @if ($reportType === 'terminal')
@@ -92,12 +93,16 @@
 @endphp
 
 <section
-    class="overflow-hidden rounded-2xl border border-red-200 bg-red-50/50 dark:border-red-950 dark:bg-slate-950"
+    class="rounded-2xl border border-red-200 bg-red-50/50 dark:border-red-950 dark:bg-slate-950"
+    data-proposal-paper-workspace
+    data-monitoring-paper-workspace
     data-narrative-progress-autosave="true"
     x-data="narrativeProgressReportForm({
         initialAccomplishments: @js($accomplishmentRows),
+        evidenceUrlTemplate: @js(route('project-narrative-reports.evidence', ['topic' => $topic, 'evidence' => '__EVIDENCE__'])),
         initialFigures: @js($figureRows),
         previewUrl: @js(route('project-narrative-reports.preview', $topic)),
+        previewTitle: 'Progress Report preview',
         draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)),
         initialDraftVersion: @js((int) ($narrativeReportDraft?->lock_version ?? 0)),
         csrfToken: @js(csrf_token()),
@@ -114,7 +119,19 @@
     </header>
     @endif
 
-    <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}" @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }">
+    <x-monitoring-writing-toolbar
+        :topic="$topic"
+        report-label="Progress Report"
+        panel-id="progress-preview-{{ $topic->id }}"
+        form-id="progress-form-{{ $topic->id }}"
+        save-method="saveNarrativeDraft"
+        :standalone="$standalone"
+        class="mb-4"
+    />
+
+    <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+    <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
+    <form id="progress-form-{{ $topic->id }}" x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitNarrativeReport($event)">
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
@@ -141,9 +158,7 @@
             </div>
         @endif
 
-        <x-proposal-autosave-status />
-
-        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes save privately as a draft. Review the reused proposal content and write this period’s accomplishments and results. Select figure files before preparing the PDF; uploads are not kept in text drafts.</p>
+        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes and accomplishment evidence save privately as a draft. Evidence stays out of the report preview and downloaded PDF. Select figure files before preparing the PDF; figures are included in the report and must be selected again after reloading.</p>
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>.</p>
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -199,7 +214,7 @@
             @endif
             <div class="space-y-4">
                 <template x-for="(row, index) in accomplishmentRows" :key="row.id">
-                    <div class="space-y-3 rounded-xl border border-red-200 p-4 dark:border-red-900">
+                    <div data-progress-accomplishment class="space-y-3 rounded-xl border border-red-200 p-4 dark:border-red-900">
                         <div class="flex items-center justify-between gap-3">
                             <h4 class="text-base font-semibold text-brand dark:text-red-200" x-text="'Objective ' + (index + 1)"></h4>
                             @unless ($approvedObjectives)
@@ -207,16 +222,34 @@
                             @endunless
                         </div>
                         <p x-show="row.activities" x-text="'Planned activities: ' + row.activities" class="whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-slate-300"></p>
-                        <div class="grid gap-4 lg:grid-cols-3">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Approved objective
+                        <div class="grid gap-4 md:grid-cols-2" :class="{ 'xl:grid-cols-4': !previewPaneOpen }">
+                            <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Approved objective
                                 <textarea :name="'accomplishments[' + index + '][objective]'" x-model="row.objective" @readonly($approvedObjectives) rows="4" maxlength="1000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
-                            <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Target accomplishment
+                            <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Target accomplishment
                                 <textarea :name="'accomplishments[' + index + '][target]'" x-model="row.target" @readonly($approvedObjectives) rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Expected outputs from the approved work plan"></textarea>
                             </label>
-                            <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Actual accomplishment
+                            <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Actual accomplishment
                                 <textarea :name="'accomplishments[' + index + '][actual]'" x-model="row.actual" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="What was completed during this period? Include partial progress or work not yet started."></textarea>
                             </label>
+                            <div data-progress-evidence class="min-w-0 space-y-2 print:hidden">
+                                <input type="hidden" :name="`accomplishments[${index}][evidence_key]`" :value="row.evidence_key">
+                                <label :for="`progress-evidence-${row.id}`" class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Evidence <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></label>
+                                <input :id="`progress-evidence-${row.id}`" :name="`accomplishment_evidence[${row.evidence_key}][]`" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" @change="selectAccomplishmentEvidence(row, $event)" class="block w-full rounded-lg border border-gray-300 text-sm text-gray-600 file:mr-2 file:cursor-pointer file:border-0 file:bg-gray-100 file:px-3 file:py-3 file:font-semibold file:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
+                                <p class="text-xs leading-5 text-gray-500 dark:text-slate-400">Up to 5 PDF, Word, Excel, JPG or PNG files; 10 MB each. Saved for review, excluded from preview and PDF.</p>
+                                <p x-show="row.evidenceError" x-text="row.evidenceError" role="alert" class="text-sm font-semibold text-red-700 dark:text-red-300"></p>
+                                <template x-for="file in row.evidence" :key="file.id">
+                                    <div class="flex items-start gap-2 rounded-lg border border-gray-200 p-2 dark:border-slate-700">
+                                        <input type="hidden" :name="`accomplishments[${index}][evidence_ids][]`" :value="file.id">
+                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words text-sm font-medium text-gray-700 underline underline-offset-4 hover:text-red-700 dark:text-slate-200"></a>
+                                        <button type="button" @click="removeAccomplishmentEvidence(row, file.id)" :aria-label="`Remove ${file.name}`" title="Remove evidence" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6" /></svg></button>
+                                    </div>
+                                </template>
+                                <template x-for="(file, fileIndex) in row.pendingEvidenceFiles" :key="fileIndex">
+                                    <p class="break-words text-xs text-gray-600 dark:text-slate-300" x-text="file.name + ' · waiting to save'"></p>
+                                </template>
+                                <button type="button" x-show="row.pendingEvidenceFiles.length" @click="clearPendingAccomplishmentEvidence(row)" class="min-h-9 text-sm font-semibold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-red-300">Clear selected files</button>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -292,34 +325,10 @@
             </div>
         </div>
 
-        <x-monitoring-action-dock :fixed="$standalone">
-            @if ($standalone)
-                <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
-            @endif
-            <button type="button" @click="saveNarrativeDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
-            <button type="button" @click="generatePreview" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
-                <span x-show="!previewLoading">Preview {{ strtolower($reportLabel) }}</span>
-                <span x-show="previewLoading" x-cloak>Generating preview...</span>
-            </button>
-            <button type="submit" :disabled="!submissionOpen || submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
-                <span x-show="!submitting">Prepare official PDF</span>
-                <span x-show="submitting" x-cloak>Preparing PDF…</span>
-            </button>
-        </x-monitoring-action-dock>
-
-        <p x-show="previewError" x-cloak x-text="previewError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"></p>
-
-        <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <p class="text-lg font-bold text-gray-900">{{ $reportLabel }} preview</p>
-                    <p class="text-sm text-gray-600">This preview is generated from the current form values and has not been submitted.</p>
-                </div>
-                <button type="button" @click="printPreview" :disabled="!previewReady" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm disabled:opacity-50">Print preview</button>
-            </div>
-            <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Progress report document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
-        </section>
     </form>
+    </div>
+    <x-proposal-paper-preview panel-id="progress-preview-{{ $topic->id }}" preview-label="Progress Report preview" frame-title="Progress report document preview" />
+    </div>
 </section>
 @endif
 @endif

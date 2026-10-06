@@ -1,14 +1,3 @@
-<?php
-    $visibleNotifications = Auth::user()->visibleNotifications();
-    $notificationItems = $visibleNotifications->take(15)->map(fn ($notification) => [
-        'id' => $notification->id,
-        'data' => $notification->data,
-        'read_at' => $notification->read_at?->toIso8601String(),
-        'created_at' => $notification->created_at->diffForHumans(),
-    ])->values();
-    $unreadNotificationCount = $visibleNotifications->whereNull('read_at')->count();
-?>
-
 <div
     x-data="notificationMenu({
         notifications: <?php echo e(Js::from($notificationItems)); ?>,

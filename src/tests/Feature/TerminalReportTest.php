@@ -205,6 +205,28 @@ test('accepted collaborators can prepare a shared Terminal Report but only the p
     expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id);
 });
 
+test('a researcher can preview a terminal report before project completion while official preparation stays locked', function () {
+    $this->travelTo('2026-02-01');
+    $this->topic->progressReports()->delete();
+    $this->topic->update([
+        'notice_to_proceed_issued_at' => '2026-01-01',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-01-01', 'approved_end_date' => '2026-12-31', 'approved_duration_months' => 12],
+    ]);
+    $payload = ($this->terminalPayload)(['implementation_start' => '2026-01-01', 'implementation_end' => '2026-12-31']);
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))
+        ->assertSuccessful()->assertSee('data-proposal-preview-toggle', false)->assertSee('submissionOpen: false', false);
+    $this->postJson(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertSee('TERMINAL REPORT')->assertSee('IV. Abstract')->assertSee('The objectives were achieved.');
+    $this->postJson(route('project-narrative-reports.prepare', $this->topic), $payload)->assertForbidden();
+    $this->postJson(route('project-narrative-reports.preview', $this->topic), [...$payload, 'implementation_end' => '2025-12-31'])
+        ->assertUnprocessable()->assertJsonValidationErrors('implementation_end');
+    $this->postJson(route('project-narrative-reports.preview', $this->topic), [...$payload, 'implementation_end' => '2027-01-01'])
+        ->assertUnprocessable()->assertJsonValidationErrors('implementation_end');
+    expect(ProjectNarrativeReport::query()->count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0)
+        ->and(Storage::disk('local')->allFiles('narrative-progress-reports'))->toBe([]);
+});
+
 test('terminal form and preview use final report sections without mandatory images', function () {
     if (getenv('TERMINAL_REPORT_QA_PATH')) {
         $this->withVite();
@@ -222,8 +244,9 @@ test('terminal form and preview use final report sections without mandatory imag
         ->assertSee('data-approved-work-plan-objectives', false)
         ->assertSee('data-terminal-cover-image', false)
         ->assertSee('data-terminal-table-builder', false)
-        ->assertSee('data-monitoring-action-dock-fixed', false)
-        ->assertSee('fixed inset-x-4 bottom-4', false)
+        ->assertSee('data-monitoring-writing-toolbar', false)
+        ->assertSee('data-proposal-workspace-toolbar', false)
+        ->assertDontSee('data-monitoring-action-dock-fixed', false)
         ->assertDontSee('More figures (4–30)');
     if (getenv('TERMINAL_REPORT_QA_PATH')) {
         file_put_contents(getenv('TERMINAL_REPORT_QA_PATH').'.html', $form->getContent());

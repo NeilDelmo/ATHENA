@@ -53,7 +53,7 @@ unset($__defined_vars, $__key, $__value); ?>
                     </svg>
                 </span>
 
-                <h2 class="mt-5 text-xl font-black tracking-tight text-gray-900">Turning in prepared package</h2>
+                <h2 class="mt-5 text-xl font-black tracking-tight text-gray-900">Turning in prepared proposal</h2>
                 <p class="mt-2 text-sm font-semibold leading-6 text-gray-600">ATHENA is sending the seven PDFs you reviewed to the Research Head.</p>
                 <p class="mt-3 text-xs font-bold text-red-700">Please keep this page open until the submission is confirmed.</p>
 

@@ -253,7 +253,7 @@ class DetailedProposalDocumentService
         $contentTypesXml = $archive->getFromName('[Content_Types].xml');
 
         if ($relationshipsXml === false || $contentTypesXml === false) {
-            throw new RuntimeException('The Detailed Research Proposal image package structure is incomplete.');
+            throw new RuntimeException('The Detailed Research Proposal document structure for images is incomplete.');
         }
 
         $relationships = new DOMDocument('1.0', 'UTF-8');
@@ -263,7 +263,7 @@ class DetailedProposalDocumentService
             || ! $contentTypes->loadXML($contentTypesXml, LIBXML_NONET)
             || ! $relationships->documentElement instanceof DOMElement
             || ! $contentTypes->documentElement instanceof DOMElement) {
-            throw new RuntimeException('The Detailed Research Proposal image package could not be read.');
+            throw new RuntimeException('The Detailed Research Proposal document images could not be read.');
         }
 
         $relationshipRoot = $relationships->documentElement;
@@ -1175,11 +1175,19 @@ class DetailedProposalDocumentService
         return trim(strip_tags($output['description']));
     }
 
-    private function appendRichTextBlocks(DOMElement $cell, string $value): void
+    private function appendRichTextBlocks(DOMElement $cell, string $value, bool $bold = false): void
     {
         $orderedIndex = 0;
 
-        foreach ($this->proposalRichText->blocks($value) as $block) {
+        foreach ($this->proposalRichText->contentBlocks($value) as $block) {
+            if ($block['type'] === 'table') {
+                $cell->appendChild($this->narrativeTable($cell->ownerDocument, $block['rows']));
+                $cell->appendChild($this->simpleParagraph($cell->ownerDocument, ''));
+                $orderedIndex = 0;
+
+                continue;
+            }
+
             $paragraph = $this->simpleParagraph($cell->ownerDocument, '', alignment: 'both', bodySpacing: true);
 
             if ($block['type'] === 'ordered') {
@@ -1198,11 +1206,82 @@ class DetailedProposalDocumentService
                     continue;
                 }
 
-                $this->appendRun($paragraph, $run['text'], $run['bold'], $run['italic'], $run['underline']);
+                $this->appendRun($paragraph, $run['text'], $bold || $run['bold'], $run['italic'], $run['underline']);
             }
 
             $cell->appendChild($paragraph);
         }
+    }
+
+    /** @param list<list<array{header: bool, html: string}>> $rows */
+    private function narrativeTable(DOMDocument $document, array $rows): DOMElement
+    {
+        $table = $document->createElementNS(self::W, 'w:tbl');
+        $properties = $document->createElementNS(self::W, 'w:tblPr');
+        $width = $document->createElementNS(self::W, 'w:tblW');
+        $width->setAttributeNS(self::W, 'w:w', '5000');
+        $width->setAttributeNS(self::W, 'w:type', 'pct');
+        $properties->appendChild($width);
+        $borders = $document->createElementNS(self::W, 'w:tblBorders');
+
+        foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $edge) {
+            $border = $document->createElementNS(self::W, 'w:'.$edge);
+            $border->setAttributeNS(self::W, 'w:val', 'single');
+            $border->setAttributeNS(self::W, 'w:sz', '6');
+            $border->setAttributeNS(self::W, 'w:color', '000000');
+            $borders->appendChild($border);
+        }
+
+        $properties->appendChild($borders);
+        $table->appendChild($properties);
+        $grid = $document->createElementNS(self::W, 'w:tblGrid');
+        $columns = max(1, count($rows[0] ?? []));
+
+        for ($column = 0; $column < $columns; $column++) {
+            $gridColumn = $document->createElementNS(self::W, 'w:gridCol');
+            $gridColumn->setAttributeNS(self::W, 'w:w', (string) intdiv(9000, $columns));
+            $grid->appendChild($gridColumn);
+        }
+
+        $table->appendChild($grid);
+
+        foreach ($rows as $rowIndex => $cells) {
+            $row = $document->createElementNS(self::W, 'w:tr');
+
+            if ($rowIndex === 0 && collect($cells)->every(fn (array $cell): bool => $cell['header'])) {
+                $rowProperties = $document->createElementNS(self::W, 'w:trPr');
+                $rowProperties->appendChild($document->createElementNS(self::W, 'w:tblHeader'));
+                $row->appendChild($rowProperties);
+            }
+
+            foreach ($cells as $sourceCell) {
+                $cell = $document->createElementNS(self::W, 'w:tc');
+                $cellProperties = $document->createElementNS(self::W, 'w:tcPr');
+                $cellWidth = $document->createElementNS(self::W, 'w:tcW');
+                $cellWidth->setAttributeNS(self::W, 'w:type', 'pct');
+                $cellWidth->setAttributeNS(self::W, 'w:w', (string) intdiv(5000, $columns));
+                $cellProperties->appendChild($cellWidth);
+
+                if ($sourceCell['header']) {
+                    $shading = $document->createElementNS(self::W, 'w:shd');
+                    $shading->setAttributeNS(self::W, 'w:fill', 'F2F2F2');
+                    $cellProperties->appendChild($shading);
+                }
+
+                $cell->appendChild($cellProperties);
+                $this->appendRichTextBlocks($cell, $sourceCell['html'], bold: $sourceCell['header']);
+
+                if ($cell->childNodes->length === 1) {
+                    $cell->appendChild($this->simpleParagraph($document, ''));
+                }
+
+                $row->appendChild($cell);
+            }
+
+            $table->appendChild($row);
+        }
+
+        return $table;
     }
 
     private function simpleParagraph(

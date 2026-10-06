@@ -23,23 +23,37 @@
 @endphp
 
 <section
-    class="bg-slate-50/70 p-4 sm:p-6 lg:p-8"
+    class="bg-slate-50/70 p-4 dark:bg-slate-950 sm:p-6 lg:p-8"
+    data-proposal-paper-workspace
+    data-monitoring-paper-workspace
     data-narrative-progress-autosave="true"
-    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token()), submissionOpen: @js($submissionOpen), submissionOpensAt: @js($submissionOpensAt)})"
+    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), previewTitle: 'Terminal Report preview', draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token()), submissionOpen: @js($submissionOpen), submissionOpensAt: @js($submissionOpensAt)})"
 >
+    <x-monitoring-writing-toolbar
+        :topic="$topic"
+        report-label="Terminal Report"
+        panel-id="terminal-preview-{{ $topic->id }}"
+        form-id="terminal-form-{{ $topic->id }}"
+        save-method="saveNarrativeDraft"
+        :standalone="$standalone"
+        class="mb-4"
+    />
+
+    <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+    <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
     <form
+        id="terminal-form-{{ $topic->id }}"
         x-ref="form"
         data-narrative-progress-autosave-form
         method="POST"
         action="{{ route('project-narrative-reports.prepare', $topic) }}"
         enctype="multipart/form-data"
-        class="mx-auto max-w-6xl space-y-8 text-base leading-7 text-gray-800 dark:text-slate-200 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}"
+        class="mx-auto max-w-6xl space-y-8 text-base leading-7 text-gray-800 dark:text-slate-200"
         @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }"
     >
         @csrf
         <input type="hidden" name="report_type" value="terminal">
         <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
-        <x-proposal-autosave-status />
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open {{ $submissionOpensAt }}.</p>
 
         <header class="overflow-hidden rounded-3xl border border-red-100 bg-gradient-to-br from-red-50 via-white to-amber-50 shadow-sm dark:border-red-950 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/30">
@@ -367,18 +381,8 @@
             <datalist id="terminal-signatories">@foreach ($defaults['signatory_options'] ?? [] as $name)<option value="{{ $name }}">@endforeach</datalist>
         </section>
 
-        <x-monitoring-action-dock :fixed="$standalone">
-            @if ($standalone)
-                <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
-            @endif
-            <button type="button" @click="saveNarrativeDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
-            <button type="button" @click="generatePreview" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 px-6 py-3 font-bold text-gray-900 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50 dark:border-slate-600 dark:text-white dark:hover:bg-slate-800">Preview terminal report</button>
-            <button type="submit" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl bg-red-700 px-6 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50">Prepare official PDF</button>
-        </x-monitoring-action-dock>
-        <p x-show="previewError" x-text="previewError" role="alert" class="rounded-xl bg-red-50 p-4 font-semibold text-red-700"></p>
-        <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3">
-            <p>Review this draft preview. Prepare the official copy to confirm final pagination before submission.</p>
-            <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Terminal report preview" class="h-[75vh] w-full rounded-2xl border border-gray-300 bg-white shadow-lg"></iframe>
-        </section>
     </form>
+    </div>
+    <x-proposal-paper-preview panel-id="terminal-preview-{{ $topic->id }}" preview-label="Terminal Report preview" frame-title="Terminal report preview" />
+    </div>
 </section>

@@ -14,7 +14,7 @@ class SaveProposalSignatoryRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->isUsingWorkspace('research_head') ?? false;
+        return $this->user()?->isUsingWorkspace(['research_head', 'research_secretary']) ?? false;
     }
 
     /**
@@ -29,6 +29,7 @@ class SaveProposalSignatoryRequest extends FormRequest
             'name' => ['required', 'string', 'max:120'],
             'position' => ['required', 'string', 'max:120'],
             'active' => ['required', 'boolean'],
+            'is_default' => ['sometimes', 'boolean'],
         ];
     }
 }

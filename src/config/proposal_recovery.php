@@ -3,11 +3,11 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Recovery history
+    | Draft checkpoint retention
     |--------------------------------------------------------------------------
     |
     | The working draft is saved on every autosave. These values only control
-    | the smaller set of automatic recovery points shown in Recovery history.
+    | retention of automatic draft checkpoints independently of autosave.
     |
     */
 

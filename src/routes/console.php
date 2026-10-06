@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('research-calls:process-opening-notifications')
     ->everyMinute()
     ->withoutOverlapping(5);
+
+Schedule::command('projects:notify-overdue-objectives')
+    ->hourly()
+    ->withoutOverlapping(10);

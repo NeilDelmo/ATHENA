@@ -13,8 +13,10 @@ use App\Services\CommentResponseFormDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TopicCommentResponseFormController extends Controller
@@ -22,10 +24,19 @@ class TopicCommentResponseFormController extends Controller
     public function preview(
         Request $request,
         TopicProposal $topic,
-        CommentResponseFormDocumentService $documentService,
-        DocumentPdfConverter $pdfConverter,
     ): Response {
-        return $this->downloadPdf($request, $topic, $documentService, $pdfConverter);
+        Gate::authorize('generateCommentResponseForm', $topic);
+
+        $source = $this->formSource($request);
+
+        return response()->view('faculty.comment-response-form.preview', [
+            'topic' => $topic,
+            'commentResponseForm' => $this->commentResponseFormData($topic, $source, $request->integer('review'), $this->draftVersionId($request, $topic, $source)),
+            'embedded' => $request->boolean('embedded'),
+        ], 200, [
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     public function download(
@@ -58,9 +69,21 @@ class TopicCommentResponseFormController extends Controller
         Gate::authorize('generateCommentResponseForm', $topic);
 
         $source = $this->formSource($request);
-        $contents = $pdfConverter->convertDocx($documentService->generate(
-            $this->commentResponseFormData($topic, $source, $request->integer('review'), $this->draftVersionId($request, $topic, $source)),
-        ));
+        $formData = $this->commentResponseFormData($topic, $source, $request->integer('review'), $this->draftVersionId($request, $topic, $source));
+        $templatePath = (string) config('comment_response_form.template_path');
+        $cacheKey = 'comment-response-pdf:v2:'.$topic->id.':'.hash('sha256', json_encode([
+            $formData,
+            config('comment_response_form'),
+            is_file($templatePath) ? hash_file('sha256', $templatePath) : null,
+        ], JSON_THROW_ON_ERROR));
+        $encodedContents = Cache::remember($cacheKey, now()->addHour(), fn (): string => base64_encode($pdfConverter->convertDocx($documentService->generate($formData))));
+        $contents = base64_decode($encodedContents, true);
+
+        if ($contents === false) {
+            Cache::forget($cacheKey);
+
+            throw new RuntimeException('The cached Comment Response PDF could not be read. Please try again.');
+        }
         $filenameBase = Str::slug($topic->title) ?: 'research-project';
         $sourceSlug = Str::of($source)->replace('_', '-')->toString();
 

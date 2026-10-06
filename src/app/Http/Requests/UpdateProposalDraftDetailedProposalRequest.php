@@ -6,6 +6,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftLiteratureSource;
 use App\Support\DetailedProposalData;
 use App\Support\DetailedProposalRules;
+use DOMDocument;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
@@ -107,6 +108,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         $merged['literature_citations'] = $this->normalizeLiteratureCitations(
             $draft,
             $merged['literature_citations'] ?? '[]',
+            $merged,
         );
 
         $this->replace([
@@ -199,7 +201,8 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         return $data;
     }
 
-    private function normalizeLiteratureCitations(ProposalDraft $draft, mixed $value): string
+    /** @param array<string, mixed> $proposalData */
+    private function normalizeLiteratureCitations(ProposalDraft $draft, mixed $value, array $proposalData): string
     {
         try {
             $citations = is_string($value) ? json_decode($value, true, 512, JSON_THROW_ON_ERROR) : $value;
@@ -214,10 +217,14 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         $sourceIds = $draft->literatureSources()
             ->get(['id', 'literature_source_id'])
             ->mapWithKeys(fn (ProposalDraftLiteratureSource $source): array => [$source->getKey() => $source->literature_source_id]);
+        $markerSources = [];
+        foreach (self::LITERATURE_CITATION_FIELDS as $field) {
+            $markerSources[$field] = $this->citationMarkerSourceIds((string) data_get($proposalData, $field, ''));
+        }
 
         $normalized = collect($citations)
             ->filter(fn (mixed $citation): bool => is_array($citation))
-            ->map(function (array $citation) use ($sourceIds): ?array {
+            ->map(function (array $citation) use ($sourceIds, $markerSources): ?array {
                 $sourceLinkId = (int) ($citation['source_link_id'] ?? 0);
                 $literatureSourceId = $sourceIds->get($sourceLinkId);
                 $field = $citation['field'] ?? null;
@@ -225,7 +232,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
 
                 if ($literatureSourceId === null
                     || ! in_array($field, self::LITERATURE_CITATION_FIELDS, true)
-                    || ($field !== 'references' && $selectedText === '')) {
+                    || ($field !== 'references' && $selectedText === '' && ! in_array($sourceLinkId, $markerSources[$field] ?? [], true))) {
                     return null;
                 }
 
@@ -253,5 +260,31 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
             ->all();
 
         return json_encode($normalized, JSON_THROW_ON_ERROR);
+    }
+
+    /** @return list<int> */
+    private function citationMarkerSourceIds(string $html): array
+    {
+        if (! str_contains($html, 'data-proposal-citation')) {
+            return [];
+        }
+
+        $document = new DOMDocument;
+        $previousErrors = libxml_use_internal_errors(true);
+        try {
+            $document->loadHTML('<?xml encoding="UTF-8"><div>'.$html.'</div>', LIBXML_NONET);
+            $ids = [];
+            foreach ($document->getElementsByTagName('span') as $marker) {
+                $value = $marker->getAttribute('data-proposal-citation');
+                if (ctype_digit($value) && (int) $value > 0) {
+                    $ids[] = (int) $value;
+                }
+            }
+
+            return array_values(array_unique($ids));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
     }
 }

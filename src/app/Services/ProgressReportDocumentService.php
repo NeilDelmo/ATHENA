@@ -72,7 +72,7 @@ class ProgressReportDocumentService
                 || $footerXml === false
                 || $relationshipsXml === false
                 || $contentTypesXml === false) {
-                throw new RuntimeException('The Progress Report package is incomplete.');
+                throw new RuntimeException('The Progress Report document is incomplete.');
             }
 
             $figures = $this->loadFigures($report);

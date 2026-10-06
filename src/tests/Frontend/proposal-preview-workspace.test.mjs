@@ -100,13 +100,65 @@ test('legal-size preview paper fits the drawer and enables horizontal scrolling 
     assert.equal(documentElement.style.overflowX, 'auto');
 });
 
+test('Ctrl-wheel zoom is scoped to enlarged previews, preserves ordinary scrolling and rebinds after regeneration', () => {
+    const document = new EventTarget();
+    const frame = { contentDocument: document };
+    const state = { ...proposalPreviewWorkspace(), $refs: { previewFrame: frame }, applyProposalPreviewZoom() {} };
+    const wheel = (deltaY, options = {}) => {
+        const event = new Event('wheel', { cancelable: true });
+        Object.assign(event, { deltaY, deltaX: 0, deltaMode: 0, ...options });
+        document.dispatchEvent(event);
+        return event.defaultPrevented;
+    };
+    state.bindProposalPreviewWheel();
+    assert.equal(wheel(-120), false);
+    assert.equal(state.previewZoom, 100);
+    state.previewFullscreen = true;
+    state.bindProposalPreviewWheel();
+    assert.equal(wheel(-120), false, 'Ordinary wheel scrolling must not be intercepted');
+    assert.equal(state.previewZoom, 100);
+    assert.equal(wheel(-120, { ctrlKey: true }), true);
+    assert.equal(state.previewZoom, 110, 'Repeated frame loads must not duplicate wheel handlers');
+    wheel(120, { ctrlKey: true });
+    assert.equal(state.previewZoom, 100);
+    assert.equal(wheel(-120, { shiftKey: true }), false);
+    assert.equal(state.previewZoom, 100);
+    for (let index = 0; index < 10; index++) wheel(-120, { ctrlKey: true });
+    assert.equal(state.previewZoom, 150);
+    for (let index = 0; index < 20; index++) wheel(120, { ctrlKey: true });
+    assert.equal(state.previewZoom, 50);
+    frame.contentDocument = new EventTarget();
+    state.bindProposalPreviewWheel();
+    assert.equal(wheel(-120, { ctrlKey: true }), false, 'Regenerated papers detach the previous document listener');
+});
+
 test('full-screen preview opens the pane and can return to editing layout', () => {
     const state = { ...proposalPreviewWorkspace(), previewPaneOpen: false };
     state.toggleProposalPreviewFullscreen();
     assert.equal(state.previewFullscreen, true);
     assert.equal(state.previewPaneOpen, true);
+    assert.equal(state.previewFit, 'page');
     state.toggleProposalPreviewFullscreen();
     assert.equal(state.previewFullscreen, false);
+    assert.equal(state.previewFit, 'width');
+});
+
+test('fit page uses a physical sheet height for a long form and fit width restores readability', () => {
+    const sheet = { offsetHeight: 5000 };
+    const body = { style: {}, scrollWidth: 864, querySelector: () => sheet };
+    const frame = {
+        clientHeight: 648,
+        contentDocument: { body, documentElement: { style: {}, clientWidth: 1200 } },
+        contentWindow: { getComputedStyle: (element) => element === sheet ? { minHeight: '1248px' } : { paddingTop: '24px', paddingBottom: '24px' } },
+    };
+    const state = { ...proposalPreviewWorkspace(), $refs: { previewFrame: frame } };
+    state.fitProposalPreview('page');
+    assert.equal(body.style.zoom, '0.5');
+    state.increaseProposalPreviewZoom();
+    assert.equal(body.style.zoom, '0.55');
+    state.fitProposalPreview('width');
+    assert.equal(body.style.zoom, '1');
+    assert.equal(state.previewZoom, 100);
 });
 
 test('closing preview restores the editing state and exits full screen', () => {

@@ -6,10 +6,12 @@ import { runInNewContext } from 'node:vm';
 const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
 const source = app.slice(app.indexOf("Alpine.data('narrativeProgressReportForm',"), app.indexOf("Alpine.data('noticeToProceedForm',"));
 const previewSource = app.slice(app.indexOf('const documentPreviewForm ='), app.indexOf("Alpine.data('monitoringToolForm',"));
+const paperPreviewSource = readFileSync(new URL('../../resources/js/proposal-preview-workspace.js', import.meta.url), 'utf8').replaceAll('export ', '')
+    + readFileSync(new URL('../../resources/js/proposal-paper-workspace.js', import.meta.url), 'utf8').replace(/^import .+;\r?\n/gm, '').replaceAll('export ', '');
 function createState(config = {}) {
     const revoked = [];
     let factory;
-    runInNewContext(previewSource + source, {
+    runInNewContext(paperPreviewSource + previewSource + source, {
         Alpine: { data: (name, callback) => { factory = callback; } },
         URL: { createObjectURL: () => 'blob:figure', revokeObjectURL: value => revoked.push(value) },
         window: { clearTimeout() {} },
@@ -67,10 +69,29 @@ test('changing figure order invalidates the rendered preview before saving the d
     state.previewReady = true;
     state.previewObjectUrls = ['blob:old-report'];
     state.moveFigure(0, 1);
-    assert.equal(state.previewHtml, '');
-    assert.equal(state.previewReady, false);
-    assert.deepEqual(revoked, ['blob:old-report']);
+    assert.equal(state.previewHtml, '<p>Old report</p>');
+    assert.equal(state.previewReady, true);
+    assert.equal(state.previewStale, true);
+    assert.deepEqual(revoked, []);
     assert.equal(saves, 1);
+});
+
+test('printing uses the current report preview and waits for edits or an in-progress refresh', () => {
+    const { state } = createState();
+    let printed = 0;
+    state.$refs = { previewFrame: { contentWindow: { focus() {}, print() { printed++; } } } };
+    state.previewReady = true;
+    state.printPreview();
+    assert.equal(printed, 1);
+    state.previewStale = true;
+    state.printPreview();
+    state.previewStale = false;
+    state.previewLoading = true;
+    state.printPreview();
+    state.previewLoading = false;
+    state.previewReady = false;
+    state.printPreview();
+    assert.equal(printed, 1);
 });
 
 test('draft autosave retains figure captions and placement without sending selected image files', () => {

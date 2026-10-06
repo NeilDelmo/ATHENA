@@ -59,7 +59,9 @@ class ProjectMonitoringFormDataService
     {
         $topic->loadMissing(['user', 'revisionDraft.members']);
         $quarterOptions = $reportType === 'progress'
-            ? app(MonitoringQuarterService::class)->narrativeProgressPeriods($topic)
+            ? app(MonitoringQuarterService::class)->narrativeProgressPeriods($topic, $topic->narrativeReports()
+                ->where('report_type', 'progress')
+                ->get(['id', 'topic_id', 'report_type', 'reporting_quarter', 'submission_status', 'review_status']))
                 ->filter(fn (array $period): bool => $period['drafting_date'] !== null)
                 ->map(fn (array $period): array => [...$period, 'reporting_date' => $period['drafting_date']])->values()
             : collect();
@@ -76,19 +78,25 @@ class ProjectMonitoringFormDataService
             $draftPeriod = app(MonitoringQuarterService::class)->forDate($draftDate, $topic);
             $quarterOptions = $quarterOptions->filter(fn (array $period): bool => $period['start']->eq($draftPeriod['start']))->values();
         }
+        $progressDefaults = $reportType === 'progress' ? app(ProgressReportData::class)->defaults($topic) : [];
+        if ($reportType === 'progress' && $draft === null && $preparedReport === null && $selectedReportingDate) {
+            $period = app(MonitoringQuarterService::class)->forDate($selectedReportingDate, $topic);
+            $revisionSource = $topic->narrativeReports()->submitted()->where('report_type', 'progress')
+                ->where('reporting_quarter', $period['quarter'])->where('review_status', ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
+                ->latest('id')->first();
+            if ($revisionSource !== null) {
+                $progressDefaults = [...$progressDefaults, ...app(ProgressReportData::class)->normalize($topic, ['accomplishments' => $revisionSource->accomplishments ?? []])];
+            }
+        }
 
         return [
             'quarterOptions' => $quarterOptions,
             'selectedReportingDate' => $selectedReportingDate,
-            'progressDefaults' => $reportType === 'progress' ? app(ProgressReportData::class)->defaults($topic) : [],
+            'progressDefaults' => $progressDefaults,
             'terminalDefaults' => $reportType === 'terminal' ? app(TerminalReportData::class)->defaults($topic) : [],
             'terminalEvidence' => $reportType === 'terminal' ? app(TerminalReportData::class)->evidence($topic) : [],
             'preparedReport' => $preparedReport,
-            'narrativeReportDraft' => ProjectNarrativeReportDraft::query()
-                ->whereBelongsTo($topic, 'topic')
-                ->where('report_type', $reportType)
-                ->whereBelongsTo($user, 'user')
-                ->first(),
+            'narrativeReportDraft' => $draft,
         ];
     }
 }

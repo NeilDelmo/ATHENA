@@ -5,13 +5,11 @@ namespace App\Http\Controllers;
 use App\Actions\RestoreProposalDraftDocumentVersion;
 use App\Http\Requests\RestoreProposalDraftDocumentVersionRequest;
 use App\Models\ProposalDraft;
-use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\TopicProposal;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -20,51 +18,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProposalDraftDocumentVersionController extends Controller
 {
-    public function index(
-        Request $request,
-        ProposalDraft $proposalDraft,
-        ProposalPaperCatalog $catalog,
-    ): View {
+    public function index(ProposalDraft $proposalDraft): RedirectResponse
+    {
         Gate::authorize('view', $proposalDraft);
 
-        $selectedPaper = null;
-        $paperSlug = $request->string('paper')->toString();
-
-        if (filled($paperSlug)) {
-            $selectedPaper = $catalog->find($paperSlug);
-            abort_unless(is_array($selectedPaper), 404);
-        }
-
-        $versions = ProposalDraftDocumentVersion::query()
-            ->whereBelongsTo($proposalDraft, 'draft')
-            ->when(
-                $selectedPaper,
-                fn ($query) => $query->where('document_type', $selectedPaper['document_type']),
-            )
-            ->with([
-                'creator:id,name',
-                'document:id,lock_version',
-                'restoredFrom:id,version_number',
-            ])
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
-        $currentDocuments = $proposalDraft->documents()
-            ->select(['id', 'document_type', 'position', 'lock_version'])
-            ->get()
-            ->keyBy(fn ($document): string => $document->document_type.':'.$document->position);
-        $currentVersions = $this->currentDocumentVersions($proposalDraft, $currentDocuments);
-
-        return view('faculty.proposal-drafts.history', [
-            'proposalDraft' => $proposalDraft,
-            'topic' => null,
-            'versions' => $versions,
-            'papers' => $catalog->all(),
-            'selectedPaper' => $selectedPaper,
-            'currentDocuments' => $currentDocuments,
-            'currentVersions' => $currentVersions,
-            'archived' => false,
-        ]);
+        return redirect(route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments');
     }
 
     public function restore(
@@ -72,7 +30,6 @@ class ProposalDraftDocumentVersionController extends Controller
         ProposalDraft $proposalDraft,
         int $documentVersion,
         RestoreProposalDraftDocumentVersion $restoreVersion,
-        ProposalPaperCatalog $catalog,
     ): RedirectResponse {
         $version = ProposalDraftDocumentVersion::query()
             ->whereBelongsTo($proposalDraft, 'draft')
@@ -84,18 +41,13 @@ class ProposalDraftDocumentVersionController extends Controller
             $request->integer('document_version'),
             $request->string('change_note')->toString(),
         );
-        $paper = $catalog->forDocumentType($version->document_type);
 
-        return redirect()
-            ->route('faculty.proposal-drafts.history.index', [
-                $proposalDraft,
-                'paper' => $paper['slug'] ?? null,
-            ])
+        return redirect(route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments')
             ->with(
                 $result['version_created'] ? 'success' : 'warning',
                 $result['version_created']
-                    ? 'The selected recovery point was restored. Your previous working draft was preserved in recovery history.'
-                    : 'That recovery point already matches the current working draft, so nothing needed to be restored.',
+                    ? 'The earlier paper version was restored. Your previous working draft was preserved.'
+                    : 'That paper version already matches the current working draft, so nothing needed to be restored.',
             );
     }
 
@@ -152,43 +104,12 @@ class ProposalDraftDocumentVersionController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('faculty.proposal-drafts.history', [
-            'proposalDraft' => null,
+        return view('topics.draft-history', [
             'topic' => $topic,
             'versions' => $versions,
             'papers' => $catalog->all(),
             'selectedPaper' => $selectedPaper,
-            'currentDocuments' => collect(),
-            'currentVersions' => collect(),
-            'archived' => true,
         ]);
-    }
-
-    /**
-     * @param  Collection<string, ProposalDraftDocument>  $currentDocuments
-     * @return Collection<string, int>
-     */
-    private function currentDocumentVersions(
-        ProposalDraft $proposalDraft,
-        Collection $currentDocuments,
-    ): Collection {
-        $currentVersions = $proposalDraft->documentVersions()
-            ->reorder()
-            ->selectRaw('document_type, position, MAX(version_number) as current_version')
-            ->groupBy('document_type', 'position')
-            ->get()
-            ->mapWithKeys(fn (ProposalDraftDocumentVersion $version): array => [
-                $version->document_type.':'.$version->position => (int) $version->current_version,
-            ]);
-
-        foreach ($currentDocuments as $key => $document) {
-            $currentVersions->put(
-                $key,
-                max($document->lock_version, $currentVersions->get($key, 0)),
-            );
-        }
-
-        return $currentVersions;
     }
 
     public function downloadArchived(

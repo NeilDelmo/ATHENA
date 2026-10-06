@@ -7,7 +7,7 @@
         <summary class="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-red-700 sm:px-6">
             <div class="min-w-0">
                 <h3 class="text-lg font-bold text-gray-950 dark:text-white">Submitted proposal versions</h3>
-                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Packages sent for review. Working edits appear after submission.</p>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Proposals sent for review. Working edits appear after submission.</p>
             </div>
             <span class="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 {{ $topic->versions->count() }} {{ Str::plural('version', $topic->versions->count()) }}
@@ -40,7 +40,7 @@
                                     @endif
                                 </span>
                                 <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                    {{ match ($version->submission_type) { 'initial' => 'Initial submission', 'update' => 'Package update before review', default => 'Revision submission' } }} · {{ $version->created_at->format('M j, Y · g:i A') }} · {{ max(1, $versionFiles->count()) }} {{ Str::plural('file', max(1, $versionFiles->count())) }}
+                                    {{ match ($version->submission_type) { 'initial' => 'Initial submission', 'update' => 'Submission update before review', default => 'Revision submission' } }} · {{ $version->created_at->format('M j, Y · g:i A') }} · {{ max(1, $versionFiles->count()) }} {{ Str::plural('file', max(1, $versionFiles->count())) }}
                                 </span>
                             </span>
                             <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform group-open:rotate-180 dark:text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>

@@ -69,30 +69,7 @@ class ProposalDraft extends Model
     /** @return array<string, array{id?: int|null, name: string, position: string}> */
     public function resolvedSignatorySelections(): array
     {
-        return [
-            'approved_by_name' => [
-                'id' => null,
-                'name' => (string) config('notice_to_proceed.verifying_officer.name'),
-                'position' => (string) config('notice_to_proceed.verifying_officer.title'),
-            ],
-            'certified_by' => [
-                'id' => null,
-                'name' => (string) config('line_item_budget.certifier.name'),
-                'position' => (string) config('line_item_budget.certifier.role'),
-            ],
-            'verifier_name' => [
-                'id' => null,
-                'name' => (string) config('gad_checklist.verifier.name'),
-                'position' => (string) config('gad_checklist.verifier.role'),
-            ],
-            'screening_center' => [
-                'id' => null,
-                'name' => (string) config('research_signatories.center_head'),
-                'position' => 'Center Head/ Assistant Director for Research',
-            ],
-            ...($this->signatory_selections ?? []),
-            ...ProposalSignatory::defaultSelections(),
-        ];
+        return $this->exists ? ProposalSignatory::managedDefaultSelections() : ProposalSignatory::defaultSelections();
     }
 
     public function researchCall(): BelongsTo

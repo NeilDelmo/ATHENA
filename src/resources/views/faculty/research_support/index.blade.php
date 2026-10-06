@@ -23,11 +23,7 @@
             x-init="syncActiveResearchTool()"
             @hashchange.window="syncActiveResearchTool()"
         >
-            <div class="athena-readable mb-4 mt-8">
-                <p class="text-sm font-bold uppercase tracking-wider text-gray-500">Research tools</p>
-            </div>
-
-            <div class="athena-readable mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="athena-readable mb-6 mt-6 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900">
                 <nav class="flex min-w-max gap-1" aria-label="Research help tools" role="tablist">
                     <button
                         type="button"
@@ -39,7 +35,7 @@
                         class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
                     >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z"></path></svg>
-                        Literature Search and Source Organizer
+                        Literature search
                     </button>
                     <button
                         type="button"

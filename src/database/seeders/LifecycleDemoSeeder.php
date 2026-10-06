@@ -161,7 +161,7 @@ class LifecycleDemoSeeder extends Seeder
                 'submitted_by' => $draft->user_id,
                 'version_number' => 1,
                 'submission_type' => 'initial',
-                'change_summary' => 'Initial package submitted from the proposal drafting workspace.',
+                'change_summary' => 'Initial proposal submitted from the proposal drafting workspace.',
                 'title' => $draft->project_title,
                 'estimated_budget' => $this->draftBudget($draft),
                 'estimated_duration_months' => $draft->duration_months,
@@ -381,8 +381,8 @@ class LifecycleDemoSeeder extends Seeder
             TopicProposal::STATUS_GAD_REVIEW => 'Research Head screening is complete. The proposal is ready for GAD assessment.',
             TopicProposal::STATUS_LREC_QUEUED => 'Initial requirements are complete. Endorsed for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'Proposal presented to LREC and queued for committee deliberation.',
-            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC requirements are satisfied. Prepare the final signed package.',
-            'approved' => 'Final proposal package approved.',
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC requirements are satisfied. Prepare the final signed proposal.',
+            'approved' => 'Final proposal approved.',
             'rejected' => 'The proposal does not meet the feasibility requirements for this cycle.',
         ];
 
@@ -618,7 +618,7 @@ class LifecycleDemoSeeder extends Seeder
                     'literature_review' => 'The final analysis was interpreted alongside the literature cited in the approved proposal.',
                     'conclusions' => 'The project objectives were achieved and the intervention is suitable for further adoption.',
                     'recommendations' => 'Present the findings, pursue peer review, and continue implementation monitoring.',
-                    'bibliography' => 'References are retained in the approved detailed proposal and terminal package.',
+                    'bibliography' => 'References are retained in the approved detailed proposal and terminal report.',
                     'source_monitoring_report_ids' => $topic->progressReports()->whereIn('tracking_number', $trackingNumbers)->pluck('project_progress_reports.id')->all(),
                 ],
                 'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,

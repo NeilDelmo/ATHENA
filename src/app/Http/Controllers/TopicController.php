@@ -18,6 +18,7 @@ use App\Models\TopicProposal;
 use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\CommentResponseFeedback;
 use App\Services\GADChecklistScoreExtractor;
 use App\Services\InitialScreeningFormDocumentService;
@@ -71,14 +72,13 @@ class TopicController extends Controller
         }
 
         $topics = $user->proposals()
-            ->with([
-                'researchCall', 'category',
-                'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
-                'versions.submitter',
-                'versions.files',
-            ])
+            ->with('researchCall:id,title')
             ->latest()
             ->get();
+
+        $topics->where('status', 'revision_requested')->load([
+            'reviews' => fn ($query) => $query->select('id', 'topic_id', 'decision', 'comment', 'created_at')->oldest(),
+        ]);
 
         $researchCallPosters = ResearchCall::query()
             ->acceptingSubmissions()
@@ -131,7 +131,7 @@ class TopicController extends Controller
             $recentProposalDrafts = $proposalDraftQuery
                 ->with(['researchCall', 'documents', 'owner:id,name'])
                 ->latest('updated_at')
-                ->limit(4)
+                ->limit(2)
                 ->get();
 
             $proposalDraftProgress = $recentProposalDrafts->mapWithKeys(function (ProposalDraft $draft) use ($readiness): array {
@@ -161,13 +161,24 @@ class TopicController extends Controller
 
     public function submissions(Request $request): View
     {
-        $topics = TopicProposal::query()
-            ->accessibleTo($request->user())
+        $categories = [
+            'active' => 'Active proposals',
+            'monitoring' => 'In monitoring',
+            'closed' => 'Closed',
+        ];
+        $category = $request->string('category')->toString();
+        $category = array_key_exists($category, $categories) ? $category : 'active';
+        $query = TopicProposal::query()->accessibleTo($request->user());
+        $categoryCounts = collect($categories)->mapWithKeys(
+            fn (string $label, string $key): array => [$key => (clone $query)->inSubmissionCategory($key)->count()],
+        );
+        $topics = $query->inSubmissionCategory($category)
             ->with(['researchCall', 'versions'])
-            ->latest()
-            ->paginate(12);
+            ->when($category === 'active', fn ($query) => $query->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['revision_requested']))
+            ->latest()->latest('id')
+            ->paginate(12)->appends(['category' => $category]);
 
-        return view('faculty.submissions', compact('topics'));
+        return view('faculty.submissions', compact('topics', 'categories', 'category', 'categoryCounts'));
     }
 
     public function create(Request $request)
@@ -199,6 +210,7 @@ class TopicController extends Controller
         }
 
         $monitoringReports = $topic->progressReports->values();
+        $overdueWorkPlanActivities = app(ApprovedWorkPlanMonitoringService::class)->overdueActivities($topic);
 
         $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic);
         $progressReports = $topic->narrativeReports;
@@ -297,7 +309,10 @@ class TopicController extends Controller
         if (! app()->environment('production') && Str::startsWith($topic->description ?? '', '[lifecycle-demo:')) {
             if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
                 $sampleProposalDraft = ProposalDraft::query()->accessibleTo($request->user())
-                    ->whereNull('topic_id')->where('project_title', Str::limit('[Sample draft] '.$topic->title, 255, ''))->first();
+                    ->whereNull('topic_id')->whereIn('project_title', [
+                        Str::limit($topic->title, 255, ''),
+                        Str::limit('[Sample draft] '.$topic->title, 255, ''),
+                    ])->first();
             }
             if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)) {
                 $sampleReportProject = TopicProposal::query()->accessibleTo($request->user())
@@ -307,7 +322,7 @@ class TopicController extends Controller
 
         $nextClearanceDecision = match (true) {
             $topic->review_stage === 'lrec' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'Clear for signing'],
-            $topic->status === TopicProposal::STATUS_GAD_REVIEW => [TopicProposal::STATUS_LREC_QUEUED, 'Send to LREC'],
+            $topic->status === TopicProposal::STATUS_GAD_REVIEW => [TopicProposal::STATUS_LREC_QUEUED, 'For email to LREC'],
             default => [TopicProposal::STATUS_GAD_REVIEW, 'Clear for GAD assessment'],
         };
         $coEvaluatorEvaluation = $headUploadWorkspace['coEvaluatorEvaluation'] ?? null;
@@ -358,6 +373,7 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'monitoringQuarterRows',
+            'overdueWorkPlanActivities',
             'progressQuarterRows',
             'projectDocumentLibrary',
             'sampleProposalDraft',
@@ -544,8 +560,8 @@ class TopicController extends Controller
             'gad_checklist' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
         ], [
             'estimated_budget.max' => 'The total project cost may not exceed PHP '.number_format($maximumBudget, 2).'.',
-            'feedback_responses.*.page.required_unless' => 'Enter the revised page number, or select No change made.',
-            'feedback_responses.*.paragraph.required_unless' => 'Enter the revised paragraph number, or select No change made.',
+            'feedback_responses.*.page.required_unless' => 'The revised page could not be recorded. Open the paper and try again.',
+            'feedback_responses.*.paragraph.required_unless' => 'The revised paragraph could not be recorded. Open the paper and try again.',
         ], [
             'estimated_budget' => 'total project cost',
             'revision_draft_id' => 'revision workspace',
@@ -558,7 +574,7 @@ class TopicController extends Controller
             'gad_checklist' => 'GAD checklist',
             'feedback_responses.*.page' => 'revised page number',
             'feedback_responses.*.paragraph' => 'revised paragraph number',
-            'feedback_responses.*.no_change' => 'No change made selection',
+            'feedback_responses.*.no_change' => 'comment response action',
         ]);
 
         $revisionDraft = $this->revisionDraftForResubmission($request, $topic);
@@ -1415,7 +1431,7 @@ class TopicController extends Controller
     {
         $projects = TopicProposal::query()
             ->accessibleTo($user)
-            ->with(['researchCall', 'category', 'latestVersion', 'latestProgressReport'])
+            ->with(['researchCall:id,academic_year', 'latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,progress_percentage'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
@@ -1439,7 +1455,7 @@ class TopicController extends Controller
     {
         $projects = TopicProposal::query()
             ->accessibleTo($user)
-            ->with(['researchCall', 'category', 'latestProgressReport']);
+            ->with('latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,progress_percentage');
 
         $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
         $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();

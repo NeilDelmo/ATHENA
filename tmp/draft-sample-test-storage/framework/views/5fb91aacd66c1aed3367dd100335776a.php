@@ -1,7 +1,7 @@
 <?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
 
 $__newAttributes = [];
-$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames((['topic' => null, 'version' => null, 'id' => 'proposal-routing-docket']));
+$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames((['topic' => null, 'version' => null, 'reviews' => [], 'id' => 'proposal-routing-docket']));
 
 foreach ($attributes->all() as $__key => $__value) {
     if (in_array($__key, $__propNames)) {
@@ -16,7 +16,7 @@ $attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
 unset($__propNames);
 unset($__newAttributes);
 
-foreach (array_filter((['topic' => null, 'version' => null, 'id' => 'proposal-routing-docket']), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
+foreach (array_filter((['topic' => null, 'version' => null, 'reviews' => [], 'id' => 'proposal-routing-docket']), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
     $$__key = $$__key ?? $__value;
 }
 
@@ -37,21 +37,26 @@ unset($__defined_vars, $__key, $__value); ?>
         5 => ['label' => 'Signing and release', 'owner' => 'Research Office', 'detail' => 'Signed papers and Notice to Proceed'],
     ];
 
+    $stageRecords = array_fill(1, 5, []);
+
     if ($topic) {
         $versionFiles = $version?->files ?? collect();
         $gadAssessment = $versionFiles
             ->filter(fn ($file) => $file->document_type === \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD
-                && ($file->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+                && ($file->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT
+                && ! $file->isSuperseded())
             ->sortByDesc('id')
             ->first();
         $coEvaluatorReview = $versionFiles
             ->filter(fn ($file) => $file->document_type === \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD
                 && ($file->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
-                && filled($file->source_data['narrative_evaluation'] ?? null))
+                && filled($file->source_data['narrative_evaluation'] ?? null)
+                && ! $file->isSuperseded())
             ->sortByDesc('id')
             ->first();
         $gadPassed = $version?->hasPassingGadAssessment() ?? false;
-        $gadNeedsRevision = $gadAssessment && ! $gadPassed;
+        $gadNeedsRevision = $gadAssessment && (in_array($gadAssessment->source_data['gad_outcome'] ?? null, ['returned', 'conditional_pass'], true)
+            || (is_numeric($gadAssessment->source_data['gad_score'] ?? null) && (float) $gadAssessment->source_data['gad_score'] < 8));
         $researchHeadCleared = $topic->review_stage === 'gad'
             || $topic->review_stage === 'lrec'
             || in_array($topic->status, [
@@ -96,10 +101,58 @@ unset($__defined_vars, $__key, $__value); ?>
                 ? 'Request a faculty revision to address the co-evaluator’s feedback.'
                 : 'Review the co-evaluator’s outcome and clear this proposal for LREC.',
             $researchHeadCleared && $gadPassed => 'Record the co-evaluator’s completed Initial Screening Form.',
+            $researchHeadCleared && $gadAssessment && ! $gadNeedsRevision => 'Confirm the GAD verifier signature before advancing to co-evaluator review.',
             $topic->status === \App\Models\TopicProposal::STATUS_GAD_REVIEW => 'GAD Office: evaluate the Research Head-cleared version before it can be sent to a co-evaluator.',
             $topic->status === 'resubmitted' => 'Research Head: review the corrected proposal again, request another revision if needed, or explicitly clear it for GAD assessment.',
             default => 'Review the submitted papers, request changes if needed, or clear the proposal for GAD.',
         };
+
+        foreach (collect($reviews)->where('decision', '!=', 'head_upload')->sortByDesc('created_at') as $review) {
+            $recordStage = match (true) {
+                $review->decision === 'gad_review' => 1,
+                $review->decision === 'lrec_queued' => 3,
+                $review->decision === 'approved' => 5,
+                $review->decision === 'ready_for_signature' || $review->review_stage === 'lrec' => 4,
+                $review->review_stage === 'gad' => $gadAssessment?->created_at && $review->created_at?->gte($gadAssessment->created_at) && $gadPassed ? 3 : 2,
+                default => 1,
+            };
+            $stageRecords[$recordStage][] = [
+                'label' => match ($review->decision) {
+                    'gad_review' => 'Cleared for GAD assessment',
+                    'lrec_queued' => 'Cleared for LREC presentation',
+                    'ready_for_signature' => 'Cleared for final signing',
+                    'revision_requested' => 'Revision requested',
+                    'rejected' => 'Proposal rejected',
+                    'approved' => 'Signed papers approved',
+                    default => str($review->decision)->headline()->toString(),
+                },
+                'date' => $review->created_at,
+                'comment' => implode("\n", array_filter([$review->comment, ...array_column($review->committee_comments ?? [], 'comment')])),
+                'file' => null,
+            ];
+        }
+
+        if ($gadAssessment) {
+            array_unshift($stageRecords[2], [
+                'label' => ($gadPassed ? 'Passed' : ($gadNeedsRevision ? 'Needs revision' : 'Awaiting signature confirmation')).' · '.($gadAssessment->source_data['gad_score'] ?? '—').'/20',
+                'date' => $gadAssessment->created_at,
+                'comment' => $gadAssessment->source_data['gad_interpretation'] ?? '',
+                'file' => $gadAssessment,
+            ]);
+        }
+
+        if ($coEvaluatorReview) {
+            array_unshift($stageRecords[3], [
+                'label' => str($coEvaluatorReview->source_data['recommended_action'] ?? 'Evaluation recorded')->headline()->toString(),
+                'date' => $coEvaluatorReview->created_at,
+                'comment' => $coEvaluatorReview->source_data['narrative_evaluation'],
+                'file' => $coEvaluatorReview,
+            ]);
+        }
+
+        if ($released) {
+            array_unshift($stageRecords[5], ['label' => 'Notice to Proceed issued', 'date' => $topic->notice_to_proceed_issued_at, 'comment' => 'Signed documents released. Project monitoring is open.', 'file' => null]);
+        }
     } else {
         $currentStep = null;
         $released = false;
@@ -108,11 +161,13 @@ unset($__defined_vars, $__key, $__value); ?>
     }
 ?>
 
-<section id="<?php echo e($id); ?>" data-proposal-routing-docket data-proposal-route <?php if($topic): ?> data-current-route-stage="<?php echo e(str($stages[$currentStep]['label'])->slug()); ?>" <?php else: ?> data-workflow-reference <?php endif; ?> class="proposal-docket mt-4 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm dark:border-red-950/70 dark:bg-slate-950" aria-labelledby="<?php echo e($id); ?>-heading">
+<section id="<?php echo e($id); ?>" x-data="{ selectedStage: <?php echo e($currentStep ?? 'null'); ?> }" data-proposal-routing-docket data-proposal-route <?php if($topic): ?> data-current-route-stage="<?php echo e(str($stages[$currentStep]['label'])->slug()); ?>" <?php else: ?> data-workflow-reference <?php endif; ?> class="proposal-docket mt-4 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm dark:border-red-950/70 dark:bg-slate-950" aria-labelledby="<?php echo e($id); ?>-heading">
     <header class="grid gap-3 border-b border-red-100 bg-red-50 px-4 py-3 text-[#7A0019] dark:border-red-950 dark:bg-red-950/25 dark:text-red-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5">
         <div>
-            <p class="text-[0.65rem] font-black tracking-[0.18em] text-[#7A0019]/75 dark:text-red-300">PROPOSAL REVIEW ROUTE</p>
             <h3 id="<?php echo e($id); ?>-heading" class="mt-1 text-base font-black tracking-tight sm:text-lg"><?php echo e($topic ? 'Review progress' : 'Workflow reference'); ?></h3>
+            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
+                <p class="mt-1 text-xs leading-5"><?php echo e($released ? 'All five stages completed.' : 'Stage '.$currentStep.' of 5: '.$stages[$currentStep]['label'].'.'); ?> Select a completed stage to view its outcome.</p>
+            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
         </div>
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
             <dl class="grid grid-cols-2 gap-x-4 text-[11px] sm:text-right">
@@ -122,10 +177,10 @@ unset($__defined_vars, $__key, $__value); ?>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
     </header>
 
-    <div class="overflow-x-auto" data-horizontal-stepper>
+    <div data-horizontal-stepper>
         <ol class="<?php echo \Illuminate\Support\Arr::toCssClasses([
             'grid list-none divide-red-100 dark:divide-red-950',
-            'min-w-[55rem] grid-cols-5 divide-x' => $topic,
+            'grid-cols-1 divide-y lg:grid-cols-5 lg:divide-x lg:divide-y-0' => $topic,
             'grid-cols-1 divide-y sm:grid-cols-2 sm:divide-x xl:grid-cols-5 xl:divide-y-0' => ! $topic,
         ]); ?>" aria-label="Proposal review route">
             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $stages; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $number => $stage): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
@@ -136,16 +191,22 @@ unset($__defined_vars, $__key, $__value); ?>
                     $state = ! $topic ? 'Reference' : ($isComplete
                         ? 'Cleared'
                         : ($isClosed ? 'Closed' : ($isCurrent ? ($revisionRequested ? 'Revision requested' : 'In progress') : 'Locked')));
+                    $canInspect = $topic && ($number <= $currentStep || ! empty($stageRecords[$number]));
+                    $stateLabel = $isComplete ? 'Completed' : ($state === 'In progress' ? 'Current stage' : ($state === 'Locked' ? (empty($stageRecords[$number]) ? 'Upcoming' : 'Previously reviewed') : $state));
                 ?>
                 <li <?php if($isCurrent): ?> aria-current="step" <?php endif; ?> data-route-step data-route-state="<?php echo e(str($state)->slug()); ?>" class="<?php echo \Illuminate\Support\Arr::toCssClasses([
-                    'relative min-w-0 px-4 py-4 sm:px-5',
+                    'relative min-w-0',
                     'bg-white dark:bg-slate-950' => ! $isCurrent,
                     'bg-red-50/70 dark:bg-red-950/20' => $isCurrent,
                 ]); ?>">
                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isCurrent): ?>
                         <span class="absolute inset-x-0 top-0 h-0.5 bg-[#7A0019] dark:bg-red-400" aria-hidden="true"></span>
                     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-                    <div class="flex items-start gap-2.5">
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
+                        <button type="button" data-workflow-stage-button="<?php echo e($number); ?>" <?php if(! $canInspect): echo 'disabled'; endif; ?> @click="selectedStage = <?php echo e($number); ?>" <?php if($canInspect): ?> :aria-expanded="selectedStage === <?php echo e($number); ?>" aria-expanded="<?php echo e($number === $currentStep ? 'true' : 'false'); ?>" aria-controls="<?php echo e($id); ?>-stage-<?php echo e($number); ?>" <?php endif; ?> :class="selectedStage === <?php echo e($number); ?> ? 'ring-2 ring-inset ring-[#7A0019] dark:ring-red-400' : ''" class="flex h-full min-h-11 w-full items-start gap-2.5 border border-transparent px-4 py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-red-700 enabled:hover:bg-slate-50 disabled:cursor-default dark:enabled:hover:bg-slate-900 sm:px-5">
+                    <?php else: ?>
+                        <div class="flex items-start gap-2.5 px-4 py-4 sm:px-5">
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         <span class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black tabular-nums',
                             'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' => $isComplete,
@@ -161,28 +222,70 @@ unset($__defined_vars, $__key, $__value); ?>
                         </span>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                                <h4 class="text-sm font-black leading-5 text-slate-950 dark:text-white"><?php echo e($stage['label']); ?></h4>
+                                <span class="text-sm font-black leading-5 text-slate-950 dark:text-white"><?php echo e($stage['label']); ?></span>
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
                                 <span class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                                     'text-[0.625rem] font-black tracking-wider',
                                     'text-emerald-700 dark:text-emerald-400' => $isComplete,
                                     'text-[#7A0019] dark:text-red-300' => $isCurrent,
                                     'text-slate-400 dark:text-slate-500' => ! $isComplete && ! $isCurrent,
-                                ]); ?>"><?php echo e(strtoupper($state)); ?></span>
+                                ]); ?>"><?php echo e($stateLabel); ?></span>
                                 <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             </div>
                             <p class="mt-1.5 text-xs font-bold text-slate-600 dark:text-slate-300"><?php echo e($stage['owner']); ?></p>
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
                                 <span class="sr-only"><?php echo e($stage['detail']); ?></span>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($canInspect && ! $isCurrent): ?>
+                                    <p class="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300">View outcome</p>
+                                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             <?php else: ?>
                                 <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400"><?php echo e($stage['detail']); ?></p>
                             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
-                    </div>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
+                        </button>
+                    <?php else: ?>
+                        </div>
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                 </li>
             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
         </ol>
     </div>
+
+    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic): ?>
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $stages; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $number => $stage): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($number <= $currentStep || ! empty($stageRecords[$number])): ?>
+                <section id="<?php echo e($id); ?>-stage-<?php echo e($number); ?>" data-workflow-stage-outcome="<?php echo e($number); ?>" x-show="selectedStage === <?php echo e($number); ?>" <?php if($number !== $currentStep): ?> x-cloak style="display: none;" <?php endif; ?> class="border-t border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-5" aria-labelledby="<?php echo e($id); ?>-stage-<?php echo e($number); ?>-heading">
+                    <h4 id="<?php echo e($id); ?>-stage-<?php echo e($number); ?>-heading" class="text-sm font-bold text-slate-950 dark:text-white"><?php echo e($stage['label']); ?></h4>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__empty_1 = true; $__currentLoopData = $stageRecords[$number]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $record): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <article data-workflow-stage-record class="mt-3 border-l-2 border-slate-200 pl-3 text-sm dark:border-slate-700">
+                            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                <p class="font-semibold text-slate-900 dark:text-white"><?php echo e($record['label']); ?></p>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($record['date']): ?>
+                                    <time datetime="<?php echo e($record['date']->toIso8601String()); ?>" class="text-xs text-slate-500 dark:text-slate-400"><?php echo e($record['date']->format('M j, Y · g:i A')); ?></time>
+                                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                            </div>
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(filled($record['comment'])): ?>
+                                <p class="mt-2 whitespace-pre-line break-words leading-6 text-slate-600 dark:text-slate-300"><?php echo e($record['comment']); ?></p>
+                            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($record['file']): ?>
+                                <div class="mt-3 flex flex-wrap items-center gap-2">
+                                    <span class="min-w-0 break-all text-xs text-slate-500 dark:text-slate-400"><?php echo e($record['file']->original_filename); ?></span>
+                                    <a href="<?php echo e(route('topics.versions.files.view', [$topic, $version, $record['file']])); ?>" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900">View</a>
+                                    <a href="<?php echo e(route('topics.versions.files.download', [$topic, $version, $record['file']])); ?>" class="inline-flex min-h-9 items-center rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900">Download</a>
+                                </div>
+                            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                        </article>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                        <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300"><?php echo e($number < $currentStep ? 'This stage was cleared. No separate decision record is available.' : $nextAction); ?></p>
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($number < $currentStep): ?>
+                        <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Completed stage. Active review controls are available at the current stage.</p>
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                </section>
+            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if (! ($topic)): ?>
         <dl class="grid gap-3 border-t border-red-100 px-4 py-3 text-xs leading-5 dark:border-red-950 sm:grid-cols-2 sm:px-5 lg:grid-cols-3" data-workflow-label-key>

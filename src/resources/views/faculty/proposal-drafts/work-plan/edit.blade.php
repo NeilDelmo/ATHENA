@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="$paper['label']" subtitle="Build the official BatStateU-FO-RES-02 Work Plan from structured inputs.">
             <x-slot name="actions">
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : ($workPlanDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $workPlanDocument?->completed_at ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started') }}</span>
+                <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }}">{{ $workPlanDocument?->completed_at ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started') }}</span>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
             </x-slot>
         </x-page-header>
@@ -18,7 +18,10 @@
     @endphp
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="work-plan-writing-workspace mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-proposal-paper-workspace
+        data-work-plan-workspace
+        @focusin="focusWorkPlanEntry($event)"
         data-paper-editor
         data-paper-draft-save="true"
         data-work-plan-autosave="true"
@@ -61,14 +64,12 @@
             :loaded-version="(int) old('document_version', $workPlanDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
             :reload-url="route('faculty.proposal-drafts.work-plan.edit', $proposalDraft)"
-            :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
             :label="$paper['label']"
         />
 
-        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="work-plan-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
-            <span class="text-xs text-slate-500 dark:text-slate-400">The preview stays open while you edit and can be moved or resized.</span>
-        </div>
+        <x-work-plan-writing-toolbar />
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Work Plan editing form">
 
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -86,12 +87,12 @@
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit details</a>
                 </div>
             </div>
-            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-5">
+            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->duration_months ? $proposalDraft->duration_months.' months' : 'Not provided' }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Planned Start</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->planned_start?->format('M j, Y') ?? 'Not provided' }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Planned End</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->planned_end?->format('M j, Y') ?? 'Not provided' }}</dd></div>
-                <div class="sm:col-span-2 lg:col-span-5"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader / Prepared by</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader / Prepared by</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
             </dl>
         </section>
 
@@ -116,7 +117,7 @@
                 @endif
 
                 <template x-for="(entry, index) in entries" :key="entry.id">
-                    <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="rounded-2xl border p-5 shadow-sm transition-colors sm:p-6">
+                    <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" :data-work-plan-entry-id="entry.id" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="work-plan-writing-entry rounded-xl border p-4 transition-colors sm:p-5">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="min-w-0">
                                 <p class="text-xs font-black uppercase tracking-wider text-gray-500">Objective <span x-text="index + 1"></span></p>
@@ -132,8 +133,8 @@
                         </div>
 
                         <div x-bind:id="`work-plan-editor-${entry.id}`" x-show="isEntryExpanded(entry)" x-cloak x-transition class="mt-5">
-                            <div class="grid gap-5 lg:grid-cols-3">
-                                <div>
+                            <div class="work-plan-writing-fields grid gap-4">
+                                <div class="work-plan-writing-objective">
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective from Detailed Proposal</label>
                                     <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="4" readonly required class="mt-2 block w-full rounded-xl border-gray-200 bg-gray-50 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
                                 </div>
@@ -157,7 +158,7 @@
                                                 <p class="text-xs font-black uppercase tracking-wider text-gray-700" x-text="`Y${yearGroup.year}`"></p>
                                                 <p class="text-[10px] font-semibold text-gray-500" x-text="`Project months ${yearGroup.months[0]}-${yearGroup.months[yearGroup.months.length - 1]}`"></p>
                                             </div>
-                                            <div class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+                                            <div class="work-plan-writing-months mt-2 grid gap-2">
                                                 <template x-for="month in yearGroup.months" :key="month">
                                                     <label
                                                         class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
@@ -192,11 +193,13 @@
 
         <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
 
-        <x-proposal-document-preview
+        </div>
+        <x-proposal-paper-preview
             panel-id="work-plan-preview-panel"
-            title="Work Plan preview"
-            description="This preview follows the official Attachment A paper layout."
+            preview-label="Work Plan preview"
             frame-title="Attachment A Work Plan preview"
         />
+        </div>
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" aria-controls="work-plan-preview-panel" :aria-expanded="previewPaneOpen" class="proposal-writing-preview-launcher">Preview paper</button>
     </div>
 </x-app-layout>

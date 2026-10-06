@@ -24,7 +24,6 @@ test('proposal draft action forms use SweetAlert2 confirmations', function () {
         'resources/views/faculty/proposal-drafts/index.blade.php' => 'Delete draft',
         'resources/views/faculty/proposal-drafts/show.blade.php' => 'Remove team member',
         'resources/views/faculty/proposal-drafts/_review-package.blade.php' => 'Turn in proposal',
-        'resources/views/faculty/proposal-drafts/history.blade.php' => 'Restore recovery point',
         'resources/views/faculty/proposal-drafts/papers/edit.blade.php' => 'Remove file',
     ];
 
@@ -89,7 +88,7 @@ test('turning in a proposal shows a blocking progress screen after confirmation'
         ->toContain('data-proposal-submission-loading')
         ->toContain('hidden')
         ->toContain('role="status"')
-        ->toContain('Turning in prepared package')
+        ->toContain('Turning in prepared proposal')
         ->toContain('sending the seven PDFs you reviewed')
         ->toContain('Please keep this page open until the submission is confirmed.')
         ->toContain('items-center justify-center overflow-y-auto')
@@ -404,7 +403,7 @@ test('the collaboration monitor keeps a persistent save confirmation', function 
         ->toContain('You can continue editing.')
         ->toContain('data-proposal-monitor-status');
 
-    session()->flash('success', 'Attachment A: Work Plan file removed. Earlier recovery points remain available.');
+    session()->flash('success', 'Attachment A: Work Plan file removed.');
 
     $removedHtml = Blade::render(
         '<x-proposal-collaboration-monitor :loaded-version="0" state-url="/state" reload-url="/edit" label="Work Plan" />',

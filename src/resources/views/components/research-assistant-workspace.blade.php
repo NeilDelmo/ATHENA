@@ -42,7 +42,12 @@
                         <span class="mt-1 block text-[9px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
                     </button>
                 </template>
-                <p x-show="!$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
+                <p x-show="$store.researchAssistant.historyLoading" role="status" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Loading saved chats…</p>
+                <div x-show="$store.researchAssistant.historyLoadError" class="px-2 py-4 text-center">
+                    <p class="text-[11px] text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.historyLoadError"></p>
+                    <button type="button" @click="$store.researchAssistant.loadHistory()" class="mt-3 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Retry loading history</button>
+                </div>
+                <p x-show="!$store.researchAssistant.historyLoading && !$store.researchAssistant.historyLoadError && !$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
             </div>
 
             <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 rounded-xl bg-red-50 px-3 py-2.5 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
@@ -113,7 +118,7 @@
                 <p class="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
                 <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-8 grid w-full gap-3 sm:grid-cols-2">
                     <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
-                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="group rounded-2xl border border-gray-200 p-4 text-left transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt, item.action || null)" class="group rounded-2xl border border-gray-200 p-4 text-left transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800">
                             <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
                             <span class="mt-1 block text-sm font-semibold leading-6 text-gray-700 group-hover:text-gray-950 dark:text-slate-200 dark:group-hover:text-white" x-text="item.description"></span>
                             <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
@@ -135,6 +140,7 @@
                             <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <x-research-assistant-literature />
                                 <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
                                     <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
@@ -223,7 +229,7 @@
                 <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
                 <label id="assistant-history-search-title" for="assistant-history-search" class="sr-only">Search chat history</label>
                 <input id="assistant-history-search" type="search" x-model="$store.researchAssistant.historySearchQuery" @input="$store.researchAssistant.queueHistorySearch()" placeholder="Search your chats" autocomplete="off" class="min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:ring-0 dark:text-white">
-                <span x-show="$store.researchAssistant.historySearchLoading" class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-red-600" aria-label="Searching"></span>
+                <span x-show="$store.researchAssistant.historySearchLoading || $store.researchAssistant.historyLoading" class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-red-600" aria-label="Loading history"></span>
                 <button type="button" @click="$store.researchAssistant.closeHistorySearch()" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white">Esc</button>
             </div>
             <div class="overflow-y-auto p-2">
@@ -234,7 +240,8 @@
                         <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
                     </button>
                 </template>
-                <p x-show="!$store.researchAssistant.historySearchLoading && !$store.researchAssistant.historySearchResults.length" class="px-4 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No chats found.</p>
+                <p x-show="$store.researchAssistant.historyLoadError" class="px-4 py-4 text-center text-sm text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.historyLoadError"></p>
+                <p x-show="!$store.researchAssistant.historySearchLoading && !$store.researchAssistant.historyLoading && !$store.researchAssistant.historyLoadError && !$store.researchAssistant.historySearchResults.length" class="px-4 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No chats found.</p>
             </div>
             <div class="border-t border-gray-100 px-4 py-2.5 text-[10px] text-gray-400 dark:border-slate-800">Search matches words in your chat titles and messages.</div>
         </div>

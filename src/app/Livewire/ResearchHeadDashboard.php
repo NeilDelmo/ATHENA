@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\ProposalVersion;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchAnnualTarget;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -249,7 +250,10 @@ class ResearchHeadDashboard extends Component
         $topics = ($validFilters && $this->submissionMonth !== '' ? $analytics->topics($year) : clone $base)
             ->when($this->submissionMonth === '', fn (Builder $query) => $query->whereIn('status', in_array($this->pipeline, ['approved', 'signing'], true) ? [...$allowedStatuses, 'approved'] : $allowedStatuses))
             ->with(['user:id,name', 'researchCall:id,title', 'latestVersion' => fn ($query) => $query
-                ->with('files')
+                ->with(['files' => fn ($files) => $files->whereIn('document_type', [
+                    ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                    ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                ])])
                 ->withCount(['files' => fn (Builder $files) => $files->where('document_type', '!=', 'head_upload')])])
             ->when(in_array($this->status, $allowedStatuses, true), fn (Builder $query) => $query->where('status', $this->status))
             ->when($this->pipeline !== '', fn (Builder $query) => $analytics->filterPipeline($query, $this->pipeline))

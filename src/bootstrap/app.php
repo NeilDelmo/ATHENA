@@ -35,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
                     'research-support.journal-search',
                     'faculty.proposal-drafts.literature-sources.*',
                     'faculty.proposal-drafts.literature-drafts.*',
+                    'faculty.proposal-drafts.literature-evidence.*',
+                    'faculty.proposal-drafts.literature-evidence-assistance',
                 )
                 || $request->routeIs('faculty.work-plans.*')
                 || $request->routeIs(
@@ -42,6 +44,8 @@ return Application::configure(basePath: dirname(__DIR__))
                     'faculty.proposal-drafts.work-plan.download',
                 )
                 || ($request->expectsJson() && $request->routeIs(
+                    'workspace.store',
+                    'role-selection.store',
                     'topics.head-uploads.store',
                     'topics.versions.files.annotations.store',
                     'topics.versions.files.annotations.update',

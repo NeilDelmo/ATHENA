@@ -117,9 +117,10 @@ class SidebarAttentionService
      */
     private function unreadVisibleNotifications(User $user): Collection
     {
-        return $user->visibleNotifications()
+        return $user->visibleNotificationsQuery()
             ->whereNull('read_at')
-            ->values();
+            ->latest()
+            ->get();
     }
 
     private function areaFor(DatabaseNotification $notification): ?string

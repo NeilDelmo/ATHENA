@@ -4,18 +4,14 @@
             <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
                 <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</span>
-                <a href="{{ route('signatories.edit', $proposalDraft) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Choose signatories</a>
-                <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-11" aria-label="Open recovery history{{ $historyCount > 0 ? ' ('.$historyCount.' points)' : '' }}" title="Recovery history">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    <span class="sr-only">Recovery history</span>
-                </a>
-                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto">Review &amp; turn in</button>
+                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto">{{ auth()->user()->can('submit', $proposalDraft) ? 'Review & turn in' : 'Review working draft' }}</button>
             </x-slot>
         </x-page-header>
     </x-slot>
 
     @php
         $submittedTopic = $proposalDraft->topic;
+        $canEditDraft = auth()->user()->can('update', $proposalDraft);
         $editableChecklist = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
         $automaticChecklist = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
         $completedPaperCount = $editableChecklist
@@ -31,8 +27,8 @@
 
     @if ($submittedTopic && $submittedTopic->status !== 'revision_requested')
         <section data-submitted-package-workspace class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
-            <h2 class="font-bold text-gray-950 dark:text-white">Update submitted package</h2>
-            <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">{{ $submittedTopic->canUpdateBeforeReview() ? 'These changes are private until you turn in the next version. The Research Head continues to see your last submitted package. Editing closes when the Research Head opens the proposal.' : 'The Research Head has opened your proposal. This working copy is kept, but further edits and submission require a revision request.' }}</p>
+            <h2 class="font-bold text-gray-950 dark:text-white">{{ $submittedTopic->canUpdateBeforeReview() ? 'Update submitted proposal' : 'Proposal under review' }}</h2>
+            <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">{{ $submittedTopic->canUpdateBeforeReview() ? 'These changes are private until you submit the next version. Your earlier submitted PDFs stay in Versions. Editing closes when the Research Head opens the submission.' : 'The Research Head has opened this proposal. Editing and submission are locked until revisions are requested. Your saved working copy is preserved.' }}</p>
             <a href="{{ route('topics.show', $submittedTopic) }}" class="mt-3 inline-flex min-h-11 items-center font-semibold text-red-700 hover:underline dark:text-red-300">View submitted versions</a>
         </section>
     @endif
@@ -112,9 +108,10 @@
                         </div>
 
 
-                        <form data-paper-form data-project-details-autosave-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6 px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
+                        <form data-paper-form @if ($canEditDraft) data-project-details-autosave-form @endif action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
                             @csrf
                             @method('PUT')
+                            <fieldset @disabled(! $canEditDraft) @if (! $canEditDraft) inert data-proposal-editing-locked @endif class="space-y-6">
                             <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
 
                             <div>
@@ -157,6 +154,7 @@
                                     <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Save project details</button>
                                 </div>
                             </noscript>
+                            </fieldset>
                         </form>
                     </section>
                 </div>
@@ -183,7 +181,6 @@
                         <div aria-labelledby="recent-activity-heading" class="border-t border-gray-200 p-4 dark:border-slate-800">
                         <div class="flex items-start justify-between gap-2">
                             <h4 id="recent-activity-heading" class="text-sm font-black text-gray-950 dark:text-white">Recent activity</h4>
-                            <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:hover:bg-red-950/50" aria-label="Open recovery history" title="Recovery history"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></a>
                         </div>
                         <div class="mt-3 divide-y divide-gray-100 border-y border-gray-100 dark:divide-slate-800 dark:border-slate-800">
                             @forelse ($recentActivity as $activity)
@@ -208,7 +205,7 @@
                 <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete the five proposal papers here. The GAD Checklist and Initial Screening Form are added automatically from Project Details.</p>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div data-editable-proposal-papers class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 @foreach ($editableChecklist as $item)
                     @php
                         $paper = $item['paper'];
@@ -242,7 +239,7 @@
 
                             <div class="mt-2 text-xs text-gray-600 dark:text-slate-300">
                                 @if ($paper['mode'] === 'automatic')
-                                    <p class="font-semibold">PDF prepared automatically from Project Details when the package is turned in.</p>
+                                    <p class="font-semibold">PDF prepared automatically from Project Details when the proposal is turned in.</p>
                                 @elseif ($item['documents']->isNotEmpty())
                                     @if ($paper['mode'] === 'generated')
                                         <p class="font-semibold">{{ $item['submission_filename'] }}</p>
@@ -264,32 +261,42 @@
                                 </div>
                             @endif
                         </div>
-                        <a href="{{ $paperRoute }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 transition hover:border-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-red-600 dark:hover:text-red-300 sm:w-auto" aria-label="{{ $paperAction }}">{{ $paperAction }}</a>
+                        @if ($canEditDraft)
+                            <a href="{{ $paperRoute }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 transition hover:border-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-red-600 dark:hover:text-red-300 sm:w-auto" aria-label="{{ $paperAction }}">{{ $paperAction }}</a>
+                        @else
+                            <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">Editing locked</span>
+                        @endif
                     </article>
                 @endforeach
             </div>
 
-            <section data-automatic-assessment-forms class="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="automatic-assessment-forms-heading">
+            <section data-automatic-assessment-forms data-automatic-assessment-preview x-data="proposalAssessmentPreview()" @resize.window.debounce.150ms="resizeProposalPaperPreview()" class="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="automatic-assessment-forms-heading">
+                <div :inert="previewFullscreen">
                 <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800 sm:px-6">
                     <h4 id="automatic-assessment-forms-heading" class="text-sm font-black text-gray-950 dark:text-white">Assessment forms added automatically</h4>
-                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">No faculty answers or file uploads are needed. These two blank forms are generated from Project Details and included when the package is turned in.</p>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">No faculty answers or file uploads are needed. These two blank forms are generated from Project Details and included when the proposal is turned in.</p>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-slate-800">
                     @foreach ($automaticChecklist as $item)
                         @php
-                            $previewRoute = $item['paper']['slug'] === 'gad-checklist'
-                                ? route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft)
-                                : route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft);
+                            $formRoutes = 'faculty.proposal-drafts.'.$item['paper']['slug'];
+                            $formPreview = [
+                                'label' => $item['paper']['label'],
+                                'previewUrl' => route($formRoutes.'.preview', $proposalDraft),
+                                'downloadUrl' => route($formRoutes.'.download', $proposalDraft),
+                            ];
                         @endphp
                         <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-6">
                             <div class="min-w-0">
                                 <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $item['paper']['label'] }}</p>
-                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400">{{ $item['complete'] ? 'Ready to include with the seven PDFs' : 'Available once Project Details are complete' }}</p>
+                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400">{{ $item['complete'] ? 'Added automatically to your submission' : 'Complete Project Details to prepare this form' }}</p>
                             </div>
-                            <a href="{{ $previewRoute }}" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Optional preview</a>
+                            <button type="button" data-assessment-preview-trigger @click="openAssessmentPreview(@js($formPreview))" aria-label="Preview {{ $item['paper']['label'] }}" aria-haspopup="dialog" aria-controls="assessment-form-preview-panel" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Preview form</button>
                         </div>
                     @endforeach
                 </div>
+                </div>
+                <x-proposal-paper-preview panel-id="assessment-form-preview-panel" preview-label="Assessment form preview" frame-title="Assessment form preview" />
             </section>
 
             <div class="mt-5 flex flex-col gap-3 rounded-xl border-l-4 border-red-600 bg-gray-950 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -553,7 +560,7 @@
                 @endif
 
                 <div class="space-y-6">
-                    <livewire:proposal-draft-review-package :proposal-draft="$proposalDraft" :in-modal="true" />
+                    <livewire:proposal-draft-review-package :proposal-draft="$proposalDraft" :in-modal="true" lazy />
                 </div>
             </div>
         </div>

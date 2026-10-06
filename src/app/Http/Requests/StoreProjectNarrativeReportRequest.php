@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProgressReportEvidenceService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
@@ -26,9 +27,9 @@ class StoreProjectNarrativeReportRequest extends FormRequest
 
         return $topic instanceof TopicProposal
             && $topic->isMonitoringAvailable()
-            && ($this->input('report_type') === 'terminal'
+            && ($this->routeIs('project-narrative-reports.preview') || ($this->input('report_type') === 'terminal'
                 ? app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
-                : app(MonitoringQuarterService::class)->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])))
+                : app(MonitoringQuarterService::class)->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at']))))
             && $this->user() !== null
             && $topic->isAccessibleTo($this->user());
     }
@@ -45,6 +46,9 @@ class StoreProjectNarrativeReportRequest extends FormRequest
         if ($this->input('report_type') === 'progress' && $this->route('topic') instanceof TopicProposal) {
             $this->merge(app(ProgressReportData::class)->normalize($this->route('topic'), $this->only(['accomplishments', 'objectives'])));
         }
+        if ($this->route('topic') instanceof TopicProposal) {
+            app(ProgressReportEvidenceService::class)->prepareRequest($this, $this->route('topic'));
+        }
     }
 
     /**
@@ -55,6 +59,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
+            ...app(ProgressReportEvidenceService::class)->rules($this),
             'reporting_date' => [Rule::excludeIf($this->input('report_type') === 'terminal'), 'required', 'date_format:Y-m-d'],
             'submission_date' => ['required', 'date', 'before_or_equal:today'],
             'report_type' => ['required', Rule::in(['progress', 'terminal'])],
@@ -99,9 +104,14 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             foreach (['introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {
                 $rules[$field] = ['required', 'string', 'max:100000'];
             }
-            $rules['implementation_start'][] = 'before_or_equal:today';
-            $rules['implementation_end'][] = 'before_or_equal:today';
-            $rules['implementation_end'][] = 'before_or_equal:submission_date';
+            if ($this->routeIs('project-narrative-reports.preview')) {
+                $latestPreviewDate = app(MonitoringQuarterService::class)->reportingWindow($topic)['end']->max(CarbonImmutable::today());
+                $rules['implementation_end'][] = 'before_or_equal:'.$latestPreviewDate->toDateString();
+            } else {
+                $rules['implementation_start'][] = 'before_or_equal:today';
+                $rules['implementation_end'][] = 'before_or_equal:today';
+                $rules['implementation_end'][] = 'before_or_equal:submission_date';
+            }
             $rules['researchers'] = ['nullable', 'string', 'max:10000'];
             $rules['funding_agency'] = ['nullable', 'string', 'max:255'];
             $rules['objectives'] = ['nullable', 'string', 'max:10000'];
@@ -137,16 +147,23 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            app(ProgressReportEvidenceService::class)->validateEvidence($this, $validator);
             if ($this->input('report_type') === 'progress' && $validator->errors()->isEmpty()) {
                 $topic = $this->route('topic');
                 $schedule = app(MonitoringQuarterService::class);
-                if (! $schedule->canSubmitForDate($topic, $this->input('reporting_date'))) {
-                    $validator->errors()->add('reporting_date', 'Choose an ended reporting quarter from the project schedule.');
+                $isPreview = $this->routeIs('project-narrative-reports.preview');
+                $validPeriod = $isPreview
+                    ? $schedule->canDraftForDate($topic, $this->input('reporting_date'))
+                    : $schedule->canSubmitForDate($topic, $this->input('reporting_date'));
+                if (! $validPeriod) {
+                    $validator->errors()->add('reporting_date', $isPreview
+                        ? 'Choose a reporting quarter within the approved project schedule.'
+                        : 'Choose an ended reporting quarter from the project schedule.');
 
                     return;
                 }
                 $period = $schedule->forDate($this->input('reporting_date'), $topic);
-                if (CarbonImmutable::parse($this->input('submission_date'))->startOfDay()->lessThan($period['opens_at'])) {
+                if (! $isPreview && CarbonImmutable::parse($this->input('submission_date'))->startOfDay()->lessThan($period['opens_at'])) {
                     $validator->errors()->add('submission_date', 'The submission date must be after the selected quarter ends.');
                 }
                 $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();

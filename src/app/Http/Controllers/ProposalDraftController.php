@@ -152,7 +152,7 @@ class ProposalDraftController extends Controller
         ]);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
-        $readinessErrors = $readiness->errors($proposalDraft);
+        $readinessErrors = $readiness->errors($proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
         $readyToPrepare = $readinessErrors === [];
         $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
@@ -178,7 +178,6 @@ class ProposalDraftController extends Controller
             ->values();
         $projectSecretaryMember = $proposalDraft->members
             ->first(fn (ProposalDraftMember $member): bool => $member->isProjectSecretary());
-        $historyCount = $proposalDraft->documentVersions()->count();
         $recentActivity = $proposalDraft->documentVersions()
             ->with('creator:id,name')
             ->limit(5)
@@ -202,7 +201,6 @@ class ProposalDraftController extends Controller
             'memberCandidates',
             'projectRoleCandidates',
             'projectSecretaryMember',
-            'historyCount',
             'recentActivity',
         ));
     }
@@ -242,7 +240,7 @@ class ProposalDraftController extends Controller
 
         $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
         if ($request->string('signatories')->toString() === 'comment_response_form') {
-            return redirect()->route('signatories.edit', [$proposalDraft, 'paper' => 'comment_response_form']);
+            return redirect()->to(route('faculty.topics.revision', $topic).'#revision-feedback');
         }
         $paper = $catalog->forDocumentType($documentType);
 

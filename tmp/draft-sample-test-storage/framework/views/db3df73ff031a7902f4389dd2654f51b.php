@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="<?php echo e(str_replace('_', '-', app()->getLocale())); ?>">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Attachment B - Line-Item Budget Preview</title>
+        <?php echo app('Illuminate\Foundation\Vite')('resources/css/line-item-budget-print.css'); ?>
+    </head>
+    <body class="line-budget-preview-page">
+        <main class="line-budget-sheet" aria-label="BatStateU Attachment B Line-Item Budget">
+            <p class="line-budget-form-code">Attachment B-BatStateU-FO-RES-02</p>
+            <h1>LINE-ITEM BUDGET</h1>
+
+            <table class="line-budget-table">
+                <colgroup><col><col><col><col><col><col class="amount-column"></colgroup>
+                <tbody>
+                    <tr><th colspan="3" scope="row">Program Title:</th><td colspan="3"></td></tr>
+                    <tr><th colspan="3" scope="row">Project Title:</th><td colspan="3" class="project-title"><?php echo e($lineItemBudget['project_title']); ?></td></tr>
+                    <tr class="staff-heading"><th colspan="3"></th><th>Name</th><th>Campus</th><th>College</th></tr>
+                    <tr><th colspan="3" scope="row">Project Leader:</th><td><?php echo e($lineItemBudget['project_leader']); ?></td><td><?php echo e($lineItemBudget['leader_campus']); ?></td><td><?php echo e($lineItemBudget['leader_college']); ?></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $lineItemBudget['staff']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $member): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <tr><th colspan="3" scope="row"><?php echo e($loop->first ? 'Project Staff:' : ''); ?></th><td><?php echo e($member['name']); ?></td><td><?php echo e($member['campus']); ?></td><td><?php echo e($member['college']); ?></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    <tr><th colspan="3" scope="row">Duration:</th><td colspan="3" class="duration"><em><?php echo e($lineItemBudget['duration']); ?></em></td></tr>
+                    <tr class="budget-heading"><th colspan="5">Particulars</th><th>Amount (Php)</th></tr>
+                    <tr class="section-heading"><th colspan="5">I. Maintenance and Other Operating Expenses (MOOE)</th><td></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = config('line_item_budget.sections.mooe.items'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <tr><td colspan="5" class="particular level-<?php echo e($item['level']); ?>"><?php echo e($item['label']); ?></td><td class="amount"><?php echo e(isset($lineItemBudget['amounts'][$item['key']]) ? number_format($lineItemBudget['amounts'][$item['key']], 2) : ''); ?></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $lineItemBudget['custom_mooe_items']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <tr><td colspan="5" class="particular level-1"><?php echo e($item['particular']); ?></td><td class="amount"><?php echo e($item['amount'] === null ? '' : number_format($item['amount'], 2)); ?></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    <tr class="total-row"><th colspan="5">Total for Maintenance and Other Operating Expenses (MOOE)</th><td class="amount"><?php echo e(number_format($lineItemBudget['mooe_total'], 2)); ?></td></tr>
+                    <tr class="section-heading"><th colspan="5">II. Capital Outlays (CO)</th><td></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = config('line_item_budget.sections.co.items'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <tr><td colspan="5" class="particular level-<?php echo e($item['level']); ?>"><?php echo e($item['label']); ?></td><td class="amount"><?php echo e(isset($lineItemBudget['amounts'][$item['key']]) ? number_format($lineItemBudget['amounts'][$item['key']], 2) : ''); ?></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $lineItemBudget['custom_co_items']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <tr><td colspan="5" class="particular level-1"><?php echo e($item['particular']); ?></td><td class="amount"><?php echo e($item['amount'] === null ? '' : number_format($item['amount'], 2)); ?></td></tr>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    <tr class="total-row"><th colspan="5">Total for Capital Outlays (CO)</th><td class="amount"><?php echo e(number_format($lineItemBudget['co_total'], 2)); ?></td></tr>
+                    <tr class="spacer-row"><td colspan="5"></td><td></td></tr>
+                    <tr class="project-total"><th colspan="5">TOTAL PROJECT COST</th><td class="amount"><?php echo e(number_format($lineItemBudget['project_total'], 2)); ?></td></tr>
+                    <tr><td colspan="6" class="signature-cell"><p class="signature-heading">Prepared by:</p><p class="signature-name"><?php echo e($lineItemBudget['project_leader']); ?></p><p>Project Leader</p><p class="date-signed">Date Signed:</p></td></tr>
+                    <tr><td colspan="6" class="research-office-heading"><em>To be accomplished by the Research Office</em></td></tr>
+                    <tr><td colspan="6" class="research-office"><strong>Level of Call</strong><br><span><?php echo e($lineItemBudget['level_of_call'] === 'central_agency' ? '☒' : '☐'); ?> Central Agency (VPRDES, President)</span><span><?php echo e($lineItemBudget['level_of_call'] === 'constituent_campus' ? '☒' : '☐'); ?> Constituent Campus (VCRDES, Chancellor)</span></td></tr>
+                    <tr><td colspan="6" class="approval-line">
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($lineItemBudget['approval_body'] || $lineItemBudget['resolution_number'] || $lineItemBudget['resolution_year']): ?>
+                            Approved by the <?php echo e($lineItemBudget['approval_body'] === 'lrec' ? 'Local Research Evaluation Committee as per LREC' : 'Research Council as per Research Council'); ?> Resolution No. <?php echo e($lineItemBudget['resolution_number'] ?: '_____'); ?>, S. <?php echo e($lineItemBudget['resolution_year'] ?: '_____'); ?>
+
+                        <?php else: ?>
+                            Approved by the Research Council/Local Research Evaluation Committee as per Research Council Resolution No. _____, S. _____/LREC Resolution No. _____, S. _____
+                        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                    </td></tr>
+                    <tr><td colspan="6" class="signature-cell certified"><p class="signature-heading">Certified correct:</p><p class="signature-name"><?php echo e($lineItemBudget['certified_by']); ?></p><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = explode("\n", $lineItemBudget['certified_role']); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $role): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?><p><?php echo e($role); ?></p><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?><p class="date-signed">Date Signed:</p></td></tr>
+                </tbody>
+            </table>
+
+            <div class="line-budget-notes">
+                <p><em>Note: Add category or sub-category if needed base in UACS Codes/Chart of Accounts</em></p>
+                <p><em>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*Contingency shall not exceed in 10% of Total MOOE Cost</em></p>
+                <p><em>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;**For LREC approved research projects signatory shall be the Chancellor, LREC Vice Chairperson</em></p>
+            </div>
+
+            <footer><span><?php echo e($lineItemBudget['project_title']); ?></span><span>Page 1 of 1</span></footer>
+        </main>
+    </body>
+</html>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views/faculty/line-item-budgets/preview.blade.php ENDPATH**/ ?>

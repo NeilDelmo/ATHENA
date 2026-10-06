@@ -266,18 +266,21 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertOk()
         ->assertSee('Report project accomplishments')
         ->assertSee('Prepare official PDF')
-        ->assertSee('Preview progress report')
+        ->assertSee('Preview paper')
         ->assertSee('Exit monitoring')
         ->assertSee('data-paper-cancel-exit', false)
-        ->assertSee('data-monitoring-action-dock-fixed', false)
-        ->assertSee('fixed inset-x-4 bottom-4', false)
+        ->assertSee('data-monitoring-writing-toolbar', false)
+        ->assertSee('data-proposal-workspace-toolbar', false)
+        ->assertDontSee('data-monitoring-action-dock-fixed', false)
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('VI. Summary of Accomplishment for the Monitoring Period')
         ->assertSee('Target accomplishment')
         ->assertSee('VIII. Rationale')
         ->assertSee('X. Results and Discussion')
         ->assertSee('Add figure')
-        ->assertSee('Changes save privately as a draft.')
+        ->assertSee('Changes and accomplishment evidence save privately as a draft.')
+        ->assertSee('Evidence stays out of the report preview and downloaded PDF.')
+        ->assertSee('data-progress-evidence', false)
         ->assertSee('data-narrative-progress-autosave-form', false);
 });
 
@@ -336,6 +339,27 @@ test('a researcher can preview the filled progress report without submitting it'
         ->assertSee('data-preview-file-input="photo_1"', false);
 
     expect(ProjectNarrativeReport::count())->toBe(0);
+});
+
+test('a researcher can preview a progress quarter before it ends while official preparation stays locked', function () {
+    $this->travelTo('2026-02-01');
+    $this->topic->update([
+        'notice_to_proceed_issued_at' => '2026-01-01',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-01-01', 'approved_end_date' => '2026-12-31', 'approved_duration_months' => 12],
+    ]);
+    $payload = ($this->progressReportPayload)([
+        'reporting_date' => '2026-03-31', 'implementation_start' => '2026-01-01', 'implementation_end' => '2026-12-31',
+    ]);
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))
+        ->assertSuccessful()->assertSee('data-proposal-preview-toggle', false)->assertSee('submissionOpen: false', false);
+    $this->postJson(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertSee('PROGRESS REPORT')->assertSee('Completed the first coastal survey');
+    $this->postJson(route('project-narrative-reports.prepare', $this->topic), $payload)->assertForbidden();
+    $this->postJson(route('project-narrative-reports.preview', $this->topic), [...$payload, 'reporting_date' => '2027-03-31'])
+        ->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    expect(ProjectNarrativeReport::query()->count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0)
+        ->and(Storage::disk('local')->allFiles('narrative-progress-reports'))->toBe([]);
 });
 
 test('the owner and Research Head can download the official report as a PDF and its photo', function () {

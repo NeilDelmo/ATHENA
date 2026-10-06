@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\CommentResponseFeedback;
 use App\Services\CommentResponseFormDocumentService;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -36,6 +37,97 @@ beforeEach(function () {
 
 afterEach(function () {
     $this->travelBack();
+});
+
+test('Comment Response PDF caching preserves binary bytes in the database cache', function () {
+    config(['cache.default' => 'database']);
+    Role::firstOrCreate(['name' => 'faculty']);
+    $this->faculty->assignRole('faculty');
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'comment' => 'Clarify the methods.',
+    ]);
+    $binaryPdf = "%PDF-1.7\n\x00\x9c\xed\xff\x80";
+    $this->mock(CommentResponseFormDocumentService::class)->shouldReceive('generate')->once()->andReturn('document');
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()->with('document')->andReturn($binaryPdf);
+    $url = route('faculty.topics.comment-response-form.pdf', ['topic' => $this->topic, 'review' => $review]);
+
+    $this->actingAs($this->faculty)->get($url)->assertSuccessful()->assertContent($binaryPdf);
+    $this->get($url)->assertSuccessful()->assertContent($binaryPdf);
+    $this->actingAs(User::factory()->create())->get($url)->assertForbidden();
+});
+
+test('Comment Response previews show current feedback without document generation or PDF conversion', function () {
+    Role::firstOrCreate(['name' => 'faculty']);
+    $this->faculty->assignRole('faculty');
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'comment' => 'Explain <script>the methods</script>.',
+    ]);
+    $this->mock(CommentResponseFormDocumentService::class)->shouldNotReceive('generate');
+    $this->mock(DocumentPdfConverter::class)->shouldNotReceive('convertDocx', 'convertXlsx');
+    $query = ['topic' => $this->topic, 'review' => $review, 'embedded' => 1];
+
+    $this->actingAs($this->faculty)->get(route('faculty.topics.comment-response-form.preview', $query))
+        ->assertSuccessful()->assertHeader('content-type', 'text/html; charset=UTF-8')
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertSee('Original title')->assertSee('paper-preview-embedded')
+        ->assertSee('Explain <script>the methods</script>.')->assertDontSee('<script>the methods</script>', false);
+
+    $review->update(['comment' => 'Clarify the sample size.', 'feedback_responses' => [
+        'overall' => ['response' => 'Added the sampling calculation.', 'remarks' => 'Page 2, paragraph 1'],
+    ]]);
+    $this->get(route('faculty.topics.comment-response-form.preview', $query))->assertSuccessful()
+        ->assertSee('Clarify the sample size.')->assertSee('Added the sampling calculation.')
+        ->assertSee('Page 2, paragraph 1')->assertDontSee('the methods');
+    $this->get(route('faculty.topics.comment-response-form.preview', [...$query, 'source' => 'co_evaluator']))->assertSuccessful()
+        ->assertDontSee('Clarify the sample size.')->assertDontSee('Added the sampling calculation.');
+    $this->get(route('faculty.topics.comment-response-form.preview', [...$query, 'source' => 'unknown']))->assertNotFound();
+    $this->get(route('faculty.topics.comment-response-form.preview', [...$query, 'review' => $review->id + 1000]))->assertNotFound();
+    $this->actingAs(User::factory()->create())->get(route('faculty.topics.comment-response-form.preview', $query))->assertForbidden();
+});
+
+test('unchanged Comment Response PDFs reuse conversion while changed feedback and forms stay current', function () {
+    Role::firstOrCreate(['name' => 'faculty']);
+    $this->faculty->assignRole('faculty');
+    Cache::store('array')->flush();
+    config(['cache.default' => 'array']);
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'comment' => 'Clarify the methods.',
+    ]);
+    $this->mock(CommentResponseFormDocumentService::class)->shouldReceive('generate')->times(7)
+        ->andReturnUsing(fn (array $data): string => json_encode($data, JSON_THROW_ON_ERROR));
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->times(7)
+        ->andReturnUsing(fn (string $contents): string => '%PDF-'.hash('sha256', $contents));
+    $url = route('faculty.topics.comment-response-form.pdf', ['topic' => $this->topic, 'review' => $review]);
+    $this->actingAs($this->faculty);
+    $first = $this->get($url)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->getContent();
+    expect($this->get($url)->assertOk()->getContent())->toBe($first);
+
+    $review->update(['comment' => 'Clarify the sample size.']);
+    $updated = $this->get($url)->assertOk()->getContent();
+    expect($updated)->not->toBe($first);
+    $review->update(['feedback_responses' => ['overall' => ['response' => 'Updated the sample size.', 'remarks' => 'Page 2, paragraph 1']]]);
+    $responded = $this->get($url)->assertOk()->getContent();
+    expect($responded)->not->toBe($updated);
+    expect($this->get($url)->assertOk()->getContent())->toBe($responded);
+    $this->get($url.'&source=co_evaluator')->assertOk();
+
+    config(['work_plan.verifier.name' => 'Updated Research Head']);
+    expect($this->get($url)->assertOk()->getContent())->not->toBe($responded);
+    $template = tempnam(sys_get_temp_dir(), 'athena-preview-template-');
+    try {
+        file_put_contents($template, 'Updated official template');
+        config(['comment_response_form.template_path' => $template]);
+        $this->get($url)->assertOk();
+        $this->get($url)->assertOk();
+        $this->travel(61)->minutes();
+        $this->get($url)->assertOk();
+    } finally {
+        unlink($template);
+    }
+    $this->actingAs(User::factory()->create())->get($url)->assertForbidden();
 });
 
 test('comment stages follow their creation history through Research Head GAD co evaluator and LREC', function () {

@@ -11,16 +11,21 @@
     $curriculumVitaeSource = $curriculumVitaeDocument?->source_data;
     $reviewPapers = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
     $assessmentForms = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
+    $canSubmitProposal = auth()->user()->can('submit', $proposalDraft);
+    $nextSubmissionNumber = $proposalDraft->topic_id !== null ? (($proposalDraft->topic?->latestVersion?->version_number ?? 1) + 1) : 1;
+    $submitLabel = $proposalDraft->topic_id !== null ? 'Submit Version '.$nextSubmissionNumber : 'Turn in proposal';
 ?>
 
 <section aria-labelledby="review-details-heading" class="rounded-2xl border <?php echo e($projectDetailsComplete ? 'border-green-200' : 'border-amber-200'); ?> bg-white p-5 shadow-sm sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div><h3 id="review-details-heading" class="text-lg font-black text-gray-900">Project Details</h3><p class="mt-1 text-xs text-gray-500">Shared across the project.</p></div>
+        <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('update', $proposalDraft)): ?>
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($inModal ?? false): ?>
             <button type="button" x-on:click="$dispatch('close-modal', 'proposal-review'); window.location.hash = 'project-details'" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Edit details</button>
         <?php else: ?>
             <a href="<?php echo e(route('faculty.proposal-drafts.show', $proposalDraft)); ?>#project-details" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Edit details</a>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+        <?php endif; ?>
     </div>
     <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-3">
         <div class="sm:col-span-2 lg:col-span-3"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title</dt><dd class="mt-1 text-sm font-bold text-gray-900"><?php echo e($proposalDraft->project_title); ?></dd></div>
@@ -89,19 +94,26 @@
                             </div>
                         </div>
                     </div>
-                    <a href="<?php echo e(match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) }); ?>" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto"><?php echo e($item['complete'] ? 'Edit' : 'Complete paper'); ?></a>
+                    <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('update', $proposalDraft)): ?>
+                        <a href="<?php echo e(match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) }); ?>" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto"><?php echo e($item['complete'] ? 'Edit' : 'Complete paper'); ?></a>
+                    <?php endif; ?>
                 </div>
 
-                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($paper['slug'] === 'detailed-proposal' && is_array($detailedProposalSource)): ?>
+                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($preparedDocument): ?>
+                    <?php ($preparedPreview = ['label' => $paper['label'], 'previewUrl' => route('faculty.proposal-drafts.submission-files.download', [$proposalDraft, $paper['slug']])]); ?>
+                    <div class="mt-4 border-t border-gray-100 pt-4">
+                        <button type="button" @click="openAssessmentPreview(<?php echo \Illuminate\Support\Js::from($preparedPreview)->toHtml() ?>)" aria-haspopup="dialog" aria-controls="review-paper-preview-panel" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview prepared PDF</button>
+                    </div>
+                <?php elseif($paper['slug'] === 'detailed-proposal' && is_array($detailedProposalSource)): ?>
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <form action="<?php echo e(route('faculty.proposal-drafts.detailed-proposal.preview', $proposalDraft)); ?>" method="POST" target="_blank" class="w-full sm:w-auto">
+                        <form action="<?php echo e(route('faculty.proposal-drafts.detailed-proposal.preview', $proposalDraft)); ?>" method="POST" data-preview-label="<?php echo e($paper['label']); ?>" @submit.prevent="openPaperPreview($el, $event.submitter)" aria-controls="review-paper-preview-panel" class="w-full sm:w-auto">
                             <?php echo csrf_field(); ?>
                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Detailed Proposal</button>
                         </form>
                     </div>
                 <?php elseif($paper['slug'] === 'work-plan' && is_array($workPlanSource)): ?>
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <form action="<?php echo e(route('faculty.proposal-drafts.work-plan.preview', $proposalDraft)); ?>" method="POST" target="_blank" class="w-full sm:w-auto">
+                        <form action="<?php echo e(route('faculty.proposal-drafts.work-plan.preview', $proposalDraft)); ?>" method="POST" data-preview-label="<?php echo e($paper['label']); ?>" @submit.prevent="openPaperPreview($el, $event.submitter)" aria-controls="review-paper-preview-panel" class="w-full sm:w-auto">
                             <?php echo csrf_field(); ?>
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $workPlanSource['entries'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $entryIndex => $entry): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                                 <input type="hidden" name="entries[<?php echo e($entryIndex); ?>][objective]" value="<?php echo e($entry['objective']); ?>">
@@ -114,23 +126,23 @@
                     </div>
                 <?php elseif($paper['slug'] === 'line-item-budget' && is_array($lineItemBudgetSource)): ?>
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <form action="<?php echo e(route('faculty.proposal-drafts.line-item-budget.preview', $proposalDraft)); ?>" method="POST" target="_blank" class="w-full sm:w-auto">
+                        <form action="<?php echo e(route('faculty.proposal-drafts.line-item-budget.preview', $proposalDraft)); ?>" method="POST" data-preview-label="<?php echo e($paper['label']); ?>" @submit.prevent="openPaperPreview($el, $event.submitter)" aria-controls="review-paper-preview-panel" class="w-full sm:w-auto">
                             <?php echo csrf_field(); ?>
                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Line-Item Budget</button>
                         </form>
                     </div>
                 <?php elseif($paper['slug'] === 'expense-breakdown' && is_array($expenseBreakdownSource)): ?>
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <form action="<?php echo e(route('faculty.proposal-drafts.expense-breakdown.preview', $proposalDraft)); ?>" method="POST" target="_blank" class="w-full sm:w-auto">
+                        <form action="<?php echo e(route('faculty.proposal-drafts.expense-breakdown.preview', $proposalDraft)); ?>" method="POST" data-preview-label="<?php echo e($paper['label']); ?>" @submit.prevent="openPaperPreview($el, $event.submitter)" aria-controls="review-paper-preview-panel" class="w-full sm:w-auto">
                             <?php echo csrf_field(); ?>
                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Estimated Expense Breakdown</button>
                         </form>
                     </div>
                 <?php elseif($paper['slug'] === 'curriculum-vitae' && is_array($curriculumVitaeSource)): ?>
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <form action="<?php echo e(route('faculty.proposal-drafts.curriculum-vitae.preview', $proposalDraft)); ?>" method="POST" target="_blank" class="w-full sm:w-auto">
+                        <form action="<?php echo e(route('faculty.proposal-drafts.curriculum-vitae.preview', $proposalDraft)); ?>" method="POST" data-preview-label="<?php echo e($paper['label']); ?>" @submit.prevent="openPaperPreview($el, $event.submitter)" aria-controls="review-paper-preview-panel" class="w-full sm:w-auto">
                             <?php echo csrf_field(); ?>
-                            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview CV Package</button>
+                            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview team CVs</button>
                         </form>
                     </div>
                 <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
@@ -138,7 +150,7 @@
                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($preparedDocument): ?>
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap">
                         <a href="<?php echo e(route('faculty.proposal-drafts.submission-files.download', [$proposalDraft, $paper['slug']])); ?>" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Download prepared PDF</a>
-                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($paper['mode'] === 'generated'): ?>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($paper['mode'] === 'generated' && auth()->user()->can('update', $proposalDraft)): ?>
                             <form action="<?php echo e(route('faculty.proposal-drafts.submission-files.replace', [$proposalDraft, $paper['slug']])); ?>" method="POST" enctype="multipart/form-data" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                                 <?php echo csrf_field(); ?>
                                 <?php echo method_field('PUT'); ?>
@@ -160,7 +172,7 @@
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
             <h3 id="review-assessment-forms-heading" class="text-base font-black text-gray-900">Assessment forms included automatically</h3>
-            <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-500">ATHENA creates these two blank forms from Project Details. Faculty do not need to fill, review, or replace them; completed assessments are recorded later in the review workflow.</p>
+            <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-500">ATHENA creates these two blank forms from Project Details. You can preview them here; no faculty answers or replacement uploads are needed. Completed assessments are recorded later in the review workflow.</p>
         </div>
         <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">2 forms</span>
     </div>
@@ -169,23 +181,25 @@
             <li class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <span class="font-semibold text-gray-800"><?php echo e($item['paper']['label']); ?></span>
                 <span class="text-xs font-bold <?php echo e($item['complete'] ? 'text-green-700' : 'text-amber-700'); ?>"><?php echo e($item['complete'] ? 'Included automatically' : 'Waiting for Project Details'); ?></span>
+                <?php ($assessmentPreview = ['label' => $item['paper']['label'], 'previewUrl' => route('faculty.proposal-drafts.'.$item['paper']['slug'].'.preview', $proposalDraft), 'downloadUrl' => route('faculty.proposal-drafts.'.$item['paper']['slug'].'.download', $proposalDraft)]); ?>
+                <button type="button" data-assessment-preview-trigger @click="openAssessmentPreview(<?php echo \Illuminate\Support\Js::from($assessmentPreview)->toHtml() ?>)" aria-label="Preview <?php echo e($item['paper']['label']); ?>" aria-haspopup="dialog" aria-controls="review-paper-preview-panel" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600">Preview form</button>
             </li>
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
     </ul>
 </section>
 
-<section aria-labelledby="review-collaborators-heading" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
+<section aria-labelledby="review-collaborators-heading" class="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm dark:border-rose-900 dark:bg-slate-900 sm:p-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
             <h3 id="review-collaborators-heading" class="text-lg font-black text-gray-900">Project team</h3>
             <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Everyone listed here remains attached to the research project. Assigned roles continue into review, monitoring, and completion.</p>
         </div>
-        <span class="inline-flex w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-800"><?php echo e(1 + $proposalDraft->members->count()); ?> <?php echo e(Str::plural('member', 1 + $proposalDraft->members->count())); ?></span>
+        <span class="inline-flex w-fit rounded-full bg-brand-wash px-3 py-1 text-xs font-black text-brand dark:bg-rose-950/40 dark:text-rose-200"><?php echo e(1 + $proposalDraft->members->count()); ?> <?php echo e(Str::plural('member', 1 + $proposalDraft->members->count())); ?></span>
     </div>
 
     <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <article class="rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900"><?php echo e($proposalDraft->owner->name); ?></p><span class="rounded-full bg-blue-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Owner</span></div>
+        <article class="rounded-xl border border-rose-200 bg-brand-wash p-4 dark:border-rose-900 dark:bg-rose-950/40">
+            <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900"><?php echo e($proposalDraft->owner->name); ?></p><span class="rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Owner</span></div>
             <p class="mt-1 break-all text-xs text-gray-600"><?php echo e($proposalDraft->owner->email); ?></p>
         </article>
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $proposalDraft->members; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $member): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
@@ -207,14 +221,14 @@
 <section class="rounded-2xl border <?php echo e($readyToSubmit ? 'border-green-200 bg-green-50' : ($readyToPrepare ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50')); ?> p-5 sm:p-6">
     <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h3 class="text-base font-black <?php echo e($readyToSubmit ? 'text-green-900' : 'text-gray-900'); ?>"><?php echo e($submissionFilesPrepared ? 'Turn in proposal' : 'Prepare submission PDFs'); ?></h3>
-            <p class="mt-1 max-w-2xl text-sm leading-6 <?php echo e($readyToSubmit ? 'text-green-800' : 'text-gray-600'); ?>"><?php echo e($readyToSubmit ? 'Five proposal papers and two automatic assessment forms are ready. Turn in sends all seven PDFs to the Research Head.' : ($readyToPrepare ? 'Prepare seven PDFs, then review the five proposal papers before Turn in.' : 'Complete Project Details and the five proposal papers before preparing the submission files.')); ?></p>
+            <h3 class="text-base font-black <?php echo e($readyToSubmit ? 'text-green-900' : 'text-gray-900'); ?>"><?php echo e($canSubmitProposal ? ($submissionFilesPrepared ? $submitLabel : 'Prepare submission PDFs') : 'Submission status'); ?></h3>
+            <p class="mt-1 max-w-2xl text-sm leading-6 <?php echo e($readyToSubmit ? 'text-green-800' : 'text-gray-600'); ?>"><?php echo e($canSubmitProposal ? ($readyToSubmit ? ($proposalDraft->topic_id !== null ? 'This sends a new numbered version to the Research Head and preserves every earlier submission.' : 'Five proposal papers and two automatic assessment forms are ready. Turn in sends all seven PDFs to the Research Head.') : ($readyToPrepare ? 'Prepare seven PDFs, then review the five proposal papers before submission.' : 'Complete Project Details and the five proposal papers before preparing the submission files.')) : 'Earlier submitted versions remain available. Requested revisions are submitted through the proposal revision page.'); ?></p>
         </div>
-        <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('submit', $proposalDraft)): ?>
-            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($submissionFilesPrepared): ?>
-                <form action="<?php echo e(route('faculty.proposal-drafts.submit', $proposalDraft)); ?>" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="Turn in project?" data-confirm-text="This sends five proposal papers and two auto-generated assessment forms to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
+        <div class="flex w-full shrink-0 flex-col gap-3 sm:w-auto">
+            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($canSubmitProposal && $submissionFilesPrepared): ?>
+                <form action="<?php echo e(route('faculty.proposal-drafts.submit', $proposalDraft)); ?>" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="<?php echo e($submitLabel); ?>?" data-confirm-text="<?php echo e($proposalDraft->topic_id !== null ? 'This creates Version '.$nextSubmissionNumber.' and keeps the earlier submitted PDFs in Versions.' : 'This sends five proposal papers and two auto-generated assessment forms to the Research Head.'); ?>" data-confirm-button="<?php echo e($submitLabel); ?>" data-confirm-icon="question">
                     <?php echo csrf_field(); ?>
-                    <button type="submit" wire:loading.attr="disabled" wire:target="turnIn" <?php if(! $readyToSubmit): echo 'disabled'; endif; ?> class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
+                    <button type="submit" wire:loading.attr="disabled" wire:target="turnIn" <?php if(! $readyToSubmit): echo 'disabled'; endif; ?> class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto"><?php echo e($submitLabel); ?></button>
                     <?php if (isset($component)) { $__componentOriginal710805e560231d3e50809ed74526b8b6 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal710805e560231d3e50809ed74526b8b6 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-submission-loading-screen','data' => ['livewireTarget' => 'turnIn']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -238,11 +252,12 @@
 <?php unset($__componentOriginal710805e560231d3e50809ed74526b8b6); ?>
 <?php endif; ?>
                 </form>
-            <?php else: ?>
-                <form action="<?php echo e(route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft)); ?>" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-package-prepare data-proposal-livewire-action="prepare">
-                    <?php echo csrf_field(); ?>
-                    <button type="submit" wire:loading.attr="disabled" wire:target="prepare" <?php if(! $readyToPrepare): echo 'disabled'; endif; ?> class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Prepare seven PDFs</button>
-                    <?php if (isset($component)) { $__componentOriginala8b1a60d21aad4769b1f9ca8d3b0c70d = $component; } ?>
+            <?php elseif(! $submissionFilesPrepared): ?>
+                <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('prepare', $proposalDraft)): ?>
+                    <form action="<?php echo e(route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft)); ?>" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-package-prepare data-proposal-livewire-action="prepare">
+                        <?php echo csrf_field(); ?>
+                        <button type="submit" wire:loading.attr="disabled" wire:target="prepare" <?php if(! $readyToPrepare): echo 'disabled'; endif; ?> class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Prepare seven PDFs</button>
+                        <?php if (isset($component)) { $__componentOriginala8b1a60d21aad4769b1f9ca8d3b0c70d = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginala8b1a60d21aad4769b1f9ca8d3b0c70d = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-pdf-preparation-loading-screen','data' => ['livewireTarget' => 'prepare']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('proposal-pdf-preparation-loading-screen'); ?>
@@ -264,15 +279,21 @@
 <?php $component = $__componentOriginala8b1a60d21aad4769b1f9ca8d3b0c70d; ?>
 <?php unset($__componentOriginala8b1a60d21aad4769b1f9ca8d3b0c70d); ?>
 <?php endif; ?>
-                </form>
+                    </form>
+                <?php endif; ?>
             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-        <?php else: ?>
-            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($proposalDraft->topic_id && $proposalDraft->user_id === auth()->id()): ?>
-                <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900"><?php echo e($proposalDraft->topic?->status === 'revision_requested' ? 'Submit requested revisions from the proposal revision page.' : 'The Research Head has opened this proposal. Further submission requires a revision request.'); ?></p>
-            <?php else: ?>
-                <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">Only <?php echo e($proposalDraft->owner->name); ?> can submit this shared workspace.</p>
+            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(! $canSubmitProposal): ?>
+                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($proposalDraft->topic_id && $proposalDraft->user_id === auth()->id()): ?>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($proposalDraft->topic?->status === 'revision_requested'): ?>
+                        <a href="<?php echo e(route('faculty.topics.revision', $proposalDraft->topic)); ?>" class="inline-flex min-h-11 items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700">Review feedback and submit revisions</a>
+                    <?php else: ?>
+                        <p class="max-w-sm rounded-xl bg-brand-wash px-4 py-3 text-sm font-bold text-brand dark:bg-rose-950/40 dark:text-rose-200">Editing and submission are locked until revisions are requested.</p>
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                <?php else: ?>
+                    <p class="rounded-xl bg-brand-wash px-4 py-3 text-sm font-bold text-brand dark:bg-rose-950/40 dark:text-rose-200">Only <?php echo e($proposalDraft->owner->name); ?> can submit this shared workspace.</p>
+                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-        <?php endif; ?>
+        </div>
     </div>
 </section>
 <?php /**PATH C:\laragon\www\athena-app\src\resources\views/faculty/proposal-drafts/_review-package.blade.php ENDPATH**/ ?>

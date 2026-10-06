@@ -7,6 +7,7 @@ use App\Http\Controllers\FacultyDirectoryController;
 use App\Http\Controllers\JournalSearchController;
 use App\Http\Controllers\LiteratureCollectionController;
 use App\Http\Controllers\LiteratureFullTextPreviewController;
+use App\Http\Controllers\LiteratureMetadataController;
 use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\LiteratureSourceController;
 use App\Http\Controllers\LiteratureSynthesisController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
 use App\Http\Controllers\ProposalFileAnnotationController;
+use App\Http\Controllers\ProposalLiteratureEvidenceController;
 use App\Http\Controllers\ProposalSignatoryController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
@@ -104,6 +106,8 @@ Route::middleware('auth')->group(function () {
 
 // FACULTY ROUTES
 Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
+    Route::post('/research-support/literature-metadata', LiteratureMetadataController::class)
+        ->middleware('throttle:20,1')->name('research-support.literature-metadata');
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
     Route::view('/faculty/calendar', 'faculty.calendar')->name('faculty.calendar');
 });
@@ -328,6 +332,8 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
 Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController::class, 'download'])
     ->middleware('auth')
     ->name('project-progress.download');
+Route::get('/research/{topic}/monitoring-evidence/{evidence}', [ProjectMonitoringController::class, 'downloadEvidence'])
+    ->middleware('auth')->whereUuid('evidence')->name('project-progress.evidence');
 Route::get('/progress-reports/{report}/monitoring-tool', [ProjectMonitoringController::class, 'downloadMonitoringTool'])
     ->middleware('auth')
     ->name('project-progress.monitoring-tool');
@@ -348,6 +354,8 @@ Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-se
 Route::get('/narrative-progress-reports/{report}', [ProjectNarrativeReportController::class, 'show'])
     ->middleware('auth')
     ->name('project-narrative-reports.show');
+Route::get('/research/{topic}/progress-report-evidence/{evidence}', [ProjectNarrativeReportController::class, 'downloadEvidence'])
+    ->middleware('auth')->whereUuid('evidence')->name('project-narrative-reports.evidence');
 Route::get('/narrative-progress-reports/{report}/document', [ProjectNarrativeReportController::class, 'download'])
     ->middleware('auth')
     ->name('project-narrative-reports.download');
@@ -417,6 +425,18 @@ Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-sources/{litera
     ->name('faculty.proposal-drafts.literature-sources.store');
 
 Route::middleware(['auth', 'workspace:faculty', 'throttle:30,1'])->group(function () {
+    Route::get('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/evidence', [ProposalLiteratureEvidenceController::class, 'show'])
+        ->name('faculty.proposal-drafts.literature-evidence.show');
+    Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/document', [ProposalLiteratureEvidenceController::class, 'storeDocument'])
+        ->name('faculty.proposal-drafts.literature-evidence.document.store');
+    Route::get('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/document', [ProposalLiteratureEvidenceController::class, 'document'])
+        ->name('faculty.proposal-drafts.literature-evidence.document.show');
+    Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/passages', [ProposalLiteratureEvidenceController::class, 'storePassage'])
+        ->name('faculty.proposal-drafts.literature-evidence.passages.store');
+    Route::delete('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/passages/{passageId}', [ProposalLiteratureEvidenceController::class, 'destroyPassage'])
+        ->name('faculty.proposal-drafts.literature-evidence.passages.destroy');
+    Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-evidence-assistance', [ProposalLiteratureEvidenceController::class, 'assist'])
+        ->middleware('throttle:12,1')->name('faculty.proposal-drafts.literature-evidence-assistance');
     Route::put('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/draft', [ProposalDraftLiteratureSourceController::class, 'updateDraft'])
         ->name('faculty.proposal-drafts.literature-drafts.update');
     Route::delete('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/draft', [ProposalDraftLiteratureSourceController::class, 'discardDraft'])

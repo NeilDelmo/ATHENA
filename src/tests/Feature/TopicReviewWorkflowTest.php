@@ -1044,13 +1044,11 @@ test('faculty can preview and download an auto-filled official Comment-Response 
     $preview = $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.preview', $topic))
         ->assertOk()
-        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-type', 'text/html; charset=UTF-8')
         ->assertHeader('x-content-type-options', 'nosniff')
-        ->assertContent("%PDF-1.7\ngenerated comment-response form");
-
-    expect($preview->headers->get('content-disposition'))
-        ->toContain('inline')
-        ->toContain('coastal-habitat-restoration-research-head-comment-response-form.pdf');
+        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Dr. Aurora Reyes')
+        ->assertSee('MATRIX ON THE ACTIONS MADE FOR THE COMMENTS AND SUGGESTIONS');
 
     $pdf = $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.pdf', $topic))
@@ -1246,12 +1244,15 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
     $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.preview', $headQuery))
         ->assertOk()
-        ->assertHeader('content-type', 'application/pdf')
-        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+        ->assertHeader('content-type', 'text/html; charset=UTF-8')
+        ->assertSee('Clarify the participant recruitment timeline.')
+        ->assertSee('Added the recruitment schedule.')
+        ->assertDontSee('Defined the sampling frame.');
     $this->get(route('faculty.topics.comment-response-form.preview', $coEvaluatorQuery))
         ->assertOk()
-        ->assertHeader('content-type', 'application/pdf')
-        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+        ->assertHeader('content-type', 'text/html; charset=UTF-8')
+        ->assertSee('Defined the sampling frame.')
+        ->assertDontSee('Clarify the participant recruitment timeline.');
     $headDownload = $this->get(route('faculty.topics.comment-response-form.download', $headQuery))
         ->assertOk()
         ->assertDownload('mangrove-recovery-study-research-head-comment-response-form.docx');
@@ -1289,15 +1290,16 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
 
     $revisionPage = $this->get(route('faculty.topics.revision', $topic))
         ->assertOk()
-        ->assertSee('Research Head feedback')
-        ->assertSee('Co-evaluator feedback')
-        ->assertSee('3. Action and Response')
-        ->assertSee('faculty reply · required')
-        ->assertSee('location in the revised paper')
-        ->assertSee('No change made')
+        ->assertSee('Research Head Comment Response paper')
+        ->assertSee('Co-evaluator Comment Response paper')
+        ->assertSee('2. Revise and respond')
+        ->assertSee('Your response')
+        ->assertSee('The page and paragraph will be added automatically')
+        ->assertDontSee('Response details')
+        ->assertDontSee('Explanation only')
         ->assertSee('Added the recruitment schedule.')
         ->assertSee('Defined the sampling frame.')
-        ->assertDontSee('Your response')
+        ->assertDontSee('3. Action and Response')
         ->assertSee('data-comment-response-source="research_head"', false)
         ->assertSee('data-comment-response-source="co_evaluator"', false);
 
@@ -1309,17 +1311,18 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
             ? ['page' => '4', 'paragraph' => '2']
             : ['page' => '5', 'paragraph' => '1'];
         $group = '//section[@data-comment-response-source="'.$source.'"]';
-        expect($revisionXPath->query($group.'//button[@data-comment-response-preview]')->length)->toBe(1)
-            ->and($revisionXPath->query('//section[@data-revision-response-source="'.$source.'"]//textarea[@required]')->length)->toBeGreaterThan(0);
-        $responseGroup = '//section[@data-revision-response-source="'.$source.'"]';
+        expect($revisionXPath->query($group.'//*[@data-comment-response-paper-open][@tabindex="0"]')->length)->toBe(1)
+            ->and($revisionXPath->query($group.'//*[@data-comment-response-preview]')->length)->toBe(1)
+            ->and($revisionXPath->query($group.'//button[@data-comment-response-preview]')->length)->toBe(0)
+            ->and($revisionXPath->query('//div[@data-revision-response-source="'.$source.'"]//textarea[@required]')->length)->toBeGreaterThan(0);
+        $responseGroup = '//div[@data-revision-response-source="'.$source.'"]';
         $responseFields = $revisionXPath->query($responseGroup.'//textarea[contains(@name, "[response]")]');
         foreach (['page', 'paragraph'] as $locationField) {
             $locationFields = $revisionXPath->query($responseGroup.'//input[contains(@name, "['.$locationField.']")]');
             expect($locationFields->length)->toBe($responseFields->length);
             foreach ($locationFields as $field) {
-                expect($field->hasAttribute('required'))->toBeTrue()
-                    ->and($field->getAttribute('type'))->toBe('number')
-                    ->and($field->getAttribute('min'))->toBe('1')
+                expect($field->hasAttribute('required'))->toBeFalse()
+                    ->and($field->getAttribute('type'))->toBe('hidden')
                     ->and($field->getAttribute('value'))->toBe($expectedLocation[$locationField]);
             }
         }
@@ -1755,7 +1758,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->assertSee('Initial Screening Form')
         ->assertSee('View')
         ->assertSee('Download')
-        ->assertSee('Latest submitted package')
+        ->assertSee('Latest submission')
         ->assertSee('Open the project folder to view them in separate categories alongside signed papers')
         ->assertDontSee('Review latest package')
         ->assertSee('data-latest-review-version="1"', false)
@@ -2117,7 +2120,7 @@ test('paper review checklist component is limited to research heads and files in
         ->get(route('topics.show', $topic))
         ->assertOk()
         ->assertDontSee('Your paper review checklist')
-        ->assertSee('Latest submitted package')
+        ->assertSee('Latest submission')
         ->assertDontSee('Review latest package')
         ->assertSee('data-latest-review-version', false);
 
@@ -2219,7 +2222,7 @@ test('research heads review and request changes only against the latest resubmit
         ->assertSee('data-topic-success', false)
         ->assertSee('bg-emerald-50', false)
         ->assertSee('Revision request sent')
-        ->assertSee('Latest submitted package')
+        ->assertSee('Latest submission')
         ->assertSee('data-read-only-review="true"', false)
         ->assertSee('data-file-review-card="'.$latestFile->id.'"', false)
         ->assertSee('data-review-and-highlight', false)

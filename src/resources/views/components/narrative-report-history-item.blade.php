@@ -78,6 +78,7 @@
                         <p class="max-w-[75ch] whitespace-pre-line text-base leading-8 text-gray-700 dark:text-slate-200">{{ $report->accomplishment_summary ?: 'See the submitted PDF for this report’s accomplishments.' }}</p>
                     @endif
                 </section>
+                <x-progress-report-evidence :report="$report" class="py-7" />
                 @foreach ($sections as $field => $label)
                     @php
                         $paragraphs = preg_split('/\n\s*\n/u', app(\App\Support\ProgressReportData::class)->plain($report->$field ?? '')) ?: [''];

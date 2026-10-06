@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProgressReportEvidenceService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
@@ -13,6 +14,19 @@ use Illuminate\Validation\Validator;
 
 class SaveProjectNarrativeReportDraftRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['report_type' => $this->input('report_type', 'progress')]);
+        $topic = $this->route('topic');
+        if (! $topic instanceof TopicProposal) {
+            return;
+        }
+        if ($this->input('report_type') === 'progress') {
+            $this->merge(app(ProgressReportData::class)->normalize($topic, $this->only(['accomplishments', 'objectives'])));
+        }
+        app(ProgressReportEvidenceService::class)->prepareRequest($this, $topic);
+    }
+
     public function authorize(): bool
     {
         $topic = $this->route('topic');
@@ -29,6 +43,7 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
+            ...app(ProgressReportEvidenceService::class)->rules($this),
             'reporting_date' => ['nullable', 'date_format:Y-m-d'],
             'draft_version' => ['required', 'integer', 'min:0'],
             'report_type' => ['sometimes', Rule::in(['progress', 'terminal'])],
@@ -106,6 +121,7 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            app(ProgressReportEvidenceService::class)->validateEvidence($this, $validator);
             if ($this->input('report_type', 'progress') === 'progress' && filled($this->input('reporting_date')) && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canDraftForDate($this->route('topic'), $this->input('reporting_date'))) {
                 $validator->errors()->add('reporting_date', 'Choose a reporting quarter within the approved project schedule.');
             }

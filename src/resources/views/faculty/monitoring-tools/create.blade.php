@@ -10,6 +10,7 @@
     </x-slot>
 
     <div data-monitoring-workspace class="w-full space-y-5">
+        <x-monitoring-work-plan-alert :activities="$overdueWorkPlanActivities" />
         <div class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div class="border-l-4 border-red-600 px-5 py-5 sm:px-6">
                 <h3 class="text-lg font-black text-gray-950 dark:text-white">{{ $revisionReport ? 'Correct '.$revisionReport->quarter_label.' Monitoring Tool' : 'Submit monitoring tool' }}</h3>
@@ -37,6 +38,7 @@
                     :selected-report-number="$selectedReportNumber"
                     :monitoring-report-count="$monitoringReportCount"
                     :initial-work-plan-rows="$initialWorkPlanRows"
+                    :previous-progress-by-period="$previousProgressByPeriod"
                     standalone
                 />
                 @else

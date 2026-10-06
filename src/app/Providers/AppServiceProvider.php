@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
-use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\LibreOfficeDocumentPdfConverter;
@@ -43,6 +42,17 @@ class AppServiceProvider extends ServiceProvider
                 : 0);
         });
 
+        View::composer('components.notification-menu', function ($view): void {
+            $query = auth()->user()->visibleNotificationsQuery();
+            $view->with('notificationItems', (clone $query)->latest()->limit(15)->get()->map(fn ($notification): array => [
+                'id' => $notification->id,
+                'data' => $notification->data,
+                'read_at' => $notification->read_at?->toIso8601String(),
+                'created_at' => $notification->created_at->diffForHumans(),
+            ]));
+            $view->with('unreadNotificationCount', $query->whereNull('read_at')->count());
+        });
+
         View::composer('layouts.app', function ($view) use ($researchCallDeadlineNotice): void {
             $user = request()->user();
 
@@ -51,23 +61,7 @@ class AppServiceProvider extends ServiceProvider
                 $researchCallDeadlineNotice->forUser($user),
             );
 
-            $history = $user
-                ? $user->researchAssistantConversations()
-                    ->latest('updated_at')
-                    ->get(['id', 'title', 'messages', 'updated_at'])
-                    ->map(function (ResearchAssistantConversation $conversation): array {
-                        $firstUserMessage = collect($conversation->messages ?? [])->firstWhere('role', 'user');
-
-                        return [
-                            'id' => $conversation->id,
-                            'title' => $conversation->title,
-                            'preview' => Str::limit(Str::squish((string) ($firstUserMessage['content'] ?? $conversation->title)), 160),
-                            'updated_at' => $conversation->updated_at?->toISOString(),
-                        ];
-                    })
-                : collect();
-
-            $view->with('researchAssistantHistory', $history);
+            $view->with('researchAssistantHistory', []);
 
             $paperSlug = collect(config('proposal_field_guidance.route_patterns', []))
                 ->first(fn (string $configuredPaperSlug, string $routePattern): bool => request()->routeIs($routePattern));

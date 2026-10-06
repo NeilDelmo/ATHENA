@@ -76,7 +76,7 @@ return [
         'document_type' => ProposalVersionFile::TYPE_CURRICULUM_VITAE,
         'label' => 'Attachment C: Curriculum Vitae',
         'workspace_button_label' => 'Open Curriculum Vitae',
-        'description' => 'One generated CV package containing a complete official form for every project member.',
+        'description' => 'One generated CV document containing a complete official form for every project member.',
         'filename_suffix' => 'curriculum-vitae',
         'order' => 5,
         'mode' => 'generated',

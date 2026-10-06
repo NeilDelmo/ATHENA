@@ -100,14 +100,7 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.history.index', $this->draft))
-        ->assertOk()
-        ->assertSee('Recovery history')
-        ->assertSee('expenses-v1.pdf')
-        ->assertSee('expenses-v2.pdf')
-        ->assertSee('History Owner')
-        ->assertSee('History Collaborator')
-        ->assertSee('Saved')
-        ->assertSee('Recovery is automatic');
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.download', [$this->draft, $firstVersion]))
@@ -122,7 +115,7 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
             'document_version' => 2,
         ])
         ->assertRedirect()
-        ->assertSessionHas('success', 'Estimated Expense Breakdown file removed. Earlier recovery points remain available.');
+        ->assertSessionHas('success', 'Estimated Expense Breakdown file removed.');
 
     $removedVersion = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
 
@@ -139,9 +132,7 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.index', $this->draft))
-        ->assertOk()
-        ->assertSee('Removed')
-        ->assertSee('Removed Estimated Expense Breakdown from the proposal draft.');
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.papers.edit', [$this->draft, 'expense-breakdown']))
@@ -273,7 +264,7 @@ test('history and retained files are available only to authorized workspace memb
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.history.index', $this->draft))
-        ->assertOk();
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.history.download', [$this->draft, $version]))
         ->assertDownload('private-history.pdf');
@@ -328,10 +319,7 @@ test('generated paper saves are included in the same collaborator history', func
             $this->draft,
             'paper' => 'work-plan',
         ]))
-        ->assertOk()
-        ->assertSee('Attachment A: Work Plan')
-        ->assertSee('Structured form data saved')
-        ->assertSee('History Collaborator');
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
 });
 
 test('legacy papers keep their save version synchronized when recovery history begins', function (bool $changeContent) {
@@ -393,24 +381,50 @@ test('legacy papers keep their save version synchronized when recovery history b
         ->and(ProposalDraftDocumentVersion::query()->count())->toBe($expectedVersion);
 })->with([false, true]);
 
-test('the proposal package keeps recovery history behind an unobtrusive control', function () {
+test('the proposal workspace removes recovery navigation and redirects old history links', function () {
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Project progress')
         ->assertDontSee('Proposal package')
         ->assertDontSee('proposal package')
-        ->assertSee('Recovery history')
-        ->assertSee(route('faculty.proposal-drafts.history.index', $this->draft));
+        ->assertSee('Recent activity')
+        ->assertDontSee('Recovery history')
+        ->assertDontSee(route('faculty.proposal-drafts.history.index', $this->draft));
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.index', [
             $this->draft,
             'paper' => 'expense-breakdown',
         ]))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
+});
+
+test('paper editors keep save protection without recovery navigation', function (string $editor, string $actor) {
+    $this->actingAs($this->{$actor})
+        ->get(route('faculty.proposal-drafts.'.$editor, $this->draft))
         ->assertOk()
-        ->assertSee('Back to project')
-        ->assertSee('No recovery points yet');
+        ->assertSee('data-proposal-version-monitor', false)
+        ->assertSee('data-proposal-load-latest', false)
+        ->assertDontSee('Recovery history')
+        ->assertDontSee('Open recovery history')
+        ->assertDontSee(route('faculty.proposal-drafts.history.index', $this->draft));
+})->with([
+    'detailed-proposal.edit',
+    'work-plan.edit',
+    'expense-breakdown.edit',
+    'line-item-budget.edit',
+    'curriculum-vitae.edit',
+])->with(['owner', 'collaborator']);
+
+test('uploaded paper editors remove recovery navigation', function () {
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.papers.edit', [$this->draft, 'expense-breakdown']))
+        ->assertOk()
+        ->assertSee('data-proposal-version-monitor', false)
+        ->assertSee('data-proposal-load-latest', false)
+        ->assertDontSee('Recovery history')
+        ->assertDontSee(route('faculty.proposal-drafts.history.index', $this->draft));
 });
 
 test('an identical upload does not create a duplicate version or retain an unused file', function () {
@@ -472,10 +486,7 @@ test('manual file changes retain useful recovery details', function () {
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.index', $this->draft))
-        ->assertOk()
-        ->assertSee('See 3 changes')
-        ->assertSee('File contents')
-        ->assertSee('Restore this recovery point');
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
@@ -691,7 +702,7 @@ test('an earlier PDF can be restored as a new version without overwriting histor
             'document_version' => 2,
             'change_note' => 'The earlier estimate was approved by the team.',
         ])
-        ->assertRedirect()
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments')
         ->assertSessionHas('success');
 
     $restored = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
@@ -768,9 +779,7 @@ test('legacy automatic assessment forms remain viewable in history but cannot be
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.index', [$this->draft, 'paper' => $slug]))
-        ->assertOk()
-        ->assertSee('old.pdf')
-        ->assertDontSee('Restore this recovery point');
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft).'#required-pdf-attachments');
     $this->get(route('faculty.proposal-drafts.history.download', [$this->draft, $oldVersion]))
         ->assertDownload('old.pdf');
     $this->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $oldVersion]), [

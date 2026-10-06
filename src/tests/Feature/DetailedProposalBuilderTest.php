@@ -6,6 +6,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Services\CommentResponseFeedback;
 use App\Support\DetailedProposalData;
 use App\Support\ProposalRevisionSectionCatalog;
 use Illuminate\Http\UploadedFile;
@@ -104,16 +105,23 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('proposal-preview-workspace', false)
         ->assertSee('proposal-edit-pane', false)
         ->assertSee('data-proposal-official-form-source', false)
-        ->assertSee('data-proposal-preview-floating', false)
+        ->assertSee('data-detailed-proposal-workspace', false)
+        ->assertSee('data-proposal-writing-toolbar', false)
+        ->assertSee('detailed-proposal-writing-toolbar', false)
+        ->assertSee('proposal-writing-icon', false)
+        ->assertSee('aria-label="Text style"', false)
+        ->assertSee('aria-label="Lists"', false)
+        ->assertSee('aria-label="History"', false)
+        ->assertSee('data-writing-expand-label', false)
+        ->assertSee('data-writing-image', false)
+        ->assertSee('data-writing-table', false)
+        ->assertSee('proposal-preview-dock', false)
         ->assertSee('id="proposal-preview-panel"', false)
-        ->assertSee('origin-bottom-right', false)
-        ->assertSee('data-proposal-preview-drag-handle', false)
-        ->assertSee('startProposalPreviewDrag($event)', false)
-        ->assertSee('Resize from the bottom-right corner.')
-        ->assertSee('@click="closeProposalPreview()"', false)
-        ->assertSee('class="proposal-mobile-tab rounded-lg bg-red-700', false)
+        ->assertSee('Enlarge the paper preview')
+        ->assertSee('Collapse preview')
+        ->assertSee('Preview paper')
         ->assertSee('Refresh preview')
-        ->assertSee('Full screen')
+        ->assertSee('View full paper')
         ->assertSee('Document zoom controls')
         ->assertSee('Zoom out')
         ->assertSee('Zoom in')
@@ -152,7 +160,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('III. Sustainable Development Goal')
         ->assertSee('SDG17:')
         ->assertSee('XIII. Duties and Responsibilities of each member:')
-        ->assertSee('Choose images')
+        ->assertDontSee('Choose images')
         ->assertSee('Add figures to any methodology part')
         ->assertSee('data-proposal-figure-section="rationale"', false)
         ->assertSee('data-proposal-figure-section="data_analysis"', false)
@@ -185,6 +193,8 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('data-detailed-proposal-completion-status', false);
 
     expect($response->getContent())
+        ->and(substr_count($response->getContent(), 'data-proposal-writing-toolbar'))->toBe(1)
+        ->and($response->getContent())
         ->toContain('recheckCompletion: false')
         ->toContain('detailedProposalStarted: false')
         ->toContain('detailedProposalComplete: false');
@@ -686,6 +696,66 @@ test('detailed proposal contact numbers must contain exactly 11 digits', functio
         ->toContain('staff.0.contact');
 });
 
+test('narrative tables survive autosave reopening preview and Word export with approved formatting', function () {
+    $table = '<table style="width:9999px" onmouseover="alert(1)"><tbody><tr><th>Measure</th><th>Source</th></tr><tr><td><strong>Coastal monitoring</strong></td><td><em>Local monitors</em><script>alert(1)</script></td></tr></tbody></table>';
+    $payload = ($this->payload)([
+        'rationale' => '<p>Before the study table.</p>'.$table.'<p>After the study table.</p>',
+        'responsibilities' => [
+            ['name' => 'Faculty Project Leader', 'percentage' => 60, 'duties' => '<p>Leader duties table.</p>'.$table],
+            ['name' => 'Research Staff Member', 'percentage' => 40, 'duties' => 'Coordinates field data collection.'],
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), [...$payload, 'save_as_draft' => 1])
+        ->assertSuccessful();
+
+    $document = $this->draft->documents()->where('document_type', config('proposal_papers.detailed-proposal.document_type'))->firstOrFail();
+    $rationale = $document->source_data['rationale'];
+    expect($rationale)->toContain('<table><tbody>', '<th>Measure</th>', '<strong>Coastal monitoring</strong>', '<em>Local monitors</em>')
+        ->not->toContain('onmouseover', '9999px', 'alert(1)');
+
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertSuccessful()
+        ->assertViewHas('sourceData', fn (array $data): bool => $data['rationale'] === $rationale);
+
+    $resumed = [...$document->source_data, 'document_version' => $document->lock_version];
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $resumed)
+        ->assertSuccessful()
+        ->assertSeeInOrder(['Before the study table.', '<th>Measure</th>', '<em>Local monitors</em>', 'After the study table.'], false)
+        ->assertSeeInOrder(['Leader duties table.', '<th>Measure</th>', '<em>Local monitors</em>'], false)
+        ->assertDontSee('onmouseover', false);
+
+    $response = $this->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $resumed)->assertSuccessful();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'proposal-table-test-');
+    file_put_contents($temporaryPath, $response->streamedContent());
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath))->toBeTrue();
+        $xml = new DOMDocument;
+        $xml->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+        $xpath = new DOMXPath($xml);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $nestedTable = $xpath->query('//w:tc/w:tbl[w:tr/w:tc/w:p/w:r/w:t="Measure"]')->item(0);
+
+        expect($nestedTable)->not->toBeNull()
+            ->and($xpath->query('w:tr', $nestedTable)->length)->toBe(2)
+            ->and($xpath->query('w:tr[2]/w:tc', $nestedTable)->length)->toBe(2)
+            ->and($xpath->query('w:tr[1]/w:trPr/w:tblHeader', $nestedTable)->length)->toBe(1)
+            ->and($xpath->query('w:tr/w:tc/w:p/w:r[w:t="Measure"]/w:rPr/w:b', $nestedTable)->length)->toBe(1)
+            ->and($xpath->query('w:tr/w:tc/w:p/w:r[w:t="Coastal monitoring"]/w:rPr/w:b', $nestedTable)->length)->toBe(1)
+            ->and($xpath->query('w:tr/w:tc/w:p/w:r[w:t="Local monitors"]/w:rPr/w:i', $nestedTable)->length)->toBe(1)
+            ->and($xpath->evaluate('string(preceding-sibling::w:p[1])', $nestedTable))->toBe('Before the study table.')
+            ->and($xpath->evaluate('string(following-sibling::w:p[last()])', $nestedTable))->toBe('After the study table.');
+    } finally {
+        $archive->close();
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
 test('the college is restored from the signed in user while department may remain blank', function () {
     $payload = ($this->payload)([
         'proponent_department' => '',
@@ -771,11 +841,39 @@ test('review of related literature can be completed without separate introductio
         ->and($document->completed_at)->not->toBeNull();
 })->with(['', '<p><br></p>']);
 
+test('attachment references stay compact in the editor without blue panels or duplicate inputs', function () {
+    $response = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Provided in Work Plan (Form A).')
+        ->assertSee('Provided in Line-Item Budget (Form B).')
+        ->assertSee('Provided in Curriculum Vitae (Form C).')
+        ->assertDontSee('Complete this section in the Work Plan paper.')
+        ->assertDontSee('totals come from the Line-Item Budget paper.')
+        ->assertDontSee('Complete this section in the Curriculum Vitae paper.');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-proposal-attachment-reference]')->length)->toBe(3);
+    foreach (['work-plan', 'budget', 'curriculum-vitae'] as $section) {
+        $reference = $xpath->query('//*[@data-revision-section="section-'.$section.'"][@data-proposal-attachment-reference]')->item(0);
+        expect($reference)->not->toBeNull()
+            ->and($reference->textContent)->toContain(config('detailed_proposal.section_headings.'.$section))
+            ->and($reference->getAttribute('class'))->not->toContain('bg-blue', 'text-blue', 'rounded', 'p-5')
+            ->and($xpath->query('.//input|.//textarea|.//select', $reference)->length)->toBe(0);
+    }
+});
+
 test('the preview mirrors the official bordered form layout', function () {
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
         ->assertOk()
         ->assertSee('detailed-proposal-table')
+        ->assertSee('data-proposal-preview-section="rationale"', false)
+        ->assertSee('data-proposal-preview-section="related-literature"', false)
+        ->assertSee('data-proposal-preview-section="methodology-research_design"', false)
+        ->assertSee('data-proposal-preview-section="responsibilities"', false)
         ->assertSee('images/batstateu-logo.png')
         ->assertSee('Reference No.: BatStateU-FO-RES-02')
         ->assertSee('Effectivity Date: August 22, 2023')
@@ -1751,6 +1849,74 @@ test('figures survive save preview and Word export in their selected sections', 
     }
 });
 
+test('revised proposal previews and PDFs refresh checkbox marks while preserving the submitted paper', function (?string $level) {
+    $topic = $this->faculty->proposals()->create([
+        'title' => $this->draft->project_title, 'status' => 'revision_requested',
+    ]);
+    $this->draft->update(['topic_id' => $topic->id]);
+    $this->actingAs($this->faculty)->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)())
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET, 'position' => 0,
+        'source_data' => ['level_of_call' => $level, 'amounts' => []], 'lock_version' => 1,
+    ]);
+    $original = "%PDF-1.7\nOriginal unchecked submitted paper";
+    $version = $topic->versions()->create([
+        'submitted_by' => $this->faculty->id, 'version_number' => 1, 'submission_type' => 'initial',
+        'title' => $topic->title, 'file_path' => 'old-submitted/detailed_proposal.pdf',
+        'original_filename' => 'original.pdf', 'mime_type' => 'application/pdf', 'file_size' => strlen($original),
+    ]);
+    foreach ([ProposalVersionFile::TYPE_DETAILED_PROPOSAL, ProposalVersionFile::TYPE_LINE_ITEM_BUDGET, ProposalVersionFile::TYPE_WORK_PLAN, ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM] as $type) {
+        $path = 'old-submitted/'.$type.'.pdf';
+        Storage::disk('local')->put($path, $original);
+        $version->files()->create([
+            'document_type' => $type, 'file_path' => $path, 'original_filename' => $type.'.pdf',
+            'mime_type' => 'application/pdf', 'file_size' => strlen($original),
+        ]);
+    }
+    $expectedLevel = $level ?? 'constituent_campus';
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft))
+        ->assertOk()->assertSeeText('☒ Complete Documents')->assertSeeText('☒ Initial Screening Form')
+        ->assertSeeText(($expectedLevel === 'constituent_campus' ? '☒' : '☐').' Constituent Campus')
+        ->assertSeeText(($expectedLevel === 'central_agency' ? '☒' : '☐').' Central Agency');
+
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($expectedLevel): string {
+            $path = tempnam(sys_get_temp_dir(), 'athena-revised-checkboxes-');
+            file_put_contents($path, $contents);
+            $archive = new ZipArchive;
+            try {
+                expect($archive->open($path))->toBeTrue();
+                $document = new DOMDocument;
+                $document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+                $xpath = new DOMXPath($document);
+                $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+                $xpath->registerNamespace('w14', 'http://schemas.microsoft.com/office/word/2010/wordml');
+                foreach (['Complete Documents' => true, 'Initial Screening Form' => true, 'Constituent Campus' => $expectedLevel === 'constituent_campus', 'Central Agency' => $expectedLevel === 'central_agency'] as $label => $selected) {
+                    $checkbox = $xpath->query('//w:p[contains(string(.), "'.$label.'")]//w14:checkbox')->item(0);
+                    expect($checkbox)->not->toBeNull()
+                        ->and($xpath->evaluate('string(./w14:checked/@w14:val)', $checkbox))->toBe($selected ? '1' : '0')
+                        ->and($xpath->evaluate('string(ancestor::w:sdt[1]/w:sdtContent//w:t)', $checkbox))->toBe($selected ? '☒' : '☐');
+                }
+            } finally {
+                $archive->close();
+                unlink($path);
+            }
+
+            return '%PDF-1.7 regenerated revision';
+        });
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), [], ['X-Revision-PDF' => '1'])
+        ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    expect(Storage::disk('local')->get($version->file_path))->toBe($original);
+    Storage::disk('local')->delete('old-submitted/initial_screening_form.pdf');
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft))
+        ->assertOk()->assertSeeText('☒ Complete Documents')->assertSeeText('☐ Initial Screening Form');
+    $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->update(['file_path' => 'missing-replacement.pdf', 'mime_type' => 'application/pdf']);
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft))
+        ->assertOk()->assertSeeText('☐ Complete Documents');
+})->with(['older missing level' => [null], 'explicit Central Agency' => ['central_agency']]);
+
 test('the saved budget call level drives the proposal and screening previews', function (?string $level) {
     $this->draft->documents()->create([
         'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
@@ -1815,3 +1981,97 @@ test('the saved budget call level drives the proposal and screening previews', f
         $screening->assertSee('data-screening-level="'.$expectedLevel.'"', false);
     }
 })->with(['Central Agency' => ['central_agency'], 'Constituent Campus' => ['constituent_campus'], 'Unselected' => [null]]);
+
+test('automatic revision replies use a complete editor and the official generated PDF', function () {
+    if (! getenv('ATHENA_REVISION_AUTOMATION_FIXTURE') && ! getenv('ATHENA_REVISION_AUTOMATION_REPLY')) {
+        $this->markTestSkipped('The full browser integration test enables real office-to-PDF conversion.');
+    }
+
+    $this->withVite();
+    $originalPayload = ($this->payload)(['sdgs' => [1]]);
+    $originalPayload['methodology']['specific_methods'] = "A. Community field research\n1. Researchers will conduct surveys, interviews, and coastal transect observations.";
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $originalPayload)
+        ->assertOk()->assertJsonPath('completion_errors', []);
+    $document = $this->draft->documents()->where('document_type', 'detailed_proposal')->sole();
+    $source = [...$document->source_data, 'project_title' => $this->draft->project_title, 'project_leader' => $this->draft->project_leader];
+    $topic = $this->faculty->proposals()->create([
+        'research_call_id' => $this->draft->research_call_id,
+        'title' => $this->draft->project_title, 'status' => 'revision_requested',
+        'estimated_budget' => 50000, 'estimated_duration_months' => 12,
+    ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $this->faculty->id, 'version_number' => 1, 'submission_type' => 'initial',
+        'title' => $topic->title, 'file_path' => 'automation/submitted.pdf',
+        'original_filename' => 'submitted.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100,
+    ]);
+    $file = $version->files()->create([
+        'document_type' => 'detailed_proposal', 'position' => 0,
+        'file_path' => 'automation/submitted.pdf', 'original_filename' => 'submitted.pdf',
+        'mime_type' => 'application/pdf', 'file_size' => 100, 'source_data' => $source,
+    ]);
+    $review = $topic->reviews()->create([
+        'reviewer_id' => $this->faculty->id, 'decision' => 'revision_requested', 'review_stage' => 'research_head',
+    ]);
+    $revision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $file->id, 'document_type' => 'detailed_proposal',
+        'original_filename' => $file->original_filename,
+    ]);
+    $annotation = $file->annotations()->create([
+        'reviewer_id' => $this->faculty->id, 'topic_review_file_revision_id' => $revision->id,
+        'annotation_type' => 'area', 'page_number' => 1, 'rectangles' => [],
+        'comment' => 'Explain the connection to quality education.', 'editor_target' => 'section-sdgs',
+    ]);
+    $this->draft->update(['topic_id' => $topic->id]);
+    $parent = $this->get(route('faculty.topics.revision', $topic))->assertOk();
+    $editor = $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', [$this->draft, 'revision_embed' => 1]))
+        ->assertOk()->assertViewHas('completionErrors', [])
+        ->assertSee('data-revision-editor-context', false)->assertSee('section-sdgs');
+    $preview = $this->get(route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'embedded' => 1]))->assertOk();
+    $revisedPayload = [...$originalPayload, 'sdgs' => [1, 4], 'document_version' => $document->lock_version];
+    $pdfResponse = $this->withHeader('X-Revision-PDF', '1')
+        ->postJson(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $revisedPayload)
+        ->assertOk()->assertHeader('content-type', 'application/pdf');
+    $pdf = $pdfResponse->streamedContent();
+    expect($pdf)->toStartWith('%PDF-');
+    $previewHtml = $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $revisedPayload)->assertOk();
+    $fixture = getenv('ATHENA_REVISION_AUTOMATION_FIXTURE');
+    if (is_string($fixture) && $fixture !== '') {
+        file_put_contents($fixture, json_encode([
+            'parent' => $parent->getContent(), 'editor' => $editor->getContent(),
+            'commentPaper' => $preview->getContent(), 'paperPreview' => $previewHtml->getContent(), 'pdf' => base64_encode($pdf),
+            'draftId' => $this->draft->id, 'topicId' => $topic->id, 'reviewId' => $review->id,
+            'annotationId' => $annotation->id, 'documentVersion' => $document->lock_version,
+            'draftVersion' => $this->draft->fresh()->lock_version,
+        ], JSON_THROW_ON_ERROR));
+    }
+    expect(app(CommentResponseFeedback::class)->rows($review)[0]['key'])->toBe('annotation_'.$annotation->id);
+
+    $browserReply = getenv('ATHENA_REVISION_AUTOMATION_REPLY');
+    if (is_string($browserReply) && $browserReply !== '') {
+        $answer = json_decode($browserReply, true, flags: JSON_THROW_ON_ERROR);
+        $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $revisedPayload)
+            ->assertOk()->assertJsonPath('completion_errors', []);
+        $staged = $this->post(route('faculty.proposal-drafts.revision-files.store', $this->draft), [
+            'document_type' => 'detailed_proposal', 'document_version' => $document->fresh()->lock_version,
+            'file' => UploadedFile::fake()->createWithContent('detailed-proposal.pdf', $pdf),
+        ], ['Accept' => 'application/json'])->assertOk();
+        expect($staged->json('draft_id'))->toBe($this->draft->id);
+        $this->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title, 'estimated_budget' => 50000, 'estimated_duration_months' => 12,
+            'revision_draft_id' => $this->draft->id, 'feedback_review_id' => $review->id,
+            'feedback_responses' => ['annotation_'.$annotation->id => $answer],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $row = app(CommentResponseFeedback::class)->rows($review->fresh())[0];
+        expect($topic->fresh()->status)->toBe('resubmitted')
+            ->and($row['response'])->toBe($answer['response'])
+            ->and($row['page'])->toBe($answer['page'])
+            ->and($row['paragraph'])->toBe($answer['paragraph']);
+        $this->get(route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'review' => $review->id]))
+            ->assertOk()->assertSeeText($answer['response'])
+            ->assertSeeText('Page '.$answer['page'].', paragraph '.$answer['paragraph']);
+        $responsePdf = $this->get(route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]))
+            ->assertOk()->assertHeader('content-type', 'application/pdf');
+        expect($responsePdf->getContent())->toStartWith('%PDF-');
+    }
+});

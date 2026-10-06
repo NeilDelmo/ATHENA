@@ -69,8 +69,13 @@ test('sample workspaces preserve old projects and drafts and provide editable pr
     ]);
     $before = $topics->map(fn ($topic) => $topic->fresh()->getAttributes())->all();
     $this->seed(SampleProjectWorkspaceSeeder::class);
-    $draft = ProposalDraft::where('project_title', '[Sample draft] Old ongoing example')->firstOrFail();
-    $draft->documents()->first()->update(['source_data' => ['introduction' => 'My edited proposal']]);
+    $draft = ProposalDraft::where('project_title', 'Old ongoing example')->firstOrFail();
+    $draft->update(['project_title' => '[Sample draft] Old ongoing example']);
+    $document = $draft->documents()->first();
+    $document->update([
+        'source_data' => ['project_title' => '[Sample draft] Old ongoing example', 'introduction' => 'My edited proposal'],
+        'file_path' => 'old-prepared-title.pdf',
+    ]);
     $practice = TopicProposal::where('description', 'like', '[report-draft-demo:'.$topics['completed']->id.']%')->firstOrFail();
     $practice->update(['title' => 'My edited practice title']);
     $this->seed(SampleProjectWorkspaceSeeder::class);
@@ -85,13 +90,17 @@ test('sample workspaces preserve old projects and drafts and provide editable pr
         ->and($topics->map(fn ($topic) => $topic->fresh()->getAttributes())->all())->toBe($before)
         ->and($saved->fresh()->source_data['introduction'])->toBe('Keep my private writing')
         ->and($saved->fresh()->lock_version)->toBe(4)
+        ->and($draft->fresh()->project_title)->toBe('Old ongoing example')
+        ->and($document->fresh()->source_data['project_title'])->toBe('Old ongoing example')
+        ->and($document->fresh()->file_path)->toBeNull()
+        ->and($document->fresh()->lock_version)->toBe(1)
         ->and($draft->documents()->first()->source_data['introduction'])->toBe('My edited proposal')
         ->and($practice->fresh()->title)->toBe('My edited practice title');
 
     $this->actingAs($owner)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
     $this->get(route('faculty.proposal-drafts.show', $draft))->assertOk();
     $this->get(route('topics.show', $topics['completed']))->assertOk()
-        ->assertSee('Open sample proposal draft')->assertViewHas('sampleProposalDraft', fn ($sample): bool => $sample->project_title === '[Sample draft] Old completed example');
+        ->assertSee('Open sample proposal draft')->assertViewHas('sampleProposalDraft', fn ($sample): bool => $sample->project_title === 'Old completed example');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
     $this->get(route('topics.show', $topics['completed']))->assertOk()
         ->assertSee('Open editable report sample')

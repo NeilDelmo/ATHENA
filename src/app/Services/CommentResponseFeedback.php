@@ -25,10 +25,34 @@ class CommentResponseFeedback
 
     public function reviewedVersion(TopicReview $review): ?ProposalVersion
     {
-        $review->loadMissing(['fileRevisions.file.version.files', 'topic']);
+        $review->loadMissing(['fileRevisions.file', 'topic']);
 
-        return $review->fileRevisions->first(fn ($revision): bool => $revision->file?->version instanceof ProposalVersion)?->file?->version
-            ?? $review->topic?->versions()->with('files')->where('created_at', '<=', $review->created_at)->orderByDesc('version_number')->first();
+        if ($review->topic?->relationLoaded('versions')) {
+            foreach ($review->fileRevisions as $revision) {
+                $version = $review->topic->versions->firstWhere('id', $revision->file?->proposal_version_id);
+                if ($version !== null && $revision->file !== null) {
+                    $revision->file->setRelation('version', $version);
+                }
+            }
+        }
+
+        $review->loadMissing('fileRevisions.file.version.files');
+
+        $version = $review->fileRevisions->first(fn ($revision): bool => $revision->file?->version instanceof ProposalVersion)?->file?->version;
+        if ($version !== null) {
+            return $version;
+        }
+
+        if ($review->topic?->relationLoaded('versions')) {
+            $version = $review->topic->versions
+                ->filter(fn (ProposalVersion $version): bool => $version->created_at->lte($review->created_at))
+                ->sortByDesc('version_number')->first();
+            $version?->loadMissing('files');
+
+            return $version;
+        }
+
+        return $review->topic?->versions()->with('files')->where('created_at', '<=', $review->created_at)->orderByDesc('version_number')->first();
     }
 
     public function currentStage(TopicProposal $topic, ProposalVersion $version): string
@@ -232,6 +256,10 @@ class CommentResponseFeedback
     /** @return list<array{key: string, reviewer: string, location: string, comment: string, stage: string}> */
     private function researchHeadRows(TopicReview $review): array
     {
+        $review->loadMissing('fileRevisions.file');
+        if ($review->fileRevisions->isNotEmpty()) {
+            $this->reviewedVersion($review);
+        }
         $review->loadMissing(['reviewer', 'fileRevisions.file.version.files', 'fileRevisions.file.version.topic.stageTransitions', 'fileRevisions.annotations.reviewer']);
         $rows = [];
         $stage = $this->reviewStage($review);

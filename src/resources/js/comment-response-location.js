@@ -1,7 +1,7 @@
 import { loadPdfJs } from './pdf-annotation-workspace.js';
 
 export const normalizeLocationText = (text) => String(text || '').normalize('NFKC')
-    .replace(/\u00ad/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    .replace(/\u00ad/g, '').replace(/[\u2010\u2011]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
 
 // PDF text does not always retain Word paragraph tags. Use visible line spacing,
 // indentation and column boundaries, and let faculty review the detected blocks.
@@ -38,8 +38,48 @@ export function pdfPageParagraphs(items, pageNumber) {
 }
 
 export function matchingPassages(passages, texts) {
-    const queries = [...new Set(texts.map(normalizeLocationText).filter((text) => text.length >= 12))];
-    return passages.filter((passage) => queries.some((query) => normalizeLocationText(passage.text).includes(query)));
+    const matches = new Set();
+    for (const hint of texts) {
+        const query = normalizeLocationText(typeof hint === 'object' ? hint?.text : hint);
+        if (!query || !/[\p{L}\p{N}]/u.test(query)) continue;
+        const numeric = /^[\d\s.,%₱$+-]+$/.test(query);
+        const numericValue = (value) => Number(value.replace(/[,₱$\s]/g, ''));
+        const includes = (value, needle) => {
+            let start = value.indexOf(needle);
+            while (start >= 0) {
+                const before = value[start - 1] || '';
+                const after = value[start + needle.length] || '';
+                if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
+                start = value.indexOf(needle, start + 1);
+            }
+            return false;
+        };
+        let candidates = passages.filter((passage) => {
+            const text = normalizeLocationText(passage.text);
+            return numeric
+                ? text === query || (/^[\d\s.,₱$+-]+$/.test(text) && numericValue(text) === numericValue(query))
+                : query.length < 2 ? text === query : includes(text, query);
+        });
+        const contexts = (Array.isArray(hint?.context) ? hint.context : [hint?.context])
+            .map(normalizeLocationText).filter(Boolean);
+        if (candidates.length > 1 && contexts.length) {
+            const contextual = candidates.filter((candidate) => {
+                const index = passages.indexOf(candidate);
+                if (contexts.some((context) => includes(normalizeLocationText(candidate.text), context))) return true;
+                for (let previous = index - 1; previous >= 0; previous--) {
+                    const anchor = passages[previous];
+                    if (anchor.page !== candidate.page) break;
+                    const text = normalizeLocationText(anchor.text);
+                    if (contexts.some((context) => includes(text, context))) return true;
+                    if (/^(?:[ivxlcdm]+\.|\d+\.)\s/i.test(text) || /:\s*$/.test(text)) break;
+                }
+                return false;
+            });
+            if (contextual.length) candidates = contextual;
+        }
+        candidates.forEach((passage) => matches.add(passage));
+    }
+    return [...matches];
 }
 
 export async function readPdfPassages(source, label, pdfLoader = loadPdfJs) {
@@ -70,79 +110,167 @@ export function initializeCommentResponseLocations(form, { readDocuments, sugges
     const fields = [...form.querySelectorAll('[data-comment-response-location]')];
     if (!fields.length) return null;
     const documents = new Map();
+    let documentFingerprint = null;
     let request = 0;
     let pending = null;
     let pendingRequest = 0;
-    const noChange = (field) => field.querySelector('[data-comment-response-no-change]').checked;
-    const status = (field, message) => { field.querySelector('[data-location-status]').textContent = message; };
-    const clear = (field) => {
-        if (field.dataset.locationAutomatic !== 'true') return;
+    let pendingDocumentType = null;
+    const noChange = (field) => Boolean(field.querySelector('[data-comment-response-no-change]')?.checked);
+    const fixedType = (field) => field.dataset.responseDocument || field.querySelector('[data-location-document]')?.value || '';
+    const availableTypes = () => [...form.querySelectorAll('[data-revision-document]')].filter((card) => (
+        !card.querySelector('[data-revision-no-change]')?.checked
+        && card.querySelector('[data-revision-document-state]')?.dataset.modified !== 'false'
+    )).map((card) => card.dataset.revisionDocument);
+    const fieldTypes = (field) => fixedType(field) ? [fixedType(field)] : availableTypes();
+    const setStatus = (field, message, state) => {
+        const status = field.querySelector('[data-location-status]');
+        if (status) status.textContent = message;
+        field.dataset.locationState = state;
+        const retry = field.querySelector('[data-location-retry]');
+        if (retry) { retry.hidden = state !== 'error'; retry.disabled = state === 'pending'; }
+    };
+    const clear = (field, forget = false) => {
         field.querySelector('[data-comment-response-page]').value = '';
         field.querySelector('[data-comment-response-paragraph]').value = '';
+        const confirmation = field.querySelector('[data-location-confirm]');
+        if (confirmation) { confirmation.replaceChildren(); confirmation.hidden = true; }
+        if (forget) {
+            ['locationAutomatic', 'locationText', 'locationDocument', 'locationLabel', 'locationConfirmed', 'locationFingerprint', 'locationNeighbors']
+                .forEach((key) => delete field.dataset[key]);
+        }
     };
-    const apply = (field, passage, documentType) => {
+    const apply = (field, passage, documentType, confirmed = false) => {
         if (noChange(field)) return;
         field.querySelector('[data-comment-response-page]').value = String(passage.page);
         field.querySelector('[data-comment-response-paragraph]').value = String(passage.paragraph);
         field.dataset.locationAutomatic = 'true';
-        delete field.dataset.locationManual;
         field.dataset.locationText = passage.text;
         field.dataset.locationDocument = documentType;
-        field.dataset.locationLabel = passage.label;
-        status(field, `${passage.label} · Page ${passage.page}, paragraph ${passage.paragraph}. Check the detected paragraph before submitting.`);
+        field.dataset.locationLabel = passage.label || '';
+        field.dataset.locationFingerprint = fingerprint();
+        field.dataset.locationConfirmed = String(confirmed);
+        const passages = documents.get(documentType)?.passages || [];
+        const index = passages.indexOf(passage);
+        field.dataset.locationNeighbors = JSON.stringify([passages[index - 1]?.text || '', passages[index + 1]?.text || ''].map(normalizeLocationText));
+        const confirmation = field.querySelector('[data-location-confirm]');
+        if (confirmation) { confirmation.replaceChildren(); confirmation.hidden = true; }
+        setStatus(field, `Location added automatically · Page ${passage.page}, paragraph ${passage.paragraph}.`, 'detected');
     };
-    const populate = (field, automatic = true) => {
-        const type = field.querySelector('[data-location-document]').value;
-        const passages = documents.get(type)?.passages || [];
-        const select = field.querySelector('[data-location-passage]');
-        select.replaceChildren(new Option(passages.length ? 'Choose the changed passage' : 'No readable revised text available', ''));
-        passages.forEach((passage, index) => select.add(new Option(`${passage.label} · Page ${passage.page}, paragraph ${passage.paragraph} · ${passage.text.slice(0, 160)}`, String(index))));
-        if (noChange(field)) return;
-        if (field.dataset.locationManual === 'true') { status(field, 'Manual location entered. Check it against the final revised PDF.'); return; }
-        let matches = [];
-        if (field.dataset.locationAutomatic === 'true' && field.dataset.locationDocument === type) {
-            matches = passages.filter((passage) => passage.label === field.dataset.locationLabel && normalizeLocationText(passage.text) === normalizeLocationText(field.dataset.locationText));
-        } else if (automatic) matches = matchingPassages(passages, suggestedTexts(field, type));
-        if (matches.length === 1) {
-            select.value = String(passages.indexOf(matches[0]));
-            apply(field, matches[0], type);
+    const confirm = (field, candidates) => {
+        clear(field);
+        const container = field.querySelector('[data-location-confirm]');
+        if (!container) {
+            setStatus(field, 'ATHENA could not identify the changed text yet. Finish the paper and try again.', 'error');
+            return;
+        }
+        container.hidden = false;
+        candidates.forEach(({ passage, type }) => {
+            const button = form.ownerDocument.createElement('button');
+            button.type = 'button';
+            button.className = 'revision-location-candidate';
+            button.dataset.locationCandidate = type;
+            const text = form.ownerDocument.createElement('span');
+            text.textContent = passage.text.slice(0, 240);
+            const location = form.ownerDocument.createElement('small');
+            location.textContent = `${passage.label || type.replaceAll('_', ' ')} · Page ${passage.page}, paragraph ${passage.paragraph}`;
+            button.append(text, location);
+            button.addEventListener('click', () => apply(field, passage, type, true));
+            container.append(button);
+        });
+        setStatus(field, 'This change appears in more than one place. Confirm the matching text below; ATHENA will add its location.', 'confirm');
+    };
+    const populate = (field) => {
+        if (noChange(field)) {
+            clear(field, true);
+            setStatus(field, 'No paper change needed for this reply.', 'no_change');
+            return;
+        }
+        if (documentFingerprint !== null && documentFingerprint !== fingerprint()) {
+            clear(field, true);
+            setStatus(field, 'The location will update automatically when you finish this paper.', 'idle');
+            return;
+        }
+        const types = fieldTypes(field);
+        const candidates = [];
+        let hasHints = false;
+        for (const type of types) {
+            const passages = documents.get(type)?.passages || [];
+            if (field.dataset.locationConfirmed === 'true' && field.dataset.locationDocument === type
+                && field.dataset.locationFingerprint === fingerprint()) {
+                const matches = passages.filter((passage, index) => (
+                    normalizeLocationText(passage.text) === normalizeLocationText(field.dataset.locationText)
+                    && JSON.stringify([passages[index - 1]?.text || '', passages[index + 1]?.text || ''].map(normalizeLocationText)) === field.dataset.locationNeighbors
+                ));
+                if (matches.length === 1) { apply(field, matches[0], type, true); return; }
+            }
+        }
+        const hints = types.flatMap((type) => suggestedTexts(field, type) || []);
+        hasHints = hints.length > 0;
+        for (const hint of hints) {
+            const matches = types.flatMap((type) => matchingPassages(documents.get(type)?.passages || [], [hint])
+                .map((passage) => ({ type, passage })));
+            if (matches.length === 1) { apply(field, matches[0].passage, matches[0].type); return; }
+            candidates.push(...matches);
+        }
+        if (candidates.length) {
+            confirm(field, candidates.filter((candidate, index) => candidates.findIndex((other) => other.type === candidate.type && other.passage === candidate.passage) === index));
+        } else if (!hasHints && types.some((type) => documents.get(type)?.passages?.length)) {
+            confirm(field, types.flatMap((type) => (documents.get(type)?.passages || []).map((passage) => ({ type, passage }))));
+            setStatus(field, 'Confirm the text your reply refers to below; ATHENA will add its location.', 'confirm');
         } else {
             clear(field);
-            status(field, passages.length ? 'Choose the passage that contains your change. ATHENA will fill both numbers.' : 'No readable text found. Upload a PDF with selectable text, or enter the location manually.');
+            const read = types.some((type) => documents.has(type));
+            setStatus(field, read
+                ? 'ATHENA could not read the changed text in this PDF. Try preparing the paper again.'
+                : 'The page and paragraph will be added automatically when you finish this paper.', read ? 'error' : 'idle');
         }
     };
-    const refresh = async (prepared = null) => {
-        if (pending && !prepared) {
-            const outdated = pendingRequest !== request;
+    const refresh = async (prepared = null, documentType = null) => {
+        if (pending) {
+            const outdated = prepared !== null || pendingRequest !== request || pendingDocumentType !== documentType;
             await pending;
-            if (outdated) return refresh();
+            if (outdated) return refresh(prepared, documentType);
             return;
         }
         const current = ++request;
-        const types = [...new Set(fields.filter((field) => !noChange(field)).map((field) => field.querySelector('[data-location-document]').value).filter(Boolean))];
-        fields.forEach((field) => {
-            field.querySelector('[data-location-refresh]').disabled = true;
-            if (!noChange(field)) status(field, 'Reading the current revised PDFs…');
-        });
+        const activeFields = documentType ? fields.filter((field) => !fixedType(field) || fixedType(field) === documentType) : fields;
+        const types = documentType
+            ? (activeFields.some((field) => !noChange(field)) ? [documentType] : [])
+            : [...new Set(activeFields.filter((field) => !noChange(field)).flatMap(fieldTypes))];
         const startingFingerprint = fingerprint();
+        if (documentFingerprint !== null && documentFingerprint !== startingFingerprint) documents.clear();
+        if (prepared === null && types.every((type) => documents.get(type)?.passages?.length) && documentFingerprint === startingFingerprint) {
+            activeFields.forEach(populate);
+            return;
+        }
+        activeFields.forEach((field) => { if (!noChange(field)) setStatus(field, 'Adding the changed location from your revised PDF…', 'pending'); });
         const operation = (async () => {
             try {
-                const results = await readDocuments(types, prepared);
+                types.forEach((type) => documents.delete(type));
+                const results = types.length ? await readDocuments(types, prepared) : new Map();
                 if (current !== request || startingFingerprint !== fingerprint()) {
-                    if (current === request) fields.forEach((field) => { clear(field); status(field, 'The paper changed while it was being read. Find page and paragraph again.'); });
+                    if (current === request) activeFields.forEach((field) => {
+                        clear(field, true);
+                        setStatus(field, 'The paper changed while its location was being added. Finish the paper again to update it.', 'error');
+                    });
                     return;
                 }
                 for (const [type, result] of results) documents.set(type, result);
-                fields.forEach((field) => populate(field));
+                documentFingerprint = startingFingerprint;
+                activeFields.forEach(populate);
             } catch (error) {
                 if (current !== request) return;
-                fields.forEach((field) => { if (!noChange(field)) { clear(field); status(field, error.message || 'The revised paper could not be read. Try again or enter the numbers manually.'); } });
-            } finally {
-                if (current === request) fields.forEach((field) => { field.querySelector('[data-location-refresh]').disabled = false; });
+                types.forEach((type) => documents.delete(type));
+                activeFields.forEach((field) => {
+                    if (noChange(field)) return;
+                    clear(field);
+                    setStatus(field, error.message || 'The revised PDF could not be read. Try preparing the paper again.', 'error');
+                });
             }
         })();
         pending = operation;
         pendingRequest = current;
+        pendingDocumentType = documentType;
         await operation;
         if (pending === operation) pending = null;
     };
@@ -150,50 +278,40 @@ export function initializeCommentResponseLocations(form, { readDocuments, sugges
         request += 1;
         documents.delete(type);
         fields.forEach((field) => {
-            field.querySelector('[data-location-refresh]').disabled = false;
-            if (field.querySelector('[data-location-document]').value !== type) return;
-            clear(field);
-            field.querySelector('[data-location-passage]').replaceChildren(new Option('Read the updated revised paper', ''));
-            status(field, 'The paper changed. Find page and paragraph again to update the location.');
+            if (fixedType(field) && fixedType(field) !== type) return;
+            clear(field, true);
+            setStatus(field, noChange(field) ? 'No paper change needed for this reply.'
+                : 'The location will update automatically when you finish this paper.', noChange(field) ? 'no_change' : 'idle');
         });
     };
     fields.forEach((field) => {
-        const documentSelect = field.querySelector('[data-location-document]');
-        if (!documentSelect.value && documentSelect.options.length === 2) documentSelect.selectedIndex = 1;
-        field.querySelector('[data-location-refresh]').addEventListener('click', () => void refresh());
-        field.querySelector('[data-location-document]').addEventListener('change', () => {
-            clear(field);
-            delete field.dataset.locationText;
-            delete field.dataset.locationAutomatic;
-            delete field.dataset.locationManual;
-            populate(field, false);
-            if (!documents.has(field.querySelector('[data-location-document]').value)) void refresh();
-        });
-        field.querySelector('[data-location-passage]').addEventListener('change', (event) => {
-            const type = field.querySelector('[data-location-document]').value;
-            const passage = event.target.value === '' ? null : documents.get(type)?.passages[Number(event.target.value)];
-            if (passage) apply(field, passage, type);
-            else { clear(field); delete field.dataset.locationText; }
-        });
-        field.querySelector('[data-comment-response-no-change]').addEventListener('change', () => { if (!noChange(field)) populate(field); });
-        ['[data-comment-response-page]', '[data-comment-response-paragraph]'].forEach((selector) => field.querySelector(selector).addEventListener('input', () => {
-            delete field.dataset.locationAutomatic;
-            delete field.dataset.locationText;
-            field.dataset.locationManual = 'true';
-            field.querySelector('[data-location-passage]').value = '';
-            status(field, 'Manual location entered. Check it against the final revised PDF.');
-        }));
+        field.querySelector('[data-location-retry]')?.addEventListener('click', () => void refresh(null, fixedType(field) || null));
+        field.querySelectorAll('[data-comment-response-action], [data-comment-response-no-change]').forEach((action) => action.addEventListener('change', () => populate(field)));
+        if (noChange(field)) populate(field);
     });
-    form.addEventListener('revision-step-changed', (event) => { if (event.detail.step === 3) void refresh(); });
+    form.addEventListener('revision-paper-reviewed', (event) => { void refresh(null, event.detail.documentType); });
     form.addEventListener('revision-document-changed', (event) => invalidate(event.detail.documentType));
-    if (form.querySelector('[data-revision-step="3"]')?.hidden === false) void refresh();
     return {
         refresh, invalidate,
+        async settle() {
+            while (pending) await pending;
+        },
         async verify(prepared) {
             await refresh(prepared);
-            const missing = fields.find((field) => !noChange(field) && field.dataset.locationAutomatic === 'true'
-                && (!field.querySelector('[data-comment-response-page]').value || !field.querySelector('[data-comment-response-paragraph]').value));
-            if (missing) throw new Error('A changed passage could not be located in the final revised PDF. Return to Action and Response and select its current passage.');
+            const missing = fields.find((field) => !noChange(field) && (
+                field.dataset.locationState !== 'detected'
+                || !field.querySelector('[data-comment-response-page]').value
+                || !field.querySelector('[data-comment-response-paragraph]').value
+            ));
+            if (missing) {
+                const label = documents.get(fixedType(missing) || missing.dataset.locationDocument || fieldTypes(missing)[0])?.passages?.[0]?.label || 'the revised paper';
+                const error = new Error(missing.dataset.locationState === 'confirm'
+                    ? `Confirm where this change appears in ${label}.`
+                    : 'The revised paper could not be read. Try preparing it again.');
+                error.revisionDocumentType = fixedType(missing) || missing.dataset.locationDocument || fieldTypes(missing)[0];
+                error.revisionResponseKey = missing.dataset.responseKey;
+                throw error;
+            }
         },
     };
 }

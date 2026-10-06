@@ -116,7 +116,14 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertSee('Save changes')
         ->assertSee('Expand paper')
         ->assertSee('Focused PDF review workspace')
-        ->assertDontSee('Zoom out')
+        ->assertSee('Zoom out')
+        ->assertSee('Zoom in')
+        ->assertSee('Fit page')
+        ->assertSee('Fit width')
+        ->assertSee('data-review-document-zoom', false)
+        ->assertSee('data-review-comments-toggle', false)
+        ->assertSee('Hide comments')
+        ->assertSee('id="review-document-comments" x-show="commentsOpen"', false)
         ->assertDontSee('Edit in proposal workspace');
 
     $response = $this->actingAs($this->head)->postJson(
@@ -773,7 +780,7 @@ test('saved highlights automatically request their paper even when selection is 
         ->and($annotation->fresh()->topic_review_file_revision_id)->toBe($revision->id);
     $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
-        ->assertSee('2. Revise papers')
+        ->assertSee('2. Revise and respond')
         ->assertSee('data-revision-document="work_plan"', false)
         ->assertSee('Start planting in June.');
 });
@@ -788,14 +795,14 @@ test('overall feedback clearly carries forward papers without a replacement requ
 
     $response = $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
-        ->assertSee('No paper changes requested.')
+        ->assertSee('No paper changes were requested.')
         ->assertSee('Your current papers will carry forward.')
         ->assertDontSee('Update 0 requested papers')
         ->assertDontSee('Toggle requested papers')
         ->assertDontSee('Summary of changes')
         ->assertDontSee('Choose comments-form signatories')
         ->assertDontSee('LEVEL OF EVALUATION DONE:');
-    expect(substr_count($response->getContent(), $review->comment))->toBe(1);
+    expect(substr_count($response->getContent(), $review->comment))->toBe(2);
     $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $this->topic), [
         'title' => $this->topic->title,
         'estimated_budget' => 50000,
@@ -840,16 +847,17 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
         ->assertOk()
         ->assertSee('Research proposal')
         ->assertDontSee('1 of 4 steps')
-        ->assertDontSee('aria-label="Revision steps"', false)
+        ->assertSee('aria-label="Revision steps"', false)
         ->assertDontSee('Respond to feedback')
         ->assertDontSee('Revise requested papers')
         ->assertDontSee('Confirm proposal details')
         ->assertDontSee('Review and send')
         ->assertSee('Prepare the corrected project')
-        ->assertSee('2. Revise papers')
+        ->assertSee('2. Revise and respond')
         ->assertSee('Revise paper')
-        ->assertSee('Preview revised paper')
-        ->assertSee('Back to revision')
+        ->assertSee('Revised')
+        ->assertDontSee('View full paper')
+        ->assertSee('Click the paper to enlarge it.')
         ->assertDontSee('Open for review')
         ->assertDontSee('Changes detected')
         ->assertSee('data-revision-dialog', false)
@@ -857,7 +865,7 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
         ->assertDontSee('What happens next')
         ->assertDontSee('Requested revision tasks')
         ->assertDontSee('Paper-level feedback')
-        ->assertSeeInOrder(['1. Reviewer feedback', 'Start planting in June.', '2. Revise papers', '5. Final review and submission'])
+        ->assertSeeInOrder(['1. Comment Response paper', '2. Revise and respond', 'Start planting in June.', '4. Final review and submission'])
         ->assertDontSee('Summary of changes')
         ->assertDontSee('Choose comments-form signatories')
         ->assertDontSee('LEVEL OF EVALUATION DONE:')
@@ -873,6 +881,7 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
         'topic' => $this->topic,
         'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD,
         'review' => $review->id,
+        'embedded' => 1,
     ]);
     $commentResponsePdfUrl = route('faculty.topics.comment-response-form.pdf', [
         'topic' => $this->topic,
@@ -882,34 +891,37 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
 
     expect($xpath->query($card)->length)->toBe(1)
         ->and($xpath->query($card.'//*[@data-revision-document-state][@hidden]')->length)->toBe(1)
-        ->and($xpath->query('//button[@type="button"][@data-comment-response-preview][@aria-haspopup="dialog"]')->length)->toBe(1)
-        ->and($xpath->query('//section[@data-comment-response-source="research_head"]//button[@data-comment-response-preview]')->length)->toBe(1)
-        ->and($xpath->query('//form[@id="submit-revision"]/section[@data-revision-step]')->length)->toBe(5)
+        ->and($xpath->query('//button[@data-comment-response-preview]')->length)->toBe(0)
+        ->and($xpath->query('//section[@data-comment-response-source="research_head"]//*[@data-comment-response-paper-open][@aria-haspopup="dialog"]')->length)->toBe(1)
+        ->and($xpath->query('//form[@id="submit-revision"]/section[@data-revision-step]')->length)->toBe(4)
         ->and($xpath->query('//section[@data-revision-step="1"]//textarea')->length)->toBe(0)
-        ->and($xpath->query('//section[@data-revision-step="3"]//textarea[@required]')->length)->toBeGreaterThan(0)
-        ->and($xpath->query('//section[@data-revision-step="3"]//textarea[@data-revision-response-document="work_plan"]')->length)->toBeGreaterThan(0)
-        ->and($xpath->query('//section[@data-revision-step="4"]//input[@data-revision-details-confirmed][@required]')->length)->toBe(1)
-        ->and($xpath->query('//section[@data-revision-step="5"]//button[@type="submit"]')->length)->toBe(1)
-        ->and($xpath->query('//section[@data-comment-response-source="research_head"]//article[@data-revision-feedback-item]//blockquote')->length)->toBeGreaterThan(0)
-        ->and($xpath->query('//section[@data-revision-response-source="research_head"]//textarea[@required]')->length)->toBe($xpath->query('//section[@data-comment-response-source="research_head"]//article[@data-revision-feedback-item]')->length)
+        ->and($xpath->query('//section[@data-revision-step="2"]//textarea[@required]')->length)->toBeGreaterThan(0)
+        ->and($xpath->query('//section[@data-revision-step="2"]//textarea[@data-revision-response-document="work_plan"]')->length)->toBeGreaterThan(0)
+        ->and($xpath->query('//section[@data-revision-step="3"]//input[@data-revision-details-confirmed][@required]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-revision-step="4"]//button[@type="submit"]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-comment-response-source="research_head"]//blockquote')->length)->toBe(0)
+        ->and($xpath->query('//div[@data-revision-response-source="research_head"]//textarea[@required]')->length)->toBeGreaterThan(0)
         ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" or @href="'.$commentResponsePdfUrl.'"]')->length)->toBe(0)
-        ->and($xpath->query('//*[@data-faculty-comment-response-preview-modal]//*[@data-pdf-annotation-config]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-revision-step="1"]//*[@data-comment-response-paper]//*[@data-comment-response-preview]')->length)->toBe(1)
         ->and($xpath->query('//a[contains(@href, "/comment-response-form/download")]')->length)->toBe(0)
         ->and($xpath->query($card.'//input[@name="work_plan"]')->length)->toBe(0)
         ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(0)
         ->and($xpath->query($card.'//select[@data-revision-comment]/option[@data-annotation-id="'.$annotation->id.'"]')->length)->toBe(1)
-        ->and($xpath->query($card.'//iframe[@data-revision-editor-frame][contains(@src, "revision_embed=1")]')->length)->toBe(1)
+        ->and($xpath->query($card.'//iframe[@data-revision-editor-frame][@src]')->length)->toBe(0)
+        ->and($xpath->query($card.'//iframe[@data-revision-editor-frame][contains(@data-revision-editor-src, "revision_embed=1")]')->length)->toBe(1)
         ->and($xpath->query($card.'//dialog//section[contains(@class, "revision-feedback")]/following-sibling::section[contains(@class, "revision-editor-panel")]//iframe[@data-revision-editor-frame]')->length)->toBe(1)
         ->and($xpath->query($card.'//dialog//section[contains(@class, "revision-feedback")]//iframe[@data-revision-pdf-frame]')->length)->toBe(1)
         ->and($xpath->query($card.'//a[contains(@href, "proposal-drafts")]')->length)->toBe(0)
         ->and($xpath->query($card.'//button[@data-revision-open]')->length)->toBe(1)
         ->and($xpath->query($card.'//dialog//button[@data-revision-preview-open][@aria-expanded="false"]')->length)->toBe(1)
-        ->and($xpath->query($card.'//dialog//section[@data-revision-preview-panel][@hidden]//iframe[@data-revision-preview-frame]')->length)->toBe(1)
+        ->and($xpath->query($card.'//dialog//div[@data-revision-preview-panel][@hidden]//iframe[@data-revision-preview-frame]')->length)->toBe(1)
         ->and($xpath->query($card.'//dialog//*[@data-revision-editor-content]//iframe[@data-revision-editor-frame]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
         ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="true"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
         ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
+
+    expect($xpath->query('//*[@data-comment-response-paper]//*[@data-comment-response-preview]')->item(0)->getAttribute('data-comment-response-preview-url'))->toBe($commentResponsePreviewUrl);
 
     foreach ($xpath->query('//button[@data-comment-response-preview] | //button[@data-revision-submit-button]') as $control) {
         expect($control->getAttribute('class'))->toContain('rounded-lg', 'min-h-');

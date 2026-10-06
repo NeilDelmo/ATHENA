@@ -26,6 +26,7 @@ class ProgressReportData
         $accomplishments = $entries->groupBy(fn (array $entry): string => $this->plain((string) $entry['objective']))
             ->map(fn ($rows, string $objective): array => [
                 'objective' => $objective,
+                'evidence_key' => $this->objectiveEvidenceKey($objective),
                 'target' => $rows->map(fn (array $row): string => $this->plain((string) ($row['expected_output'] ?? '')))->filter()->unique()->implode("\n"),
                 'activities' => $rows->map(fn (array $row): string => $this->plain((string) ($row['activity'] ?? '')))->filter()->unique()->implode("\n"),
                 'actual' => '',
@@ -37,6 +38,7 @@ class ProgressReportData
         if ($accomplishments->isEmpty()) {
             $accomplishments = $specificObjectives->map(fn (string $objective): array => [
                 'objective' => $objective, 'target' => '', 'actual' => '', 'activities' => '',
+                'evidence_key' => $this->objectiveEvidenceKey($objective),
             ]);
         }
         $objectives = collect([$this->plain((string) ($proposal['general_objective'] ?? ''))])
@@ -81,7 +83,11 @@ class ProgressReportData
             $data['accomplishments'] = collect($defaults['accomplishments'])->map(function (array $approved, int $index) use ($submitted): array {
                 $row = $submitted->firstWhere('objective', $approved['objective']) ?? $submitted->get($index, []);
 
-                return [...$approved, 'actual' => (string) ($row['actual'] ?? '')];
+                return [
+                    ...$approved,
+                    'actual' => (string) ($row['actual'] ?? ''),
+                    ...array_intersect_key($row, array_flip(['evidence', 'evidence_ids'])),
+                ];
             })->all();
         }
         if (filled($defaults['objectives'])) {
@@ -89,6 +95,11 @@ class ProgressReportData
         }
 
         return $data;
+    }
+
+    public function objectiveEvidenceKey(string $objective): string
+    {
+        return 'objective-'.substr(hash('sha256', $objective), 0, 24);
     }
 
     public function plain(string $value): string

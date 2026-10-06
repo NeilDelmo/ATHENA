@@ -44,9 +44,9 @@
         $assessmentFormCount = $submittedFiles->count() - $proposalPaperCount;
           $hasProjectAccess = $isResearchHead || $canViewSigningDocuments || $topic->isAccessibleTo(Auth::user());
           $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || (($isResearchHead || $canViewSigningDocuments) && $topic->status === 'ready_for_signature'))
-              && $hasProjectAccess;
+              && $hasProjectAccess && (! $topic->hasIssuedNoticeToProceed() || $isResearchHead || $canViewSigningDocuments);
           $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
-              && $hasProjectAccess;
+              && $hasProjectAccess && ! $isFacultyWorkspace;
         [$workspaceBackRoute, $workspaceBackLabel] = match (true) {
             $isResearchHead && $topic->isCompletedProject() => ['research_head.completed-projects.index', 'Back to projects'],
             $isResearchHead && $canViewMonitoring => ['research_head.projects.index', 'Back to projects'],
@@ -86,6 +86,9 @@
             : (($noticeToProceedErrors || ($canViewNoticeToProceed && $errors->getBag('headUpload')->any()))
                 ? 'notice'
                 : (in_array(session('topic_tab'), ['details', 'review', 'notice', 'history', 'monitoring'], true) ? session('topic_tab') : null));
+        if (($initialTopicTab === 'monitoring' && ! $canViewMonitoring) || ($initialTopicTab === 'notice' && ! $canViewNoticeToProceed)) {
+            $initialTopicTab = 'details';
+        }
 
     ?>
 
@@ -174,14 +177,13 @@
                 ['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
-                        ? 'notice'
-                    : (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))
+                        ? (<?php echo \Illuminate\Support\Js::from($canViewNoticeToProceed)->toHtml() ?> ? 'notice' : 'details')
+                    : (<?php echo \Illuminate\Support\Js::from($canViewMonitoring)->toHtml() ?> && (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))))
                         ? 'monitoring'
                         : window.location.hash === '#version-history'
                         ? 'history'
                         : <?php echo \Illuminate\Support\Js::from($isResearchOffice || $canDecide || ($isResearchHead && $topic->status === 'revision_requested') ? 'review' : 'details')->toHtml() ?>
             ),
-            routingDocketOpen: false,
             decisionHistoryOpen: false,
             setTopicTab(tab, hash) {
                 this.activeTopicTab = tab;
@@ -191,8 +193,8 @@
                 if (['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
-                    this.activeTopicTab = 'notice';
-                } else if (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))) {
+                    this.activeTopicTab = <?php echo \Illuminate\Support\Js::from($canViewNoticeToProceed)->toHtml() ?> ? 'notice' : 'details';
+                } else if (<?php echo \Illuminate\Support\Js::from($canViewMonitoring)->toHtml() ?> && (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))) {
                     this.activeTopicTab = 'monitoring';
                 } else if (window.location.hash === '#version-history') {
                     this.activeTopicTab = 'history';
@@ -202,7 +204,6 @@
                 this.scrollToTopicHash();
             },
             init() {
-                try { this.routingDocketOpen = sessionStorage.getItem('review-workflow-<?php echo e($topic->id); ?>') === 'shown'; } catch (error) {}
                 this.$nextTick(() => {
                     this.floatingBackLinkObserver = new ResizeObserver(() => {
                         this.$el.style.setProperty('--athena-topic-back-link-height', `${this.$refs.workspaceBackLink.getBoundingClientRect().height}px`);
@@ -221,6 +222,11 @@
                 this.floatingBackLinkObserver?.disconnect();
             },
             scrollToTopicHash() {
+                if (window.location.hash === '#notice-to-proceed') {
+                    this.$nextTick(() => document.getElementById('notice-to-proceed')?.scrollIntoView({ block: 'start' }));
+
+                    return;
+                }
                 if (['#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.$nextTick(() => {
                         const card = document.getElementById(window.location.hash.slice(1));
@@ -277,6 +283,15 @@
             </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isFacultyWorkspace && ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject()) && $hasProjectAccess): ?>
+            <section data-research-workspace-handoff class="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+                <div class="max-w-xl">
+                    <h2 class="text-base font-semibold text-slate-900 dark:text-white"><?php echo e($topic->isCompletedProject() ? 'Research completed' : 'In monitoring'); ?></h2>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">The signed proposal papers and Notice to Proceed are in Files. Use Switch Workspace in your account menu to manage monitoring and reports as Faculty Researcher.</p>
+                </div>
+            </section>
+        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
         <div class="space-y-3">
             <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal workspace sections">
                 <div class="flex shrink-0 gap-1" role="tablist" aria-label="Proposal workspace sections">
@@ -307,7 +322,7 @@
                     Versions
                 </button>
                 </div>
-                <div x-show="activeTopicTab === 'history' || <?php echo \Illuminate\Support\Js::from(! $canViewMonitoring)->toHtml() ?>" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
+                <div x-show="activeTopicTab === 'history'" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
                     <button
                         type="button"
                         x-show="activeTopicTab === 'history'"
@@ -321,47 +336,21 @@
                     >
                         View Decision History (<?php echo e($decisionReviews->count()); ?>)
                     </button>
-                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if (! ($canViewMonitoring)): ?>
-                    <button
-                    type="button"
-                    @click="routingDocketOpen = ! routingDocketOpen; try { sessionStorage.setItem('review-workflow-<?php echo e($topic->id); ?>', routingDocketOpen ? 'shown' : 'hidden') } catch (error) {}"
-                    data-review-workflow-toggle
-                    :aria-expanded="routingDocketOpen.toString()"
-                    aria-controls="proposal-routing-docket"
-                    class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-slate-800"
-                    aria-label="Show proposal routing information"
-                    title="Proposal routing information"
-                >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" /><path stroke-linecap="round" d="M12 10.5v5m0-8.25h.01" /></svg>
-                    <span x-text="routingDocketOpen ? 'Hide workflow' : 'Show workflow'">Show workflow</span>
-                    </button>
-                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                 </div>
             </nav>
         </div>
 
-        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if (! ($canViewMonitoring)): ?>
-            <div
-                class="mb-5"
-                x-cloak
-                x-show="routingDocketOpen"
-                x-transition:enter="transition ease-out duration-200"
-                x-transition:enter-start="-translate-y-2 opacity-0"
-                x-transition:enter-end="translate-y-0 opacity-100"
-                x-transition:leave="transition ease-in duration-150"
-                x-transition:leave-start="translate-y-0 opacity-100"
-                x-transition:leave-end="-translate-y-2 opacity-0"
-            >
-                <?php if (isset($component)) { $__componentOriginal30d528a6ab0933c570934791a85cd659 = $component; } ?>
+        <div class="mb-5" data-visible-proposal-workflow>
+            <?php if (isset($component)) { $__componentOriginal30d528a6ab0933c570934791a85cd659 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal30d528a6ab0933c570934791a85cd659 = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-workflow','data' => ['topic' => $topic,'version' => $latestVersion]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-workflow','data' => ['topic' => $topic,'version' => $latestVersion,'reviews' => $topic->reviews]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('proposal-workflow'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['topic' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($topic),'version' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($latestVersion)]); ?>
+<?php $component->withAttributes(['topic' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($topic),'version' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($latestVersion),'reviews' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($topic->reviews)]); ?>
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
 <?php echo $__env->renderComponent(); ?>
@@ -374,16 +363,15 @@
 <?php $component = $__componentOriginal30d528a6ab0933c570934791a85cd659; ?>
 <?php unset($__componentOriginal30d528a6ab0933c570934791a85cd659); ?>
 <?php endif; ?>
-            </div>
-        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+        </div>
 
-        <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('updatePackage', $topic)): ?>
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(! $isFacultyRevision && Auth::user()->can('updatePackage', $topic)): ?>
             <section data-proposal-package-update class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
-                <h3 class="font-bold text-gray-950 dark:text-white">You can still update this proposal</h3>
-                <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">The Research Head has not opened your package yet. Edit the papers, add team members, or replace PDFs, then turn in a new version. Your submitted versions remain available in Versions.</p>
-                <a href="<?php echo e(route('faculty.topics.edit-package', $topic)); ?>" class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800"><?php echo e($topic->revisionDraft ? 'Continue package update' : 'Update submitted package'); ?></a>
+                <h3 class="font-bold text-gray-950 dark:text-white">Update before review</h3>
+                <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">The Research Head has not opened this proposal. Edit the papers or replace PDFs, then submit Version <?php echo e(($latestVersion?->version_number ?? 1) + 1); ?>. Version <?php echo e($latestVersion?->version_number ?? 1); ?> stays in Versions. Editing closes when the Research Head opens the submission.</p>
+                <a href="<?php echo e(route('faculty.topics.edit-package', $topic)); ?>" class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800"><?php echo e($topic->revisionDraft ? 'Continue proposal update' : 'Update submitted proposal'); ?></a>
             </section>
-        <?php endif; ?>
+        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
         <section id="proposal-details-tab" x-show="activeTopicTab === 'details'" x-cloak role="tabpanel" aria-labelledby="proposal-details-tab-button">
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -410,12 +398,12 @@
                     <div class="p-5 sm:p-6" data-latest-package-summary="<?php echo e($latestVersion?->id); ?>">
                         <div class="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h4 class="text-sm font-black text-gray-950 dark:text-white">Latest submitted package</h4>
+                                <h4 class="text-sm font-black text-gray-950 dark:text-white">Latest submission</h4>
                                 <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($latestVersion): ?>
                                         Version <?php echo e($latestVersion->version_number); ?> contains <?php echo e($proposalPaperCount); ?> proposal <?php echo e(\Illuminate\Support\Str::plural('paper', $proposalPaperCount)); ?><?php echo e($assessmentFormCount > 0 ? ' and '.$assessmentFormCount.' automatically generated assessment '.\Illuminate\Support\Str::plural('form', $assessmentFormCount) : ''); ?>. Open the project folder to view them in separate categories alongside signed papers, review responses, and later project records.
                                     <?php else: ?>
-                                        No submitted package is available yet. Generated and uploaded PDFs will appear in the project folder.
+                                        No submission is available yet. Generated and uploaded PDFs will appear in the project folder.
                                     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                 </p>
                             </div>
@@ -439,6 +427,21 @@
                             <dt class="text-xs font-bold uppercase text-gray-500">Duration</dt>
                             <dd class="mt-1 text-sm font-bold text-gray-700"><?php echo e($topic->estimated_duration_months); ?> months</dd>
                         </div>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic->hasIssuedNoticeToProceed() && ! $canViewNoticeToProceed): ?>
+                            <div id="notice-to-proceed" data-released-notice-summary class="scroll-mt-32 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                <dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Notice to Proceed issued</dt>
+                                <dd class="mt-1 text-sm font-semibold text-gray-700 dark:text-slate-200"><?php echo e($topic->notice_to_proceed_issued_at->format('M j, Y g:i A')); ?></dd>
+                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">The signed copy and released proposal papers are available in Files.</p>
+                            </div>
+                            <div class="border-t border-gray-100 pt-3 dark:border-slate-800">
+                                <dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Approved period</dt>
+                                <dd class="mt-1 text-sm font-semibold text-gray-700 dark:text-slate-200"><?php echo e(data_get($topic->notice_to_proceed_data, 'approved_start_date', '—')); ?> to <?php echo e(data_get($topic->notice_to_proceed_data, 'approved_end_date', '—')); ?></dd>
+                            </div>
+                            <div class="border-t border-gray-100 pt-3 dark:border-slate-800">
+                                <dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Approved budget</dt>
+                                <dd class="mt-1 text-sm font-semibold text-gray-700 dark:text-slate-200">PHP <?php echo e(number_format((float) data_get($topic->notice_to_proceed_data, 'approved_budget', $topic->estimated_budget), 2)); ?></dd>
+                            </div>
+                        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($topic->category): ?>
                             <div class="border-t border-gray-100 pt-3">
                                 <dt class="text-xs font-bold uppercase text-gray-500">Category</dt>
@@ -1145,7 +1148,7 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
                                 <p class="mt-2 text-base leading-7">Your editor changes, including added images, stay in this private working revision. They are not part of Version <?php echo e($latestVersion?->version_number ?? 1); ?>.</p>
                                 <p class="mt-1 text-base font-semibold leading-7">Submitting the revision creates Version <?php echo e(($latestVersion?->version_number ?? 1) + 1); ?>, sends it to the Research Head, and enables the comparison below.</p>
                             <?php else: ?>
-                                <p class="mt-2 text-base leading-7">Version <?php echo e($latestVersion?->version_number ?? 1); ?> remains the latest submitted package while the faculty member works. The Research Head receives the changes only after the faculty submits the revision.</p>
+                                <p class="mt-2 text-base leading-7">Version <?php echo e($latestVersion?->version_number ?? 1); ?> remains the latest submission while the faculty member works. The Research Head receives the changes only after the faculty submits the revision.</p>
                             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
                         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isFacultyRevision): ?>
@@ -1177,7 +1180,7 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__empty_1 = true; $__currentLoopData = $latestVersion->files->where('is_carried_forward', false)->whereNotIn('document_type', [\App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE, \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD]); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                                 <span class="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300"><?php echo e($file->label()); ?></span>
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
-                                <span class="text-xs text-gray-400">No package files were replaced.</span>
+                                <span class="text-xs text-gray-400">No submitted documents were replaced.</span>
                             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
                     </div>

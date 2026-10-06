@@ -63,7 +63,7 @@ test('section maps use box boundaries and continue across pages with greatest ov
         ->and($service->match($regions, 1, [['x' => .01, 'y' => .01, 'width' => .02, 'height' => .02]]))->toBeNull();
 });
 
-test('generated detailed forms store section coordinates tied to the exact PDF', function () {
+test('generated detailed forms build and cache exact PDF section coordinates when a reviewer needs them', function () {
     Storage::fake('local');
     $source = DetailedProposalData::fromValidated([
         'project_title' => 'Section navigation test',
@@ -72,9 +72,11 @@ test('generated detailed forms store section coordinates tied to the exact PDF',
     ]);
     $docx = app(DetailedProposalDocumentService::class)->generate($source);
     $file = app(ProposalPackageService::class)->storeGeneratedDetailedProposal($docx, 'section-test', 'Section navigation test', $source);
-    $metadata = $file['source_data']['_revision_sections'];
-    $regions = $metadata['regions'];
-    expect($metadata['checksum'])->toBe(hash('sha256', Storage::disk('local')->get($file['file_path'])));
+    expect($file['source_data'])->not->toHaveKey('_revision_sections');
+    $versionFile = new ProposalVersionFile($file);
+    $sectionMap = app(ProposalRevisionSectionMap::class);
+    $regions = $sectionMap->forFile($versionFile);
+    expect($sectionMap->forFile($versionFile))->toBe($regions);
     foreach (app(ProposalRevisionSectionCatalog::class)->forType('detailed_proposal') as $section) {
         expect(array_column($regions, 'id'))->toContain($section['value']);
     }

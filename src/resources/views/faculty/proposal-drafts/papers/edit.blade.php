@@ -3,7 +3,6 @@
         <x-page-header :title="$paper['label']" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $documents->count() >= $paper['min_files'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $documents->count() >= $paper['min_files'] ? 'Uploaded' : 'Upload required' }}</span>
-                <a href="{{ route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]) }}" class="inline-flex h-11 w-full items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-11" aria-label="Open recovery history" title="Recovery history"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></a>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
             </x-slot>
         </x-page-header>
@@ -53,7 +52,6 @@
                 :loaded-version="(int) old('document_version', $currentVersions->get(0, 0))"
                 :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
                 :reload-url="route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])"
-                :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
                 :label="$paper['label']"
             />
         @endunless

@@ -1,4 +1,4 @@
-@props(['topic', 'documentType', 'fileRevisions' => collect(), 'stagedFile' => null, 'required' => false])
+@props(['topic', 'documentType', 'fileRevisions' => collect(), 'stagedFile' => null, 'required' => false, 'commentResponseRows' => collect(), 'documentTypes' => collect()])
 
 @php
     $multiple = $documentType === 'curriculum_vitae';
@@ -17,6 +17,7 @@
     $noChangeExplanation = old('revision_resolutions.'.$documentType.'.explanation', '');
     $noChangeAddressed = $noChangeSelected && filled($noChangeExplanation);
     $noChangeError = $errors->getBag('resubmission')->first('revision_resolutions.'.$documentType.'.explanation');
+    $responsesByKey = collect($commentResponseRows)->keyBy('key');
     $feedbackItems = collect();
     foreach ($fileRevisions as $fileRevision) {
         $revisionFile = $fileRevision->file;
@@ -25,25 +26,35 @@
             ? route('topics.versions.files.annotations.index', [$topic, $annotationVersion, $revisionFile]).'?revision_embed=1'
             : null;
         $annotations = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->values();
-        foreach ($annotations->isEmpty() ? collect([null]) : $annotations as $annotation) {
+        if ($annotations->isEmpty() || $responsesByKey->has('file_'.$fileRevision->id)) {
+            $annotations->prepend(null);
+        }
+        foreach ($annotations as $annotation) {
             $feedbackItems->push([
                 'id' => $annotation?->id ?? 'file-'.$fileRevision->id,
                 'annotation_id' => $annotation?->id,
+                'reviewer' => $annotation?->feedbackLabel() ?? 'Reviewer',
+                'location' => $annotation
+                    ? 'Page '.$annotation->page_number.' · '.($revisionTargetCatalog->labelFor($revisionFile, $annotation->editor_target) ?? 'Paper feedback')
+                    : $fileRevision->original_filename,
+                'response' => $responsesByKey->get($annotation ? 'annotation_'.$annotation->id : 'file_'.$fileRevision->id),
                 'pdf_url' => $pdfUrl,
                 'label' => $annotation
                     ? $annotation->feedbackLabel().' · Page '.$annotation->page_number.' · '.($revisionTargetCatalog->labelFor($revisionFile, $annotation->editor_target) ?? 'Paper feedback')
                     : $fileRevision->original_filename,
-                'note' => $fileRevision->revision_note,
+                'note' => $annotation ? null : $fileRevision->revision_note,
                 'quote' => $annotation?->selected_text,
                 'comment' => $annotation?->comment,
             ]);
         }
     }
+    $singleReply = $feedbackItems->count() === 1 && filled($feedbackItems->first()['response']['key'] ?? null);
 @endphp
 
 <article
     data-revision-document="{{ $documentType }}"
     data-revision-label="{{ $label }}"
+    @if ($singleReply) data-revision-single-reply @endif
     @if ($stagedFile)
         data-revision-staged-pdf-url="{{ route('faculty.proposal-drafts.revision-files.show', [$stagedFile->proposal_draft_id, $stagedFile]) }}"
     @endif
@@ -82,78 +93,68 @@
         <dialog data-revision-dialog aria-labelledby="revision-dialog-title-{{ $documentType }}" class="revision-dialog bg-white text-gray-900 dark:bg-slate-900 dark:text-white">
             <header class="revision-dialog-header">
                 <div class="min-w-0">
-                    <h3 id="revision-dialog-title-{{ $documentType }}" class="truncate text-base font-bold">{{ $label }}</h3>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Submitted PDF and requested changes · Edit your revision alongside</p>
+                    <h3 id="revision-dialog-title-{{ $documentType }}" class="truncate text-lg font-bold">{{ $label }}</h3>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Compare papers, make your edits, and reply to feedback here.</p>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
-                    <button type="button" data-revision-previous aria-label="Previous document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700">Previous</button>
-                    <button type="button" data-revision-next aria-label="Next document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700">Next</button>
+                    <button type="button" data-revision-previous aria-label="Previous document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700"><span class="hidden sm:inline">Previous</span><svg class="h-4 w-4 sm:hidden" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg></button>
+                    <button type="button" data-revision-next aria-label="Next document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700"><span class="hidden sm:inline">Next</span><svg class="h-4 w-4 sm:hidden" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" /></svg></button>
                     <button type="button" data-revision-close class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700">Done</button>
                 </div>
             </header>
             <div data-revision-dialog-submit-error hidden role="alert" class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
                 <p class="font-bold">This document still needs an action before the revision can be sent.</p>
-                <p class="mt-1">Make a change, upload a replacement, or select “No file change needed” and provide an explanation.</p>
+                <p class="mt-1">Make a change, upload a replacement, or choose “Keep submitted paper” and provide an explanation.</p>
             </div>
             <div class="revision-dialog-body">
-                <div class="revision-document-workspace">
-                    <section class="revision-feedback" aria-label="Reviewer feedback and submitted PDF">
-                        <div class="revision-comment-strip" data-revision-feedback>
-                            @if ($feedbackItems->isNotEmpty())
-                                <label for="revision-comment-{{ $documentType }}" class="sr-only">Requested change</label>
-                                <select id="revision-comment-{{ $documentType }}" data-revision-comment class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950">
-                                    @foreach ($feedbackItems as $feedback)
-                                        <option value="{{ $feedback['id'] }}" data-annotation-id="{{ $feedback['annotation_id'] }}" data-pdf-url="{{ $feedback['pdf_url'] }}">{{ $loop->iteration }} of {{ $feedbackItems->count() }} · {{ $feedback['label'] }}</option>
-                                    @endforeach
-                                </select>
-                                @foreach ($feedbackItems as $feedback)
-                                    <div data-revision-comment-body="{{ $feedback['id'] }}" @if (! $loop->first) hidden @endif class="mt-3 space-y-2 text-sm leading-6">
-                                        <span hidden
-                                            data-revision-modification-status="{{ $feedback['id'] }}"
-                                            data-annotation-id="{{ $feedback['annotation_id'] }}"
-                                            data-modified="false"
-                                            data-reviewed="false"
-                                        ></span>
-                                        @if ($feedback['note'])
-                                            <p class="whitespace-pre-line">{{ $feedback['note'] }}</p>
-                                        @endif
-                                        @if ($feedback['quote'])
-                                            <blockquote class="border-l-2 border-red-300 pl-3 text-xs italic text-gray-500 dark:text-slate-400">{{ $feedback['quote'] }}</blockquote>
-                                        @endif
-                                        @if ($feedback['comment'])
-                                            <p class="whitespace-pre-line">{{ $feedback['comment'] }}</p>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            @else
-                                <p class="text-sm">Review the requested changes to this document.</p>
-                            @endif
-                        </div>
-                        <div class="revision-frame-shell">
+                <div class="revision-document-workspace" data-revision-document-workspace>
+                    <section class="revision-feedback" data-revision-reference id="revision-reference-{{ $documentType }}" aria-label="Paper reference">
+                        <header class="revision-reference-heading">
+                            <div class="revision-paper-tabs" role="group" aria-label="Paper version">
+                                <button type="button" data-revision-preview-close aria-pressed="true">Submitted</button>
+                                <button type="button" data-revision-preview-open aria-controls="revision-preview-{{ $documentType }}" aria-pressed="false" aria-expanded="false">Revised</button>
+                            </div>
+                            <div class="flex items-center justify-between gap-2"><p class="revision-reference-hint text-sm text-slate-500 dark:text-slate-400">Click the paper to enlarge it.</p><button type="button" data-revision-reference-dismiss>Minimize preview</button></div>
+                        </header>
+                        <div data-revision-submitted-panel data-revision-paper-open role="button" tabindex="0" aria-label="Enlarge submitted {{ $label }}" aria-controls="revision-reference-{{ $documentType }}" aria-expanded="false" class="revision-frame-shell">
                             <div data-revision-pdf-loading role="status" class="revision-frame-loading">
                                 <span class="revision-loading-spinner" aria-hidden="true"></span>
                                 <span>Loading submitted paper…</span>
                             </div>
-                            <iframe data-revision-pdf-frame title="Submitted {{ $label }} with Research Head highlights" class="revision-pdf-frame"></iframe>
-                            <p data-revision-pdf-unavailable hidden class="p-5 text-sm">The submitted PDF is unavailable. Use the feedback above to update this document.</p>
+                            <iframe data-revision-pdf-frame title="Submitted {{ $label }} with reviewer highlights" class="revision-pdf-frame"></iframe>
+                            <p data-revision-pdf-unavailable hidden class="p-5 text-sm">The submitted PDF is unavailable. Use the reviewer feedback to update this paper.</p>
                         </div>
+                        <div data-revision-preview-panel id="revision-preview-{{ $documentType }}" hidden class="revision-preview-panel">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3 dark:border-slate-700">
+                                <p data-revision-preview-status role="status" aria-live="polite" class="text-xs text-slate-500 dark:text-slate-400">Current revision</p>
+                                <select data-revision-preview-file hidden aria-label="Replacement file to preview" class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950"></select>
+                                <button type="button" data-revision-preview-refresh class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Refresh preview</button>
+                            </div>
+                            <p data-revision-preview-stale hidden role="status" class="bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">You have newer edits. Refresh to compare them.</p>
+                            <p data-revision-preview-error hidden role="alert" class="p-3 text-xs text-red-700 dark:text-red-300"></p>
+                            <div data-revision-paper-open role="button" tabindex="0" aria-label="Enlarge revised {{ $label }}" aria-controls="revision-reference-{{ $documentType }}" aria-expanded="false" class="revision-preview-paper">
+                                <iframe data-revision-preview-frame hidden title="Revised {{ $label }} preview" class="revision-preview-frame"></iframe>
+                            </div>
+                        </div>
+                        <footer class="revision-reference-footer">
+                            <div data-revision-preview-zoom class="flex flex-wrap items-center gap-2" role="group" aria-label="Preview zoom">
+                                <button type="button" data-revision-zoom-out aria-label="Zoom out">−</button>
+                                <output data-revision-zoom-value aria-live="polite">100%</output>
+                                <button type="button" data-revision-zoom-in aria-label="Zoom in">+</button>
+                                <button type="button" data-revision-fit-page aria-pressed="false">Fit page</button>
+                                <button type="button" data-revision-fit-width aria-pressed="true">Fit width</button>
+                            </div>
+                        </footer>
                     </section>
                     <section class="revision-editor-panel" aria-label="{{ $label }} revision editor">
-                        <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-slate-700">
-                            <p class="text-sm font-bold">Your revision</p>
-                            <button type="button" data-revision-preview-open aria-controls="revision-preview-{{ $documentType }}" aria-expanded="false" class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Preview revised paper</button>
-                            <button type="button" data-revision-preview-close hidden class="min-h-10 rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold dark:border-slate-600">Back to revision</button>
-                        </div>
-                        <section id="revision-preview-{{ $documentType }}" data-revision-preview-panel hidden aria-label="{{ $label }} revised paper preview" class="revision-preview-panel">
-                            <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-slate-700 dark:bg-slate-950">
-                                <p data-revision-preview-status role="status" class="text-xs text-gray-600 dark:text-slate-300"></p>
-                                <select data-revision-preview-file hidden aria-label="Replacement file to preview" class="max-w-full rounded-lg border-gray-300 text-xs dark:border-slate-600 dark:bg-slate-900"></select>
-                                <button type="button" data-revision-preview-refresh class="min-h-9 rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold disabled:opacity-50 dark:border-slate-600">Refresh preview</button>
+                        <div class="revision-editor-heading">
+                            <p class="text-base font-semibold text-slate-700 dark:text-slate-200">Your paper</p>
+                            <div class="revision-editor-actions">
+                                <button type="button" data-revision-reference-toggle aria-expanded="false">Show paper</button>
+                                <button type="button" data-revision-feedback-toggle aria-expanded="false" aria-controls="revision-feedback-{{ $documentType }}">Feedback &amp; reply<span class="revision-feedback-count">{{ $feedbackItems->count() }}</span></button>
                             </div>
-                            <p data-revision-preview-stale hidden role="status" class="shrink-0 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Your edits are newer than this preview. Refresh to see the latest paper.</p>
-                            <p data-revision-preview-error hidden role="alert" class="shrink-0 p-4 text-sm text-red-700 dark:text-red-300"></p>
-                            <iframe data-revision-preview-frame hidden title="Preview revised {{ $label }}" class="revision-preview-frame"></iframe>
-                        </section>
+                        </div>
+                        <p data-revision-keep-notice hidden class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">The submitted paper will be kept. Choose Revise this paper to continue editing.</p>
                         <div data-revision-editor-content class="revision-editor-content">
                         @if ($canEmbed)
                             <p data-revision-editor-status role="status" class="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-slate-700 dark:text-slate-400">Loading editor…</p>
@@ -162,49 +163,77 @@
                                     <span class="revision-loading-spinner" aria-hidden="true"></span>
                                     <span>Loading revision editor…</span>
                                 </div>
-                                <iframe data-revision-editor-frame src="{{ $editorUrl }}" title="Edit {{ $label }} alongside Research Head feedback" class="revision-editor-frame"></iframe>
+                                <iframe data-revision-editor-frame data-revision-editor-src="{{ $editorUrl }}" title="Edit {{ $label }} alongside Research Head feedback" class="revision-editor-frame"></iframe>
                             </div>
                         @else
                             <h4 class="px-4 pt-4 text-sm font-bold">Upload your revised {{ $label }}</h4>
                             <x-proposal-revision-upload :input-name="$inputName" :accept="$accept" :multiple="$multiple" :required="$required" :staged-file="$stagedFile" :label="$label" :document-type="$documentType" :file-errors="$fileErrors" />
                         @endif
                         </div>
-                        <div data-revision-resolution-panel class="revision-resolution-panel border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900" id="revision-resolution-{{ $documentType }}">
-                            <button type="button" data-revision-resolution-resize aria-label="Resize no-change explanation panel" aria-controls="revision-resolution-{{ $documentType }}" class="revision-resolution-resize"><span aria-hidden="true"></span></button>
-                            <div class="revision-resolution-content">
-                            <label class="flex cursor-pointer items-start gap-2 text-sm font-semibold text-gray-800 dark:text-slate-100">
-                                <input
-                                    type="checkbox"
-                                    name="revision_resolutions[{{ $documentType }}][action]"
-                                    value="no_change"
-                                    data-revision-no-change
-                                    @checked($noChangeSelected)
-                                    class="mt-0.5 rounded border-gray-300 text-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900"
-                                >
-                                <span>No file change needed</span>
-                            </label>
-                            <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Use this when the current paper already addresses the feedback.</p>
-                            <div data-revision-no-change-details @if (! $noChangeSelected) hidden @endif class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-slate-200">
-                                    Explanation <span class="font-normal text-gray-500 dark:text-slate-400">(required)</span>
-                                    <textarea
-                                        name="revision_resolutions[{{ $documentType }}][explanation]"
-                                        data-revision-no-change-explanation
-                                        rows="3"
-                                        maxlength="1000"
-                                        @required($noChangeSelected)
-                                        placeholder="Explain why the submitted file does not need to change"
-                                        class="mt-2 block w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"
-                                    >{{ $noChangeExplanation }}</textarea>
-                                </label>
-                                @if ($noChangeError)
-                                    <p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $noChangeError }}</p>
-                                @endif
-                                <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">This explanation also fills the matching replies in Write responses. You can refine those replies there.</p>
-                            </div>
-                            </div>
-                        </div>
                     </section>
+                    <aside class="revision-feedback-and-response" data-revision-feedback-panel id="revision-feedback-{{ $documentType }}" aria-label="Reviewer feedback and your response">
+                        <header class="revision-response-heading">
+                            <h4>Feedback &amp; reply</h4>
+                            <button type="button" data-revision-feedback-dismiss aria-label="Close feedback panel"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg></button>
+                        </header>
+                        <div class="revision-comment-strip" data-revision-feedback>
+                            @if ($feedbackItems->isNotEmpty())
+                                <label for="revision-comment-{{ $documentType }}" class="sr-only">Reviewer comment</label>
+                                <select id="revision-comment-{{ $documentType }}" data-revision-comment @if ($feedbackItems->count() === 1) hidden @endif class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950">
+                                    @foreach ($feedbackItems as $feedback)
+                                        <option value="{{ $feedback['id'] }}" data-annotation-id="{{ $feedback['annotation_id'] }}" data-pdf-url="{{ $feedback['pdf_url'] }}">{{ $loop->iteration }} of {{ $feedbackItems->count() }} · {{ $feedback['label'] }}</option>
+                                    @endforeach
+                                </select>
+                                @foreach ($feedbackItems as $feedback)
+                                    <div data-revision-comment-body="{{ $feedback['id'] }}" @if (! $loop->first) hidden @endif class="revision-comment-body">
+                                        <div class="revision-comment-context">
+                                            <p>{{ $feedback['reviewer'] }} <span>· Comment {{ $loop->iteration }} of {{ $feedbackItems->count() }}</span></p>
+                                            <p>{{ $feedback['location'] }}</p>
+                                        </div>
+                                        <span hidden data-revision-modification-status="{{ $feedback['id'] }}" data-annotation-id="{{ $feedback['annotation_id'] }}" data-modified="false" data-reviewed="false"></span>
+                                        <blockquote class="revision-reviewer-comment whitespace-pre-line">{{ $feedback['comment'] ?: $feedback['note'] }}</blockquote>
+                                        @if ($feedback['quote'])
+                                            <p class="text-xs leading-5 text-slate-500 dark:text-slate-400"><span class="font-semibold">In the submitted paper:</span> “{{ $feedback['quote'] }}”</p>
+                                        @endif
+                                        @if ($feedback['response'])
+                                            <x-proposal-revision-response :item="$feedback['response']" :document-type="$documentType" :document-types="$documentTypes" />
+                                        @endif
+                                    </div>
+                                @endforeach
+                            @endif
+                        </div>
+                        <div data-revision-resolution-panel class="revision-resolution-panel">
+                            <fieldset>
+                                <legend class="sr-only">What will you do with this paper?</legend>
+                                <div class="revision-action-options">
+                                    <label>
+                                        <input type="radio" data-revision-edit-paper name="revision_resolutions[{{ $documentType }}][action]" value="" @checked(! $noChangeSelected)>
+                                        <span>Revise this paper</span>
+                                    </label>
+                                    <label>
+                                        <input type="radio" data-revision-no-change name="revision_resolutions[{{ $documentType }}][action]" value="no_change" @checked($noChangeSelected)>
+                                        <span>Keep submitted paper</span>
+                                    </label>
+                                </div>
+                                <div data-revision-no-change-details @if (! $noChangeSelected) hidden @endif class="mt-3 space-y-2">
+                                    @if ($singleReply)
+                                        <input type="hidden" name="revision_resolutions[{{ $documentType }}][explanation]" data-revision-no-change-explanation value="{{ $noChangeExplanation }}">
+                                    @else
+                                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                            Why keep this paper? <span class="font-normal text-slate-500">(required)</span>
+                                            <textarea name="revision_resolutions[{{ $documentType }}][explanation]" data-revision-no-change-explanation rows="2" maxlength="1000" @required($noChangeSelected) placeholder="Explain how the submitted paper already addresses the feedback." class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">{{ $noChangeExplanation }}</textarea>
+                                        </label>
+                                    @endif
+                                    @if ($noChangeError)
+                                        <p class="text-xs text-red-700 dark:text-red-300">{{ $noChangeError }}</p>
+                                    @endif
+                                    @unless ($singleReply)
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">This explanation fills unanswered comments. You can still edit each response.</p>
+                                    @endunless
+                                </div>
+                            </fieldset>
+                        </div>
+                    </aside>
                 </div>
             </div>
         </dialog>

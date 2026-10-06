@@ -57,7 +57,35 @@ class SampleProjectWorkspaceSeeder extends Seeder
 
     private function proposalDraft(TopicProposal $topic): void
     {
-        $title = Str::limit('[Sample draft] '.$topic->title, 255, '');
+        $title = Str::limit($topic->title, 255, '');
+        $legacyTitle = Str::limit('[Sample draft] '.$topic->title, 255, '');
+        $existing = ProposalDraft::query()
+            ->where('user_id', $topic->user_id)->whereNull('topic_id')
+            ->whereIn('project_title', [$title, $legacyTitle])->first();
+
+        if ($existing !== null) {
+            if ($existing->project_title === $legacyTitle) {
+                $existing->update(['project_title' => $title, 'lock_version' => $existing->lock_version + 1]);
+                foreach ($existing->documents as $document) {
+                    $data = $document->source_data ?? [];
+                    if (($data['project_title'] ?? null) !== $legacyTitle) {
+                        continue;
+                    }
+                    $data['project_title'] = $title;
+                    $changes = ['source_data' => $data, 'lock_version' => $document->lock_version + 1];
+                    if ($document->document_type !== 'curriculum_vitae') {
+                        $changes += [
+                            'file_path' => null, 'original_filename' => null, 'mime_type' => null,
+                            'file_size' => null, 'checksum' => null,
+                        ];
+                    }
+                    $document->update($changes);
+                }
+            }
+
+            return;
+        }
+
         $start = today()->addDays(14);
         $duration = max(1, (int) ($topic->estimated_duration_months ?: 9));
         $draft = ProposalDraft::query()->firstOrCreate(
@@ -135,7 +163,7 @@ class SampleProjectWorkspaceSeeder extends Seeder
                 ...$source->latestVersion->only(['file_path', 'original_filename', 'mime_type', 'file_size', 'checksum', 'estimated_budget', 'estimated_duration_months']),
                 'title' => $topic->title, 'submitted_by' => $topic->user_id,
                 'version_number' => 1, 'submission_type' => 'initial',
-                'change_summary' => 'UI sample: reference proposal package copied for private report drafting practice.',
+                'change_summary' => 'UI sample: reference proposal documents copied for private report drafting practice.',
             ]);
             $window = $schedule->reportingWindow($topic);
             foreach ($source->latestVersion->files as $file) {

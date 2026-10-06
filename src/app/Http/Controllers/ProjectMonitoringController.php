@@ -15,6 +15,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\MonitoringEvidenceService;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use App\Services\ProjectMonitoringFormDataService;
@@ -45,7 +46,9 @@ class ProjectMonitoringController extends Controller
 
         $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
         $quarterService = app(MonitoringQuarterService::class);
-        $quarters = $quarterService->summaryRows($topic->progressReports()->with('nextVersion')->get(), $topic);
+        $quarters = $quarterService->summaryRows($topic->progressReports()->get([
+            'id', 'topic_id', 'reporting_date', 'version_number', 'submission_status', 'review_status',
+        ]), $topic);
         $requestedDate = $request->input('reporting_date');
         $data = $formData->monitoringTool($request->user(), $topic, $request->integer('revise_monitoring_report'), $requestedDate);
         $preparedDate = $data['preparedReport']?->reporting_date?->toDateString();
@@ -89,6 +92,11 @@ class ProjectMonitoringController extends Controller
                 $row['year'].'-'.$row['quarter'] => $approvedWorkPlan->defaultsForDate($topic, $row['end']),
             ])
             ->all();
+        $evidence = app(MonitoringEvidenceService::class);
+        foreach ($quarters as $row) {
+            $key = $row['year'].'-'.$row['quarter'];
+            $approvedWorkPlanByPeriod[$key] = $evidence->initialRows($topic, $row['end']->toDateString(), $approvedWorkPlanByPeriod[$key]);
+        }
         $selectedPeriod = $selectedReportingDate
             ? $quarterService->forDate($selectedReportingDate, $topic)
             : null;
@@ -103,6 +111,8 @@ class ProjectMonitoringController extends Controller
             )
             : [];
 
+        $initialWorkPlanRows = $selectedReportingDate ? $evidence->initialRows($topic, $selectedReportingDate, $initialWorkPlanRows) : [];
+
         return view('faculty.monitoring-tools.create', [
             'topic' => $topic, ...$data, 'quarterOptions' => $quarterOptions,
             'selectedReportingDate' => $selectedReportingDate,
@@ -112,6 +122,8 @@ class ProjectMonitoringController extends Controller
             'selectedReportNumber' => $selectedPeriod['quarter'] ?? null,
             'monitoringReportCount' => $quarters->count(),
             'initialWorkPlanRows' => $initialWorkPlanRows,
+            'previousProgressByPeriod' => $quarters->mapWithKeys(fn (array $row): array => [$row['year'].'-'.$row['quarter'] => array_map(fn (array $activity): array => ['accomplished_percentage' => $activity['accomplished_percentage'] ?? 0], $evidence->previousRows($topic, $row['end']->toDateString()))])->all(),
+            'overdueWorkPlanActivities' => $approvedWorkPlan->overdueActivities($topic),
         ]);
     }
 
@@ -138,7 +150,13 @@ class ProjectMonitoringController extends Controller
         ];
 
         $projects = TopicProposal::withIssuedNotice()
-            ->with(['user', 'researchSecretary', 'researchCall', 'category', 'latestProgressReport', 'latestNarrativeReport'])
+            ->with([
+                'user:id,name',
+                'researchSecretary:id,name,avatar',
+                'researchCall:id,title',
+                'latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,project_progress_reports.progress_percentage,project_progress_reports.reporting_date',
+                'latestNarrativeReport:project_narrative_reports.id,project_narrative_reports.topic_id,project_narrative_reports.submission_date',
+            ])
             ->withCount([
                 'progressReports',
                 'progressReports as pending_reports_count' => fn ($query) => $query->where('review_status', 'pending'),
@@ -250,12 +268,11 @@ class ProjectMonitoringController extends Controller
         }
 
         try {
-            $report = $prepareProjectProgressReport->handle(
-                $topic,
-                $request->user(),
-                $validated,
-                $request->file('attachment'),
-                $sourceReport,
+            $report = app(MonitoringEvidenceService::class)->store(
+                $topic, $validated, $request->file('activity_evidence', []),
+                fn (array $data): ProjectProgressReport => $prepareProjectProgressReport->handle(
+                    $topic, $request->user(), $data, $request->file('attachment'), $sourceReport,
+                ),
             );
         } catch (ValidationException $exception) {
             throw $exception;
@@ -275,6 +292,8 @@ class ProjectMonitoringController extends Controller
             ->forSource($sourceReport)
             ->delete();
 
+        app(MonitoringEvidenceService::class)->deleteUnreferenced($topic, collect($request->attributes->get('monitoring_evidence_rows', []))->flatMap(fn (array $row): array => array_column($row['evidence'] ?? [], 'path'))->all());
+
         return redirect()->route('project-progress.create', [
             'topic' => $topic,
             'reporting_date' => $report->reporting_date->toDateString(),
@@ -292,17 +311,19 @@ class ProjectMonitoringController extends Controller
     ): JsonResponse {
         $sourceReport = $this->revisionSourceReport($request, $topic);
         $validated = $request->validated();
-        $draft = $saveProjectMonitoringDraft->handle(
-            $topic,
-            $request->user(),
-            $sourceReport,
-            $request->integer('draft_version'),
-            collect($validated)->except(['draft_version', 'source_report_id'])->all(),
+        $draft = app(MonitoringEvidenceService::class)->store(
+            $topic, $validated, $request->file('activity_evidence', []),
+            fn (array $data): ProjectMonitoringDraft => $saveProjectMonitoringDraft->handle(
+                $topic, $request->user(), $sourceReport, $request->integer('draft_version'),
+                collect($data)->except(['draft_version', 'source_report_id'])->all(),
+            ),
         );
+        app(MonitoringEvidenceService::class)->deleteUnreferenced($topic, collect($request->attributes->get('monitoring_evidence_rows', []))->flatMap(fn (array $row): array => array_column($row['evidence'] ?? [], 'path'))->all());
 
         return response()->json([
             'message' => 'Monitoring Tool draft saved.',
             'draft_version' => $draft->lock_version,
+            'work_plan' => $draft->source_data['work_plan'] ?? [],
         ]);
     }
 
@@ -418,9 +439,7 @@ class ProjectMonitoringController extends Controller
             'submitted_by' => $request->user()->id,
             'reporting_date' => $validated['reporting_date'],
             'tracking_number' => $validated['tracking_number'] ?? null,
-            'progress_percentage' => (int) round($workPlan->sum(
-                fn (array $entry): float => (float) $entry['accomplished_percentage'],
-            )),
+            'progress_percentage' => app(MonitoringEvidenceService::class)->overallProgress($topic, $validated['reporting_date'], $validated['work_plan']),
             'work_plan' => $validated['work_plan'],
             'budget_utilization' => $validated['budget_utilization'],
             'prepared_by_date_signed' => $validated['prepared_by_date_signed'] ?? null,
@@ -545,6 +564,32 @@ class ProjectMonitoringController extends Controller
         return Storage::disk('local')->download($report->attachment_path);
     }
 
+    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence): StreamedResponse
+    {
+        $file = null;
+        if ($request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user())) {
+            foreach (ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->get(['source_data']) as $draft) {
+                $file = collect($draft->source_data['work_plan'] ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
+                if ($file) {
+                    break;
+                }
+            }
+        }
+        if (! $file) {
+            foreach (ProjectProgressReport::query()->whereBelongsTo($topic, 'topic')->get(['id', 'topic_id', 'submission_status', 'work_plan']) as $report) {
+                $candidate = collect($report->work_plan ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
+                if ($candidate) {
+                    $this->authorizeViewer($request, $report);
+                    $file = $candidate;
+                    break;
+                }
+            }
+        }
+        abort_unless($file && str_starts_with($file['path'], 'progress-reports/'.$topic->id.'/evidence/') && ! str_contains($file['path'], '..') && Storage::disk('local')->exists($file['path']), 404);
+
+        return Storage::disk('local')->download($file['path'], $file['name'], ['X-Content-Type-Options' => 'nosniff']);
+    }
+
     public function downloadMonitoringTool(
         Request $request,
         ProjectProgressReport $report,
@@ -607,6 +652,7 @@ class ProjectMonitoringController extends Controller
 
     private function deletePreparedReportFiles(ProjectProgressReport $report): void
     {
+        app(MonitoringEvidenceService::class)->deleteUnreferenced($report->topic, collect($report->work_plan ?? [])->flatMap(fn (array $row): array => array_column($row['evidence'] ?? [], 'path'))->all());
         collect([$report->attachment_path, $report->official_pdf_path])
             ->filter()
             ->each(fn (string $path) => Storage::disk('local')->delete($path));

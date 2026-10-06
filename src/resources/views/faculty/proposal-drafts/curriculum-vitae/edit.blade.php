@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="$paper['label']" subtitle="Create one official CV form for every member of the research team.">
             <x-slot name="actions">
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : ($curriculumVitaeDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $curriculumVitaeDocument?->completed_at ? 'Complete' : ($curriculumVitaeDocument ? 'In progress' : 'Not started') }}</span>
+                <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700' }}">{{ $curriculumVitaeDocument?->completed_at ? 'Complete' : ($curriculumVitaeDocument ? 'In progress' : 'Not started') }}</span>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
             </x-slot>
         </x-page-header>
@@ -18,7 +18,10 @@
     @endphp
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-proposal-paper-workspace
+        data-curriculum-vitae-workspace
+        @focusin="focusCurriculumVitaeField($event)"
         data-paper-editor
         data-paper-draft-save="true"
         data-curriculum-vitae-autosave="true"
@@ -29,6 +32,7 @@
             initialPeople: @js($initialPeople),
             workspacePeople: @js($workspacePeople),
             sections: @js($sections),
+            revisionTarget: @js(request()->query('revision_target')),
             updateUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft)),
             previewUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.download', $proposalDraft)),
@@ -45,7 +49,7 @@
 
         @if ($errors->any())
             <x-proposal-alert type="error">
-                <p class="font-bold">The Curriculum Vitae package could not be saved.</p>
+                <p class="font-bold">The team CVs could not be saved.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </x-proposal-alert>
         @endif
@@ -58,25 +62,24 @@
             :loaded-version="(int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
             :reload-url="route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft)"
-            :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
             :label="$paper['label']"
         />
 
-        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="curriculum-vitae-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
-            <span class="text-xs text-slate-500 dark:text-slate-400">The preview stays open while you edit and can be moved or resized.</span>
-        </div>
+        <x-curriculum-vitae-writing-toolbar />
 
-        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Curriculum Vitae editing form">
+
+        <section id="cv-member-manager" x-show="cvMemberManagerOpen" x-cloak class="cv-writing-member-manager rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h3 class="text-base font-black text-gray-900">Research team CV package</h3>
+                    <h3 class="text-base font-black text-gray-900">Research team CVs</h3>
                     <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Add an account from this proposal workspace to fill in their name and institutional email automatically, or create a blank CV for an unlisted person.</p>
                 </div>
                 @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">View sample</a>@endif
             </div>
 
-            <div class="mt-5 grid gap-4 border-t border-gray-100 pt-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+            <div class="cv-writing-add-member mt-5 grid gap-4 border-t border-gray-100 pt-5">
                 <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:p-5">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -109,7 +112,7 @@
                             </template>
                             <div x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center">
                                 <p class="text-sm font-bold text-gray-700">No available workspace member matches your search.</p>
-                                <p class="mt-1 text-xs leading-5 text-gray-500">Members already included in this CV package do not appear here.</p>
+                                <p class="mt-1 text-xs leading-5 text-gray-500">Members whose CVs are already included do not appear here.</p>
                             </div>
                         </div>
                     </div>
@@ -129,31 +132,31 @@
             </div>
 
             <div class="mt-5 border-t border-gray-100 pt-5">
-                <div class="flex items-center justify-between gap-3"><p class="text-[10px] font-black uppercase tracking-wider text-gray-600">CVs in this package</p><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600" x-text="`${people.length} ${people.length === 1 ? 'member' : 'members'}`"></span></div>
+                <div class="flex items-center justify-between gap-3"><p class="text-[10px] font-black uppercase tracking-wider text-gray-600">Team CVs</p><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600" x-text="`${people.length} ${people.length === 1 ? 'member' : 'members'}`"></span></div>
                 <div class="mt-3 flex flex-wrap gap-2">
                 <template x-for="(person, index) in people" :key="person.id">
-                    <button type="button" x-on:click="focusPerson(index)" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="`${index + 1}. ${personLabel(person)}`"></button>
+                    <button type="button" x-on:click="focusPerson(index)" :aria-pressed="person.id === activeCvPersonId" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="`${index + 1}. ${personLabel(person)}`"></button>
                 </template>
                 </div>
             </div>
         </section>
 
-        <form data-paper-form data-curriculum-vitae-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
+        <form id="cv-members-form" data-paper-form data-curriculum-vitae-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $curriculumVitaeDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
             <template x-for="(person, personIndex) in people" :key="person.id">
-                <article class="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex">
+                <article x-show="person.id === activeCvPersonId" x-cloak class="cv-writing-member space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex" :data-cv-person-id="person.id" :aria-label="`CV for ${personLabel(person)}`">
                     <div class="flex flex-col gap-3 border-b border-gray-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
                         <div><p class="text-[10px] font-black uppercase tracking-wider text-red-600">CV <span x-text="personIndex + 1"></span> of <span x-text="people.length"></span></p><h3 class="mt-1 text-lg font-black text-gray-900" x-text="personLabel(person)"></h3></div>
                         <button type="button" x-on:click="removePerson(personIndex)" x-bind:disabled="people.length === 1" class="rounded-xl px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove member</button>
                     </div>
 
-                    <details :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
+                    <details data-cv-section="personal" :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
                         <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
-                        <div class="grid gap-4 border-t border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div class="cv-writing-fields grid gap-4 border-t border-gray-100 p-4">
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
                                 @php($isContactNumber = in_array($key, ['landline', 'cellphone'], true))
                                 <div>
@@ -173,16 +176,16 @@
                     </details>
 
                     @foreach ($sections as $sectionKey => $section)
-                        <details :data-revision-section="`section-cv-${personIndex + 1}-{{ $sectionKey }}`" :id="`cv-${person.id}-{{ $sectionKey }}`" class="rounded-xl border border-gray-200">
+                        <details data-cv-section="{{ $sectionKey }}" :data-revision-section="`section-cv-${personIndex + 1}-{{ $sectionKey }}`" :id="`cv-${person.id}-{{ $sectionKey }}`" class="rounded-xl border border-gray-200">
                             <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">{{ $section['label'] }} <span class="font-semibold text-gray-400" x-text="`(${person.{{ $sectionKey }}.length})`"></span></summary>
                             <div class="space-y-4 border-t border-gray-100 p-4">
                                 <div class="flex justify-end"><button type="button" x-on:click="addSectionRow(personIndex, '{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 sm:w-auto">Add {{ Str::singular(strtolower($section['label'])) }} entry</button></div>
                                 <p x-show="person.{{ $sectionKey }}.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">No entries. Preview and Word output will retain {{ $section['default_rows'] }} blank rows for this section.</p>
                                 <template x-for="(row, rowIndex) in person.{{ $sectionKey }}" :key="row.id">
-                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    <div :data-cv-row-id="row.id" :data-repeatable-entry="`cv-row-${row.id}`" class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                        <div class="cv-writing-fields grid gap-4">
                                             @foreach ($section['fields'] as $field)
-                                                <div class="{{ ($field['wide'] ?? false) ? 'sm:col-span-2' : '' }}">
+                                                <div class="{{ ($field['wide'] ?? false) ? 'cv-writing-field-wide' : '' }}">
                                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`">{{ $field['label'] }}</label>
                                                     @if ($field['type'] === 'select')
                                                         <select :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" @if ($sectionKey === 'academic_background' && $field['key'] === 'status') x-bind:value="row.status" x-on:change="updateAcademicStatus(row, $event.target.value)" @else x-model="row.{{ $field['key'] }}" @endif class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
@@ -205,6 +208,8 @@
                                                             @foreach ($field['options'] as $option)<option value="{{ $option }}"></option>@endforeach
                                                         </datalist>
                                                         <p class="mt-1 text-[11px] font-semibold text-gray-500">Choose a suggested value or type your own.</p>
+                                                    @elseif ($field['type'] === 'text' && ($field['wide'] ?? false))
+                                                        <textarea :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" rows="3" maxlength="500" x-model="row.{{ $field['key'] }}" data-cv-writing-area class="mt-1.5 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                                     @elseif ($field['type'] === 'date')
                                                         <x-date-picker id-expression="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" name-expression="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" model="row.{{ $field['key'] }}" class="mt-1.5" />
                                                     @else
@@ -225,13 +230,16 @@
             <noscript><button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save Curriculum Vitae</button></noscript>
         </form>
 
-        <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
+        <div x-show="downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="downloadError"></div>
+        </div>
 
-        <x-proposal-document-preview
+        <x-proposal-paper-preview
             panel-id="curriculum-vitae-preview-panel"
-            title="Curriculum Vitae package preview"
-            description="Every member begins with a new official CV block."
-            frame-title="Attachment C Curriculum Vitae package preview"
+            preview-label="Team CV preview"
+            frame-title="Attachment C team CV preview"
         />
+        </div>
+
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" class="proposal-writing-preview-launcher" aria-controls="curriculum-vitae-preview-panel" :aria-expanded="previewPaneOpen">Preview paper</button>
     </div>
 </x-app-layout>

@@ -11,6 +11,7 @@ use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Js;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -232,14 +233,23 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->get(route('topics.notice-to-proceed.download', $this->topic))
         ->assertDownload('signed-notice-to-proceed-approved-coastal-research.pdf');
 
-    $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
-    ])->actingAs($this->faculty)
-        ->get(route('topics.show', $this->topic))
-        ->assertOk()
-        ->assertSee('Download signed PDF')
-        ->assertSee('Released documents')
-        ->assertSee('Project monitoring');
+    foreach ([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER] as $workspace) {
+        $this->withSession([
+            User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace,
+            'topic_tab' => 'notice',
+        ])->actingAs($this->faculty)
+            ->get(route('topics.show', $this->topic))->assertOk()
+            ->assertSee('data-released-notice-summary', false)
+            ->assertSee('Approved period')->assertSee('Approved budget')
+            ->assertSee(route('topics.notice-to-proceed.download', $this->topic), false)
+            ->assertDontSee('Released documents')->assertDontSee('Open researcher workspace')
+            ->assertDontSee('id="notice-to-proceed-tab-button"', false)->assertDontSee('id="notice-to-proceed-tab"', false)
+            ->assertSee('activeTopicTab: '.Js::from('details')->toHtml(), false)
+            ->assertViewHas('projectDocumentLibrary', fn ($library): bool => $library['documents']->contains('key', 'notice-to-proceed-'.$this->topic->id));
+    }
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->actingAs($this->head)->get(route('topics.show', $this->topic))->assertOk()
+        ->assertSee('id="notice-to-proceed-tab-button"', false)->assertSee('Download signed PDF');
 });
 
 test('issuing the Notice to Proceed promotes every accepted linked collaborator into the shared researcher workspace', function () {

@@ -24,7 +24,7 @@
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
              <?php $__env->slot('actions', null, []); ?> 
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider <?php echo e($curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : ($curriculumVitaeDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')); ?>"><?php echo e($curriculumVitaeDocument?->completed_at ? 'Complete' : ($curriculumVitaeDocument ? 'In progress' : 'Not started')); ?></span>
+                <span class="rounded-full px-3 py-1 text-xs font-semibold <?php echo e($curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'); ?>"><?php echo e($curriculumVitaeDocument?->completed_at ? 'Complete' : ($curriculumVitaeDocument ? 'In progress' : 'Not started')); ?></span>
                 <?php if (isset($component)) { $__componentOriginal5426bd0bea02df2e6dd2a60e50fa4c01 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal5426bd0bea02df2e6dd2a60e50fa4c01 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.back-link','data' => ['fixed' => true,'dataPaperCancelExit' => true,'href' => ''.e(route('faculty.proposal-drafts.show', $proposalDraft)).'#required-pdf-attachments']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -69,7 +69,10 @@ Exit editor <?php echo $__env->renderComponent(); ?>
     ?>
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-proposal-paper-workspace
+        data-curriculum-vitae-workspace
+        @focusin="focusCurriculumVitaeField($event)"
         data-paper-editor
         data-paper-draft-save="true"
         data-curriculum-vitae-autosave="true"
@@ -80,6 +83,7 @@ Exit editor <?php echo $__env->renderComponent(); ?>
             initialPeople: <?php echo \Illuminate\Support\Js::from($initialPeople)->toHtml() ?>,
             workspacePeople: <?php echo \Illuminate\Support\Js::from($workspacePeople)->toHtml() ?>,
             sections: <?php echo \Illuminate\Support\Js::from($sections)->toHtml() ?>,
+            revisionTarget: <?php echo \Illuminate\Support\Js::from(request()->query('revision_target'))->toHtml() ?>,
             updateUrl: <?php echo \Illuminate\Support\Js::from(route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft))->toHtml() ?>,
             previewUrl: <?php echo \Illuminate\Support\Js::from(route('faculty.proposal-drafts.curriculum-vitae.preview', $proposalDraft))->toHtml() ?>,
             downloadUrl: <?php echo \Illuminate\Support\Js::from(route('faculty.proposal-drafts.curriculum-vitae.download', $proposalDraft))->toHtml() ?>,
@@ -127,7 +131,7 @@ Exit editor <?php echo $__env->renderComponent(); ?>
 <?php $component->withAttributes(['type' => 'error']); ?>
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
-                <p class="font-bold">The Curriculum Vitae package could not be saved.</p>
+                <p class="font-bold">The team CVs could not be saved.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5"><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?><li><?php echo e($error); ?></li><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?></ul>
              <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
@@ -189,14 +193,14 @@ Exit editor <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
         <?php if (isset($component)) { $__componentOriginal365c40492913100a7be7d48ba061239f = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal365c40492913100a7be7d48ba061239f = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-collaboration-monitor','data' => ['loadedVersion' => (int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0),'stateUrl' => route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0]),'reloadUrl' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),'historyUrl' => route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]),'label' => $paper['label']]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-collaboration-monitor','data' => ['loadedVersion' => (int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0),'stateUrl' => route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0]),'reloadUrl' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),'label' => $paper['label']]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('proposal-collaboration-monitor'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['loaded-version' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute((int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0)),'state-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])),'reload-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft)),'history-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])),'label' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($paper['label'])]); ?>
+<?php $component->withAttributes(['loaded-version' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute((int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0)),'state-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])),'reload-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft)),'label' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($paper['label'])]); ?>
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
 <?php echo $__env->renderComponent(); ?>
@@ -210,21 +214,42 @@ Exit editor <?php echo $__env->renderComponent(); ?>
 <?php unset($__componentOriginal365c40492913100a7be7d48ba061239f); ?>
 <?php endif; ?>
 
-        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="curriculum-vitae-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
-            <span class="text-xs text-slate-500 dark:text-slate-400">The preview stays open while you edit and can be moved or resized.</span>
-        </div>
+        <?php if (isset($component)) { $__componentOriginalc30fa04fc8d7891a30d2a35ed3de6518 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalc30fa04fc8d7891a30d2a35ed3de6518 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.curriculum-vitae-writing-toolbar','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('curriculum-vitae-writing-toolbar'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
-        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalc30fa04fc8d7891a30d2a35ed3de6518)): ?>
+<?php $attributes = $__attributesOriginalc30fa04fc8d7891a30d2a35ed3de6518; ?>
+<?php unset($__attributesOriginalc30fa04fc8d7891a30d2a35ed3de6518); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalc30fa04fc8d7891a30d2a35ed3de6518)): ?>
+<?php $component = $__componentOriginalc30fa04fc8d7891a30d2a35ed3de6518; ?>
+<?php unset($__componentOriginalc30fa04fc8d7891a30d2a35ed3de6518); ?>
+<?php endif; ?>
+
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Curriculum Vitae editing form">
+
+        <section id="cv-member-manager" x-show="cvMemberManagerOpen" x-cloak class="cv-writing-member-manager rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h3 class="text-base font-black text-gray-900">Research team CV package</h3>
+                    <h3 class="text-base font-black text-gray-900">Research team CVs</h3>
                     <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Add an account from this proposal workspace to fill in their name and institutional email automatically, or create a blank CV for an unlisted person.</p>
                 </div>
                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($sampleAvailable): ?><a href="<?php echo e(route('proposal-samples.show', $paper['sample_slug'])); ?>" target="_blank" rel="noopener" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">View sample</a><?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
             </div>
 
-            <div class="mt-5 grid gap-4 border-t border-gray-100 pt-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+            <div class="cv-writing-add-member mt-5 grid gap-4 border-t border-gray-100 pt-5">
                 <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:p-5">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -257,7 +282,7 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                             </template>
                             <div x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center">
                                 <p class="text-sm font-bold text-gray-700">No available workspace member matches your search.</p>
-                                <p class="mt-1 text-xs leading-5 text-gray-500">Members already included in this CV package do not appear here.</p>
+                                <p class="mt-1 text-xs leading-5 text-gray-500">Members whose CVs are already included do not appear here.</p>
                             </div>
                         </div>
                     </div>
@@ -277,31 +302,31 @@ Exit editor <?php echo $__env->renderComponent(); ?>
             </div>
 
             <div class="mt-5 border-t border-gray-100 pt-5">
-                <div class="flex items-center justify-between gap-3"><p class="text-[10px] font-black uppercase tracking-wider text-gray-600">CVs in this package</p><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600" x-text="`${people.length} ${people.length === 1 ? 'member' : 'members'}`"></span></div>
+                <div class="flex items-center justify-between gap-3"><p class="text-[10px] font-black uppercase tracking-wider text-gray-600">Team CVs</p><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600" x-text="`${people.length} ${people.length === 1 ? 'member' : 'members'}`"></span></div>
                 <div class="mt-3 flex flex-wrap gap-2">
                 <template x-for="(person, index) in people" :key="person.id">
-                    <button type="button" x-on:click="focusPerson(index)" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="`${index + 1}. ${personLabel(person)}`"></button>
+                    <button type="button" x-on:click="focusPerson(index)" :aria-pressed="person.id === activeCvPersonId" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="`${index + 1}. ${personLabel(person)}`"></button>
                 </template>
                 </div>
             </div>
         </section>
 
-        <form data-paper-form data-curriculum-vitae-autosave-form x-ref="form" action="<?php echo e(route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft)); ?>" method="POST" class="space-y-6" novalidate>
+        <form id="cv-members-form" data-paper-form data-curriculum-vitae-autosave-form x-ref="form" action="<?php echo e(route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft)); ?>" method="POST" class="space-y-6" novalidate>
             <?php echo csrf_field(); ?>
             <?php echo method_field('PUT'); ?>
             <input type="hidden" name="document_version" value="<?php echo e(old('document_version', $curriculumVitaeDocument?->lock_version ?? 0)); ?>">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
             <template x-for="(person, personIndex) in people" :key="person.id">
-                <article class="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex">
+                <article x-show="person.id === activeCvPersonId" x-cloak class="cv-writing-member space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex" :data-cv-person-id="person.id" :aria-label="`CV for ${personLabel(person)}`">
                     <div class="flex flex-col gap-3 border-b border-gray-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
                         <div><p class="text-[10px] font-black uppercase tracking-wider text-red-600">CV <span x-text="personIndex + 1"></span> of <span x-text="people.length"></span></p><h3 class="mt-1 text-lg font-black text-gray-900" x-text="personLabel(person)"></h3></div>
                         <button type="button" x-on:click="removePerson(personIndex)" x-bind:disabled="people.length === 1" class="rounded-xl px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove member</button>
                     </div>
 
-                    <details :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
+                    <details data-cv-section="personal" :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
                         <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
-                        <div class="grid gap-4 border-t border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div class="cv-writing-fields grid gap-4 border-t border-gray-100 p-4">
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = [['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as [$key, $label, $required]): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                                 <?php ($isContactNumber = in_array($key, ['landline', 'cellphone'], true)); ?>
                                 <div>
@@ -342,16 +367,16 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                     </details>
 
                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $sections; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectionKey => $section): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
-                        <details :data-revision-section="`section-cv-${personIndex + 1}-<?php echo e($sectionKey); ?>`" :id="`cv-${person.id}-<?php echo e($sectionKey); ?>`" class="rounded-xl border border-gray-200">
+                        <details data-cv-section="<?php echo e($sectionKey); ?>" :data-revision-section="`section-cv-${personIndex + 1}-<?php echo e($sectionKey); ?>`" :id="`cv-${person.id}-<?php echo e($sectionKey); ?>`" class="rounded-xl border border-gray-200">
                             <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600"><?php echo e($section['label']); ?> <span class="font-semibold text-gray-400" x-text="`(${person.<?php echo e($sectionKey); ?>.length})`"></span></summary>
                             <div class="space-y-4 border-t border-gray-100 p-4">
                                 <div class="flex justify-end"><button type="button" x-on:click="addSectionRow(personIndex, '<?php echo e($sectionKey); ?>')" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 sm:w-auto">Add <?php echo e(Str::singular(strtolower($section['label']))); ?> entry</button></div>
                                 <p x-show="person.<?php echo e($sectionKey); ?>.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">No entries. Preview and Word output will retain <?php echo e($section['default_rows']); ?> blank rows for this section.</p>
                                 <template x-for="(row, rowIndex) in person.<?php echo e($sectionKey); ?>" :key="row.id">
-                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    <div :data-cv-row-id="row.id" :data-repeatable-entry="`cv-row-${row.id}`" class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                        <div class="cv-writing-fields grid gap-4">
                                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $section['fields']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
-                                                <div class="<?php echo e(($field['wide'] ?? false) ? 'sm:col-span-2' : ''); ?>">
+                                                <div class="<?php echo e(($field['wide'] ?? false) ? 'cv-writing-field-wide' : ''); ?>">
                                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-<?php echo e($sectionKey); ?>-${row.id}-<?php echo e($field['key']); ?>`"><?php echo e($field['label']); ?></label>
                                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($field['type'] === 'select'): ?>
                                                         <select :id="`cv-${person.id}-<?php echo e($sectionKey); ?>-${row.id}-<?php echo e($field['key']); ?>`" :name="`people[${personIndex}][<?php echo e($sectionKey); ?>][${rowIndex}][<?php echo e($field['key']); ?>]`" <?php if($sectionKey === 'academic_background' && $field['key'] === 'status'): ?> x-bind:value="row.status" x-on:change="updateAcademicStatus(row, $event.target.value)" <?php else: ?> x-model="row.<?php echo e($field['key']); ?>" <?php endif; ?> class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
@@ -374,6 +399,8 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                                                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $field['options']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?><option value="<?php echo e($option); ?>"></option><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
                                                         </datalist>
                                                         <p class="mt-1 text-[11px] font-semibold text-gray-500">Choose a suggested value or type your own.</p>
+                                                    <?php elseif($field['type'] === 'text' && ($field['wide'] ?? false)): ?>
+                                                        <textarea :id="`cv-${person.id}-<?php echo e($sectionKey); ?>-${row.id}-<?php echo e($field['key']); ?>`" :name="`people[${personIndex}][<?php echo e($sectionKey); ?>][${rowIndex}][<?php echo e($field['key']); ?>]`" rows="3" maxlength="500" x-model="row.<?php echo e($field['key']); ?>" data-cv-writing-area class="mt-1.5 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                                     <?php elseif($field['type'] === 'date'): ?>
                                                         <?php if (isset($component)) { $__componentOriginal37e12294b28f0bd91a733acab9bb06c5 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal37e12294b28f0bd91a733acab9bb06c5 = $attributes; } ?>
@@ -415,30 +442,34 @@ Exit editor <?php echo $__env->renderComponent(); ?>
             <noscript><button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save Curriculum Vitae</button></noscript>
         </form>
 
-        <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
+        <div x-show="downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="downloadError"></div>
+        </div>
 
-        <?php if (isset($component)) { $__componentOriginal45f53eba72ddc2e934dbcbe4dd398776 = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776 = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-document-preview','data' => ['panelId' => 'curriculum-vitae-preview-panel','title' => 'Curriculum Vitae package preview','description' => 'Every member begins with a new official CV block.','frameTitle' => 'Attachment C Curriculum Vitae package preview']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
-<?php $component->withName('proposal-document-preview'); ?>
+        <?php if (isset($component)) { $__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-paper-preview','data' => ['panelId' => 'curriculum-vitae-preview-panel','previewLabel' => 'Team CV preview','frameTitle' => 'Attachment C team CV preview']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('proposal-paper-preview'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['panel-id' => 'curriculum-vitae-preview-panel','title' => 'Curriculum Vitae package preview','description' => 'Every member begins with a new official CV block.','frame-title' => 'Attachment C Curriculum Vitae package preview']); ?>
+<?php $component->withAttributes(['panel-id' => 'curriculum-vitae-preview-panel','preview-label' => 'Team CV preview','frame-title' => 'Attachment C team CV preview']); ?>
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
 <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
-<?php if (isset($__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776)): ?>
-<?php $attributes = $__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776; ?>
-<?php unset($__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776); ?>
+<?php if (isset($__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121)): ?>
+<?php $attributes = $__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121; ?>
+<?php unset($__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121); ?>
 <?php endif; ?>
-<?php if (isset($__componentOriginal45f53eba72ddc2e934dbcbe4dd398776)): ?>
-<?php $component = $__componentOriginal45f53eba72ddc2e934dbcbe4dd398776; ?>
-<?php unset($__componentOriginal45f53eba72ddc2e934dbcbe4dd398776); ?>
+<?php if (isset($__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121)): ?>
+<?php $component = $__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121; ?>
+<?php unset($__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121); ?>
 <?php endif; ?>
+        </div>
+
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" class="proposal-writing-preview-launcher" aria-controls="curriculum-vitae-preview-panel" :aria-expanded="previewPaneOpen">Preview paper</button>
     </div>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>

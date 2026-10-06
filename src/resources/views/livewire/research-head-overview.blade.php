@@ -154,20 +154,20 @@
                 $activityTotal = $recentMonths->sum('new') + $recentMonths->sum('revision');
             @endphp
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 id="overview-activity-heading" class="text-base font-bold">Submission activity</h2><p class="mt-1 text-sm rh-muted">New proposals and revision packages · recent months in the selected period</p></div>
+                <div><h2 id="overview-activity-heading" class="text-base font-bold">Submission activity</h2><p class="mt-1 text-sm rh-muted">New proposals and revision submissions · recent months in the selected period</p></div>
                 <a wire:navigate href="{{ $analyticsUrl }}" class="rh-button-secondary whitespace-nowrap">View analytics</a>
             </div>
-            <div class="mt-4 flex flex-wrap gap-4 text-sm rh-muted"><span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-brand dark:bg-rose-400" aria-hidden="true"></span>New proposals</span><span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-slate-400" aria-hidden="true"></span>Revision packages</span></div>
+            <div class="mt-4 flex flex-wrap gap-4 text-sm rh-muted"><span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-brand dark:bg-rose-400" aria-hidden="true"></span>New proposals</span><span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-slate-400" aria-hidden="true"></span>Revision submissions</span></div>
             @if ($activityTotal > 0)
                 <div class="mt-5 flex min-w-0 items-end gap-2" data-dashboard-activity-chart>
                     @foreach ($recentMonths as $month)
-                        <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'submissionMonth' => $month['key']]) }}#received-proposals" class="min-w-0 flex-1 rounded-lg px-1 pb-2 pt-1 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revision packages" title="{{ $month['label'] }}: {{ $month['new'] }} new, {{ $month['revision'] }} revisions">
+                        <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'submissionMonth' => $month['key']]) }}#received-proposals" class="min-w-0 flex-1 rounded-lg px-1 pb-2 pt-1 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revision submissions" title="{{ $month['label'] }}: {{ $month['new'] }} new, {{ $month['revision'] }} revisions">
                             <span class="flex h-36 items-end justify-center gap-1 border-b border-slate-200 dark:border-slate-700" aria-hidden="true"><span class="w-4 rounded-t bg-brand dark:bg-rose-400" style="height: {{ 100 * $month['new'] / $activityMax }}%"></span><span class="w-4 rounded-t bg-slate-400" style="height: {{ 100 * $month['revision'] / $activityMax }}%"></span></span>
                             <span class="mt-2 block text-center text-sm font-medium rh-muted">{{ \Illuminate\Support\Carbon::parse($month['key'].'-01')->format('M') }}</span><span class="mt-1 block text-center text-sm font-semibold tabular-nums">{{ $month['new'] }} / {{ $month['revision'] }}</span>
                         </a>
                     @endforeach
                 </div>
-                <p class="mt-3 text-sm rh-muted">{{ $activityTotal }} packages. Counts show new / revised. Select a month to inspect proposals.</p>
+                <p class="mt-3 text-sm rh-muted">{{ $activityTotal }} submissions. Counts show new / revised. Select a month to inspect proposals.</p>
             @else
                 <div class="mt-5 flex min-h-36 items-center justify-center rounded-lg border border-dashed border-slate-200 p-4 dark:border-slate-700"><p class="text-center text-sm rh-muted">{{ $analytics['periodAvailable'] ? 'No submission activity recorded in these months.' : 'Choose academic-year dates to see submission activity.' }}</p></div>
             @endif

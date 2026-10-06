@@ -19,6 +19,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
+use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalSignatureWorkflow;
 use App\Support\InitialScreeningSubmissionOrder;
@@ -27,9 +28,11 @@ use App\Support\ProposalPaperCatalog;
 use App\Support\ResearchHeadScreeningData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -242,56 +245,214 @@ test('faculty update an unseen submitted package repeatedly without replacing it
     $topic = app(SubmitProposalDraft::class)->handle($draft, $this->faculty);
     $originalFiles = $topic->latestVersion->files->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]);
     $this->actingAs($this->faculty)->get(route('topics.show', $topic))
-        ->assertOk()->assertSee('Update submitted package');
+        ->assertOk()->assertSee('Update submitted proposal')->assertSee('submit Version 2');
 
     for ($number = 2; $number <= 3; $number++) {
         $this->get(route('faculty.topics.edit-package', $topic))->assertRedirect();
         $workingDraft = $topic->revisionDraft()->with('documents')->firstOrFail();
         $this->get(route('faculty.topics.edit-package', $topic))->assertRedirect(route('faculty.proposal-drafts.show', $workingDraft));
         expect($topic->revisionDraft()->count())->toBe(1)->and($workingDraft->documents)->toHaveCount(7);
-        $this->get(route('faculty.proposal-drafts.show', $workingDraft))->assertOk()->assertSee('These changes are private');
+        $this->get(route('faculty.proposal-drafts.show', $workingDraft))->assertOk()->assertSee('These changes are private')->assertSee('Review and Turn In');
+        $this->get(route('faculty.proposal-drafts.review', $workingDraft))->assertOk()->assertSee('Submit Version '.$number);
         $document = $workingDraft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
         $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $workingDraft))->assertOk();
         $this->put(route('faculty.proposal-drafts.submission-files.replace', [$workingDraft, 'detailed-proposal']), [
             'file' => UploadedFile::fake()->createWithContent('updated.pdf', "%PDF-1.7\nUpdated package ".$number),
             'document_version' => $document->lock_version,
         ])->assertSessionHasNoErrors();
-        $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
+        $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'))
+            ->assertSessionHas('success', 'Proposal submitted successfully with seven PDFs and sent to the Research Head.');
         $topic->refresh();
         expect($topic->versions()->count())->toBe($number)
             ->and($topic->latestVersion->version_number)->toBe($number)
             ->and($topic->latestVersion->submission_type)->toBe('update')
+            ->and($topic->latestVersion->change_summary)->toBe('Faculty updated the proposal before Research Head review.')
             ->and($topic->status)->toBe('pending')
             ->and($this->faculty->proposals()->count())->toBe(1);
+        $latestPaper = $topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+        expect(Storage::disk('local')->get($latestPaper->file_path))->toBe("%PDF-1.7\nUpdated package ".$number);
         foreach ($originalFiles as $path => $contents) {
             expect(Storage::disk('local')->get($path))->toBe($contents);
         }
+        $originalFiles = $originalFiles->merge($topic->latestVersion->files->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]));
     }
-    $this->get(route('topics.show', $topic))->assertSee('Package update before review');
+    Notification::assertSentTo($this->head, ProposalActivityNotification::class, fn ($notification): bool => $notification->title === 'Proposal submission updated');
+    $this->get(route('topics.show', $topic))->assertSee('Submission update before review')
+        ->assertDontSee('Package update before review')->assertDontSee('Latest submitted package');
     $this->actingAs($this->head)->get(route('research_head.received-submissions.index', ['type' => 'update']))
         ->assertOk()->assertSee('Submission update')->assertViewHas('submissions', fn ($submissions): bool => $submissions->count() === 2);
 });
 
-test('opening a submitted proposal locks an already opened update workspace and its save endpoints', function () {
+test('generated checkbox marks reach the Research Head through submitted updates and requested revisions', function (bool $revision) {
+    Notification::fake();
+    Process::fake(['*pdf-section-coordinates*' => Process::result(output: '<document/>')]);
+    $converter = new class implements DocumentPdfConverter
+    {
+        public array $docxByPdf = [];
+
+        public function convertDocx(string $contents): string
+        {
+            $pdf = "%PDF-1.7\n".hash('sha256', $contents);
+            $this->docxByPdf[$pdf] = $contents;
+
+            return $pdf;
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $converter);
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $originalVersion = $topic->latestVersion;
+    $originalPaper = $originalVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $originalContents = Storage::disk('local')->get($originalPaper->file_path);
+    $review = null;
+    if ($revision) {
+        $originalPaper->annotations()->create([
+            'reviewer_id' => $this->head->id, 'annotation_type' => 'area', 'page_number' => 1,
+            'rectangles' => [['x' => .1, 'y' => .2, 'width' => .3, 'height' => .1]],
+            'comment' => 'Clarify the project summary.',
+        ]);
+        $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'revision_requested', 'revision_file_ids' => [$originalPaper->id],
+            'revision_file_notes' => [$originalPaper->id => 'Clarify the project summary.'],
+            'evaluation_document' => UploadedFile::fake()->create('evaluation.pdf', 100, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+        $review = $topic->reviews()->where('decision', 'revision_requested')->latest('id')->firstOrFail();
+    }
+    $topic->refresh();
+    $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $this->actingAs($this->faculty);
+    $level = $revision ? 'constituent_campus' : 'central_agency';
+    if (! $revision) {
+        $budget = $workingDraft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
+        $this->putJson(route('faculty.proposal-drafts.line-item-budget.update', $workingDraft), [
+            'document_version' => $budget->lock_version, 'level_of_call' => $level,
+        ])->assertOk();
+    }
+    $document = $workingDraft->documents()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $workingDraft), [
+        ...$document->source_data, 'executive_brief' => 'Updated project summary for the Research Head.',
+        'project_leader' => $workingDraft->project_leader, 'document_version' => $document->lock_version,
+        'draft_version' => $workingDraft->lock_version,
+    ])->assertOk();
+    $document->refresh();
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $workingDraft))
+        ->assertOk()->assertSeeText('☒ Complete Documents')->assertSeeText('☒ Initial Screening Form')
+        ->assertSeeText('☒ '.($revision ? 'Constituent Campus' : 'Central Agency'));
+    if ($revision) {
+        $download = $this->post(route('faculty.proposal-drafts.detailed-proposal.download', $workingDraft), [], ['X-Revision-PDF' => '1'])->assertOk();
+        $expectedPdf = $download->streamedContent();
+        $this->postJson(route('faculty.proposal-drafts.revision-files.store', $workingDraft), [
+            'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL, 'document_version' => $document->lock_version,
+            'file' => UploadedFile::fake()->createWithContent('revised-proposal.pdf', $expectedPdf),
+        ])->assertOk();
+        $responses = collect(app(CommentResponseFeedback::class)->rows($review))->mapWithKeys(fn (array $row): array => [$row['key'] => [
+            'response' => 'Clarified the project summary.', 'no_change' => false, 'page' => 1, 'paragraph' => 2,
+        ]])->all();
+        $this->patch(route('faculty.topics.resubmit', $topic), [
+            'revision_draft_id' => $workingDraft->id, 'title' => $topic->title, 'estimated_budget' => 3600,
+            'estimated_duration_months' => 12, 'feedback_review_id' => $review->id, 'feedback_responses' => $responses,
+        ])->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
+        expect($review->fileRevisions()->whereNull('resolved_at')->count())->toBe(0);
+        Notification::assertSentTo($this->head, ProposalActivityNotification::class, fn ($notification): bool => $notification->title === 'Proposal revision submitted');
+    } else {
+        $this->post(route('faculty.proposal-drafts.submission-files.prepare', $workingDraft))->assertSessionHasNoErrors();
+        $prepared = $document->fresh();
+        $expectedPdf = Storage::disk('local')->get($prepared->file_path);
+        $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
+        Notification::assertSentTo($this->head, ProposalActivityNotification::class, fn ($notification): bool => $notification->title === 'Proposal submission updated');
+    }
+    $latest = $topic->latestVersion()->with('files')->firstOrFail();
+    $paper = $latest->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    expect($latest->version_number)->toBe(2)->and($latest->submission_type)->toBe($revision ? 'revision' : 'update')
+        ->and($latest->files)->toHaveCount(7)->and($topic->fresh()->status)->toBe($revision ? 'resubmitted' : 'pending')
+        ->and(Storage::disk('local')->get($paper->file_path))->toBe($expectedPdf)
+        ->and(Storage::disk('local')->get($originalPaper->file_path))->toBe($originalContents);
+    $path = tempnam(sys_get_temp_dir(), 'athena-submitted-checkboxes-');
+    file_put_contents($path, $converter->docxByPdf[$expectedPdf]);
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $xml = new DOMDocument;
+        $xml->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+        $xpath = new DOMXPath($xml);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $xpath->registerNamespace('w14', 'http://schemas.microsoft.com/office/word/2010/wordml');
+        foreach (['Complete Documents' => true, 'Initial Screening Form' => true, 'Constituent Campus' => $level === 'constituent_campus', 'Central Agency' => $level === 'central_agency'] as $label => $selected) {
+            $checkbox = $xpath->query('//w:p[contains(string(.), "'.$label.'")]//w14:checkbox')->item(0);
+            expect($checkbox)->not->toBeNull()
+                ->and($xpath->evaluate('string(./w14:checked/@w14:val)', $checkbox))->toBe($selected ? '1' : '0')
+                ->and($xpath->evaluate('string(ancestor::w:sdt[1]/w:sdtContent//w:t)', $checkbox))->toBe($selected ? '☒' : '☐');
+        }
+        foreach ([ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => 0, ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM => 3] as $type => $offset) {
+            $relatedPaper = $latest->files->firstWhere('document_type', $type);
+            $relatedPdf = Storage::disk('local')->get($relatedPaper->file_path);
+            $archive->close();
+            file_put_contents($path, $converter->docxByPdf[$relatedPdf]);
+            expect($archive->open($path))->toBeTrue();
+            $xml->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+            $xpath = new DOMXPath($xml);
+            $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            foreach (['central_agency', 'constituent_campus'] as $index => $value) {
+                $checkbox = $xpath->query('//w:checkBox')->item($offset + $index);
+                expect($xpath->evaluate('string(./w:checked/@w:val)', $checkbox))->toBe($level === $value ? '1' : '0')
+                    ->and($xpath->evaluate('string(./w:default/@w:val)', $checkbox))->toBe($level === $value ? '1' : '0');
+            }
+        }
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+    $this->actingAs($this->head)->get(route('topics.versions.files.view', [$topic, $latest, $paper]))
+        ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+})->with(['update submitted proposal' => false, 'requested revision' => true]);
+
+test('opening a submitted proposal locks the update workspace and save endpoints', function () {
     Notification::fake();
     $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $originalVersion = $topic->latestVersion;
+    $originalFiles = $originalVersion->files->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]);
     $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
     $this->actingAs($this->head)->get(route('topics.show', $topic))->assertOk();
     expect($topic->fresh()->canUpdateBeforeReview())->toBeFalse();
-    $this->actingAs($this->faculty)->get(route('topics.show', $topic))->assertDontSee('Update submitted package');
+    $this->actingAs($this->faculty)->get(route('topics.show', $topic))->assertDontSee('data-proposal-package-update', false);
     $this->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
     $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $workingDraft))->assertForbidden();
-    $this->putJson(route('faculty.proposal-drafts.details.update', $workingDraft), ($this->projectDetails)())->assertForbidden();
+    $this->putJson(route('faculty.proposal-drafts.details.update', $workingDraft), ($this->projectDetails)([
+        'project_title' => 'Private updated proposal title',
+    ]))->assertForbidden();
     $this->post(route('faculty.proposal-drafts.members.store', $workingDraft), ['name' => 'New Member', 'email' => 'member@g.batstate-u.edu.ph'])->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.show', $workingDraft))->assertOk()
+        ->assertSee('Review working draft')->assertDontSee('data-proposal-package-prepare', false)
+        ->assertSee('data-proposal-editing-locked', false)
+        ->assertDontSee('data-project-details-autosave-form', false)
+        ->assertDontSee('Choose replacement PDF')
+        ->assertDontSee('data-proposal-package-submit', false);
     $this->post(route('faculty.proposal-drafts.submission-files.prepare', $workingDraft))->assertForbidden();
+    $document = $workingDraft->documents()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $this->put(route('faculty.proposal-drafts.submission-files.replace', [$workingDraft, 'detailed-proposal']), [
+        'file' => UploadedFile::fake()->createWithContent('private-replacement.pdf', "%PDF-1.7\nPrivate replacement"),
+        'document_version' => $document->lock_version,
+    ])->assertForbidden();
     $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertForbidden();
     $this->get(route('faculty.proposal-drafts.show', $workingDraft))->assertOk()
-        ->assertSee('Further submission requires a revision request.')
+        ->assertSee('Editing and submission are locked until revisions are requested.')
         ->assertDontSee('data-proposal-package-submit', false);
-    expect($topic->versions()->count())->toBe(1)->and($workingDraft->fresh())->not->toBeNull();
+    expect($topic->versions()->count())->toBe(1)
+        ->and($topic->fresh()->title)->toBe($originalVersion->title)
+        ->and($topic->collaborators()->count())->toBe(0)
+        ->and($workingDraft->fresh()->project_title)->toBe($originalVersion->title)
+        ->and($workingDraft->isEditable())->toBeFalse()
+        ->and($document->fresh()->original_filename)->not->toBe('private-replacement.pdf');
+    foreach ($originalFiles as $path => $contents) {
+        expect(Storage::disk('local')->get($path))->toBe($contents);
+    }
 });
 
-test('pre-review package updates are owner-only and unavailable in later review stages', function () {
+test('pre-review updates are owner-only and unavailable in later review stages', function () {
     Notification::fake();
     $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
     $this->actingAs($this->otherFaculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
@@ -299,6 +460,91 @@ test('pre-review package updates are owner-only and unavailable in later review 
     $topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $this->actingAs($this->faculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
     expect($topic->revisionDraft()->exists())->toBeFalse();
+});
+
+test('submitted papers stay locked throughout review and completion', function (string $status, ?string $projectStatus) {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $topic->markLatestVersionViewedByResearchHead();
+    $topic->update(['status' => $status, 'project_status' => $projectStatus]);
+    $this->actingAs($this->faculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+    expect($workingDraft->fresh()->isEditable())->toBeFalse();
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $workingDraft))->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.work-plan.edit', $workingDraft))->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.line-item-budget.edit', $workingDraft))->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.expense-breakdown.edit', $workingDraft))->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $workingDraft))->assertForbidden();
+    $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertForbidden();
+    expect($topic->fresh()->status)->toBe($status)->and($topic->versions()->count())->toBe(1);
+})->with([
+    'Research Head review' => ['pending', null],
+    'GAD review' => [TopicProposal::STATUS_GAD_REVIEW, null],
+    'co-evaluator review' => ['expert_review', null],
+    'LREC review' => [TopicProposal::STATUS_LREC_REVIEW, null],
+    'signing' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, null],
+    'monitoring' => ['approved', 'ongoing'],
+    'completed' => ['approved', 'completed'],
+    'rejected' => ['rejected', null],
+]);
+
+test('saved pre-review edits reopen on a revision request and become Version 2', function () {
+    Notification::fake();
+    Process::fake(['*pdf-section-coordinates*' => Process::result(output: '<document/>')]);
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $originalFile = $topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $originalContents = Storage::disk('local')->get($originalFile->file_path);
+    $draft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $document = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $this->actingAs($this->faculty)->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $draft), [
+        ...$document->source_data,
+        'related_literature' => 'Research evidence saved privately before review begins.',
+        'project_leader' => $draft->project_leader,
+        'document_version' => $document->lock_version,
+        'draft_version' => $draft->lock_version,
+    ])->assertOk();
+    $this->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))->assertSessionHasNoErrors();
+    $topic->markLatestVersionViewedByResearchHead();
+    expect($draft->fresh()->isEditable())->toBeFalse();
+    $originalFile->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]],
+        'comment' => 'Expand the literature review.',
+    ]);
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $topic), [
+        'status' => 'revision_requested',
+        'revision_file_ids' => [$originalFile->id],
+        'revision_file_notes' => [$originalFile->id => 'Expand the literature review.'],
+        'evaluation_document' => UploadedFile::fake()->create('evaluation.pdf', 100, 'application/pdf'),
+    ])->assertSessionHasNoErrors();
+    $topic->refresh();
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.revision', $topic))->assertRedirect();
+    expect($draft->fresh()->isEditable())->toBeTrue();
+    expect($topic->revisionDraft()->sole()->id)->toBe($draft->id)
+        ->and($document->fresh()->source_data['related_literature'])->toContain('saved privately');
+    $review = $topic->reviews()->where('decision', 'revision_requested')->latest('id')->firstOrFail();
+    $feedbackRows = app(CommentResponseFeedback::class)->rows($review);
+    $this->patch(route('faculty.topics.resubmit', $topic), [
+        'revision_draft_id' => $draft->id,
+        'title' => $topic->title,
+        'estimated_budget' => 3600,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+        'change_summary' => 'Expanded the literature review.',
+        'feedback_review_id' => $review->id,
+        'feedback_responses' => collect($feedbackRows)->mapWithKeys(fn (array $row): array => [$row['key'] => [
+            'response' => 'Expanded the literature review in the working draft.',
+            'no_change' => false,
+            'page' => 1,
+            'paragraph' => 2,
+        ]])->all(),
+    ])->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
+    $topic->refresh();
+    expect($topic->latestVersion->version_number)->toBe(2)
+        ->and($topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->source_data['related_literature'])->toContain('saved privately')
+        ->and(Storage::disk('local')->get($originalFile->file_path))->toBe($originalContents)
+        ->and($topic->revisionDraft()->exists())->toBeFalse();
 });
 
 test('an unseen submitted package accepts team additions and detailed proposal edits before the next turn in', function () {
@@ -324,7 +570,7 @@ test('an unseen submitted package accepts team additions and detailed proposal e
         ->and($topic->collaborators()->where('email', 'new.research.member@g.batstate-u.edu.ph')->exists())->toBeTrue();
 });
 
-test('stale working draft models cannot save or turn in after review begins', function () {
+test('stale working draft models cannot save prepare or submit after review begins', function () {
     Notification::fake();
     $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
     $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
@@ -333,19 +579,22 @@ test('stale working draft models cannot save or turn in after review begins', fu
     foreach ([
         fn () => app(SaveProposalDraftDocument::class)->handle($workingDraft, $this->faculty, 'detailed_proposal', 0, $document->lock_version, ['source_data' => ['introduction' => 'Stale edit']]),
         fn () => app(SaveProposalDraftDetails::class)->handle($workingDraft, $workingDraft->lock_version, ['project_title' => 'Stale title']),
+        fn () => app(SubmitProposalDraft::class)->prepare($workingDraft, $this->faculty),
         fn () => app(SubmitProposalDraft::class)->handle($workingDraft, $this->faculty),
     ] as $save) {
         try {
             $save();
-            $this->fail('A stale workspace must not change a proposal after review begins.');
+            $this->fail('Review must lock the submitted proposal and its update workspace.');
         } catch (HttpException $exception) {
             expect($exception->getStatusCode())->toBe(403);
         }
     }
-    expect($topic->versions()->count())->toBe(1)->and($document->fresh()->source_data['introduction'])->not->toBe('Stale edit');
+    expect($topic->versions()->count())->toBe(1)
+        ->and($topic->fresh()->title)->not->toBe('Stale title')
+        ->and($document->fresh()->source_data['introduction'])->not->toBe('Stale edit');
 });
 
-test('direct Research Head document access closes pre-review package editing', function (string $entry) {
+test('direct Research Head document access closes pre-review editing', function (string $entry) {
     Notification::fake();
     $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
     $version = $topic->latestVersion;
@@ -358,6 +607,7 @@ test('direct Research Head document access closes pre-review package editing', f
     expect($topic->fresh()->research_head_viewed_version_id)->toBe($version->id)
         ->and($topic->fresh()->canUpdateBeforeReview())->toBeFalse();
     $this->actingAs($this->faculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+    expect($topic->revisionDraft()->exists())->toBeFalse();
 })->with(['document', 'screening']);
 
 test('faculty create proposal drafts without selecting a research call', function () {
@@ -474,9 +724,13 @@ test('the owner and collaborators review an independent draft without a call pic
     ]);
     foreach ([$this->faculty, $this->otherFaculty] as $user) {
         $this->actingAs($user)->get(route('faculty.proposal-drafts.show', $draft))
-            ->assertOk()->assertDontSee('Choose research call');
+            ->assertOk()->assertDontSee('Choose research call')
+            ->assertSee('bg-brand-wash', false)->assertSee('text-brand', false)
+            ->assertDontSee('bg-blue-', false)->assertDontSee('border-blue-', false)->assertDontSee('text-blue-', false);
         $this->get(route('faculty.proposal-drafts.review', $draft))
-            ->assertOk()->assertDontSee('name="research_call_id"', false);
+            ->assertOk()->assertDontSee('name="research_call_id"', false)
+            ->assertSee('bg-brand-wash', false)->assertSee('dark:text-rose-200', false)
+            ->assertDontSee('bg-blue-', false)->assertDontSee('border-blue-', false)->assertDontSee('text-blue-', false);
     }
 });
 
@@ -620,6 +874,10 @@ test('the proposal hub separates editable papers from automatically included ass
         ->assertSee('data-automatic-assessment-forms', false)
         ->assertSee('Assessment forms added automatically')
         ->assertSee('No faculty answers or file uploads are needed.')
+        ->assertSee('Preview form')
+        ->assertSee('proposalAssessmentPreview()', false)
+        ->assertSee('assessment-form-preview-panel')
+        ->assertDontSee('Optional preview')
         ->assertDontSee('>Open GAD Checklist</a>', false)
         ->assertDontSee('>Open Initial Screening Form</a>', false)
         ->assertDontSee('>Open paper</a>', false)
@@ -642,9 +900,11 @@ test('the proposal hub separates editable papers from automatically included ass
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);
     expect($xpath->query('//*[@id="required-pdf-attachments-tab"]//article')->length)->toBe(5)
-        ->and($xpath->query('//*[@data-automatic-assessment-forms]//a')->length)->toBe(2)
-        ->and($xpath->query('//*[@id="review-papers-heading"]/ancestor::section[1]//article')->length)->toBe(5)
-        ->and($xpath->query('//*[@data-review-assessment-forms]//li')->length)->toBe(2);
+        ->and($xpath->query('//*[@data-automatic-assessment-forms]//button[@data-assessment-preview-trigger]')->length)->toBe(2)
+        ->and($xpath->query('//*[@id="review-papers-heading"]/ancestor::section[1]//article')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-review-assessment-forms]//li')->length)->toBe(0);
+
+    $response->assertSee('Loading proposal review');
 
     $workspaceView = file_get_contents(resource_path('views/faculty/proposal-drafts/show.blade.php'));
 
@@ -720,9 +980,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertOk()
         ->assertSee('Review and Turn In')
         ->assertSee('Ready to turn in')
-        ->assertSee('Preview Detailed Proposal')
-        ->assertSee('Preview Work Plan')
-        ->assertSee('Preview CV Package')
+        ->assertSee('Preview prepared PDF')
         ->assertSee('Project team')
         ->assertSee('Five proposal papers and two automatic assessment forms are ready')
         ->assertSee('Turn in proposal');
@@ -737,6 +995,28 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('DETAILED RESEARCH PROPOSAL')
         ->assertSee($draft->project_title);
 });
+
+test('review previews all seven proposal papers in the shared viewer without opening tabs', function (bool $prepared) {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    if (! $prepared) {
+        $draft->documents()->update(['file_path' => null, 'mime_type' => null]);
+    }
+    $response = $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.review', $draft))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-proposal-review-package and @x-data="proposalAssessmentPreview()"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@id="review-paper-preview-panel"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-proposal-review-package]//form[@target="_blank"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-review-assessment-forms]//button[@data-assessment-preview-trigger]')->length)->toBe(2);
+    if ($prepared) {
+        expect($xpath->query('//*[@data-proposal-review-package]//button[normalize-space(.)="Preview prepared PDF"]')->length)->toBe(5);
+    } else {
+        expect($xpath->query('//*[@data-proposal-review-package]//form[@data-preview-label]')->length)->toBe(5);
+        expect(substr_count($response->getContent(), '@submit.prevent="openPaperPreview($el, $event.submitter)"'))->toBe(5);
+    }
+    $response->assertSee('Preview GAD Generic Checklist')->assertSee('Preview Initial Screening Form');
+})->with(['saved forms' => false, 'prepared PDFs' => true]);
 
 test('project details are validated once and reused by the Work Plan workflow', function () {
     $draft = ($this->createDraft)();
@@ -841,13 +1121,13 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.gad-checklist.show', $draft))
         ->assertOk()
-        ->assertSee('No form fields to answer')
-        ->assertSee('Auto-filled from shared project information')
         ->assertSee('Coastal Habitat Restoration')
-        ->assertSee('Faculty Owner')
-        ->assertSee('There are no answers to enter')
+        ->assertSee('Added automatically to your submission.')
+        ->assertSee('proposalAssessmentPreview(', false)
         ->assertSee('gad-checklist-preview-panel')
-        ->assertSee('data-proposal-preview-drag-handle', false)
+        ->assertSee('Download Word')
+        ->assertDontSee('data-proposal-preview-drag-handle', false)
+        ->assertDontSee('moved, resized')
         ->assertDontSee('Open full preview')
         ->assertDontSee('Download Word file')
         ->assertDontSee('Mark paper ready')
@@ -969,12 +1249,14 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.initial-screening-form.show', $draft))
         ->assertOk()
-        ->assertSee('No faculty screening answers required')
         ->assertSee('Coastal Habitat Restoration')
-        ->assertSee('Faculty Owner')
-        ->assertSee('The Research Head handles any evaluation outside the system')
-        ->assertSee('initial-screening-preview-panel')
-        ->assertSee('data-proposal-preview-drag-handle', false)
+        ->assertSee('Added automatically to your submission.')
+        ->assertSee('Assessment is completed during review.')
+        ->assertSee('proposalAssessmentPreview(', false)
+        ->assertSee('initial-screening-form-preview-panel')
+        ->assertSee('Download Word')
+        ->assertDontSee('data-proposal-preview-drag-handle', false)
+        ->assertDontSee('moved, resized')
         ->assertDontSee('Open full preview')
         ->assertDontSee('Download Word file')
         ->assertDontSee('data-paper-shortcuts-trigger', false)
@@ -986,9 +1268,8 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.initial-screening-form.preview', $draft))
         ->assertOk()
-        ->assertSee('BatStateU Initial Screening Form')
-        ->assertSee('Coastal Habitat Restoration')
-        ->assertSee('Faculty Owner');
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertSee('%PDF-1.7');
 
     $previewCss = file_get_contents(resource_path('css/initial-screening-form-print.css'));
 
@@ -1034,10 +1315,16 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         expect($documentXPath->query('//w:p[contains(string(.), "First Submission")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(1)
             ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Minor Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
             ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Major Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
-            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]/w:r/w:rPr/w:u[@w:val = "single"]')->length)->toBe(3)
-            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]/preceding-sibling::w:p[1][not(normalize-space(.))]')->length)->toBe(3)
+            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]')->length)->toBe(0)
             ->and($draft->fresh()->topic_id)->toBeNull()
             ->and(app(InitialScreeningSubmissionOrder::class)->forDraft($draft->fresh()))->toBe(InitialScreeningSubmissionOrder::FIRST_SUBMISSION);
+
+        foreach (['screening_head', 'screening_center', 'screening_verifier'] as $field) {
+            $name = mb_strtoupper($draft->signatoryFields('initial_screening_form')[$field]);
+            expect($documentDom->textContent)->toContain($name)
+                ->and($documentXPath->query('//w:p[normalize-space(.) = "'.$name.'"]/w:r/w:rPr/w:u[@w:val = "single"]')->length)->toBe(1)
+                ->and($documentXPath->query('//w:p[normalize-space(.) = "'.$name.'"]/preceding-sibling::w:p[1][not(normalize-space(.))]')->length)->toBe(1);
+        }
 
         $footerXml = $generated->getFromName('word/footer1.xml');
         $settingsXml = $generated->getFromName('word/settings.xml');
@@ -1421,9 +1708,9 @@ test('budget mismatches are identified in the interface and prevent final submis
         ->assertSee('Submission blocked')
         ->assertSee('3 of 5 proposal papers ready')
         ->assertSeeTextInOrder([
-            'Attachment B: Line-Item Budget',
-            'Needs attention',
             'Estimated Expense Breakdown',
+            'Needs attention',
+            'Attachment B: Line-Item Budget',
             'Needs attention',
         ])
         ->assertSee('MOOE')
@@ -1516,6 +1803,62 @@ test('a PDF conversion failure keeps the complete draft available for another pr
         ->and(TopicProposal::query()->count())->toBe(0);
     expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
 });
+
+test('the project leader prepares all seven PDFs with three converter startups', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    app()->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
+    Process::preventStrayProcesses();
+    Process::fake(function (PendingProcess $process) {
+        $outputIndex = array_search('--outdir', $process->command, true);
+        expect($outputIndex)->not->toBeFalse();
+        $directory = $process->command[$outputIndex + 1];
+        foreach ([...glob($directory.'/*.docx'), ...glob($directory.'/*.xlsx')] as $source) {
+            File::put($directory.'/'.pathinfo($source, PATHINFO_FILENAME).'.pdf', "%PDF-1.7\n".hash_file('sha256', $source));
+        }
+
+        return Process::result();
+    });
+
+    $this->actingAs($this->faculty)->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $draft->refresh()->load('documents');
+
+    expect($draft->documents)->toHaveCount(7)
+        ->and(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft))->toBeTrue()
+        ->and($draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->source_data['document_checklist'])
+        ->toBe(['complete_documents' => true, 'initial_screening_form' => true]);
+    Process::assertRanTimes(fn (PendingProcess $process): bool => true, 3);
+});
+
+test('batch preparation discards new PDFs if a teammate changes the draft during conversion', function (bool $changeProjectDetails) {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $originalPaths = $draft->documents->pluck('file_path', 'id')->all();
+    $originalFiles = Storage::disk('local')->allFiles($draft->storageDirectory());
+    $calls = 0;
+    app()->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
+    Process::preventStrayProcesses();
+    Process::fake(function (PendingProcess $process) use ($draft, $changeProjectDetails, &$calls) {
+        if ($calls++ === 0) {
+            if ($changeProjectDetails) {
+                $draft->fresh()->increment('lock_version');
+            } else {
+                $draft->documents()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->increment('lock_version');
+            }
+        }
+        $outputIndex = array_search('--outdir', $process->command, true);
+        $directory = $process->command[$outputIndex + 1];
+        foreach ([...glob($directory.'/*.docx'), ...glob($directory.'/*.xlsx')] as $source) {
+            File::put($directory.'/'.pathinfo($source, PATHINFO_FILENAME).'.pdf', '%PDF-1.7 new paper');
+        }
+
+        return Process::result();
+    });
+
+    expect(fn () => app(SubmitProposalDraft::class)->prepare($draft->fresh(), $this->faculty))
+        ->toThrow(ValidationException::class)
+        ->and($draft->documents()->pluck('file_path', 'id')->all())->toBe($originalPaths)
+        ->and(Storage::disk('local')->allFiles($draft->storageDirectory()))->toBe($originalFiles);
+})->with(['project details' => true, 'proposal paper' => false]);
 
 test('prepared proposal checklist verifies its PDFs and uses the campus call default', function () {
     $draft = ($this->completeDraft)(($this->createDraft)());
@@ -1614,8 +1957,13 @@ test('submission PDFs can be prepared from CV values using the official display 
         ->and($savedCurriculumVitae->source_data['people'][0]['birthday'])->toBe('1995-06-12');
 });
 
-test('Livewire prepares the PDF package without leaving the review modal', function () {
+test('Livewire prepares initial and unseen update PDFs without leaving the review modal', function (bool $isUpdate) {
+    Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
+    if ($isUpdate) {
+        $topic = app(SubmitProposalDraft::class)->handle($draft, $this->faculty);
+        $draft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    }
     $draft->documents()->update([
         'file_path' => null,
         'original_filename' => null,
@@ -1624,7 +1972,7 @@ test('Livewire prepares the PDF package without leaving the review modal', funct
         'checksum' => null,
     ]);
 
-    Livewire::actingAs($this->faculty)
+    $component = Livewire::actingAs($this->faculty)
         ->test(ProposalDraftReviewPackage::class, [
             'proposalDraft' => $draft,
             'inModal' => true,
@@ -1634,11 +1982,17 @@ test('Livewire prepares the PDF package without leaving the review modal', funct
         ->assertHasNoErrors()
         ->assertNoRedirect()
         ->assertSet('statusMessage', 'Seven PDFs prepared. Review the five proposal papers; the two assessment forms are included automatically.')
-        ->assertSee('PDF package prepared')
-        ->assertSee('Turn in proposal');
+        ->assertSee('Submission PDFs prepared');
+
+    if ($isUpdate) {
+        $component->assertSee('Submit Version 2');
+        expect($topic->versions()->count())->toBe(1);
+    } else {
+        $component->assertSee('Turn in proposal');
+    }
 
     expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
-});
+})->with(['initial draft' => false, 'unseen submission update' => true]);
 
 test('Livewire turns in a prepared package and navigates to the dashboard', function () {
     Notification::fake();
@@ -1652,7 +2006,8 @@ test('Livewire turns in a prepared package and navigates to the dashboard', func
         ->assertRedirect(route('faculty.dashboard'));
 
     expect(ProposalDraft::find($draft->id))->toBeNull()
-        ->and(TopicProposal::query()->count())->toBe(1);
+        ->and(TopicProposal::query()->count())->toBe(1)
+        ->and(session('success'))->toBe('Proposal submitted successfully with seven PDFs and sent to the Research Head.');
 });
 
 test('Turn in is blocked until the complete proposal has a prepared PDF package', function () {
@@ -1675,6 +2030,8 @@ test('Turn in is blocked until the complete proposal has a prepared PDF package'
 });
 
 test('faculty reviews five proposal papers while two generated assessment forms remain read only', function () {
+    Process::fake(['*pdf-section-coordinates*' => Process::result(output: '<document/>')]);
+
     $draft = ($this->completeDraft)(($this->createDraft)());
 
     expect($draft->documents)->toHaveCount(7)
@@ -1690,7 +2047,7 @@ test('faculty reviews five proposal papers while two generated assessment forms 
         ->assertSee('Choose replacement PDF')
         ->assertSee('Five proposal papers and two automatic assessment forms are ready')
         ->assertSee('data-review-assessment-forms', false)
-        ->assertSee('Faculty do not need to fill, review, or replace them');
+        ->assertSee('no faculty answers or replacement uploads are needed');
 
     $workspace = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.show', $draft));
@@ -1944,6 +2301,9 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk()
         ->assertSee('Submitted draft record')
+        ->assertDontSee('Recovery history')
+        ->assertDontSee('Recovery is automatic')
+        ->assertDontSee('Restore this recovery point')
         ->assertSee('data-submitted-record-preservation', false)
         ->assertSee('max-w-7xl space-y-6', false)
         ->assertSee('lg:grid-cols-[14rem_minmax(0,1fr)]', false)
@@ -2511,5 +2871,6 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
     foreach (app(ProposalSignatureWorkflow::class)->signedCopiesBySource($version()) as $signed) {
         $this->get(route('topics.versions.files.download', [$topic, $version(), $signed]))->assertOk();
     }
-    $this->get(route('topics.show', $topic))->assertOk()->assertSee('Released documents')->assertSee('Project monitoring');
+    $this->get(route('topics.show', $topic))->assertOk()->assertSee('data-released-notice-summary', false)
+        ->assertDontSee('Released documents')->assertSee('Project monitoring');
 });

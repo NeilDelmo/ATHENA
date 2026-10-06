@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SelectWorkspaceRequest;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -26,7 +27,7 @@ class WorkspaceController extends Controller
         return view('auth.select-workspace', compact('workspaces'));
     }
 
-    public function store(SelectWorkspaceRequest $request): RedirectResponse
+    public function store(SelectWorkspaceRequest $request): JsonResponse|RedirectResponse
     {
         $workspace = $request->validated('workspace');
         $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
@@ -36,9 +37,14 @@ class WorkspaceController extends Controller
             $request->session()->put('active_role', $workspace === User::WORKSPACE_RESEARCH_OFFICE ? 'research_coordinator' : 'faculty');
         }
         $request->session()->forget('url.intended');
+        $request->session()->flash('status', 'You are now using the '.$request->user()->activeWorkspaceLabel().' workspace.');
 
-        return redirect()
-            ->route($request->user()->dashboardRouteName($workspace))
-            ->with('status', 'You are now using the '.$request->user()->activeWorkspaceLabel().' workspace.');
+        $dashboardUrl = route($request->user()->dashboardRouteName($workspace));
+
+        if ($request->expectsJson()) {
+            return response()->json(['redirect' => $dashboardUrl]);
+        }
+
+        return redirect()->to($dashboardUrl);
     }
 }

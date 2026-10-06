@@ -49,6 +49,7 @@ class ProposalVersion extends Model
     public function files(): HasMany
     {
         return $this->hasMany(ProposalVersionFile::class)
+            ->chaperone('version')
             ->orderBy('document_type')
             ->orderBy('position');
     }

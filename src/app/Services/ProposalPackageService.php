@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Contracts\BatchDocumentPdfConverter;
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +21,7 @@ class ProposalPackageService
     public function __construct(
         private readonly DocumentPdfConverter $pdfConverter,
         private readonly ProposalSignatureWorkflow $signatureWorkflow,
+        private readonly ProposalPaperCatalog $catalog,
     ) {}
 
     /**
@@ -217,6 +220,57 @@ class ProposalPackageService
     }
 
     /**
+     * @param  array<string, array{contents: string, source_data: array<string, mixed>}>  $papers
+     * @return list<array<string, mixed>>
+     */
+    public function storeGeneratedPapers(array $papers, string $directory, string $projectTitle): array
+    {
+        $documents = [];
+
+        foreach ($papers as $slug => $paper) {
+            $documents[$slug] = [
+                'contents' => $paper['contents'],
+                'format' => $slug === 'expense-breakdown' ? 'xlsx' : 'docx',
+            ];
+        }
+
+        if ($this->pdfConverter instanceof BatchDocumentPdfConverter) {
+            $pdfs = $this->pdfConverter->convertDocuments($documents);
+        } else {
+            $pdfs = [];
+
+            foreach ($documents as $slug => $document) {
+                $pdfs[$slug] = $document['format'] === 'xlsx'
+                    ? $this->pdfConverter->convertXlsx($document['contents'])
+                    : $this->pdfConverter->convertDocx($document['contents']);
+            }
+        }
+
+        $storedFiles = [];
+
+        try {
+            foreach ($papers as $slug => $paper) {
+                $definition = $this->catalog->get($slug);
+                $storedFiles[] = $this->storeGeneratedFile(
+                    $pdfs[$slug],
+                    $directory.'/'.$slug,
+                    $this->catalog->submissionFilename($definition, $projectTitle),
+                    $definition['document_type'],
+                    'application/pdf',
+                    $paper['source_data'],
+                    'pdf',
+                );
+            }
+        } catch (Throwable $exception) {
+            $this->deleteStored($storedFiles);
+
+            throw $exception;
+        }
+
+        return $storedFiles;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function storeGeneratedWorkPlan(
@@ -380,15 +434,6 @@ class ProposalPackageService
             'xlsx' => $this->pdfConverter->convertXlsx($sourceContents),
             default => throw new RuntimeException('The generated paper format cannot be converted to PDF.'),
         };
-
-        if ($sourceData !== null) {
-            try {
-                $regions = app(ProposalRevisionSectionMap::class)->fromPdf($pdfContents, $documentType, $sourceData);
-                $sourceData['_revision_sections'] = ['version' => 1, 'checksum' => hash('sha256', $pdfContents), 'regions' => $regions];
-            } catch (RuntimeException $exception) {
-                report($exception);
-            }
-        }
 
         return $this->storeGeneratedFile(
             $pdfContents,

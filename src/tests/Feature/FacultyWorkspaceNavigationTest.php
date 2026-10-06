@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Js;
 use Spatie\Permission\Models\Role;
 
@@ -48,6 +50,131 @@ test('each faculty workspace can open its full calendar', function (string $work
         ->assertSee('Research deadlines, scheduled activities, and your personal reminders.')
         ->assertDontSee('data-calendar-compact', false);
 })->with([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
+
+test('three submission categories separate active proposals monitoring and closed records within the accessible scope', function () {
+    $user = User::factory()->create();
+    $user->assignRole(['faculty', 'faculty_researcher']);
+    $other = User::factory()->create();
+    $fixtures = [
+        ['pending', null, null, 'review'],
+        ['resubmitted', null, null, 'review'],
+        ['gad_review', null, null, 'review'],
+        ['lrec_queued', null, null, 'review'],
+        ['revision_requested', null, null, 'revision'],
+        ['ready_for_signature', null, null, 'signing'],
+        ['approved', null, null, 'signing'],
+        ['approved', 'ongoing', now(), 'monitoring'],
+        ['approved', 'delayed', now(), 'monitoring'],
+        ['rejected', null, null, 'closed'],
+        ['approved', 'completed', now(), 'closed'],
+    ];
+    $expected = collect();
+    foreach ($fixtures as $index => [$status, $projectStatus, $releasedAt, $category]) {
+        $topic = TopicProposal::create([
+            'user_id' => $user->id, 'title' => 'Categorized proposal '.$index,
+            'status' => $status, 'project_status' => $projectStatus, 'notice_to_proceed_issued_at' => $releasedAt,
+        ]);
+        expect($topic->submissionCategory())->toBe($category);
+        $expected->put($topic->id, $category);
+    }
+    $shared = TopicProposal::create(['user_id' => $other->id, 'title' => 'Shared review proposal', 'status' => 'pending']);
+    $shared->collaborators()->create(['user_id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'accepted_at' => now()]);
+    $expected->put($shared->id, 'review');
+    TopicProposal::create(['user_id' => $other->id, 'title' => 'Private research proposal', 'status' => 'approved', 'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now()]);
+
+    $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
+    foreach (['active', 'monitoring', 'closed'] as $category) {
+        $ids = $expected->filter(fn ($value) => $category === 'active' ? in_array($value, ['review', 'revision', 'signing'], true) : $value === $category)->keys();
+        $response = $this->get(route('faculty.submissions', ['category' => $category]))->assertOk()
+            ->assertSee('data-submission-categories', false)->assertDontSee('Submission history')
+            ->assertDontSee('Private research proposal')
+            ->assertViewHas('category', $category)
+            ->assertViewHas('topics', fn ($topics): bool => $topics->pluck('id')->sort()->values()->all() === $ids->sort()->values()->all())
+            ->assertViewHas('categories', fn ($categories): bool => $categories === ['active' => 'Active proposals', 'monitoring' => 'In monitoring', 'closed' => 'Closed'])
+            ->assertViewHas('categoryCounts', fn ($counts): bool => $counts->all() === ['active' => 8, 'monitoring' => 2, 'closed' => 2])
+            ->assertDontSee('Switch to Faculty Researcher')->assertDontSee('data-research-workspace-switch', false);
+        if ($category === 'monitoring') {
+            $response->assertSee('In monitoring')->assertSee('View proposal')->assertDontSee('>Project monitoring<', false);
+        }
+        if ($category === 'active') {
+            $response->assertSee('Revise proposal')->assertSee('Research Head review')->assertSee('Final signing')
+                ->assertViewHas('topics', fn ($topics): bool => $topics->first()->status === 'revision_requested');
+        }
+        if ($category === 'closed') {
+            $response->assertSee('Research completed')->assertSee('Proposal rejected');
+        }
+    }
+    $this->get(route('faculty.submissions', ['category' => 'unknown']))->assertOk()->assertViewHas('category', 'active');
+    $this->get(route('faculty.submissions'))->assertOk()->assertViewHas('category', 'active')
+        ->assertDontSee('data-submission-category="monitoring"', false)->assertDontSee('data-submission-category="closed"', false);
+});
+
+test('submission category pagination retains the selected category and empty categories offer a way back', function () {
+    $user = User::factory()->create();
+    $user->assignRole('faculty');
+    foreach (range(1, 13) as $index) {
+        TopicProposal::create(['user_id' => $user->id, 'title' => 'Review proposal '.$index, 'status' => 'pending']);
+    }
+    $revision = TopicProposal::create(['user_id' => $user->id, 'title' => 'Older revision needing attention', 'status' => 'revision_requested', 'created_at' => now()->subYear()]);
+    $this->actingAs($user)->get(route('faculty.submissions'))->assertOk()
+        ->assertViewHas('topics', fn ($topics): bool => str_contains($topics->nextPageUrl(), 'category=active') && $topics->first()->id === $revision->id);
+    $this->get(route('faculty.submissions', ['category' => 'active', 'page' => 2]))->assertOk()
+        ->assertViewHas('topics', fn ($topics): bool => $topics->total() === 14 && $topics->count() === 2 && ! $topics->contains('id', $revision->id));
+    $this->get(route('faculty.submissions', ['category' => 'monitoring']))->assertOk()
+        ->assertSee('No proposals in this category')->assertSee('View active proposals');
+});
+
+test('faculty proposal records show the project outcome and monitoring stays in the researcher workspace', function (string $projectStatus) {
+    Storage::fake('local');
+    $user = User::factory()->create();
+    $user->assignRole(['faculty', 'faculty_researcher']);
+    $topic = TopicProposal::create([
+        'user_id' => $user->id, 'title' => 'Released workspace project', 'status' => 'approved',
+        'project_status' => $projectStatus, 'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_path' => 'notices/workspace-release.pdf', 'notice_to_proceed_original_filename' => 'workspace-release.pdf',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-10-03', 'approved_end_date' => '2027-02-03', 'approved_budget' => 60000],
+    ]);
+    Storage::disk('local')->put('notices/workspace-release.pdf', '%PDF signed notice');
+    Storage::disk('local')->put('reports/workspace-monitoring.pdf', '%PDF monitoring');
+    $report = ProjectProgressReport::create([
+        'topic_id' => $topic->id, 'submitted_by' => $user->id, 'reporting_date' => now()->subDay(),
+        'progress_percentage' => 60, 'accomplishments' => 'Report available only in the research workspace.',
+        'official_pdf_path' => 'reports/workspace-monitoring.pdf',
+    ]);
+    $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY, 'topic_tab' => 'monitoring'])
+        ->get(route('topics.show', $topic))->assertOk()
+        ->assertSee('data-research-workspace-handoff', false)->assertSee('Use Switch Workspace in your account menu')
+        ->assertSee($projectStatus === 'completed' ? 'Research completed' : 'In monitoring')
+        ->assertDontSee('Switch to Faculty Researcher')->assertDontSee('data-research-workspace-switch', false)
+        ->assertDontSee('Released documents')->assertDontSee('Open researcher workspace')
+        ->assertDontSee('id="notice-to-proceed-tab-button"', false)->assertDontSee('id="notice-to-proceed-tab"', false)
+        ->assertSee('data-released-notice-summary', false)->assertSee('2026-10-03 to 2027-02-03')->assertSee('PHP 60,000.00')
+        ->assertDontSee('id="project-monitoring-tab-button"', false)->assertDontSee('id="project-monitoring-tab"', false)
+        ->assertViewHas('projectDocumentLibrary', fn ($library): bool => ! $library['documents']->contains('key', 'monitoring-report-'.$report->id));
+    $this->get(route('research.show', $topic))->assertForbidden();
+    $this->post(route('workspace.store'), ['workspace' => 'faculty_researcher'])
+        ->assertRedirect(route('faculty.dashboard'))
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY_RESEARCHER);
+    $this->get(route('research.show', $topic))->assertOk()->assertSee('id="project-monitoring-tab"', false)
+        ->assertSee('data-released-notice-summary', false)->assertDontSee('id="notice-to-proceed-tab"', false)
+        ->assertDontSee('data-research-workspace-handoff', false)
+        ->assertViewHas('projectDocumentLibrary', fn ($library): bool => $library['documents']->contains('key', 'monitoring-report-'.$report->id));
+})->with(['ongoing', 'completed']);
+
+test('faculty can see monitoring status without gaining researcher access', function () {
+    $user = User::factory()->create();
+    $user->assignRole('faculty');
+    $topic = TopicProposal::create([
+        'user_id' => $user->id, 'title' => 'Project needing workspace access', 'status' => 'approved',
+        'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now(),
+    ]);
+    $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->get(route('faculty.submissions', ['category' => 'monitoring']))->assertOk()
+        ->assertSee('In monitoring')->assertSee('View proposal')
+        ->assertDontSee('data-research-workspace-switch', false);
+    $this->post(route('workspace.store'), ['workspace' => 'faculty_researcher'])
+        ->assertSessionHasErrors('workspace')->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
+});
 
 test('submitted proposals remain restricted to the faculty workspace', function () {
     $user = User::factory()->create();

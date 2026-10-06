@@ -57,10 +57,10 @@ export async function previewRevisionEditor(editor) {
     return editor.previewHtml;
 }
 
-export function fitRevisionPaperPreview(frame) {
+export function fitRevisionPaperPreview(frame, zoom = 100, fit = 'width') {
     if (!frame.hasAttribute('srcdoc')) return;
     proposalPreviewWorkspace().applyProposalPreviewZoom.call({
-        $refs: { previewFrame: frame }, previewZoom: 100,
+        $refs: { previewFrame: frame }, previewZoom: zoom, previewFit: fit,
     });
 }
 
@@ -183,6 +183,7 @@ function revisionControlIsWorkspaceMetadata(control) {
         'staff',
         'literature_research_history',
         'literature_citations',
+        'methodology[specific_methods]',
     ].includes(control.name);
 }
 
@@ -203,8 +204,9 @@ export function revisionSourceControlFingerprint(control, sourceValue) {
 }
 
 function revisionStructureFingerprint(controls, sourceData, useSource) {
-    return ['entries', 'items', 'staff', 'custom_mooe_items', 'custom_co_items', 'people'].flatMap((key) => {
+    const rows = ['entries', 'items', 'staff', 'custom_mooe_items', 'custom_co_items', 'people', 'specific_method_objectives'].flatMap((key) => {
         if (!Array.isArray(sourceData[key])) return [];
+        if (key === 'specific_method_objectives' && sourceData[key].length === 0) return [];
         const count = useSource
             ? sourceData[key].length
             : new Set(controls.flatMap((control) => {
@@ -213,6 +215,17 @@ function revisionStructureFingerprint(controls, sourceData, useSource) {
             })).size;
         return [['__structure__:' + key, '', String(count)]];
     });
+    const methodGroups = Array.isArray(sourceData.specific_method_objectives) ? sourceData.specific_method_objectives : [];
+    methodGroups.forEach((group, index) => {
+        const prefix = `specific_method_objectives[${index}][methods]`;
+        const count = useSource ? (group.methods || []).length
+            : new Set(controls.flatMap((control) => {
+                if (!control.name?.startsWith(prefix + '[')) return [];
+                return [control.name.slice(prefix.length).match(/^\[(\d+)\]/)?.[1]].filter(Boolean);
+            })).size;
+        rows.push(['__structure__:' + prefix, '', String(count)]);
+    });
+    return rows;
 }
 
 export function revisionSourceFingerprint(documentRoot, targetId, sourceData) {
@@ -247,21 +260,61 @@ export function revisionTargetFingerprint(documentRoot, targetId) {
 }
 
 export function revisionChangedPassages(documentRoot, targetId, originalSource) {
-    const { controls } = revisionControls(documentRoot, targetId);
+    const { controls, scope, wholeDocument } = revisionControls(documentRoot, targetId);
     const paragraphs = (value) => {
         const template = documentRoot.createElement('template');
         template.innerHTML = String(value || '');
         template.content.querySelectorAll('br').forEach((element) => element.replaceWith('\n'));
-        template.content.querySelectorAll('p, li').forEach((element) => element.append('\n\n'));
+        template.content.querySelectorAll('p, li, td, th, h1, h2, h3, h4, h5, h6').forEach((element) => element.append('\n\n'));
         return template.content.textContent.split(/\n\s*\n/).map((text) => text.trim()).filter(Boolean);
     };
-    return controls.flatMap((control) => {
-        if (revisionControlIsWorkspaceMetadata(control) || ['hidden', 'checkbox', 'radio', 'file'].includes(control.type)) return [];
+    const labelText = (element) => {
+        if (!element) return '';
+        const label = element.cloneNode(true);
+        label.querySelectorAll('input, textarea, select, [contenteditable]').forEach((control) => control.remove());
+        return label.textContent.replace(/\s+/g, ' ').trim();
+    };
+    const changes = controls.flatMap((control) => {
+        if (revisionControlIsWorkspaceMetadata(control) || ['hidden', 'file'].includes(control.type)) return [];
         const source = revisionSourceValue(originalSource, control.name);
         if (!source.found || revisionControlFingerprint(control) === revisionSourceControlFingerprint(control, source.value)) return [];
+        const context = labelText(control.labels?.[0])
+            || labelText((control.closest?.('[data-revision-section]') || scope)?.querySelector?.('legend, h3, h4'));
+        if (['checkbox', 'radio'].includes(control.type)) {
+            // Checked and unchecked options both remain printed in the generated paper.
+            const text = labelText(control.labels?.[0]) || control.value;
+            const heading = labelText(control.closest('fieldset')?.querySelector('legend'));
+            return text ? [{ text, context: heading }] : [];
+        }
+        if (control.tagName === 'SELECT') {
+            return [...control.selectedOptions].map((option) => ({ text: option.textContent.trim(), context }));
+        }
+        if (control.type === 'number') {
+            const value = Number(control.value);
+            return control.value ? [...new Set([control.value, value.toLocaleString('en-US'), value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })])]
+                .map((text) => ({ text, context })) : (context ? [{ text: context }] : []);
+        }
         const previous = paragraphs(source.value).map(normalizeLocationText);
-        return paragraphs(control.value).filter((text) => !previous.includes(normalizeLocationText(text)));
+        const current = paragraphs(control.value);
+        const changed = current.filter((text) => !previous.includes(normalizeLocationText(text)));
+        if (changed.length) return changed;
+        // Anchor a deletion to the paragraph now occupying that place, or the preceding one at the end.
+        const removedIndex = previous.findIndex((text) => !current.some((paragraph) => normalizeLocationText(paragraph) === text));
+        const surviving = current[Math.min(Math.max(0, removedIndex), current.length - 1)];
+        return surviving ? [{ text: surviving, context }] : (context ? [{ text: context }] : []);
     });
+    if (changes.length || !wholeDocument) return changes;
+    const previousRows = revisionStructureFingerprint(controls, originalSource, true);
+    const currentRows = revisionStructureFingerprint(controls, originalSource, false);
+    const removedGroup = previousRows.find((row, index) => row[2] > currentRows[index][2]);
+    if (!removedGroup) return [];
+    const group = removedGroup[0].replace('__structure__:', '');
+    const surviving = controls.find((control) => control.name?.startsWith(group + '[') && control.value
+        && !revisionControlIsWorkspaceMetadata(control) && !['hidden', 'checkbox', 'radio', 'file'].includes(control.type));
+    const context = labelText(surviving?.labels?.[0])
+        || labelText((surviving?.closest?.('[data-revision-section]') || scope)?.querySelector?.('legend, h3, h4'));
+    const text = surviving ? paragraphs(surviving.value)[0] : context;
+    return text ? [{ text, context }] : [];
 }
 
 function initializeEmbeddedEditor() {
@@ -272,6 +325,11 @@ function initializeEmbeddedEditor() {
     const originalSource = JSON.parse(context.dataset.originalSource || '{}');
     const state = () => window.Alpine?.$data(root);
     const hasOriginalSource = Object.keys(originalSource).length > 0;
+    if (hasOriginalSource && context.dataset.documentType === 'detailed_proposal'
+        && !originalSource.specific_method_objectives?.length
+        && typeof state()?.legacySpecificMethodGroups === 'function') {
+        originalSource.specific_method_objectives = state().legacySpecificMethodGroups(originalSource.methodology?.specific_methods || '');
+    }
     const baselineFingerprint = (targetId) => hasOriginalSource
         ? revisionSourceFingerprint(document, targetId, originalSource)
         : revisionTargetFingerprint(document, targetId);
@@ -414,6 +472,24 @@ export function revealRevisionEditorFailure(exception, frames, topicId, revision
     return true;
 }
 
+export function revealRevisionResponseFailure(exception, form, revisionDialogs, workflow) {
+    const field = [...form.querySelectorAll('[data-comment-response-location]')]
+        .find((candidate) => candidate.dataset.responseKey === exception?.revisionResponseKey);
+    if (!field) return false;
+    const card = field.closest('[data-revision-document]');
+    const body = field.closest('[data-revision-comment-body]');
+    workflow?.show(2, false);
+    if (card) {
+        const selector = card.querySelector('[data-revision-comment]');
+        if (selector && body) selector.value = body.dataset.revisionCommentBody;
+        revisionDialogs.open(card);
+        card.dispatchEvent(new CustomEvent('revision-feedback-reveal'));
+    }
+    field.scrollIntoView({ block: 'nearest' });
+    field.querySelector('button:not([hidden])')?.focus({ preventScroll: true });
+    return true;
+}
+
 export function applyRevisionModificationStates(card, states = {}, replacementSelected = false) {
     const noChange = revisionNoChangeResolution(card);
     const reviewed = card.dataset?.revisionReviewed === 'true';
@@ -456,9 +532,32 @@ export function revisionDocumentsWithoutResolution(form) {
     });
 }
 
-export function synchronizeRevisionNoChangeResponses(form, card) {
+export function synchronizeRevisionNoChangeResponses(form, card, states = null, replacementSelected = false) {
     const explanation = card.querySelector('[data-revision-no-change-explanation]')?.value || '';
     const selected = Boolean(card.querySelector('[data-revision-no-change]')?.checked);
+    form.querySelectorAll('[data-comment-response-location]').forEach((field) => {
+        const globalResponse = !field.dataset.responseDocument;
+        if (!globalResponse && field.dataset.responseDocument !== card.dataset.revisionDocument) return;
+        const action = field.querySelector('[data-comment-response-no-change]');
+        if (!action) return;
+        const stateKey = '__document__';
+        const knownState = states && Object.prototype.hasOwnProperty.call(states, stateKey);
+        let unchanged = selected || (!replacementSelected && knownState && !states[stateKey]);
+        if (globalResponse) {
+            const papers = [...form.querySelectorAll('[data-revision-document]')];
+            unchanged = papers.length > 0 && papers.every((paper) => paper.querySelector('[data-revision-no-change]')?.checked
+                || paper.querySelector('[data-revision-document-state]')?.dataset.modified === 'false');
+        } else if (!selected && !knownState && field.dataset.revisionAutomaticAction !== 'true' && !replacementSelected) return;
+        field.querySelectorAll('[data-comment-response-page], [data-comment-response-paragraph]').forEach((input) => {
+            input.disabled = Boolean(unchanged);
+            input.required = false;
+        });
+        field.dataset.revisionAutomaticAction = String(selected);
+        if (action.checked !== Boolean(unchanged)) {
+            action.checked = Boolean(unchanged);
+            action.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
     form.querySelectorAll('[data-revision-response-document]').forEach((response) => {
         if (response.dataset.revisionResponseDocument !== card.dataset.revisionDocument) return;
         const previous = response.dataset.revisionAutomaticResponse;
@@ -467,6 +566,20 @@ export function synchronizeRevisionNoChangeResponses(form, card) {
         response.value = selected ? explanation : '';
         response.dataset.revisionAutomaticResponse = response.value;
     });
+}
+
+export function synchronizeSingleRevisionReply(card, restoreSaved = false) {
+    if (!card.hasAttribute('data-revision-single-reply')) return;
+    const response = card.querySelector('[data-revision-response-document]');
+    const explanation = card.querySelector('[data-revision-no-change-explanation]');
+    if (!response || !explanation) return;
+    const keeping = Boolean(card.querySelector('[data-revision-no-change]')?.checked);
+    response.dataset.revisionOriginalPlaceholder ??= response.placeholder;
+    response.maxLength = keeping ? 1000 : 5000;
+    response.placeholder = keeping ? 'Explain why the submitted paper already addresses this comment.' : response.dataset.revisionOriginalPlaceholder;
+    if (!keeping) return;
+    if (restoreSaved && !response.value.trim() && explanation.value.trim()) response.value = explanation.value;
+    explanation.value = response.value;
 }
 
 export function initializeRevisionPanelResize(card) {
@@ -539,8 +652,16 @@ export function initializeRevisionPreviews(form, topicId) {
     form.querySelectorAll('[data-revision-document]').forEach((card) => {
         const panel = card.querySelector('[data-revision-preview-panel]');
         if (!panel) return;
-        const content = card.querySelector('[data-revision-editor-content]');
+        const content = card.querySelector('[data-revision-submitted-panel]');
+        const reference = card.querySelector('[data-revision-reference]');
+        const paperTriggers = [...card.querySelectorAll('[data-revision-paper-open]')];
+        const paperDocuments = new WeakSet();
+        const zoomControls = card.querySelector('[data-revision-preview-zoom]');
+        const zoomValue = card.querySelector('[data-revision-zoom-value]');
+        let zoom = 100;
+        let fit = 'width';
         const frame = card.querySelector('[data-revision-preview-frame]');
+        const submittedFrame = card.querySelector('[data-revision-pdf-frame]');
         const openButton = card.querySelector('[data-revision-preview-open]');
         const closeButton = card.querySelector('[data-revision-preview-close]');
         const refreshButton = card.querySelector('[data-revision-preview-refresh]');
@@ -548,14 +669,31 @@ export function initializeRevisionPreviews(form, topicId) {
         const error = card.querySelector('[data-revision-preview-error]');
         const stale = card.querySelector('[data-revision-preview-stale]');
         const fileSelector = card.querySelector('[data-revision-preview-file]');
-        frame.addEventListener('load', () => fitRevisionPaperPreview(frame));
+        const applyZoom = () => {
+            fitRevisionPaperPreview(frame, zoom, fit);
+            for (const paperFrame of [submittedFrame, frame]) {
+                try { paperFrame?.contentWindow?.athenaRevisionPdf?.setZoom?.(zoom, fit); }
+                catch { /* Native PDF viewers provide their own zoom controls. */ }
+            }
+            zoomValue.textContent = `${zoom}%`;
+            card.querySelector('[data-revision-zoom-out]').disabled = zoom <= 50;
+            card.querySelector('[data-revision-zoom-in]').disabled = zoom >= 150;
+            card.querySelector('[data-revision-fit-page]')?.setAttribute('aria-pressed', String(fit === 'page'));
+            card.querySelector('[data-revision-fit-width]')?.setAttribute('aria-pressed', String(fit === 'width'));
+        };
+        frame.addEventListener('load', applyZoom);
+        for (const paperFrame of [submittedFrame, frame]) {
+            paperFrame?.addEventListener('revision-pdf-ready', applyZoom);
+        }
+        submittedFrame?.addEventListener('load', applyZoom);
         if (typeof ResizeObserver !== 'undefined') {
-            new ResizeObserver(() => fitRevisionPaperPreview(frame)).observe(frame);
+            new ResizeObserver(() => fitRevisionPaperPreview(frame, zoom, fit)).observe(frame);
         }
         let objectUrl = null;
         let request = 0;
         const reset = () => {
             frame.hidden = true;
+            frame.closest?.('[data-revision-paper-open]')?.classList.remove('revision-native-paper-preview');
             frame.removeAttribute('src');
             frame.removeAttribute('srcdoc');
             if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -565,25 +703,25 @@ export function initializeRevisionPreviews(form, topicId) {
             request += 1;
             panel.hidden = true;
             content.hidden = false;
-            closeButton.hidden = true;
-            openButton.hidden = false;
+            closeButton.setAttribute('aria-pressed', 'true');
+            openButton.setAttribute('aria-pressed', 'false');
+            if (zoomControls) zoomControls.hidden = false;
             openButton.setAttribute('aria-expanded', 'false');
             refreshButton.disabled = false;
             reset();
         };
         const preview = async () => {
             const currentRequest = ++request;
-            const wasOpen = !panel.hidden;
             panel.hidden = false;
             content.hidden = true;
-            closeButton.hidden = false;
-            openButton.hidden = true;
+            closeButton.setAttribute('aria-pressed', 'false');
+            openButton.setAttribute('aria-pressed', 'true');
             openButton.setAttribute('aria-expanded', 'true');
             refreshButton.disabled = true;
             error.hidden = true;
             stale.hidden = true;
             status.textContent = 'Preparing paper preview…';
-            if (!wasOpen) closeButton.focus({ preventScroll: true });
+            if (zoomControls) zoomControls.hidden = true;
             reset();
             try {
                 const result = await revisionPaperPreview(card, topicId, Number(fileSelector.value || 0));
@@ -594,8 +732,11 @@ export function initializeRevisionPreviews(form, topicId) {
                 objectUrl = result.objectUrl ? result.url : null;
                 if (result.html) frame.srcdoc = result.html;
                 else frame.src = result.url;
+                frame.closest?.('[data-revision-paper-open]')?.classList.toggle('revision-native-paper-preview', result.objectUrl === true);
+                if (zoomControls) zoomControls.hidden = !result.html && result.objectUrl === true;
                 frame.hidden = false;
                 status.textContent = result.label;
+                applyZoom();
             } catch (exception) {
                 if (currentRequest !== request) return;
                 error.textContent = exception instanceof Error ? exception.message : 'The preview could not be loaded. Please try again.';
@@ -618,8 +759,100 @@ export function initializeRevisionPreviews(form, topicId) {
         });
         fileSelector.addEventListener('change', preview);
         refreshButton.addEventListener('click', preview);
-        closeButton.addEventListener('click', () => { close(); openButton.focus(); });
-        card.querySelector('[data-revision-dialog]').addEventListener('close', close);
+        closeButton.addEventListener('click', close);
+        const setExpanded = (expanded) => {
+            reference?.classList.toggle('revision-reference-expanded', expanded);
+            fit = expanded ? 'page' : 'width';
+            zoom = 100;
+            applyZoom();
+            paperTriggers.forEach((trigger) => trigger.setAttribute('aria-expanded', String(expanded)));
+            for (const paperFrame of [frame, card.querySelector('[data-revision-pdf-frame]')]) {
+                try {
+                    if (paperFrame?.contentDocument?.body) paperFrame.contentDocument.body.style.cursor = expanded ? 'auto' : 'zoom-in';
+                } catch { /* Uploaded PDFs may use the browser's own viewer. */ }
+            }
+        };
+        const collapse = () => setExpanded(false);
+        const expandPaper = () => {
+            if (reference.classList.contains('revision-reference-expanded')) return;
+            setExpanded(true);
+            card.querySelector('[data-revision-reference-dismiss]')?.focus({ preventScroll: true });
+        };
+        const bindPaperFrame = (paperFrame) => {
+            try {
+                const paperDocument = paperFrame?.contentDocument;
+                if (!paperDocument?.body || paperDocuments.has(paperDocument)) return;
+                paperDocuments.add(paperDocument);
+                proposalPreviewWorkspace().bindProposalPreviewWheel(
+                    paperFrame,
+                    () => reference.classList.contains('revision-reference-expanded'),
+                    (amount) => resizeZoom(amount),
+                );
+                paperDocument.body.style.cursor = reference.classList.contains('revision-reference-expanded') ? 'auto' : 'zoom-in';
+                paperDocument.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Escape' || !reference.classList.contains('revision-reference-expanded')) return;
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    collapse();
+                    card.querySelector('[data-revision-reference-toggle]')?.focus({ preventScroll: true });
+                }, true);
+                paperDocument.addEventListener('click', (event) => {
+                    if (event.target.closest?.('button, a, input, textarea, select, [data-annotation-id]')) return;
+                    if (paperDocument.getSelection()?.toString()) return;
+                    expandPaper();
+                });
+            } catch { /* Native PDF viewers still offer keyboard expansion from the paper container. */ }
+        };
+        paperTriggers.forEach((trigger) => {
+            trigger.addEventListener('click', (event) => {
+                if (event.target.closest?.('button, a, input, textarea, select')) return;
+                expandPaper();
+            });
+            trigger.addEventListener('keydown', (event) => {
+                if (event.target !== trigger || !['Enter', ' '].includes(event.key)) return;
+                event.preventDefault();
+                expandPaper();
+            });
+        });
+        for (const paperFrame of [frame, card.querySelector('[data-revision-pdf-frame]')]) {
+            paperFrame?.addEventListener('load', () => bindPaperFrame(paperFrame));
+            bindPaperFrame(paperFrame);
+        }
+        const resizeZoom = (amount) => {
+            zoom = Math.max(50, Math.min(150, zoom + amount));
+            applyZoom();
+        };
+        card.querySelector('[data-revision-zoom-out]')?.addEventListener('click', () => resizeZoom(-10));
+        card.querySelector('[data-revision-zoom-in]')?.addEventListener('click', () => resizeZoom(10));
+        for (const mode of ['page', 'width']) {
+            card.querySelector(`[data-revision-fit-${mode}]`)?.addEventListener('click', () => {
+                fit = mode;
+                zoom = 100;
+                applyZoom();
+            });
+        }
+        const dialog = card.querySelector('[data-revision-dialog]');
+        dialog.addEventListener('cancel', (event) => {
+            if (!reference?.classList.contains('revision-reference-expanded')) return;
+            event.preventDefault();
+            collapse();
+            paperTriggers.find((trigger) => !trigger.closest('[hidden]'))?.focus({ preventScroll: true });
+        });
+        dialog.addEventListener('close', () => { close(); collapse(); });
+        const referenceToggle = card.querySelector('[data-revision-reference-toggle]');
+        card.querySelector('[data-revision-reference-dismiss]')?.addEventListener('click', () => {
+            collapse();
+            reference.classList.remove('revision-reference-mobile-visible');
+            referenceToggle?.setAttribute('aria-expanded', 'false');
+            if (referenceToggle) referenceToggle.textContent = 'Show paper';
+            const returnTarget = window.matchMedia('(max-width: 767px)').matches ? referenceToggle : card.querySelector('[data-revision-editor-frame]');
+            returnTarget?.focus({ preventScroll: true });
+        });
+        referenceToggle?.addEventListener('click', () => {
+            const visible = reference.classList.toggle('revision-reference-mobile-visible');
+            referenceToggle.setAttribute('aria-expanded', String(visible));
+            referenceToggle.textContent = visible ? 'Hide paper' : 'Show paper';
+        });
         const editorFrame = card.querySelector('[data-revision-editor-frame]');
         const bindEdits = () => {
             try {
@@ -631,9 +864,22 @@ export function initializeRevisionPreviews(form, topicId) {
         editorFrame?.addEventListener('load', bindEdits);
         bindEdits();
         card.addEventListener('change', (event) => {
-            if (event.target.matches?.('input[type="file"], [data-revision-no-change]')) close();
+            if (event.target.matches?.('input[type="file"], [data-revision-no-change], [data-revision-edit-paper]')) close();
         });
     });
+}
+
+export function loadRevisionEditorFrame(card) {
+    const frame = card.querySelector('[data-revision-editor-frame]');
+    const url = frame?.dataset?.revisionEditorSrc;
+    if (!url || frame.getAttribute('src')) return false;
+    if (revisionNoChangeResolution(card).selected || (card.querySelector('input[type="file"]')?.files?.length || 0) > 0) return false;
+
+    const loading = card.querySelector('[data-revision-editor-loading]');
+    if (loading) loading.hidden = false;
+    frame.dataset.revisionEditorPendingFocus = 'true';
+    frame.setAttribute('src', url);
+    return true;
 }
 
 export function initializeRevisionDialogs(form, topicId) {
@@ -656,7 +902,9 @@ export function initializeRevisionDialogs(form, topicId) {
     };
     const refreshModificationStates = (card, states = null) => {
         const replacementSelected = (card.querySelector('input[type="file"]')?.files?.length || 0) > 0;
-        applyRevisionModificationStates(card, states || editorFor(card)?.modificationStates?.() || {}, replacementSelected);
+        const currentStates = states || editorFor(card)?.modificationStates?.() || {};
+        applyRevisionModificationStates(card, currentStates, replacementSelected);
+        synchronizeRevisionNoChangeResponses(form, card, currentStates, replacementSelected);
         const fingerprint = editorFor(card)?.sourceFingerprint?.();
         if (fingerprint !== undefined && card.dataset.locationSourceFingerprint !== fingerprint) {
             const previous = card.dataset.locationSourceFingerprint;
@@ -665,22 +913,26 @@ export function initializeRevisionDialogs(form, topicId) {
         }
     };
     const synchronizeNoChange = (card) => {
-        const checkbox = card.querySelector('[data-revision-no-change]');
+        const keepPaper = card.querySelector('[data-revision-no-change]');
         const explanation = card.querySelector('[data-revision-no-change-explanation]');
         const details = card.querySelector('[data-revision-no-change-details]');
         const upload = card.querySelector('input[type="file"]');
-        if (!checkbox || !explanation || !details) return;
-        details.hidden = !checkbox.checked;
-        explanation.required = checkbox.checked;
-        if (upload) upload.required = !checkbox.checked && !card.querySelector('[data-revision-editor-frame]');
+        if (!keepPaper || !explanation || !details) return;
+        details.hidden = !keepPaper.checked;
+        explanation.required = keepPaper.checked;
+        synchronizeSingleRevisionReply(card, true);
+        if (upload) upload.required = !keepPaper.checked && !card.querySelector('[data-revision-editor-frame]');
+        const editorContent = card.querySelector('[data-revision-editor-content]');
+        if (editorContent) editorContent.inert = keepPaper.checked;
+        const notice = card.querySelector('[data-revision-keep-notice]');
+        if (notice) notice.hidden = !keepPaper.checked;
         refreshModificationStates(card);
     };
     const dialogIsOpen = (card) => Boolean(card.querySelector('[data-revision-dialog]')?.open);
     const canFocusEditor = (card) => {
         const active = document.activeElement;
         return !revisionNoChangeResolution(card).selected
-            && card.querySelector('[data-revision-preview-panel]')?.hidden !== false
-            && !active?.closest?.('[data-revision-resolution-panel], .revision-upload-alternative');
+            && !active?.closest?.('[data-revision-feedback], [data-revision-resolution-panel], .revision-upload-alternative');
     };
     const selectFeedback = (card, syncPdf = true, focusEditor = true) => {
         const selector = card.querySelector('[data-revision-comment]');
@@ -718,6 +970,7 @@ export function initializeRevisionDialogs(form, topicId) {
             dialog.showModal();
         }
         card.dataset.revisionReviewed = 'true';
+        loadRevisionEditorFrame(card);
         refreshModificationStates(card);
         const index = cards.indexOf(card);
         card.querySelector('[data-revision-previous]').disabled = index === 0;
@@ -728,12 +981,37 @@ export function initializeRevisionDialogs(form, topicId) {
     cards.forEach((card) => {
         initializeRevisionPanelResize(card);
         const dialog = card.querySelector('[data-revision-dialog]');
+        const workspace = card.querySelector('[data-revision-document-workspace]');
+        const feedbackToggle = card.querySelector('[data-revision-feedback-toggle]');
+        const wideScreen = window.matchMedia('(min-width: 1280px)');
+        const setFeedbackVisible = (visible) => {
+            workspace?.classList.toggle('revision-responses-visible', visible);
+            feedbackToggle?.setAttribute('aria-expanded', String(visible));
+        };
+        setFeedbackVisible(wideScreen.matches || revisionNoChangeResolution(card).selected);
+        wideScreen.addEventListener('change', (event) => setFeedbackVisible(event.matches));
+        feedbackToggle?.addEventListener('click', () => setFeedbackVisible(!workspace.classList.contains('revision-responses-visible')));
+        card.querySelector('[data-revision-feedback-dismiss]')?.addEventListener('click', () => {
+            setFeedbackVisible(false);
+            feedbackToggle?.focus({ preventScroll: true });
+        });
+        card.addEventListener('revision-feedback-reveal', () => setFeedbackVisible(true));
+        dialog.addEventListener('cancel', (event) => {
+            if (event.defaultPrevented || wideScreen.matches || !workspace?.classList.contains('revision-responses-visible')) return;
+            event.preventDefault();
+            setFeedbackVisible(false);
+            feedbackToggle?.focus({ preventScroll: true });
+        });
         dialog.addEventListener('close', () => {
             // Switching documents must not unmount or navigate either editor.
             if (activeCard === card) {
                 document.body.style.overflow = previousOverflow;
                 activeCard = null;
                 card.querySelector('[data-revision-open]')?.focus({ preventScroll: true });
+                const status = card.querySelector('[data-revision-document-state]');
+                if (status?.dataset.modified === 'true' && !revisionNoChangeResolution(card).selected) {
+                    form.dispatchEvent(new CustomEvent('revision-paper-reviewed', { detail: { documentType: card.dataset.revisionDocument } }));
+                }
             }
         });
         const frame = card.querySelector('[data-revision-pdf-frame]');
@@ -754,12 +1032,15 @@ export function initializeRevisionDialogs(form, topicId) {
         const editorFrame = card.querySelector('[data-revision-editor-frame]');
         const bindEditor = () => {
             const editor = editorFor(card);
+            if (!editor && !editorFrame?.getAttribute?.('src')) return;
             setFrameLoading(card, 'editor', false);
             if (editor) {
                 editor.onChange = (states) => refreshModificationStates(card, states);
                 refreshModificationStates(card);
             }
-            if (dialog.open) selectFeedback(card, true, false);
+            const focusPending = editorFrame?.dataset?.revisionEditorPendingFocus === 'true';
+            if (editorFrame?.dataset) delete editorFrame.dataset.revisionEditorPendingFocus;
+            if (dialog.open) selectFeedback(card, true, focusPending && document.activeElement !== editorFrame);
         };
         editorFrame?.addEventListener('load', bindEditor);
         if (editorFrame && editorFor(card)) bindEditor();
@@ -779,20 +1060,33 @@ export function initializeRevisionDialogs(form, topicId) {
     form.addEventListener('change', (event) => {
         const card = event.target.closest?.('[data-revision-document]');
         if (!card) return;
-        if (event.target.matches?.('[data-revision-no-change]')) {
+        if (event.target.matches?.('[data-revision-no-change], [data-revision-edit-paper]')) {
             const upload = card.querySelector('input[type="file"]');
-            if (event.target.checked && upload?.files?.length) upload.value = '';
+            const keeping = card.querySelector('[data-revision-no-change]')?.checked;
+            if (keeping && upload?.files?.length) upload.value = '';
             synchronizeNoChange(card);
             synchronizeRevisionNoChangeResponses(form, card);
-            if (event.target.checked) card.querySelector('[data-revision-no-change-explanation]')?.focus();
+            if (!keeping && dialogIsOpen(card)) loadRevisionEditorFrame(card);
+            if (keeping) card.querySelector(card.hasAttribute('data-revision-single-reply') ? '[data-revision-response-document]' : '[data-revision-no-change-explanation]')?.focus();
             return;
         }
         if (!event.target.matches?.('input[type="file"]')) return;
         const noChange = card.querySelector('[data-revision-no-change]');
-        if (event.target.files?.length && noChange?.checked) noChange.checked = false;
+        if (event.target.files?.length && noChange?.checked) {
+            noChange.checked = false;
+            const revise = card.querySelector('[data-revision-edit-paper]');
+            if (revise) revise.checked = true;
+        }
         synchronizeNoChange(card);
     });
     form.addEventListener('input', (event) => {
+        if (event.target.matches?.('[data-revision-response-document]')) {
+            const card = event.target.closest('[data-revision-document]');
+            if (card?.hasAttribute('data-revision-single-reply')) {
+                synchronizeSingleRevisionReply(card);
+                refreshModificationStates(card);
+            }
+        }
         if (!event.target.matches?.('[data-revision-no-change-explanation]')) return;
         const card = event.target.closest('[data-revision-document]');
         if (card) {
@@ -803,6 +1097,9 @@ export function initializeRevisionDialogs(form, topicId) {
     form.addEventListener('invalid', (event) => {
         const card = event.target.closest('[data-revision-document]');
         if (cards.includes(card)) {
+            const body = event.target.closest('[data-revision-comment-body]');
+            if (body) card.querySelector('[data-revision-comment]').value = body.dataset.revisionCommentBody;
+            card.dispatchEvent(new CustomEvent('revision-feedback-reveal'));
             open(card);
             event.target.closest('details')?.setAttribute('open', '');
         }
@@ -819,6 +1116,64 @@ export function initializeRevisionDialogs(form, topicId) {
         }
     }
     return { open, close };
+}
+
+export function initializeRevisionCommentResponsePapers(form) {
+    form.querySelectorAll('[data-comment-response-paper]').forEach((paper) => {
+        const trigger = paper.querySelector('[data-comment-response-paper-open]');
+        const close = paper.querySelector('[data-comment-response-paper-close]');
+        const group = paper.closest('[data-comment-response-source]');
+        const originalParent = paper.parentNode;
+        const originalNextSibling = paper.nextSibling;
+        let returnFocus;
+        let scrollPosition = 0;
+        let bodyOverflow = '';
+        const expand = (focusTarget = trigger) => {
+            if (paper.matches(':modal')) return;
+            returnFocus = focusTarget;
+            scrollPosition = window.scrollY;
+            bodyOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            paper.close();
+            if (originalParent.closest('[hidden]')) form.appendChild(paper);
+            paper.setAttribute('role', 'dialog');
+            paper.showModal();
+            trigger.setAttribute('aria-expanded', 'true');
+            close.hidden = false;
+            paper.querySelector('[data-comment-response-preview] iframe')?.setAttribute('tabindex', '0');
+            paper.querySelector('[data-comment-response-preview]')?.dispatchEvent(new CustomEvent('comment-response-paper-view-change', { detail: { expanded: true } }));
+            close.focus({ preventScroll: true });
+        };
+        const restore = () => {
+            if (!paper.matches(':modal')) return;
+            paper.close();
+            if (paper.parentNode !== originalParent) originalParent.insertBefore(paper, originalNextSibling);
+            paper.setAttribute('role', 'region');
+            paper.show();
+            trigger.setAttribute('aria-expanded', 'false');
+            close.hidden = true;
+            paper.querySelector('[data-comment-response-preview] iframe')?.setAttribute('tabindex', '-1');
+            paper.querySelector('[data-comment-response-preview]')?.dispatchEvent(new CustomEvent('comment-response-paper-view-change', { detail: { expanded: false } }));
+            document.body.style.overflow = bodyOverflow;
+            window.scrollTo({ top: scrollPosition, behavior: 'instant' });
+            returnFocus?.focus({ preventScroll: true });
+        };
+        form.querySelectorAll('[data-comment-response-preview-open]').forEach((button) => {
+            if (button.dataset.commentResponsePreviewOpen !== group?.dataset.commentResponseSource) return;
+            button.addEventListener('click', () => expand(button));
+        });
+        trigger.addEventListener('click', (event) => {
+            if (event.target.closest('button, a')) return;
+            if (event.target.closest('.pdf-annotation-page, [data-comment-response-preview]') && !window.getSelection()?.toString()) expand();
+        });
+        trigger.addEventListener('keydown', (event) => {
+            if (event.target !== trigger || !['Enter', ' '].includes(event.key)) return;
+            event.preventDefault();
+            expand();
+        });
+        close.addEventListener('click', restore);
+        paper.addEventListener('cancel', (event) => { event.preventDefault(); restore(); });
+    });
 }
 
 export function initializeRevisionWorkflow(form) {
@@ -838,10 +1193,12 @@ export function initializeRevisionWorkflow(form) {
         progress.textContent = `Step ${current} of ${panels.length} - ${panel.dataset.revisionStepLabel}`;
         form.querySelectorAll('[data-revision-progress-step]').forEach((item) => {
             const number = Number(item.dataset.revisionProgressStep);
+            item.dataset.state = number < current ? 'complete' : (number === current ? 'current' : 'upcoming');
             if (number === current) item.setAttribute('aria-current', 'step');
             else item.removeAttribute('aria-current');
-            item.classList.toggle('font-bold', number === current);
             item.querySelector('[data-revision-progress-mark]').textContent = number < current ? '\u2713' : String(number);
+            const description = item.querySelector('[data-revision-progress-description]');
+            if (description) description.textContent = number < current ? 'Completed' : (number === current ? 'Current step' : 'Upcoming');
         });
         back.hidden = current === 1;
         next.hidden = current === panels.length;
@@ -877,8 +1234,9 @@ export function initializeRevisionWorkflow(form) {
         const invalid = controls.find((control) => !control.checkValidity());
         if (invalid) {
             show(step);
-            error.textContent = step === 3 ? 'Complete each response and its page and paragraph numbers, or select No change made.' : 'Check the proposal details and confirm they are correct.';
+            error.textContent = step === 2 ? 'Write a reply to each reviewer comment.' : 'Check the proposal details and confirm they are correct.';
             error.hidden = false;
+            invalid.closest?.('details')?.setAttribute('open', '');
             invalid.reportValidity();
             invalid.focus();
             return false;
@@ -902,7 +1260,7 @@ export function initializeRevisionWorkflow(form) {
         setDialogs(value) { dialogs = value; },
         canSubmit() {
             if (current !== panels.length) { if (validate(current)) show(current + 1); return false; }
-            return [2, 3, 4].every(validate);
+            return panels.slice(1, -1).every((panel) => validate(Number(panel.dataset.revisionStep)));
         },
     };
 }
@@ -915,6 +1273,7 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
         if (form.dataset.revisionInitialized) return;
         form.dataset.revisionInitialized = 'true';
         const topicId = form.dataset.revisionWorkspace;
+        initializeRevisionCommentResponsePapers(form);
         const status = form.querySelector('[data-revision-submit-status]');
         const error = form.querySelector('[data-revision-submit-error]');
         const errorMessage = form.querySelector('[data-revision-submit-error-message]');
@@ -982,6 +1341,7 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
             if (upload) upload.required = false;
             const report = () => {
                 const editor = revisionEditorForFrame(frame, topicId);
+                if (!editor && !frame.getAttribute?.('src')) return;
                 const message = card.querySelector('[data-revision-editor-status]');
                 message.textContent = editor
                     ? 'Changes save as you type. Submit revision generates and attaches the updated PDF.'
@@ -1005,7 +1365,9 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                 const card = [...form.querySelectorAll('[data-revision-document]')].find((card) => card.dataset.revisionDocument === type);
                 if ((card?.querySelector('input[type="file"]')?.files?.length || 0) > 0) return [];
                 const frame = card?.querySelector('[data-revision-editor-frame]');
-                return frame ? revisionEditorForFrame(frame, topicId)?.changedPassages?.(field.dataset.responseKey?.replace('annotation_', '')) || [] : [];
+                const editor = frame ? revisionEditorForFrame(frame, topicId) : null;
+                const linked = editor?.changedPassages?.(field.dataset.responseKey?.replace('annotation_', '')) || [];
+                return linked.length ? linked : editor?.changedPassages?.() || [];
             },
             readDocuments: async (types, prepared) => {
                 const cards = [...form.querySelectorAll('[data-revision-document]')].filter((card) => types.includes(card.dataset.revisionDocument));
@@ -1091,6 +1453,10 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                     unlockSubmission(attempt);
                     error.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
+                // A background location read may still be generating a paper after Done.
+                // Finish it before staging the final files so an older upload cannot win the race.
+                await responseLocations?.settle();
+                if (attempt.cancelled) return;
                 for (const frame of frames) {
                     const card = frame.closest('[data-revision-document]');
                     if (revisionNoChangeResolution(card).selected) continue;
@@ -1119,6 +1485,11 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                 });
                 if (attempt.cancelled) return;
                 if (files.length) form.elements.revision_draft_id.value = String(files[0].draft_id);
+                form.querySelectorAll('[data-revision-document]').forEach((card) => {
+                    const frame = card.querySelector('[data-revision-editor-frame]');
+                    const editor = frame ? revisionEditorForFrame(frame, topicId) : null;
+                    synchronizeRevisionNoChangeResponses(form, card, editor?.modificationStates?.() || {}, Boolean(card.querySelector('input[type="file"]')?.files?.length));
+                });
                 await responseLocations?.verify(files);
                 if (attempt.cancelled) return;
                 // Only the final PATCH sends this revision to the Research Head.
@@ -1136,7 +1507,8 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                 if (activeSubmissionAttempt === attempt) {
                     showSubmissionError(exception instanceof Error ? exception.message : 'Revision could not be prepared. Your edits remain here.');
                     hideSubmissionProgress();
-                    const revealedEditor = revealRevisionEditorFailure(
+                    const revealedResponse = revealRevisionResponseFailure(exception, form, revisionDialogs, workflow);
+                    const revealedEditor = !revealedResponse && revealRevisionEditorFailure(
                         exception,
                         frames,
                         topicId,
@@ -1145,7 +1517,7 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                             ? window.requestAnimationFrame(callback)
                             : window.setTimeout(callback, 0),
                     );
-                    if (!revealedEditor) error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (!revealedResponse && !revealedEditor) error.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             } finally {
                 if (!submitted) {

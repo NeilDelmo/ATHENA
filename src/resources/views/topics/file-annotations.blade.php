@@ -52,6 +52,7 @@
                 :role="paperFocusOpen ? 'dialog' : null"
                 :aria-modal="paperFocusOpen ? 'true' : null"
                 :aria-label="paperFocusOpen ? 'Focused PDF review workspace' : null"
+                @keydown.tab="trapPaperFocus($event)"
                 @keydown.escape.window="if (!draftSelection && !document.querySelector('[data-comment-response-preview-content]')) closePaperFocus()"
                 class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
@@ -65,6 +66,7 @@
                         @endif
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" data-review-comments-toggle @click="commentsOpen = !commentsOpen" :aria-expanded="commentsOpen.toString()" aria-controls="review-document-comments" class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800" x-text="commentsOpen ? 'Hide comments' : 'Show comments'">Hide comments</button>
                         @foreach ($commentResponseLinks as $link)
                             <button x-show="paperFocusOpen" x-cloak type="button" data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'highlight-comment-response-{{ $loop->index }}')" @if ($link['draft']) :disabled="saving || !!deletingAnnotationId" @endif class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950">{{ $link['label'] }}</button>
                         @endforeach
@@ -72,14 +74,14 @@
                     </div>
                 </div>
 
-                <div :class="paperFocusOpen ? 'min-h-0 flex-1' : 'h-[76dvh] min-h-[32rem]'" class="grid grid-rows-[minmax(14rem,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-1">
+                <div data-review-document-layout :class="[paperFocusOpen ? 'min-h-0 flex-1' : 'h-[76dvh] min-h-[32rem]', commentsOpen ? 'grid-rows-[minmax(8rem,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_380px]' : 'grid-rows-1 grid-cols-1']" class="grid min-w-0 lg:grid-rows-1">
                     <main class="min-h-0 min-w-0 overflow-hidden rounded-bl-2xl bg-slate-100 dark:bg-slate-950">
-                        <div x-show="loading" class="p-8 text-center text-sm text-gray-600">Loading submitted PDF…</div>
+                        <div x-show="loading" role="status" class="p-8 text-center text-sm text-gray-600 dark:text-gray-300">Loading submitted PDF…</div>
                         <div x-show="loadError" x-cloak role="alert" class="m-4 rounded-xl bg-red-50 p-4 text-sm text-red-800" x-text="loadError"></div>
-                        <div x-ref="viewer" :data-active-reviewer="activeReviewer" tabindex="0" aria-label="Submitted document" @mouseup="captureTextSelection" :class="{ 'pdf-annotation-area-mode': mode !== 'text' }" class="pdf-annotation-viewer flex h-full flex-col items-center gap-5 overflow-auto overscroll-contain p-3 sm:p-5"></div>
+                        <div x-ref="viewer" :data-active-reviewer="activeReviewer" tabindex="0" aria-label="Submitted document" @mouseup="captureTextSelection" :class="{ 'pdf-annotation-area-mode': mode !== 'text' }" class="pdf-annotation-viewer flex h-full flex-col [align-items:safe_center] gap-5 overflow-auto overscroll-contain p-3 sm:p-5"></div>
                     </main>
 
-                    <aside class="max-h-[34dvh] overflow-y-auto border-t border-gray-200 p-4 dark:border-gray-800 lg:max-h-none lg:border-l lg:border-t-0">
+                    <aside id="review-document-comments" x-show="commentsOpen" class="min-w-0 max-h-[34dvh] overflow-y-auto border-t border-gray-200 p-4 dark:border-gray-800 lg:max-h-none lg:border-l lg:border-t-0">
                         <div class="mb-5 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30" aria-label="Active reviewer">
                             <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-700 text-sm font-bold text-white">
                                 <template x-if="config.researchHeadAvatar"><img :src="config.researchHeadAvatar" alt="" class="h-full w-full object-cover" x-on:error="config.researchHeadAvatar = null"></template>
@@ -116,6 +118,14 @@
                         </div>
                     </aside>
                 </div>
+
+                <footer data-review-document-zoom role="group" aria-label="Document zoom controls" class="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-gray-200 px-3 py-3 text-sm dark:border-gray-800">
+                    <button type="button" @click="setPaperZoom(previewZoom - 10)" :disabled="loading || previewZoom <= 50" aria-label="Zoom out" class="min-h-11 rounded-lg border border-gray-300 px-3 font-semibold text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800">−</button>
+                    <output class="min-w-12 text-center text-gray-700 dark:text-gray-200" x-text="`${previewZoom}%`" aria-live="polite">100%</output>
+                    <button type="button" @click="setPaperZoom(previewZoom + 10)" :disabled="loading || previewZoom >= 150" aria-label="Zoom in" class="min-h-11 rounded-lg border border-gray-300 px-3 font-semibold text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800">+</button>
+                    <button type="button" @click="fitPaper('page')" :aria-pressed="previewFit === 'page'" :disabled="loading" class="min-h-11 rounded-lg border border-gray-300 px-3 font-semibold text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 aria-pressed:border-red-700 aria-pressed:text-red-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 dark:aria-pressed:border-red-300 dark:aria-pressed:text-red-300">Fit page</button>
+                    <button type="button" @click="fitPaper('width')" :aria-pressed="previewFit === 'width'" :disabled="loading" class="min-h-11 rounded-lg border border-gray-300 px-3 font-semibold text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 aria-pressed:border-red-700 aria-pressed:text-red-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 dark:aria-pressed:border-red-300 dark:aria-pressed:text-red-300">Fit width</button>
+                </footer>
 
                 @if ($canAnnotate)
                     <section x-ref="commentComposer" x-show="draftSelection" x-cloak role="dialog" aria-labelledby="revision-comment-title" @keydown.escape.stop.prevent="cancelDraft()" @keydown.ctrl.enter.prevent="saveAnnotation()" @keydown.meta.enter.prevent="saveAnnotation()" class="fixed z-[120] w-[410px] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900">

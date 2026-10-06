@@ -7,14 +7,14 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('document-pdf:convert {sourcePath} {outputDirectory} {profilePath} {filter}')]
+#[Signature('document-pdf:convert {sourcePath} {outputDirectory} {profilePath} {filter} {additionalSources?*}')]
 #[Description('Convert an internal Office document to PDF through LibreOffice')]
 class ConvertOfficeDocumentToPdf extends Command
 {
     public function handle(LibreOfficeProcess $libreOffice): int
     {
-        $result = $libreOffice->run(
-            (string) $this->argument('sourcePath'),
+        $result = $libreOffice->runMany(
+            [(string) $this->argument('sourcePath'), ...$this->argument('additionalSources')],
             (string) $this->argument('outputDirectory'),
             (string) $this->argument('profilePath'),
             (string) $this->argument('filter'),

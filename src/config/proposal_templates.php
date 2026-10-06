@@ -33,7 +33,7 @@ return [
     ],
     'gad-generic-checklist' => [
         'name' => 'GAD Generic Checklist',
-        'description' => 'Required gender-responsiveness checklist for the initial proposal package',
+        'description' => 'Required gender-responsiveness checklist for the initial proposal submission',
         'instructions' => 'Faculty proponents must complete and include this checklist with the initial submission.',
         'workflow_stage' => 'initial_submission',
         'path' => 'proposals/templates/Box 7a GAD Generic Checklist.docx',

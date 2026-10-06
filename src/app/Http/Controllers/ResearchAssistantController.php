@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\LiteratureSynthesisException;
 use App\Exceptions\ResearchAssistantDocumentException;
 use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
@@ -10,6 +11,7 @@ use App\Services\AiChatCompletionService;
 use App\Services\ProposalAssistantContextService;
 use App\Services\ResearchAssistantConversationMemoryService;
 use App\Services\ResearchAssistantDocumentService;
+use App\Services\ResearchAssistantLiteratureService;
 use App\Services\ResearchAssistantWorkflowContextService;
 use App\Services\ResearchKnowledgeService;
 use Illuminate\Http\Client\ConnectionException;
@@ -33,6 +35,7 @@ class ResearchAssistantController extends Controller
         private ResearchAssistantDocumentService $assistantDocuments,
         private ResearchAssistantConversationMemoryService $conversationMemory,
         private AiChatCompletionService $ai,
+        private ResearchAssistantLiteratureService $literature,
     ) {}
 
     public function history(Request $request): JsonResponse
@@ -90,6 +93,13 @@ class ResearchAssistantController extends Controller
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'messages.*.sources' => ['nullable', 'array', 'max:20'],
+            'messages.*.literature' => ['nullable', 'array:kind,proposal_draft_id,proposal_title,query,context_basis,year_from,year_to,results,drafts,sources,editor_url,notice,confirmed,applied'],
+            'messages.*.literature.confirmed' => ['nullable', 'boolean'],
+            'messages.*.literature.applied' => ['nullable', 'boolean'],
+            'messages.*.literature.kind' => ['required_with:messages.*.literature', 'in:results,draft,insertion'],
+            'messages.*.literature.results' => ['nullable', 'array', 'max:5'],
+            'messages.*.literature.drafts' => ['nullable', 'array', 'max:3'],
+            'messages.*.literature.sources' => ['nullable', 'array', 'max:3'],
             'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope'],
             'context.topic_id' => ['nullable', 'integer'],
             'context.proposal_draft_id' => ['nullable', 'integer'],
@@ -134,9 +144,16 @@ class ResearchAssistantController extends Controller
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'conversation_id' => ['nullable', 'integer'],
-            'action' => ['nullable', 'array:type,document_token'],
-            'action.type' => ['required_with:action', 'string', 'in:analyze_document'],
-            'action.document_token' => ['required_with:action', 'string', 'max:4096'],
+            'action' => ['nullable', 'array:type,document_token,query,source_tokens,drafts'],
+            'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_literature,confirm_literature'],
+            'action.document_token' => ['required_if:action.type,analyze_document', 'string', 'max:4096'],
+            'action.query' => ['nullable', 'string', 'max:500'],
+            'action.source_tokens' => ['required_if:action.type,draft_literature', 'array', 'min:1', 'max:3'],
+            'action.source_tokens.*' => ['required', 'string', 'size:64', 'distinct'],
+            'action.drafts' => ['required_if:action.type,confirm_literature', 'array', 'min:1', 'max:3'],
+            'action.drafts.*' => ['required', 'array:draft_token,paragraph'],
+            'action.drafts.*.draft_token' => ['required', 'string', 'size:64', 'distinct'],
+            'action.drafts.*.paragraph' => ['required', 'string', 'min:40', 'max:5000'],
             'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope,form'],
             'context.topic_id' => ['nullable', 'integer'],
             'context.proposal_draft_id' => ['nullable', 'integer'],
@@ -198,6 +215,23 @@ class ResearchAssistantController extends Controller
                     'completion_tokens' => 0,
                 ],
             ]);
+        }
+
+        $literatureAction = $validated['action']['type'] ?? null;
+        $canSearchLiterature = $request->user()->isUsingWorkspace([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
+
+        if (($literatureAction !== null || $canSearchLiterature)
+            && $this->literature->isLiteratureRequest($messages->last()['content'], $literatureAction)) {
+            try {
+                return response()->json($this->literature->respond(
+                    $request->user(),
+                    $validated['context'] ?? [],
+                    $messages->last()['content'],
+                    $validated['action'] ?? [],
+                ));
+            } catch (LiteratureSynthesisException $exception) {
+                return response()->json(['message' => $exception->getMessage()], $exception->status);
+            }
         }
 
         if (! $this->ai->isConfigured()) {
@@ -577,6 +611,9 @@ PROMPT;
                     'role' => $message['role'],
                     'content' => trim($message['content']),
                     'sources' => $sources,
+                    ...(isset($message['literature']) && is_array($message['literature'])
+                        ? ['literature' => $this->literature->historyPacket($message['literature'])]
+                        : []),
                 ];
             })
             ->filter(fn (array $message): bool => $message['content'] !== '')

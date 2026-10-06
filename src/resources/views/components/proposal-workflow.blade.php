@@ -274,7 +274,7 @@
     @endunless
 
     <footer class="grid gap-1 border-t border-red-100 bg-red-50/60 px-4 py-3 dark:border-red-950 dark:bg-red-950/15 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-start sm:px-5">
-        <p class="text-[10px] font-black tracking-[0.12em] text-[#7A0019]/70 dark:text-red-300">{{ $topic ? 'NEXT ROUTING' : 'FACULTY ACTION' }}</p>
+        <p class="text-[10px] font-black tracking-[0.12em] text-[#7A0019]/70 dark:text-red-300">{{ $topic ? 'NEXT STEP' : 'FACULTY ACTION' }}</p>
         <p class="text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">{{ $nextAction }} <span class="text-slate-500 dark:text-slate-400">Revision requests return to the review stage that issued them.</span></p>
     </footer>
 </section>

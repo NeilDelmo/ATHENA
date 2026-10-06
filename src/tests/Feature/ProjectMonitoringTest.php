@@ -267,9 +267,11 @@ test('three quarterly report pairs preserve approved values and editable results
             'findings' => 'Field observations '.$quarter];
         $this->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)([
             'reporting_date' => $period['end']->toDateString(), 'work_plan' => $monitoringRows,
+            'activity_evidence' => $quarter === 3 ? ['plan-0' => [UploadedFile::fake()->image('completed-coastal-dataset.png')]] : [],
         ]))->assertRedirect()->assertSessionHasNoErrors();
         $monitoring = ProjectProgressReport::where('topic_id', $this->topic->id)->latest('id')->firstOrFail();
         expect($monitoring->work_plan[0]['objective'])->toBe('Assess coastal habitats.')
+            ->and($monitoring->progress_percentage)->toBe($quarter === 3 ? 100 : 0)
             ->and($monitoring->work_plan[0]['physical_target'])->toBe('A validated coastal dataset')
             ->and($monitoring->work_plan[0]['actual_accomplishment'])->toBe('Monitoring result '.$quarter);
         $this->get(route('project-progress.monitoring-tool', $monitoring))->assertOk();
@@ -770,12 +772,13 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertOk()
         ->assertSee('Submit monitoring tool')
         ->assertSee('Prepare official PDF')
-        ->assertSee('Preview monitoring tool')
+        ->assertSee('Preview paper')
         ->assertSee('Changes save automatically.')
         ->assertSee('Exit monitoring')
         ->assertSee('data-paper-cancel-exit', false)
-        ->assertSee('data-monitoring-action-dock-fixed', false)
-        ->assertSee('fixed inset-x-4 bottom-4', false)
+        ->assertSee('data-monitoring-writing-toolbar', false)
+        ->assertSee('data-proposal-workspace-toolbar', false)
+        ->assertDontSee('data-monitoring-action-dock-fixed', false)
         ->assertSee('data-proposal-autosave-status', false)
         ->assertSee('data-monitoring-tool-autosave-form', false)
         ->assertSee('x-ref="previewFrame"', false)
@@ -941,7 +944,7 @@ test('monitoring drafts can be previewed before PDF preparation opens', function
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
-    $previewButton = $xpath->query('//button[span[normalize-space(.)="Preview monitoring tool"]]')->item(0);
+    $previewButton = $xpath->query('//button[@data-proposal-preview-toggle]')->item(0);
     $prepareButton = $xpath->query('//button[span[normalize-space(.)="Prepare official PDF"]]')->item(0);
     expect($previewButton->getAttribute(':disabled'))->toBe('previewLoading || submitting')
         ->and($prepareButton->getAttribute(':disabled'))->toContain('!submissionOpen');
@@ -973,7 +976,7 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
         'accomplishments' => 'Monitoring interface review fixture.',
     ]);
 
-    $this->actingAs($this->head)
+    $response = $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSeeInOrder([
@@ -981,6 +984,8 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
             'data-project-monitoring-details', 'bg-white', 'Monitoring starts', 'Project ends', 'Next period opens',
         ], false)
         ->assertSee('Review progress')
+        ->assertSee('NEXT STEP')
+        ->assertDontSee('NEXT ROUTING')
         ->assertSee('All five stages completed.')
         ->assertSee('data-workflow-stage-outcome="5"', false)
         ->assertSee('Notice to Proceed issued')
@@ -1007,6 +1012,16 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
         ->assertSee('data-monitoring-action', false)
         ->assertSee('View tool')
         ->assertSee("window.location.hash === '#project-monitoring'", false);
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $reviewTab = $xpath->query('//*[@id="proposal-review-tab"]')->item(0);
+
+    expect($reviewTab->getAttribute('x-show'))->toBe("activeTopicTab === 'review'")
+        ->and($reviewTab->hasAttribute('x-cloak'))->toBeTrue()
+        ->and($xpath->query('//*[@id="proposal-review-tab"]//*[@data-visible-proposal-workflow]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-visible-proposal-workflow][not(ancestor::*[@id="proposal-review-tab"])]')->length)->toBe(0);
 });
 
 test('the proposal review sequence remains visible before project monitoring begins', function () {

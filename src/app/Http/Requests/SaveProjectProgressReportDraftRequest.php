@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\MonitoringEvidenceService;
 use App\Services\MonitoringQuarterService;
 use DateTimeImmutable;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -35,6 +36,7 @@ class SaveProjectProgressReportDraftRequest extends FormRequest
                 is_array($this->input('work_plan')) ? $this->input('work_plan') : [],
             ),
         ]);
+        app(MonitoringEvidenceService::class)->prepareRequest($this, $topic);
     }
 
     /**
@@ -58,6 +60,7 @@ class SaveProjectProgressReportDraftRequest extends FormRequest
     public function rules(): array
     {
         return [
+            ...app(MonitoringEvidenceService::class)->rules($this),
             'draft_version' => ['required', 'integer', 'min:0'],
             'source_report_id' => ['nullable', 'integer'],
             'reporting_date' => ['nullable', 'date'],
@@ -91,6 +94,7 @@ class SaveProjectProgressReportDraftRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            app(MonitoringEvidenceService::class)->validateEvidence($this, $validator);
             if (filled($this->input('reporting_date')) && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canDraftForDate($this->route('topic'), $this->input('reporting_date'))) {
                 $validator->errors()->add('reporting_date', 'Choose a reporting quarter within the approved project schedule.');
             }

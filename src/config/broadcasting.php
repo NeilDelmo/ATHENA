@@ -1,5 +1,16 @@
 <?php
 
+$reverbCredentials = [
+    'key' => env('REVERB_APP_KEY'),
+    'secret' => env('REVERB_APP_SECRET'),
+    'app_id' => env('REVERB_APP_ID'),
+];
+$reverbConfigured = count(array_filter(
+    $reverbCredentials,
+    fn (mixed $credential): bool => is_string($credential) && trim($credential) !== '',
+)) === count($reverbCredentials);
+$broadcastConnection = env('BROADCAST_CONNECTION', 'null') ?? 'null';
+
 return [
 
     /*
@@ -15,7 +26,7 @@ return [
     |
     */
 
-    'default' => env('BROADCAST_CONNECTION', 'null'),
+    'default' => $broadcastConnection === 'reverb' && ! $reverbConfigured ? 'null' : $broadcastConnection,
 
     /*
     |--------------------------------------------------------------------------
@@ -32,9 +43,7 @@ return [
 
         'reverb' => [
             'driver' => 'reverb',
-            'key' => env('REVERB_APP_KEY'),
-            'secret' => env('REVERB_APP_SECRET'),
-            'app_id' => env('REVERB_APP_ID'),
+            ...$reverbCredentials,
             'options' => [
                 'host' => env('REVERB_HOST'),
                 'port' => env('REVERB_PORT', 443),

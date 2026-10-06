@@ -73,7 +73,7 @@ class SubmitProposalDraft
             abort(403);
         }
 
-        abort_unless($draft->topic_id === null || ($draft->topic?->canUpdateBeforeReview() ?? false), 403);
+        abort_unless($draft->isEditable(), 403);
 
         $errors = $this->readiness->errors($draft);
 
@@ -89,25 +89,39 @@ class SubmitProposalDraft
         $preparedFiles = [];
 
         try {
-            foreach ($this->catalog->all()->sortBy(fn (array $paper): int => $paper['slug'] === 'detailed-proposal' ? 1 : 0) as $paper) {
-                if ($paper['mode'] === 'upload') {
+            $generatedPapers = [];
+
+            foreach ($this->catalog->all() as $paper) {
+                if ($paper['mode'] === 'upload' || $paper['slug'] === 'detailed-proposal') {
                     continue;
                 }
 
                 $document = $draft->documents->firstWhere('document_type', $paper['document_type']);
 
-                $preparedFiles[] = match ($paper['slug']) {
-                    'detailed-proposal' => $this->generateDetailedProposal($draft, $document, $preparedDirectory, $preparedFiles),
-                    'work-plan' => $this->generateWorkPlan($draft, $document, $preparedDirectory),
-                    'line-item-budget' => $this->generateLineItemBudget($draft, $document, $preparedDirectory),
-                    'expense-breakdown' => $this->generateExpenseBreakdown($draft, $document, $preparedDirectory),
-                    'curriculum-vitae' => $this->generateCurriculumVitae($draft, $document, $preparedDirectory),
-                    'gad-checklist' => $this->generateGADChecklist($draft, $preparedDirectory),
-                    'initial-screening-form' => $this->generateInitialScreeningForm($draft, $preparedDirectory),
+                $generatedPapers[$paper['slug']] = match ($paper['slug']) {
+                    'work-plan' => $this->generateWorkPlan($draft, $document),
+                    'line-item-budget' => $this->generateLineItemBudget($draft, $document),
+                    'expense-breakdown' => $this->generateExpenseBreakdown($draft, $document),
+                    'curriculum-vitae' => $this->generateCurriculumVitae($draft, $document),
+                    'gad-checklist' => $this->generateGADChecklist($draft),
+                    'initial-screening-form' => $this->generateInitialScreeningForm($draft),
                     default => throw ValidationException::withMessages([
                         'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
                     ]),
                 };
+            }
+
+            $preparedFiles = $this->packageService->storeGeneratedPapers($generatedPapers, $preparedDirectory, $draft->project_title);
+            unset($generatedPapers);
+            $detailedPaper = $this->catalog->get('detailed-proposal');
+
+            if ($detailedPaper['mode'] !== 'upload') {
+                $preparedFiles[] = $this->generateDetailedProposal(
+                    $draft,
+                    $draft->documents->firstWhere('document_type', $detailedPaper['document_type']),
+                    $preparedDirectory,
+                    $preparedFiles,
+                );
             }
 
             DB::transaction(function () use ($draft, $draftVersion, $documentVersions, $preparedFiles): void {
@@ -117,7 +131,6 @@ class SubmitProposalDraft
                     ->firstOrFail();
 
                 $lockedDraft->ensureEditable();
-                abort_unless($lockedDraft->topic_id === null || ($lockedDraft->topic()->first()?->canUpdateBeforeReview() ?? false), 403);
 
                 if ($lockedDraft->status !== ProposalDraft::STATUS_DRAFT
                     || $lockedDraft->lock_version !== $draftVersion) {
@@ -268,7 +281,7 @@ class SubmitProposalDraft
                     'submitted_by' => $user->id,
                     'version_number' => $existingTopic ? ((int) $topic->versions()->max('version_number') + 1) : 1,
                     'submission_type' => $existingTopic ? 'update' : 'initial',
-                    'change_summary' => $existingTopic ? 'Faculty updated the proposal package before Research Head review.' : null,
+                    'change_summary' => $existingTopic ? 'Faculty updated the proposal before Research Head review.' : null,
                     'file_path' => $primaryFile['file_path'],
                     'original_filename' => $primaryFile['original_filename'],
                     'mime_type' => $primaryFile['mime_type'],
@@ -304,7 +317,7 @@ class SubmitProposalDraft
             Notification::send(
                 User::role('research_head')->get(),
                 new ProposalActivityNotification(
-                    title: $draft->topic_id !== null ? 'Proposal package updated' : 'New proposal submitted',
+                    title: $draft->topic_id !== null ? 'Proposal submission updated' : 'New proposal submitted',
                     message: $user->name.' submitted “'.$topic->title.'” for review.',
                     url: route('topics.show', $topic),
                     topicId: $topic->id,
@@ -448,7 +461,6 @@ class SubmitProposalDraft
     private function generateWorkPlan(
         ProposalDraft $draft,
         ProposalDraftDocument $document,
-        string $permanentDirectory,
     ): array {
         $sourceData = [
             'project_title' => $draft->project_title,
@@ -474,19 +486,13 @@ class SubmitProposalDraft
         $validated = $validator->validate();
         $workPlan = WorkPlanData::fromValidated($validated);
 
-        return $this->packageService->storeGeneratedWorkPlan(
-            $this->workPlanDocumentService->generate($workPlan),
-            $permanentDirectory,
-            $draft->project_title,
-            $validated,
-        );
+        return ['contents' => $this->workPlanDocumentService->generate($workPlan), 'source_data' => $validated];
     }
 
     /** @return array<string, mixed> */
     private function generateLineItemBudget(
         ProposalDraft $draft,
         ProposalDraftDocument $document,
-        string $permanentDirectory,
     ): array {
         $lineItemBudgetSource = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
             is_array($document->source_data) ? $document->source_data : [],
@@ -521,12 +527,7 @@ class SubmitProposalDraft
             'project_total' => $lineItemBudget['project_total'],
         ];
 
-        return $this->packageService->storeGeneratedLineItemBudget(
-            $this->lineItemBudgetDocumentService->generate($lineItemBudget),
-            $permanentDirectory,
-            $draft->project_title,
-            $submittedSourceData,
-        );
+        return ['contents' => $this->lineItemBudgetDocumentService->generate($lineItemBudget), 'source_data' => $submittedSourceData];
     }
 
     /** @return array<int, mixed>|null */
@@ -545,7 +546,6 @@ class SubmitProposalDraft
     private function generateExpenseBreakdown(
         ProposalDraft $draft,
         ProposalDraftDocument $document,
-        string $permanentDirectory,
     ): array {
         $sourceData = ExpenseBreakdownRules::normalizeInput([
             ...($document->source_data ?? []),
@@ -559,19 +559,13 @@ class SubmitProposalDraft
         )->validate();
         $expenseBreakdown = ExpenseBreakdownData::fromValidated($validated);
 
-        return $this->packageService->storeGeneratedExpenseBreakdown(
-            $this->expenseBreakdownDocumentService->generate($expenseBreakdown),
-            $permanentDirectory,
-            $draft->project_title,
-            $validated,
-        );
+        return ['contents' => $this->expenseBreakdownDocumentService->generate($expenseBreakdown), 'source_data' => $validated];
     }
 
     /** @return array<string, mixed> */
     private function generateCurriculumVitae(
         ProposalDraft $draft,
         ProposalDraftDocument $document,
-        string $permanentDirectory,
     ): array {
         $sourceData = CurriculumVitaeRules::normalizeInput($document->source_data ?? []);
         $validated = Validator::make(
@@ -582,18 +576,12 @@ class SubmitProposalDraft
         )->validate();
         $curriculumVitae = CurriculumVitaeData::fromValidated($validated);
 
-        return $this->packageService->storeGeneratedCurriculumVitae(
-            $this->curriculumVitaeDocumentService->generate($curriculumVitae),
-            $permanentDirectory,
-            $draft->project_title,
-            $validated,
-        );
+        return ['contents' => $this->curriculumVitaeDocumentService->generate($curriculumVitae), 'source_data' => $validated];
     }
 
     /** @return array<string, mixed> */
     private function generateGADChecklist(
         ProposalDraft $draft,
-        string $permanentDirectory,
     ): array {
         $sourceData = [
             'project_title' => $draft->project_title,
@@ -602,18 +590,12 @@ class SubmitProposalDraft
         $sourceData = [...$sourceData, ...$draft->signatoryFields('gad_checklist')];
         $checklist = GADChecklistData::fromValidated($sourceData);
 
-        return $this->packageService->storeGeneratedGADChecklist(
-            $this->gadChecklistDocumentService->generate($checklist),
-            $permanentDirectory,
-            $draft->project_title,
-            $sourceData,
-        );
+        return ['contents' => $this->gadChecklistDocumentService->generate($checklist), 'source_data' => $sourceData];
     }
 
     /** @return array<string, mixed> */
     private function generateInitialScreeningForm(
         ProposalDraft $draft,
-        string $permanentDirectory,
     ): array {
         $sourceData = [
             'project_title' => $draft->project_title,
@@ -624,11 +606,6 @@ class SubmitProposalDraft
 
         $sourceData = [...$sourceData, ...$draft->signatoryFields('initial_screening_form')];
 
-        return $this->packageService->storeGeneratedInitialScreeningForm(
-            $this->initialScreeningFormDocumentService->generate($sourceData),
-            $permanentDirectory,
-            $draft->project_title,
-            $sourceData,
-        );
+        return ['contents' => $this->initialScreeningFormDocumentService->generate($sourceData), 'source_data' => $sourceData];
     }
 }

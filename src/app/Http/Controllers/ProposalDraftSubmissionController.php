@@ -31,7 +31,7 @@ class ProposalDraftSubmissionController extends Controller
         $proposalDraft->load(['researchCall', 'documents', 'owner', 'members.user']);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
-        $readinessErrors = $readiness->errors($proposalDraft);
+        $readinessErrors = $readiness->errors($proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
         $readyToPrepare = $readinessErrors === [];
         $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
@@ -54,7 +54,7 @@ class ProposalDraftSubmissionController extends Controller
         ProposalDraft $proposalDraft,
         SubmitProposalDraft $submitProposalDraft,
     ): RedirectResponse {
-        Gate::authorize('submit', $proposalDraft);
+        Gate::authorize('prepare', $proposalDraft);
 
         try {
             $submitProposalDraft->prepare($proposalDraft, $request->user());
@@ -188,6 +188,6 @@ class ProposalDraftSubmissionController extends Controller
 
         return redirect()
             ->route('faculty.dashboard')
-            ->with('success', 'Proposal turned in successfully as a seven-PDF package and sent to the Research Head.');
+            ->with('success', 'Proposal submitted successfully with seven PDFs and sent to the Research Head.');
     }
 }

@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Proposal signatory directory" subtitle="Add the names and positions faculty can choose from when building signature blocks, so titles stay spelled the same way every time.">
+        <x-page-header title="Proposal signatory directory" subtitle="Set the default name for each signature role. Editable proposals use these names automatically until you change them.">
             <x-slot name="actions">
             <button type="button" x-data x-on:click="$dispatch('open-add-signatory-form')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 sm:w-auto dark:focus-visible:ring-offset-slate-900">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -14,11 +14,11 @@
         <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-label="Default paper signatories">
             <h3 class="text-sm font-bold text-gray-900 dark:text-white">Default paper signatories</h3>
             <dl class="mt-3 grid gap-4 sm:grid-cols-2">
-                @foreach ($defaultSignatories as $signatory)
-                    <div><dt class="text-xs text-gray-500 dark:text-slate-400">{{ $signatory['position'] }}</dt><dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">{{ $signatory['name'] }}</dd></div>
+                @foreach ($defaultSignatories as $roleKey => $signatory)
+                    <div><dt class="text-xs text-gray-500 dark:text-slate-400">{{ $roles[$roleKey] }}</dt><dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">{{ $signatory['name'] }}</dd></div>
                 @endforeach
             </dl>
-            <p class="mt-3 text-xs text-gray-500 dark:text-slate-400">These names appear automatically wherever the Research Head and VCRDES sign. Faculty do not need to select them.</p>
+            <p class="mt-3 text-xs text-gray-500 dark:text-slate-400">Mark an active directory entry as the default for its role. Template names apply until a default is set. Submitted documents retain their original names.</p>
         </section>
         <div x-show="addSignatoryOpen" x-cloak class="pointer-events-none fixed inset-0 z-[80]" role="presentation">
             <button type="button" x-on:click="addSignatoryOpen = false" data-add-signatory-backdrop class="pointer-events-auto absolute inset-0 bg-slate-950/60 backdrop-blur-sm xl:hidden" aria-label="Close add signatory editor"></button>
@@ -81,6 +81,8 @@
                             </div>
 
                             <div class="mt-5 flex justify-end border-t border-gray-100 pt-5 dark:border-slate-800">
+                                <input type="hidden" name="is_default" value="0">
+                                <label class="mr-auto flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="rounded border-gray-300 text-red-700 focus:ring-red-600">Use as default for this role</label>
                                 <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-sm shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto dark:focus:ring-offset-slate-900">Add name</button>
                             </div>
                         </section>
@@ -184,6 +186,8 @@
                                                             @endforeach
                                                         </select>
                                                     </label>
+                                                    <input type="hidden" name="is_default" value="0">
+                                                    <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="checkbox" name="is_default" value="1" @checked(old('is_default', $signatory->is_default)) class="rounded border-gray-300 text-red-700 focus:ring-red-600">Use as default for this role</label>
                                                     <label class="text-[11.5px] font-medium text-[#6B6258] dark:text-slate-300" for="availability-{{ $signatory->id }}">
                                                         Availability
                                                         <select id="availability-{{ $signatory->id }}" name="active" required class="mt-1 block w-full rounded-md border-[#E7E2D8] bg-white px-2.5 py-2 text-[13px] text-[#201A15] focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
@@ -202,7 +206,7 @@
                                         </tr>
                                     @else
                                         <tr id="signatory-{{ $signatory->id }}" class="scroll-mt-40">
-                                            <td class="whitespace-nowrap px-[18px] py-[13px] text-[14.5px] font-semibold text-[#201A15] dark:text-white">{{ $signatory->name }}</td>
+                                            <td class="whitespace-nowrap px-[18px] py-[13px] text-[14.5px] font-semibold text-[#201A15] dark:text-white">{{ $signatory->name }} @if ($signatory->is_default)<span class="ml-2 rounded-full bg-red-50 px-2 py-1 text-xs text-red-800 dark:bg-red-950 dark:text-red-200">Default</span>@endif</td>
                                             <td class="px-[18px] py-[13px] text-[13px] text-[#6B6258] dark:text-slate-400">{{ $signatory->position }}</td>
                                             <td class="px-[18px] py-[13px] text-[13px] text-[#6B6258] dark:text-slate-400">{{ $roles[$signatory->role_key] }}</td>
                                             <td class="whitespace-nowrap px-[18px] py-[13px]"><span class="rounded-full px-3 py-1 text-[12px] font-semibold {{ $signatory->active ? 'bg-[#E8F3EC] text-[#3F7D5C] dark:bg-green-950/40 dark:text-green-300' : 'bg-[#F4F1EB] text-[#6B6258] dark:bg-slate-800 dark:text-slate-400' }}">{{ $signatory->active ? 'Active' : 'Inactive' }}</span></td>

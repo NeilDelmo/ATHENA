@@ -235,40 +235,43 @@ class User extends Authenticatable
      */
     public function visibleNotifications(?string $workspace = null): Collection
     {
-        $workspace ??= $this->activeWorkspace();
-
-        return $this->notifications()
-            ->latest()
-            ->get()
-            ->filter(function (DatabaseNotification $notification) use ($workspace): bool {
-                $targetWorkspace = $this->notificationWorkspace($notification->data);
-
-                return $targetWorkspace === null
-                    || $targetWorkspace === $workspace
-                    || (is_array($targetWorkspace) && in_array($workspace, $targetWorkspace, true));
-            })
-            ->values();
+        return $this->visibleNotificationsQuery($workspace)->latest()->get();
     }
 
-    private function notificationWorkspace(array $data): string|array|null
+    /**
+     * @return Builder<DatabaseNotification>
+     */
+    public function visibleNotificationsQuery(?string $workspace = null): Builder
     {
-        if (in_array($data['sidebar_area'] ?? null, [
+        $workspace ??= $this->activeWorkspace();
+        $facultyAreas = [
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
             ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
-        ], true)) {
-            return self::WORKSPACE_FACULTY;
-        }
+        ];
 
-        $targetWorkspace = $data['workspace'] ?? null;
+        return $this->notifications()->getQuery()->where(function (Builder $query) use ($workspace, $facultyAreas): void {
+            $query->where(function (Builder $query) use ($workspace, $facultyAreas): void {
+                $query->where(fn (Builder $query) => $query
+                    ->whereNull('data->sidebar_area')
+                    ->orWhereNotIn('data->sidebar_area', $facultyAreas));
+                $query->where(function (Builder $query) use ($workspace): void {
+                    $query->whereJsonContains('data->workspace', $workspace)
+                        ->orWhere(function (Builder $query) use ($workspace): void {
+                            $query->whereNull('data->workspace');
 
-        if ($targetWorkspace !== null) {
-            return $targetWorkspace;
-        }
+                            if ($workspace !== self::WORKSPACE_RESEARCH_HEAD) {
+                                $query->where(fn (Builder $query) => $query
+                                    ->whereNull('data->title')
+                                    ->orWhereNotIn('data->title', ['New proposal submitted', 'Proposal revision submitted']));
+                            }
+                        });
+                });
+            });
 
-        return in_array($data['title'] ?? null, [
-            'New proposal submitted',
-            'Proposal revision submitted',
-        ], true) ? self::WORKSPACE_RESEARCH_HEAD : null;
+            if ($workspace === self::WORKSPACE_FACULTY) {
+                $query->orWhereIn('data->sidebar_area', $facultyAreas);
+            }
+        });
     }
 
     // for the proposal

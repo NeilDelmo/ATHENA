@@ -4,6 +4,150 @@ import { readFile } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
 import registerPdfAnnotationWorkspace, { consolidateTextRectangles, pdfScaleToFit } from '../../resources/js/pdf-annotation-workspace.js';
 
+test('Research Head viewing controls resize the paper without losing draft feedback', async () => {
+    const view = await readFile(new URL('../../resources/views/topics/file-annotations.blade.php', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../resources/js/pdf-annotation-workspace.js', import.meta.url), 'utf8');
+    const footer = view.match(/<footer data-review-document-zoom[\s\S]*?<\/footer>/)[0];
+    const toggle = view.match(/<button type="button" data-review-comments-toggle[\s\S]*?<\/button>/)[0];
+    const layout = view.match(/<div data-review-document-layout[^\n]+>/)[0];
+    const viewer = view.match(/<div x-ref="viewer"[^\n]+><\/div>/)[0];
+    const comments = view.match(/<aside id="review-document-comments"[^\n]+>/)[0];
+    const { default: manifest } = await import('../../public/build/manifest.json', { with: { type: 'json' } });
+    const css = await readFile(new URL(`../../public/build/${manifest['resources/css/app.css'].file}`, import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [390, 1440]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 900 } });
+                const errors = [];
+                page.on('pageerror', (error) => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${css}</style><body class="p-3 bg-white dark:bg-gray-950"><div x-data="reviewFixture" class="border border-gray-200 dark:border-gray-800 dark:bg-gray-900"><header class="p-3">${toggle}</header>${layout}<main class="min-h-0 min-w-0 overflow-hidden bg-slate-100 dark:bg-slate-950">${viewer}</main>${comments}<h3 class="text-gray-950 dark:text-white">Research Head comments</h3><p class="text-gray-700 dark:text-gray-200">Explain the sample size.</p></aside></div>${footer}</div></body></html>`);
+                await page.addScriptTag({ content: source.replaceAll('export default ', '').replaceAll('export ', '') });
+                await page.addScriptTag({ content: `document.addEventListener('alpine:init', () => {
+                    let factory;
+                    registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
+                    Alpine.data('reviewFixture', () => {
+                        const state = factory();
+                        state.init = function () {
+                            this.loading = false;
+                            this.draftSelection = { pageNumber: 1, rectangles: [{ x: .1, y: .2, width: .3, height: .1 }] };
+                            this.draftComment = 'Keep my unfinished feedback.';
+                            this.annotations = [{ id: 22, pageNumber: 1 }];
+                            this.selectedAnnotationId = 22;
+                            this.jumpToAnnotation = () => {};
+                            this.renderDocument = async function () {
+                                window.renderedView = { zoom: this.previewZoom, fit: this.previewFit, feedback: this.draftComment };
+                            };
+                        };
+                        return state;
+                    });
+                });` });
+                await page.addScriptTag({ path: new URL('../../node_modules/alpinejs/dist/cdn.js', import.meta.url).pathname.replace(/^\/(\w:)/, '$1') });
+                const pane = page.getByLabel('Submitted document');
+                const beforeWidth = await pane.evaluate((element) => element.clientWidth);
+                const beforeHeight = await pane.evaluate((element) => element.clientHeight);
+                await page.getByRole('button', { name: 'Hide comments' }).click();
+                assert.equal(await page.locator('#review-document-comments').isVisible(), false);
+                assert.equal(width >= 1024
+                    ? await pane.evaluate((element) => element.clientWidth) > beforeWidth
+                    : await pane.evaluate((element) => element.clientHeight) > beforeHeight, true);
+                await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+                assert.equal(await page.locator('output').innerText(), '110%');
+                await page.getByRole('button', { name: 'Fit page', exact: true }).click();
+                assert.deepEqual(await page.evaluate(() => window.renderedView), { zoom: 100, fit: 'page', feedback: 'Keep my unfinished feedback.' });
+                await page.getByRole('button', { name: 'Fit width', exact: true }).click();
+                assert.equal(await page.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
+                await page.getByRole('button', { name: 'Show comments' }).click();
+                assert.equal(await page.locator('#review-document-comments').isVisible(), true);
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+for (const fitWidth of [false, true]) {
+test(`the ${fitWidth ? 'embedded' : 'Research Head'} PDF keeps pages and highlights correct when fitting and zooming`, async () => {
+    const source = await readFile(new URL('../../resources/js/pdf-annotation-workspace.js', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent('<div id="viewer" style="width:600px;height:800px;overflow:auto"></div>');
+        await page.addScriptTag({ content: source.replaceAll('export default ', '').replaceAll('export ', '') });
+        await page.evaluate((fitWidth) => {
+            let factory;
+            registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
+            const state = factory();
+            state.$refs = { viewer: document.querySelector('#viewer') };
+            state.$nextTick = (callback) => callback();
+            state.annotations = [{ id: 22, pageNumber: 2 }];
+            state.focusAnnotationId = 22;
+            state.config = { pdfUrl: '/paper.pdf', fitWidth };
+            window.renderedAnnotations = [];
+            state.renderAnnotationsForPage = (number) => window.renderedAnnotations.push(number);
+            state.jumpToAnnotation = (annotation) => { window.highlightedPage = annotation.pageNumber; };
+            const pdf = {
+                numPages: 2,
+                getPage: async (number) => ({
+                    getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale, userUnit: 1 }),
+                    streamTextContent: () => number,
+                    render: () => ({ promise: number === 2 && !window.finishedPdf ? new Promise((resolve) => { window.finishSecondPage = resolve; }) : Promise.resolve() }),
+                }),
+            };
+            const library = {
+                getDocument: () => ({ promise: Promise.resolve(pdf) }),
+                TextLayer: class {
+                    constructor({ container, textContentSource }) { this.container = container; this.number = textContentSource; }
+                    async render() { this.container.textContent = `Page ${this.number} text`; }
+                },
+            };
+            window.state = state;
+            window.pdfLibrary = library;
+            window.finishedPdf = false;
+            state.loadPdf(async () => library).then(() => { window.finishedPdf = true; });
+        }, fitWidth);
+        await page.waitForFunction(() => typeof window.finishSecondPage === 'function');
+        assert.equal(await page.locator('#viewer .pdf-annotation-page').count(), 1);
+        assert.equal(await page.locator('#viewer .textLayer').textContent(), 'Page 1 text');
+        assert.equal(await page.evaluate(() => window.state.loading), false);
+        assert.equal(await page.evaluate(() => window.finishedPdf), false);
+        assert.deepEqual(await page.evaluate(() => window.renderedAnnotations), [1]);
+        assert.equal(await page.evaluate(() => window.highlightedPage), undefined);
+        await page.evaluate(() => window.finishSecondPage());
+        await page.waitForFunction(() => window.finishedPdf);
+        assert.equal(await page.locator('#viewer .pdf-annotation-page').count(), 2);
+        assert.deepEqual(await page.evaluate(() => window.renderedAnnotations), [1, 2]);
+        assert.equal(await page.evaluate(() => window.highlightedPage), 2);
+        assert.equal(await page.evaluate(() => window.state.loadError), '');
+        // A full-width window must still fit the height, and zoom must retain both pages and annotations.
+        await page.evaluate(async () => {
+            document.querySelector('#viewer').style.width = '1200px';
+            window.state.previewFit = 'page';
+            await window.state.renderDocument(window.pdfLibrary);
+        });
+        assert.equal(await page.locator('#viewer .pdf-annotation-page').first().evaluate((element) => element.offsetHeight), 800);
+        await page.evaluate(async () => {
+            window.state.previewZoom = 90;
+            await window.state.renderDocument(window.pdfLibrary);
+        });
+        assert.equal(await page.locator('#viewer .pdf-annotation-page').first().evaluate((element) => element.offsetHeight), 720);
+        assert.equal(await page.locator('#viewer .textLayer').count(), 2);
+        assert.deepEqual(await page.evaluate(() => window.renderedAnnotations), [1, 2, 1, 2, 1, 2]);
+        await page.evaluate(async () => {
+            window.state.previewZoom = 100;
+            window.state.previewFit = 'width';
+            await window.state.renderDocument(window.pdfLibrary);
+        });
+        assert.equal(await page.locator('#viewer .pdf-annotation-page').first().evaluate((element) => element.offsetHeight), 1600);
+    } finally {
+        await browser.close();
+    }
+});
+}
+
 test('draft review comments expose Edit and Delete directly while sent comments stay locked', async () => {
     const source = await readFile(new URL('../../resources/views/topics/file-annotations.blade.php', import.meta.url), 'utf8');
     const actions = source.match(/<div data-annotation-actions[\s\S]*?<\/div>/)[0];
@@ -100,6 +244,36 @@ function annotationWorkspace() {
     state.config = { storeUrl: '/annotations', updateUrlTemplate: '/annotations/__ANNOTATION__', fileId: 1 };
     return state;
 }
+
+test('inline papers wait until visible and release their visibility observer when removed', (t) => {
+    const originalWindow = globalThis.window;
+    const originalObserver = globalThis.IntersectionObserver;
+    t.after(() => { globalThis.window = originalWindow; globalThis.IntersectionObserver = originalObserver; });
+    globalThis.window = { location: { search: '' }, addEventListener() {}, clearTimeout() {} };
+    let callback;
+    let observed;
+    let disconnections = 0;
+    globalThis.IntersectionObserver = class {
+        constructor(handler) { callback = handler; }
+        observe(element) { observed = element; }
+        disconnect() { disconnections++; }
+    };
+    const state = annotationWorkspace();
+    state.$el = { dataset: { pdfAnnotationConfig: JSON.stringify({ fitWidth: true, loadWhenVisible: true }) } };
+    state.$nextTick = () => {};
+    let loads = 0;
+    state.loadPdf = () => { loads++; };
+    state.init();
+    assert.equal(observed, state.$el);
+    assert.equal(loads, 0);
+    callback([{ isIntersecting: false }]);
+    assert.equal(loads, 0);
+    callback([{ isIntersecting: true }]);
+    assert.equal(loads, 1);
+    assert.equal(disconnections, 1);
+    state.destroy();
+    assert.equal(disconnections, 2);
+});
 
 test('a missing PDF viewer module offers refresh and a later successful load clears the error', async () => {
     const state = annotationWorkspace();

@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="H5RmKQ1QXGvErWcso2GA11pxWv2afxqHn7NRuCBh">
+        <meta name="app-url" content="http://localhost">
+
+        <title>Laravel</title>
+
+        <script>
+    (() => {
+        const storageKey = 'athena-theme';
+        const legacyKeys = ['athena-auth-theme', 'theme'];
+
+        const storedTheme = (() => {
+            try {
+                const theme = localStorage.getItem(storageKey);
+                return ['dark', 'light'].includes(theme) ? theme : null;
+            } catch {
+                return null;
+            }
+        })();
+
+        try {
+            legacyKeys.forEach((key) => localStorage.removeItem(key));
+        } catch {
+            // Local storage can be unavailable in privacy-restricted browsers.
+        }
+
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const resolvedTheme = storedTheme ?? (prefersDark ? 'dark' : 'light');
+
+        document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+        document.documentElement.style.colorScheme = resolvedTheme;
+    })();
+</script>
+
+        <script>
+            try {
+                document.documentElement.dataset.sidebarCollapsed = String(
+                    window.innerWidth >= 640 && sessionStorage.getItem('athena-sidebar-open') === 'false'
+                );
+            } catch {
+                document.documentElement.dataset.sidebarCollapsed = 'false';
+            }
+        </script>
+
+        <link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" />
+
+        <link rel="preload" as="style" href="http://localhost/build/assets/app-D_WDDJn2.css" /><link rel="preload" as="style" href="http://localhost/build/assets/app-n7N4nulb.css" /><link rel="modulepreload" as="script" href="http://localhost/build/assets/app-B2p95TZ2.js" /><link rel="stylesheet" href="http://localhost/build/assets/app-D_WDDJn2.css" data-navigate-track="reload" /><link rel="stylesheet" href="http://localhost/build/assets/app-n7N4nulb.css" data-navigate-track="reload" /><script type="module" src="http://localhost/build/assets/app-B2p95TZ2.js" data-navigate-track="reload"></script>        <!-- Livewire Styles --><style >[wire\:loading][wire\:loading], [wire\:loading\.delay][wire\:loading\.delay], [wire\:loading\.list-item][wire\:loading\.list-item], [wire\:loading\.inline-block][wire\:loading\.inline-block], [wire\:loading\.inline][wire\:loading\.inline], [wire\:loading\.block][wire\:loading\.block], [wire\:loading\.flex][wire\:loading\.flex], [wire\:loading\.table][wire\:loading\.table], [wire\:loading\.grid][wire\:loading\.grid], [wire\:loading\.inline-flex][wire\:loading\.inline-flex] {display: none;}[wire\:loading\.delay\.none][wire\:loading\.delay\.none], [wire\:loading\.delay\.shortest][wire\:loading\.delay\.shortest], [wire\:loading\.delay\.shorter][wire\:loading\.delay\.shorter], [wire\:loading\.delay\.short][wire\:loading\.delay\.short], [wire\:loading\.delay\.default][wire\:loading\.delay\.default], [wire\:loading\.delay\.long][wire\:loading\.delay\.long], [wire\:loading\.delay\.longer][wire\:loading\.delay\.longer], [wire\:loading\.delay\.longest][wire\:loading\.delay\.longest] {display: none;}[wire\:offline][wire\:offline] {display: none;}[wire\:dirty]:not(textarea):not(input):not(select) {display: none;}:root {--livewire-progress-bar-color: #2299dd;}[x-cloak] {display: none !important;}[wire\:cloak] {display: none !important;}dialog#livewire-error::backdrop {background-color: rgba(0, 0, 0, .6);}</style>
+    </head>
+        <body
+        x-data
+        @keydown.escape.window="$store.sidebar.setOpen(false)"
+        @resize.window="$store.researchAssistant.syncPageScroll()"
+        data-app-shell
+         data-faculty-shell         data-auth-user-id="1"
+                    data-research-assistant-url="http://localhost/research-support/chat"
+            data-research-assistant-history-url="http://localhost/research-support/history"
+            data-research-assistant-documents-url="http://localhost/research-support/documents"
+                                         data-literature-search-url="http://localhost/research-support/literature-search"                 class="bg-[#F5F7FA] font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    >
+                    <script>
+                window.athenaResearchAssistantContexts = JSON.parse('[{\u0022id\u0022:1,\u0022label\u0022:\u0022Revision loading regression\u0022,\u0022status\u0022:\u0022revision requested\u0022,\u0022meta\u0022:\u0022v1\u0022}]');
+                window.athenaResearchAssistantActiveContextId = 1;
+                window.athenaResearchAssistantHistory = [];
+                window.athenaResearchAssistantPageActions = [];
+            </script>
+        
+                <div x-persist="app-sidebar-faculty">
+            <aside
+    x-data
+    id="app-sidebar"
+    :class="$store.sidebar.open ? '!w-[280px] shadow-xl sm:shadow-none' : '!w-[76px] '"
+    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200/80 transition-colors duration-300 dark:border-slate-800/80 sm:w-[280px]"
+>
+    
+    <div
+        :class="$store.sidebar.open ? 'px-5 pb-5 pt-5' : 'px-3 pb-4 pt-4'"
+        class="relative z-10 flex shrink-0 flex-col border-b border-slate-200/70 dark:border-slate-800/80"
+    >
+        <a
+            wire:navigate
+            x-show="$store.sidebar.open"
+            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+            href="http://localhost/dashboard"
+            class="flex min-w-0 items-center gap-3 rounded-2xl px-1"
+            title="ATHENA dashboard"
+            aria-label="ATHENA dashboard"
+        >
+            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#7A0019]/8 ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:ring-white/10">
+                <img
+                    src="http://localhost/images/athenalogo-transparent.png"
+                    alt="ATHENA logo"
+                    class="h-10 w-10 object-contain"
+                />
+            </span>
+
+            <span class="min-w-0">
+                <span class="block truncate text-lg font-extrabold tracking-[0.12em] text-[#7A0019] dark:text-white">
+                    ATHENA
+                </span>
+                <span class="block truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Research Management
+                </span>
+            </span>
+        </a>
+
+        <button
+            x-show="$store.sidebar.open"
+            type="button"
+            @click="$store.sidebar.setOpen(false)"
+            :aria-expanded="$store.sidebar.open"
+            aria-controls="app-sidebar-navigation"
+            class="absolute right-3 top-6 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl
+                   text-slate-400 transition hover:bg-slate-100 hover:text-[#7A0019]
+                   focus:outline-none focus:ring-2 focus:ring-[#7A0019]/20
+                   dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
+            aria-label="Collapse navigation menu"
+            title="Collapse menu"
+        >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18m7-6-3-3 3-3" />
+            </svg>
+        </button>
+
+        <button
+            x-show="!$store.sidebar.open"
+            type="button"
+            @click="$store.sidebar.setOpen(true)"
+            :aria-expanded="$store.sidebar.open"
+            aria-controls="app-sidebar-navigation"
+            class="group inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl
+                   bg-[#7A0019]/8 ring-1 ring-[#7A0019]/10 transition
+                   hover:bg-[#7A0019]/12 focus:outline-none focus:ring-2 focus:ring-[#7A0019]/20
+                   dark:bg-white/5 dark:ring-white/10 dark:hover:bg-white/10"
+            aria-label="Expand navigation menu"
+            title="Expand menu"
+        >
+            <img
+                src="http://localhost/images/athenalogo-transparent.png"
+                alt=""
+                class="h-11 w-11 object-contain group-hover:hidden"
+            />
+
+            <svg
+                class="hidden h-5 w-5 text-[#7A0019] group-hover:block dark:text-[#E7A5B2]"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+            >
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18m5-6 3-3-3-3" />
+            </svg>
+        </button>
+    </div>
+
+    <div
+        id="app-sidebar-navigation"
+        :class="$store.sidebar.open
+            ? 'px-4'
+            : 'px-3 [&>a]:justify-center [&>a]:gap-0 [&>a]:px-0 [&>div>button]:justify-center [&>div>button]:gap-0 [&>div>button]:px-0'"
+        wire:navigate:scroll
+        class="relative z-10 grow space-y-1 overflow-x-hidden overflow-y-auto py-4
+               scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-300
+               dark:scrollbar-thumb-slate-700"
+    >
+        
+
+        
+        
+                    <nav aria-label="Faculty navigation" class="space-y-4" x-data="{ activeHash: window.location.hash || '#rrl-finder' }" @hashchange.window="activeHash = window.location.hash || '#rrl-finder'" x-on:livewire:navigated.window="activeHash = window.location.hash || '#rrl-finder'" data-faculty-navigation>
+            <section aria-label="Overview" >
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Overview<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/faculty/dashboard"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Faculty Dashboard" title="Dashboard" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Dashboard</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/faculty/calendar"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Calendar" title="Calendar" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Calendar</span>
+                                            </a>
+                            </div>
+        </section>
+            <section aria-label="Submission" >
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Submission<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/research-calls"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Research calls" title="Research calls" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Research calls</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/faculty/proposal-drafts/create"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="New proposal" title="New proposal" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">New proposal</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/faculty/proposal-drafts"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                               data-sidebar-attention-url="http://localhost/sidebar-attention/proposal_workspace"                        @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Draft proposals" title="Draft proposals" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8m-8 4h5" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Draft proposals</span>
+                                            </a>
+                            </div>
+        </section>
+            <section aria-label="Review" >
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Review<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/faculty/submissions"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                               data-sidebar-attention-url="http://localhost/sidebar-attention/submitted_proposals"                        @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Submitted proposals" title="Submitted proposals" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Submitted proposals</span>
+                                            </a>
+                            </div>
+        </section>
+            <section aria-label="Resources"  data-research-help-menu >
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Resources<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/research-support#shared-literature-library"
+                                                  :class="[
+                               $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
+                               $store.sidebar.currentPath === '\/research-support' && activeHash === '#shared-literature-library' ? '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1\/2 before:h-5 before:w-1 before:-translate-y-1\/2 before:rounded-r-full before:bg-brand dark:!bg-red-950\/30 dark:!text-red-200' : '',
+                           ]"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Saved literature" title="Saved literature" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h4v16H4V4Zm7 0h4v16h-4V4Zm7 0 4 1-4 15-4-1 4-15Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Saved literature</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/research-support#rrl-finder"
+                                                  :class="[
+                               $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
+                               $store.sidebar.currentPath === '\/research-support' && activeHash === '#rrl-finder' ? '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1\/2 before:h-5 before:w-1 before:-translate-y-1\/2 before:rounded-r-full before:bg-brand dark:!bg-red-950\/30 dark:!text-red-200' : '',
+                           ]"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Literature search" title="Literature search" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.2-5.2M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Literature search</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/research-support#turnitin"
+                                                  :class="[
+                               $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
+                               $store.sidebar.currentPath === '\/research-support' && activeHash === '#turnitin' ? '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1\/2 before:h-5 before:w-1 before:-translate-y-1\/2 before:rounded-r-full before:bg-brand dark:!bg-red-950\/30 dark:!text-red-200' : '',
+                           ]"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Turnitin" title="Turnitin" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3 4 6v6c0 4.4 3.4 7.4 8 9 4.6-1.6 8-4.6 8-9V6l-8-3Zm-4 9 3 3 5-6" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Turnitin</span>
+                                            </a>
+                            </div>
+        </section>
+    </nav>        
+    </div>
+            <div data-sidebar-account class="relative z-10 shrink-0 border-t border-slate-100 p-3 dark:border-slate-800">
+                            <h2 x-show="$store.sidebar.open" class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</h2>
+                                    <a wire:navigate href="http://localhost/profile" aria-label="Account Profile" title="Account Profile" class="flex items-center gap-3 rounded-lg p-2 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:hover:bg-slate-800" :class="!$store.sidebar.open && 'justify-center'">
+                <div
+    x-data="{ avatarFailed: false }"
+        role="img"
+    aria-label="Profile photo for Korey Terry"
+    data-user-avatar
+    class="relative inline-flex shrink-0 items-center justify-center overflow-hidden font-black uppercase text-white h-8 w-8 shrink-0 rounded-full bg-[#7A0019] text-xs text-white"
+>
+    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">K</span>
+
+    </div>                <span x-show="$store.sidebar.open" class="min-w-0">
+                    <span class="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">Korey Terry</span>
+                    <span class="block truncate text-[11px] text-slate-500">Account Profile</span>
+                </span>
+            </a>
+        </div>
+    </aside>
+        </div>
+
+        <div
+            x-cloak
+            x-show="$store.sidebar.open"
+            x-transition.opacity
+            @click="$store.sidebar.setOpen(false)"
+            class="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] sm:hidden"
+            aria-hidden="true"
+        ></div>
+
+        <div
+            :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'"
+            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] sm:pl-[280px] transition-colors duration-300 dark:bg-slate-950"
+            data-app-content-shell
+        >
+            
+            <nav data-app-topbar class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">
+                <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-red-700 via-red-700 to-red-950 md:from-transparent md:via-red-700/70 md:to-red-950" aria-hidden="true"></div>
+
+                <div
+                    class="pointer-events-none absolute inset-y-0 left-0 hidden w-[30rem] overflow-hidden md:block"
+                    style="-webkit-mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%); mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%);"
+                    aria-hidden="true"
+                >
+                    <img src="http://localhost/images/front.jpg" alt="" class="absolute inset-0 h-full w-full object-cover object-center" />
+                    <div class="absolute inset-0 bg-gradient-to-r from-red-950/65 via-red-700/25 to-red-600/60"></div>
+                    <div class="absolute -bottom-14 right-20 h-32 w-32 rotate-45 rounded-3xl border border-white/20 bg-white/10"></div>
+                    <div class="absolute -top-16 left-24 h-36 w-36 rounded-full border-[18px] border-white/10"></div>
+                </div>
+
+                <svg class="pointer-events-none absolute inset-y-0 right-0 h-full w-[55%] text-white/[0.11]" aria-hidden="true">
+                    <defs>
+                        <pattern id="athena-header-hexagons" width="52" height="45" patternUnits="userSpaceOnUse">
+                            <path d="M13 1h26l12 21.5L39 44H13L1 22.5 13 1Z" fill="none" stroke="currentColor" stroke-width="1" />
+                        </pattern>
+                        <linearGradient id="athena-header-pattern-fade" x1="0" x2="1">
+                            <stop offset="0" stop-color="white" stop-opacity="0" />
+                            <stop offset="0.38" stop-color="white" stop-opacity="0.55" />
+                            <stop offset="1" stop-color="white" stop-opacity="1" />
+                        </linearGradient>
+                        <mask id="athena-header-pattern-mask">
+                            <rect width="100%" height="100%" fill="url(#athena-header-pattern-fade)" />
+                        </mask>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#athena-header-hexagons)" mask="url(#athena-header-pattern-mask)" />
+                </svg>
+
+                <div class="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-[5px] bg-gradient-to-r from-red-700 via-red-400 to-yellow-400" aria-hidden="true"></div>
+
+                <div class="absolute right-8 top-3 z-10 hidden min-w-0 items-center gap-3 md:flex">
+                    <div class="rounded-xl border border-white/15 bg-red-950/25 px-4 py-2 text-xs font-medium text-red-100 shadow-sm backdrop-blur-sm">
+                        Philippine Time:
+                        <time
+                            id="manila-system-time"
+                            class="font-bold tabular-nums text-white"
+                            data-timezone="Asia/Manila"
+                            aria-live="off"
+                        >Oct 05, 2026 | 11:29:02 AM</time>
+                        <span class="ml-1 text-[10px] font-black uppercase tracking-wider text-red-200">PHT</span>
+                    </div>
+                </div>
+
+                <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-1.5 sm:gap-3 lg:gap-4">
+
+                    <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
+                        <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15.75A9 9 0 118.25 2.25a7.5 7.5 0 0013.5 13.5z" />
+                        </svg>
+                        <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.364 6.364l-1.061-1.061M6.697 6.697L5.636 5.636m12.728 0l-1.061 1.061M6.697 17.303l-1.061 1.061M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                        </svg>
+                    </button>
+
+                    <div
+    x-data="notificationMenu({
+        notifications: [],
+        unreadCount: 0,
+        workspace: 'faculty',
+        indexUrl: 'http:\/\/localhost\/notifications',
+        openUrl: 'http:\/\/localhost\/notifications\/__ID__\/open',
+        readUrl: 'http:\/\/localhost\/notifications\/__ID__\/read',
+        readAllUrl: 'http:\/\/localhost\/notifications\/read-all',
+    })"
+    class="relative"
+    data-notification-menu
+    @click.outside="open = false"
+    @keydown.escape.window="open = false"
+>
+    <button
+        type="button"
+        @click="open = !open; if (open) refresh()"
+        class="relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-gray-500 transition duration-150 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800"
+        aria-label="Notifications"
+        :aria-expanded="open"
+        title="Notifications"
+    >
+        <span
+            x-cloak
+            x-show="unreadCount > 0"
+            x-text="unreadCount > 99 ? '99+' : unreadCount"
+            class="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white dark:ring-slate-900"
+        ></span>
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+    </button>
+
+    <div
+        x-cloak
+        x-show="open"
+        x-transition
+        class="fixed left-4 right-4 top-[7.5rem] z-[60] w-auto overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[24rem] sm:max-w-[calc(100vw-2rem)]"
+        role="dialog"
+        aria-label="Notifications"
+    >
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800">
+            <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">Notifications</p>
+                <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400" x-text="unreadCount === 0 ? 'All caught up' : `${unreadCount} unread`"></p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+                <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">Mark all read</button>
+                <button @click="open = false" type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="max-h-[min(26rem,calc(100vh-12rem))] divide-y divide-slate-100 overflow-y-auto overscroll-contain dark:divide-slate-800">
+            <template x-if="notifications.length === 0">
+                <div class="px-6 py-10 text-center">
+                    <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No notifications yet</p>
+                    <p class="mt-1 text-xs text-gray-400">Proposal activity will appear here.</p>
+                </div>
+            </template>
+
+            <template x-for="item in notifications" :key="item.id">
+                <form method="POST" :action="notificationOpenUrl(item)" @submit="openNotification($event, item)">
+                    <input type="hidden" name="_token" value="H5RmKQ1QXGvErWcso2GA11pxWv2afxqHn7NRuCBh" autocomplete="off">                    <button
+                        type="submit"
+                        class="group flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800"
+                        :class="item.read_at
+                            ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/70'
+                            : 'bg-red-50/40 hover:bg-red-50 dark:bg-red-950/10 dark:hover:bg-red-950/20'"
+                    >
+                        <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full" :class="item.read_at ? 'bg-slate-300 dark:bg-slate-600' : 'bg-red-600 dark:bg-red-400'"></span>
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-start justify-between gap-3">
+                                <span class="min-w-0 text-[13px] leading-5" :class="item.read_at ? 'font-semibold text-slate-600 dark:text-slate-300' : 'font-bold text-slate-900 dark:text-white'" x-text="item.data.title"></span>
+                                <span class="shrink-0 pt-0.5 text-[10px] text-slate-400 dark:text-slate-500" x-text="item.created_at"></span>
+                            </span>
+                            <span class="mt-0.5 block line-clamp-2 text-xs leading-5" :class="item.read_at ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300'" x-text="item.data.message"></span>
+                            <span x-show="item.data.action_url && !item.data.action_completed" class="mt-1.5 inline-block text-[10px] font-semibold text-red-700 dark:text-red-300">Review invitation</span>
+                        </span>
+                    </button>
+                </form>
+            </template>
+        </div>
+
+        <div class="border-t border-slate-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+            <a href="http://localhost/notifications" @click="open = false" class="flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-red-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-red-300">
+                <span>View notification inbox</span>
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </a>
+        </div>
+    </div>
+
+</div>
+
+                    <div class="hidden h-6 w-px bg-white/25 sm:block"></div>
+
+                    <div x-data="{ open: false }" class="relative shrink-0" data-header-account-menu>
+                        <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="menu" aria-label="Open account menu" class="flex min-w-0 cursor-pointer items-center gap-2 rounded-xl p-1.5 transition duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70">
+                            <div
+    x-data="{ avatarFailed: false }"
+        role="img"
+    aria-label="Profile photo for Korey Terry"
+    data-user-avatar
+    class="relative inline-flex shrink-0 items-center justify-center overflow-hidden font-black uppercase text-white h-8 w-8 rounded-full border border-gray-200 bg-red-600 text-xs shadow-sm"
+>
+    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">K</span>
+
+    </div>                            <span class="hidden min-w-0 max-w-20 truncate text-sm font-bold text-white sm:block lg:max-w-[120px]" title="Korey Terry">Korey Terry</span>
+                            <svg class="hidden h-4 w-4 text-red-100 sm:block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </button>
+
+                        <div x-cloak x-show="open" @click.away="open = false" x-transition role="menu" class="absolute right-0 z-50 mt-2 w-56 max-w-[calc(100vw-6rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                            <div class="border-b border-gray-100 px-4 py-2 dark:border-slate-800">
+                                <p class="text-xs text-gray-400 font-semibold uppercase">Account Profile</p>
+                                <p class="text-xs font-bold text-gray-800 truncate mt-0.5">qbosco@example.org</p>
+                                <p class="mt-1 text-[11px] font-bold text-red-600 dark:text-red-300">Using Faculty</p>
+                            </div>
+                            
+                            <a wire:navigate href="http://localhost/profile" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                                Account Profile
+                            </a>
+
+                                                        
+                            <form method="POST" action="http://localhost/logout" data-proposal-confirm data-confirm-title="Log out of ATHENA?" data-confirm-text="You will need to sign in again to continue working in ATHENA." data-confirm-button="Log out" data-cancel-button="Stay signed in" data-confirm-icon="warning">
+                                <input type="hidden" name="_token" value="H5RmKQ1QXGvErWcso2GA11pxWv2afxqHn7NRuCBh" autocomplete="off">                                <button type="submit" class="block w-full cursor-pointer px-4 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
+                                    Log Out
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </nav>
+
+            
+                                        
+            <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
+                <div class="athena-page-content w-full">
+                    <div class="-mx-4 -my-6 min-h-full bg-slate-50/80 px-4 py-6 dark:bg-slate-950 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div class="mx-auto max-w-6xl space-y-5">
+            <a
+    data-back-link
+     data-fixed-back-link     class="group inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-black text-gray-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-800 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:focus:ring-offset-slate-950 fixed bottom-4 right-4 z-40 w-auto max-w-[calc(100vw-2rem)] shadow-xl ring-1 ring-black/10 sm:bottom-6 sm:right-6 print:hidden" href="http://localhost/topics/1#proposal-review"
+>
+    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition group-hover:bg-red-100 group-hover:text-red-700 dark:bg-red-950/60 dark:text-red-300 dark:group-hover:bg-red-950" aria-hidden="true">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+        </svg>
+    </span>
+    <span>Back to proposal</span>
+</a>
+
+            <section data-revision-summary class="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-start sm:justify-between sm:p-6" aria-labelledby="revision-workspace-title">
+                <div class="flex min-w-0 gap-4">
+                    <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[#7A0019] dark:bg-red-950/40 dark:text-red-300" aria-hidden="true">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3M9.5 11h5M9.5 14.5h5" /></svg>
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Research proposal</p>
+                        <h1 id="revision-workspace-title" class="mt-1 max-w-4xl text-xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-2xl">Revision loading regression</h1>
+                        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /></svg>Proposal #1</span>
+                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" /><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 15a7 7 0 0 0 12.9 2.3M18.5 9A7 7 0 0 0 5.6 6.7" /></svg>Version 1</span>
+                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2" /><path stroke-linecap="round" d="M5 20c1-3.5 4-5.5 7-5.5s6 2 7 5.5" /></svg>Requested by Korey Terry</span>
+                                                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path stroke-linecap="round" d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></svg>Submitted Oct 05, 2026 · 11:29 AM</span>
+                                                    </div>
+                    </div>
+                </div>
+                <span class="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-[#7A0019] dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" d="M12 8v5M12 16h.01" /></svg>
+                    Revision required
+                </span>
+            </section>
+
+            <main class="min-w-0">
+                <form
+    id="submit-revision"
+    action="http://localhost/faculty/topics/1/resubmit"
+    method="POST"
+    enctype="multipart/form-data"
+    novalidate
+    aria-labelledby="faculty-revision-heading"
+    data-faculty-revision-required
+    data-revision-workspace="1"
+    data-revision-start-step="1"
+    data-confirm-title="Submit this revision to the Research Head?"
+    data-confirm-text="Edited papers will generate PDFs for the new version. Uploaded replacements and unchanged papers will be included too."
+    data-confirm-button="Submit revision"
+    data-confirm-icon="question"
+    @invalid.capture="if ($event.target.closest('[data-revision-proposal-details-fields]')) window.dispatchEvent(new CustomEvent('open-revision-proposal-details'))"
+    class="space-y-4"
+>
+    <input type="hidden" name="_token" value="H5RmKQ1QXGvErWcso2GA11pxWv2afxqHn7NRuCBh" autocomplete="off">    <input type="hidden" name="_method" value="PATCH">    <input type="hidden" name="redirect_to" value="topic">
+    <input type="hidden" name="topic_tab" value="review">
+    <input type="hidden" name="revision_draft_id" value="">
+    <h2 id="faculty-revision-heading" class="sr-only">Prepare the corrected project</h2>
+
+    <nav data-revision-progress-navigation aria-label="Revision workflow" class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+        <p data-revision-progress role="status" aria-live="polite" aria-atomic="true" class="text-sm font-semibold text-slate-900 dark:text-slate-100">Step 1 of 4 · Read feedback</p>
+        <ol class="mt-4 grid grid-cols-4" aria-label="Revision steps">
+                            <li data-revision-progress-step="1" data-state="current"  aria-current="step"  class="group relative flex min-w-0 flex-col items-center gap-3 rounded-lg px-1 py-3 data-[state=current]:bg-brand-wash dark:data-[state=current]:bg-rose-950/40 md:px-3">
+                                            <span data-revision-progress-connector aria-hidden="true" class="absolute left-[calc(50%+1.25rem)] right-[calc(-50%+1.25rem)] top-7 z-10 h-px bg-slate-200 group-data-[state=complete]:bg-brand dark:bg-slate-700 dark:group-data-[state=complete]:bg-rose-400"></span>
+                                        <span data-revision-progress-mark aria-hidden="true" class="relative z-20 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500 group-data-[state=current]:border-brand group-data-[state=current]:bg-brand group-data-[state=current]:text-white group-data-[state=complete]:border-brand group-data-[state=complete]:text-brand dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400 dark:group-data-[state=current]:border-rose-400 dark:group-data-[state=current]:bg-rose-400 dark:group-data-[state=current]:text-slate-950 dark:group-data-[state=complete]:border-rose-400 dark:group-data-[state=complete]:text-rose-300">1</span>
+                    <span data-revision-progress-label class="sr-only text-center text-xs leading-5 text-slate-500 group-data-[state=current]:font-bold group-data-[state=current]:text-brand group-data-[state=complete]:text-slate-800 dark:text-slate-400 dark:group-data-[state=current]:text-rose-200 dark:group-data-[state=complete]:text-slate-200 md:not-sr-only md:min-h-10">Read feedback</span>
+                    <span data-revision-progress-description class="sr-only">Current step</span>
+                </li>
+                            <li data-revision-progress-step="2" data-state="upcoming"  class="group relative flex min-w-0 flex-col items-center gap-3 rounded-lg px-1 py-3 data-[state=current]:bg-brand-wash dark:data-[state=current]:bg-rose-950/40 md:px-3">
+                                            <span data-revision-progress-connector aria-hidden="true" class="absolute left-[calc(50%+1.25rem)] right-[calc(-50%+1.25rem)] top-7 z-10 h-px bg-slate-200 group-data-[state=complete]:bg-brand dark:bg-slate-700 dark:group-data-[state=complete]:bg-rose-400"></span>
+                                        <span data-revision-progress-mark aria-hidden="true" class="relative z-20 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500 group-data-[state=current]:border-brand group-data-[state=current]:bg-brand group-data-[state=current]:text-white group-data-[state=complete]:border-brand group-data-[state=complete]:text-brand dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400 dark:group-data-[state=current]:border-rose-400 dark:group-data-[state=current]:bg-rose-400 dark:group-data-[state=current]:text-slate-950 dark:group-data-[state=complete]:border-rose-400 dark:group-data-[state=complete]:text-rose-300">2</span>
+                    <span data-revision-progress-label class="sr-only text-center text-xs leading-5 text-slate-500 group-data-[state=current]:font-bold group-data-[state=current]:text-brand group-data-[state=complete]:text-slate-800 dark:text-slate-400 dark:group-data-[state=current]:text-rose-200 dark:group-data-[state=complete]:text-slate-200 md:not-sr-only md:min-h-10">Revise and respond</span>
+                    <span data-revision-progress-description class="sr-only">Upcoming</span>
+                </li>
+                            <li data-revision-progress-step="3" data-state="upcoming"  class="group relative flex min-w-0 flex-col items-center gap-3 rounded-lg px-1 py-3 data-[state=current]:bg-brand-wash dark:data-[state=current]:bg-rose-950/40 md:px-3">
+                                            <span data-revision-progress-connector aria-hidden="true" class="absolute left-[calc(50%+1.25rem)] right-[calc(-50%+1.25rem)] top-7 z-10 h-px bg-slate-200 group-data-[state=complete]:bg-brand dark:bg-slate-700 dark:group-data-[state=complete]:bg-rose-400"></span>
+                                        <span data-revision-progress-mark aria-hidden="true" class="relative z-20 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500 group-data-[state=current]:border-brand group-data-[state=current]:bg-brand group-data-[state=current]:text-white group-data-[state=complete]:border-brand group-data-[state=complete]:text-brand dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400 dark:group-data-[state=current]:border-rose-400 dark:group-data-[state=current]:bg-rose-400 dark:group-data-[state=current]:text-slate-950 dark:group-data-[state=complete]:border-rose-400 dark:group-data-[state=complete]:text-rose-300">3</span>
+                    <span data-revision-progress-label class="sr-only text-center text-xs leading-5 text-slate-500 group-data-[state=current]:font-bold group-data-[state=current]:text-brand group-data-[state=complete]:text-slate-800 dark:text-slate-400 dark:group-data-[state=current]:text-rose-200 dark:group-data-[state=complete]:text-slate-200 md:not-sr-only md:min-h-10">Confirm details</span>
+                    <span data-revision-progress-description class="sr-only">Upcoming</span>
+                </li>
+                            <li data-revision-progress-step="4" data-state="upcoming"  class="group relative flex min-w-0 flex-col items-center gap-3 rounded-lg px-1 py-3 data-[state=current]:bg-brand-wash dark:data-[state=current]:bg-rose-950/40 md:px-3">
+                                        <span data-revision-progress-mark aria-hidden="true" class="relative z-20 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-500 group-data-[state=current]:border-brand group-data-[state=current]:bg-brand group-data-[state=current]:text-white group-data-[state=complete]:border-brand group-data-[state=complete]:text-brand dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400 dark:group-data-[state=current]:border-rose-400 dark:group-data-[state=current]:bg-rose-400 dark:group-data-[state=current]:text-slate-950 dark:group-data-[state=complete]:border-rose-400 dark:group-data-[state=complete]:text-rose-300">4</span>
+                    <span data-revision-progress-label class="sr-only text-center text-xs leading-5 text-slate-500 group-data-[state=current]:font-bold group-data-[state=current]:text-brand group-data-[state=complete]:text-slate-800 dark:text-slate-400 dark:group-data-[state=current]:text-rose-200 dark:group-data-[state=complete]:text-slate-200 md:not-sr-only md:min-h-10">Submit</span>
+                    <span data-revision-progress-description class="sr-only">Upcoming</span>
+                </li>
+                    </ol>
+    </nav>
+
+    <section id="revision-feedback" data-revision-step="1" data-revision-step-label="Read feedback" data-revision-intro class="scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="comment-response-heading">
+        <header class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+            <div class="flex min-w-0 items-start gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef3f8] text-[#1f3b57] dark:bg-slate-800 dark:text-slate-200" aria-hidden="true">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.4 8.4 0 0 1-8.6 8.4A9 9 0 0 1 8 18.8L3 20l1.3-3.9a8.3 8.3 0 0 1-1.1-4.1A8.4 8.4 0 0 1 12 3.5a8.4 8.4 0 0 1 9 8Z" /></svg>
+                </span>
+                <div>
+                    <h3 id="comment-response-heading" class="text-lg font-black text-slate-950 dark:text-white">1. Comment Response paper</h3>
+                    <p class="mt-1 text-base leading-6 text-slate-500 dark:text-slate-400">Read the reviewer comments on the paper below. Click the paper to enlarge it.</p>
+                </div>
+            </div>
+            <span class="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">4 comments</span>
+        </header>
+
+        <div class="space-y-4 p-5 sm:p-6">
+                            <input type="hidden" name="feedback_review_id" value="1">
+                <div class="space-y-4">
+                                            <section data-comment-response-source="research_head" aria-label="Research Head Comment Response paper">
+                                                            <dialog open role="region" data-comment-response-paper class="revision-comment-response-paper" aria-labelledby="revision-comment-response-heading-1-research_head">
+                                    <header class="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900 sm:px-5">
+                                        <h4 id="revision-comment-response-heading-1-research_head" class="text-base font-bold text-slate-900 dark:text-white">Research Head Comment Response paper</h4>
+                                        <button type="button" data-comment-response-paper-close hidden class="min-h-11 shrink-0 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Back to revision</button>
+                                    </header>
+                                    <div data-comment-response-paper-open role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-label="Enlarge Research Head Comment Response paper" class="revision-comment-response-paper-content">
+                                        <div x-data="pdfAnnotationWorkspace" data-pdf-annotation-config='{"pdfUrl":"http:\/\/localhost\/faculty\/topics\/1\/comment-response-form\/pdf?source=research_head&review=1","annotations":[],"canAnnotate":false,"loadWhenVisible":true,"fitWidth":true}' class="revision-pdf-viewer">
+    <p x-show="loading" role="status" class="absolute inset-x-0 top-5 z-10 text-center text-sm text-gray-700">Loading Comment Response paper…</p>
+    <div x-show="loadError" x-cloak role="alert" class="m-4 rounded-lg bg-red-50 p-4 text-base text-red-800">
+        <p x-text="loadError"></p>
+        <button x-show="viewerRefreshRequired" type="button" @click="window.location.reload()" class="mt-3 rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Reload page</button>
+        <button x-show="!viewerRefreshRequired" type="button" @click="loadPdf()" class="mt-3 rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Try again</button>
+    </div>
+    <div x-ref="viewer" tabindex="0" aria-label="Comment Response paper" class="pdf-annotation-viewer revision-pdf-pages"></div>
+</div>
+                                    </div>
+                                </dialog>
+                                                    </section>
+                                    </div>
+                    </div>
+    </section>
+
+    <section id="revision-papers" data-revision-step="2" data-revision-step-label="Revise and respond" hidden class="scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="revision-papers-heading">
+        <header class="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
+            <div class="flex min-w-0 items-start gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef3f8] text-[#1f3b57] dark:bg-slate-800 dark:text-slate-200" aria-hidden="true">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3M9.5 11h5M9.5 14.5h5" /></svg>
+                </span>
+                <div>
+                    <h3 id="revision-papers-heading" class="text-base font-black text-slate-950 dark:text-white">2. Revise and respond</h3>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Open a paper to edit it and reply to its reviewer comments in the same workspace.</p>
+                </div>
+            </div>
+        </header>
+                <div id="requested-papers-content" class="space-y-3 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6" data-requested-revision-files>
+                            <article
+    data-revision-document="detailed_proposal"
+    data-revision-label="Detailed Research Proposal"
+        data-revision-preview-upload-url="http://localhost/faculty/topics/1/revision/preview"
+    data-topic-file-dropzone="detailed_proposal"
+        class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
+>
+    <div class="flex flex-wrap items-center justify-between gap-4 p-4">
+        <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[#7A0019] dark:bg-red-950/40 dark:text-red-300" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3" /></svg>
+            </span>
+            <div class="min-w-0">
+                <h4 class="truncate text-sm font-bold text-gray-950 dark:text-white">Detailed Research Proposal</h4>
+                            <span hidden data-revision-document-state data-modified="false" data-addressed="false" data-reviewed="false"></span>
+                        </div>
+        </div>
+                    <div class="flex shrink-0 items-center gap-3">
+                <span data-revision-resolved-cue  hidden  class="text-emerald-700 dark:text-emerald-400" title="Revision action recorded for this paper">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 2.5 2.5L16 9" /></svg>
+                    <span class="sr-only">Revision action recorded</span>
+                </span>
+                <button type="button" data-revision-open class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Revise paper<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 4h6v6M20 4 4 20M9 4H4v16h16v-5" /></svg></button>
+            </div>
+            </div>
+
+            <dialog data-revision-dialog aria-labelledby="revision-dialog-title-detailed_proposal" class="revision-dialog bg-white text-gray-900 dark:bg-slate-900 dark:text-white">
+            <header class="revision-dialog-header">
+                <div class="min-w-0">
+                    <h3 id="revision-dialog-title-detailed_proposal" class="truncate text-lg font-bold">Detailed Research Proposal</h3>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Compare papers, make your edits, and reply to feedback here.</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" data-revision-previous aria-label="Previous document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700"><span class="hidden sm:inline">Previous</span><svg class="h-4 w-4 sm:hidden" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg></button>
+                    <button type="button" data-revision-next aria-label="Next document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700"><span class="hidden sm:inline">Next</span><svg class="h-4 w-4 sm:hidden" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" /></svg></button>
+                    <button type="button" data-revision-close class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700">Done</button>
+                </div>
+            </header>
+            <div data-revision-dialog-submit-error hidden role="alert" class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
+                <p class="font-bold">This document still needs an action before the revision can be sent.</p>
+                <p class="mt-1">Make a change, upload a replacement, or choose “Keep submitted paper” and provide an explanation.</p>
+            </div>
+            <div class="revision-dialog-body">
+                <div class="revision-document-workspace" data-revision-document-workspace>
+                    <section class="revision-feedback" data-revision-reference id="revision-reference-detailed_proposal" aria-label="Paper reference">
+                        <header class="revision-reference-heading">
+                            <div class="revision-paper-tabs" role="group" aria-label="Paper version">
+                                <button type="button" data-revision-preview-close aria-pressed="true">Submitted</button>
+                                <button type="button" data-revision-preview-open aria-controls="revision-preview-detailed_proposal" aria-pressed="false" aria-expanded="false">Revised</button>
+                            </div>
+                            <div class="flex items-center justify-between gap-2"><p class="text-sm text-slate-500 dark:text-slate-400">Click the paper to enlarge it.</p><button type="button" data-revision-reference-dismiss>Back to editing</button></div>
+                        </header>
+                        <div data-revision-submitted-panel data-revision-paper-open role="button" tabindex="0" aria-label="Enlarge submitted Detailed Research Proposal" aria-controls="revision-reference-detailed_proposal" aria-expanded="false" class="revision-frame-shell">
+                            <div data-revision-pdf-loading role="status" class="revision-frame-loading">
+                                <span class="revision-loading-spinner" aria-hidden="true"></span>
+                                <span>Loading submitted paper…</span>
+                            </div>
+                            <iframe data-revision-pdf-frame title="Submitted Detailed Research Proposal with reviewer highlights" class="revision-pdf-frame"></iframe>
+                            <p data-revision-pdf-unavailable hidden class="p-5 text-sm">The submitted PDF is unavailable. Use the reviewer feedback to update this paper.</p>
+                        </div>
+                        <div data-revision-preview-panel id="revision-preview-detailed_proposal" hidden class="revision-preview-panel">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3 dark:border-slate-700">
+                                <p data-revision-preview-status role="status" aria-live="polite" class="text-xs text-slate-500 dark:text-slate-400">Current revision</p>
+                                <select data-revision-preview-file hidden aria-label="Replacement file to preview" class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950"></select>
+                                <button type="button" data-revision-preview-refresh class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Refresh preview</button>
+                            </div>
+                            <p data-revision-preview-stale hidden role="status" class="bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">You have newer edits. Refresh to compare them.</p>
+                            <p data-revision-preview-error hidden role="alert" class="p-3 text-xs text-red-700 dark:text-red-300"></p>
+                            <div data-revision-paper-open role="button" tabindex="0" aria-label="Enlarge revised Detailed Research Proposal" aria-controls="revision-reference-detailed_proposal" aria-expanded="false" class="revision-preview-paper">
+                                <iframe data-revision-preview-frame hidden title="Revised Detailed Research Proposal preview" class="revision-preview-frame"></iframe>
+                            </div>
+                        </div>
+                        <footer class="revision-reference-footer">
+                            <div data-revision-preview-zoom hidden class="flex items-center gap-2" aria-label="Preview zoom">
+                                <button type="button" data-revision-zoom-out aria-label="Zoom out">−</button>
+                                <output data-revision-zoom-value aria-live="polite">100%</output>
+                                <button type="button" data-revision-zoom-in aria-label="Zoom in">+</button>
+                            </div>
+                        </footer>
+                    </section>
+                    <section class="revision-editor-panel" aria-label="Detailed Research Proposal revision editor">
+                        <div class="revision-editor-heading">
+                            <p class="text-base font-semibold text-slate-700 dark:text-slate-200">Your paper</p>
+                            <div class="revision-editor-actions">
+                                <button type="button" data-revision-reference-toggle aria-expanded="false">Show paper</button>
+                                <button type="button" data-revision-feedback-toggle aria-expanded="false" aria-controls="revision-feedback-detailed_proposal">Feedback &amp; reply<span class="revision-feedback-count">2</span></button>
+                            </div>
+                        </div>
+                        <p data-revision-keep-notice hidden class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">The submitted paper will be kept. Choose Revise this paper to continue editing.</p>
+                        <div data-revision-editor-content class="revision-editor-content">
+                                                    <p data-revision-editor-status role="status" class="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-slate-700 dark:text-slate-400">Loading editor…</p>
+                            <div class="revision-frame-shell">
+                                <div data-revision-editor-loading role="status" class="revision-frame-loading">
+                                    <span class="revision-loading-spinner" aria-hidden="true"></span>
+                                    <span>Loading revision editor…</span>
+                                </div>
+                                <iframe data-revision-editor-frame data-revision-editor-src="http://localhost/faculty/proposal-drafts/revision/1?document_type=detailed_proposal&amp;revision_embed=1" title="Edit Detailed Research Proposal alongside Research Head feedback" class="revision-editor-frame"></iframe>
+                            </div>
+                                                </div>
+                    </section>
+                    <aside class="revision-feedback-and-response" data-revision-feedback-panel id="revision-feedback-detailed_proposal" aria-label="Reviewer feedback and your response">
+                        <header class="revision-response-heading">
+                            <h4>Feedback &amp; reply</h4>
+                            <button type="button" data-revision-feedback-dismiss aria-label="Close feedback panel"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg></button>
+                        </header>
+                        <div data-revision-resolution-panel class="revision-resolution-panel">
+                            <fieldset>
+                                <legend class="sr-only">What will you do with this paper?</legend>
+                                <div class="revision-action-options">
+                                    <label>
+                                        <input type="radio" data-revision-edit-paper name="revision_resolutions[detailed_proposal][action]" value="" checked>
+                                        <span>Revise this paper</span>
+                                    </label>
+                                    <label>
+                                        <input type="radio" data-revision-no-change name="revision_resolutions[detailed_proposal][action]" value="no_change" >
+                                        <span>Keep submitted paper</span>
+                                    </label>
+                                </div>
+                                <div data-revision-no-change-details  hidden  class="mt-3 space-y-2">
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                        Why keep this paper? <span class="font-normal text-slate-500">(required)</span>
+                                        <textarea name="revision_resolutions[detailed_proposal][explanation]" data-revision-no-change-explanation rows="2" maxlength="1000"  placeholder="Explain how the submitted paper already addresses the feedback." class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+                                    </label>
+                                                                        <p class="text-xs text-slate-500 dark:text-slate-400">Your submitted PDF will carry forward. This reason fills any blank replies below; you can edit each reply.</p>
+                                </div>
+                            </fieldset>
+                        </div>
+                        <div class="revision-comment-strip" data-revision-feedback>
+                                                            <label for="revision-comment-detailed_proposal" class="mb-2 block text-xs font-semibold text-slate-500 dark:text-slate-400">Reviewer comment</label>
+                                <select id="revision-comment-detailed_proposal" data-revision-comment class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950">
+                                                                            <option value="file-1" data-annotation-id="" data-pdf-url="http://localhost/topics/1/versions/1/files/1/annotations?revision_embed=1">1 of 2 · detailed_proposal.pdf</option>
+                                                                            <option value="1" data-annotation-id="1" data-pdf-url="http://localhost/topics/1/versions/1/files/1/annotations?revision_embed=1">2 of 2 · Research Head · Page 1 · XII. Methodology:</option>
+                                                                    </select>
+                                                                    <div data-revision-comment-body="file-1"  class="mt-3 space-y-3">
+                                        <span hidden data-revision-modification-status="file-1" data-annotation-id="" data-modified="false" data-reviewed="false"></span>
+                                        <blockquote class="whitespace-pre-line rounded-lg border-l-2 border-brand bg-brand-wash px-3 py-2 text-sm leading-6 text-slate-800 dark:border-rose-400 dark:bg-rose-950/30 dark:text-slate-100">Update this paper.</blockquote>
+                                                                                                                            <div data-revision-response-key="file_1" data-revision-response-source="research_head" class="space-y-3">
+    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Your response <span class="font-normal text-slate-500 dark:text-slate-400">(required)</span>
+        <textarea data-revision-response-document="detailed_proposal" name="feedback_responses[file_1][response]" rows="2" maxlength="5000" required placeholder="Explain the change you made, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+    </label>
+    <fieldset data-comment-response-location data-response-key="file_1" data-response-document="detailed_proposal" x-data="{ noChange: false }" class="space-y-3">
+        <legend class="sr-only">Response details</legend>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300" aria-label="Response action">
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action name="feedback_responses[file_1][no_change]" value="0" @change="noChange = false" :checked="!noChange" checked class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Changed this passage
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action data-comment-response-no-change name="feedback_responses[file_1][no_change]" value="1" @change="noChange = true" :checked="noChange"  class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Explanation only
+            </label>
+        </div>
+        <details data-response-location-details x-show="!noChange" class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200">Location of your change</summary>
+            <div class="mt-3 space-y-3">
+                <div data-location-automation x-show="!noChange" class="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Revised paper
+                        <select data-location-document class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <option value="">Choose a revised paper</option>
+                                                            <option value="detailed_proposal" selected>Detailed Research Proposal</option>
+                                                            <option value="work_plan" >Attachment A: Work Plan</option>
+                                                    </select>
+                    </label>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Changed passage
+                        <select data-location-passage class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">Read the revised paper to choose a passage</option></select>
+                    </label>
+                    <button type="button" data-location-refresh class="min-h-9 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Find page and paragraph</button>
+                    <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-600 dark:text-slate-300">Numbers will fill automatically for a single changed passage linked to this comment.</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Page
+                        <input type="number" data-comment-response-page name="feedback_responses[file_1][page]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 4" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Paragraph
+                        <input type="number" data-comment-response-paragraph name="feedback_responses[file_1][paragraph]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 2" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                </div>
+                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Check the detected location against the final revised PDF.</p>
+                            </div>
+        </details>
+    </fieldset>
+</div>
+                                                                            </div>
+                                                                    <div data-revision-comment-body="1"  hidden  class="mt-3 space-y-3">
+                                        <span hidden data-revision-modification-status="1" data-annotation-id="1" data-modified="false" data-reviewed="false"></span>
+                                        <blockquote class="whitespace-pre-line rounded-lg border-l-2 border-brand bg-brand-wash px-3 py-2 text-sm leading-6 text-slate-800 dark:border-rose-400 dark:bg-rose-950/30 dark:text-slate-100">Clarify the sampling method.</blockquote>
+                                                                                    <p class="text-xs leading-5 text-slate-500 dark:text-slate-400"><span class="font-semibold">In the submitted paper:</span> “Proposed methods”</p>
+                                                                                                                            <div data-revision-response-key="annotation_1" data-revision-response-source="research_head" class="space-y-3">
+    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Your response <span class="font-normal text-slate-500 dark:text-slate-400">(required)</span>
+        <textarea data-revision-response-document="detailed_proposal" name="feedback_responses[annotation_1][response]" rows="2" maxlength="5000" required placeholder="Explain the change you made, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+    </label>
+    <fieldset data-comment-response-location data-response-key="annotation_1" data-response-document="detailed_proposal" x-data="{ noChange: false }" class="space-y-3">
+        <legend class="sr-only">Response details</legend>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300" aria-label="Response action">
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action name="feedback_responses[annotation_1][no_change]" value="0" @change="noChange = false" :checked="!noChange" checked class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Changed this passage
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action data-comment-response-no-change name="feedback_responses[annotation_1][no_change]" value="1" @change="noChange = true" :checked="noChange"  class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Explanation only
+            </label>
+        </div>
+        <details data-response-location-details x-show="!noChange" class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200">Location of your change</summary>
+            <div class="mt-3 space-y-3">
+                <div data-location-automation x-show="!noChange" class="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Revised paper
+                        <select data-location-document class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <option value="">Choose a revised paper</option>
+                                                            <option value="detailed_proposal" selected>Detailed Research Proposal</option>
+                                                            <option value="work_plan" >Attachment A: Work Plan</option>
+                                                    </select>
+                    </label>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Changed passage
+                        <select data-location-passage class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">Read the revised paper to choose a passage</option></select>
+                    </label>
+                    <button type="button" data-location-refresh class="min-h-9 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Find page and paragraph</button>
+                    <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-600 dark:text-slate-300">Numbers will fill automatically for a single changed passage linked to this comment.</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Page
+                        <input type="number" data-comment-response-page name="feedback_responses[annotation_1][page]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 4" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Paragraph
+                        <input type="number" data-comment-response-paragraph name="feedback_responses[annotation_1][paragraph]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 2" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                </div>
+                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Check the detected location against the final revised PDF.</p>
+                            </div>
+        </details>
+    </fieldset>
+</div>
+                                                                            </div>
+                                                                                    </div>
+                    </aside>
+                </div>
+            </div>
+        </dialog>
+    </article>
+                            <article
+    data-revision-document="work_plan"
+    data-revision-label="Attachment A: Work Plan"
+        data-revision-preview-upload-url="http://localhost/faculty/topics/1/revision/preview"
+    data-topic-file-dropzone="work_plan"
+        class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
+>
+    <div class="flex flex-wrap items-center justify-between gap-4 p-4">
+        <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[#7A0019] dark:bg-red-950/40 dark:text-red-300" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3" /></svg>
+            </span>
+            <div class="min-w-0">
+                <h4 class="truncate text-sm font-bold text-gray-950 dark:text-white">Attachment A: Work Plan</h4>
+                            <span hidden data-revision-document-state data-modified="false" data-addressed="false" data-reviewed="false"></span>
+                        </div>
+        </div>
+                    <div class="flex shrink-0 items-center gap-3">
+                <span data-revision-resolved-cue  hidden  class="text-emerald-700 dark:text-emerald-400" title="Revision action recorded for this paper">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 2.5 2.5L16 9" /></svg>
+                    <span class="sr-only">Revision action recorded</span>
+                </span>
+                <button type="button" data-revision-open class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Revise paper<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 4h6v6M20 4 4 20M9 4H4v16h16v-5" /></svg></button>
+            </div>
+            </div>
+
+            <dialog data-revision-dialog aria-labelledby="revision-dialog-title-work_plan" class="revision-dialog bg-white text-gray-900 dark:bg-slate-900 dark:text-white">
+            <header class="revision-dialog-header">
+                <div class="min-w-0">
+                    <h3 id="revision-dialog-title-work_plan" class="truncate text-lg font-bold">Attachment A: Work Plan</h3>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Compare papers, make your edits, and reply to feedback here.</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" data-revision-previous aria-label="Previous document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700"><span class="hidden sm:inline">Previous</span><svg class="h-4 w-4 sm:hidden" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg></button>
+                    <button type="button" data-revision-next aria-label="Next document" class="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-700"><span class="hidden sm:inline">Next</span><svg class="h-4 w-4 sm:hidden" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" /></svg></button>
+                    <button type="button" data-revision-close class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700">Done</button>
+                </div>
+            </header>
+            <div data-revision-dialog-submit-error hidden role="alert" class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
+                <p class="font-bold">This document still needs an action before the revision can be sent.</p>
+                <p class="mt-1">Make a change, upload a replacement, or choose “Keep submitted paper” and provide an explanation.</p>
+            </div>
+            <div class="revision-dialog-body">
+                <div class="revision-document-workspace" data-revision-document-workspace>
+                    <section class="revision-feedback" data-revision-reference id="revision-reference-work_plan" aria-label="Paper reference">
+                        <header class="revision-reference-heading">
+                            <div class="revision-paper-tabs" role="group" aria-label="Paper version">
+                                <button type="button" data-revision-preview-close aria-pressed="true">Submitted</button>
+                                <button type="button" data-revision-preview-open aria-controls="revision-preview-work_plan" aria-pressed="false" aria-expanded="false">Revised</button>
+                            </div>
+                            <div class="flex items-center justify-between gap-2"><p class="text-sm text-slate-500 dark:text-slate-400">Click the paper to enlarge it.</p><button type="button" data-revision-reference-dismiss>Back to editing</button></div>
+                        </header>
+                        <div data-revision-submitted-panel data-revision-paper-open role="button" tabindex="0" aria-label="Enlarge submitted Attachment A: Work Plan" aria-controls="revision-reference-work_plan" aria-expanded="false" class="revision-frame-shell">
+                            <div data-revision-pdf-loading role="status" class="revision-frame-loading">
+                                <span class="revision-loading-spinner" aria-hidden="true"></span>
+                                <span>Loading submitted paper…</span>
+                            </div>
+                            <iframe data-revision-pdf-frame title="Submitted Attachment A: Work Plan with reviewer highlights" class="revision-pdf-frame"></iframe>
+                            <p data-revision-pdf-unavailable hidden class="p-5 text-sm">The submitted PDF is unavailable. Use the reviewer feedback to update this paper.</p>
+                        </div>
+                        <div data-revision-preview-panel id="revision-preview-work_plan" hidden class="revision-preview-panel">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3 dark:border-slate-700">
+                                <p data-revision-preview-status role="status" aria-live="polite" class="text-xs text-slate-500 dark:text-slate-400">Current revision</p>
+                                <select data-revision-preview-file hidden aria-label="Replacement file to preview" class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950"></select>
+                                <button type="button" data-revision-preview-refresh class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Refresh preview</button>
+                            </div>
+                            <p data-revision-preview-stale hidden role="status" class="bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">You have newer edits. Refresh to compare them.</p>
+                            <p data-revision-preview-error hidden role="alert" class="p-3 text-xs text-red-700 dark:text-red-300"></p>
+                            <div data-revision-paper-open role="button" tabindex="0" aria-label="Enlarge revised Attachment A: Work Plan" aria-controls="revision-reference-work_plan" aria-expanded="false" class="revision-preview-paper">
+                                <iframe data-revision-preview-frame hidden title="Revised Attachment A: Work Plan preview" class="revision-preview-frame"></iframe>
+                            </div>
+                        </div>
+                        <footer class="revision-reference-footer">
+                            <div data-revision-preview-zoom hidden class="flex items-center gap-2" aria-label="Preview zoom">
+                                <button type="button" data-revision-zoom-out aria-label="Zoom out">−</button>
+                                <output data-revision-zoom-value aria-live="polite">100%</output>
+                                <button type="button" data-revision-zoom-in aria-label="Zoom in">+</button>
+                            </div>
+                        </footer>
+                    </section>
+                    <section class="revision-editor-panel" aria-label="Attachment A: Work Plan revision editor">
+                        <div class="revision-editor-heading">
+                            <p class="text-base font-semibold text-slate-700 dark:text-slate-200">Your paper</p>
+                            <div class="revision-editor-actions">
+                                <button type="button" data-revision-reference-toggle aria-expanded="false">Show paper</button>
+                                <button type="button" data-revision-feedback-toggle aria-expanded="false" aria-controls="revision-feedback-work_plan">Feedback &amp; reply<span class="revision-feedback-count">1</span></button>
+                            </div>
+                        </div>
+                        <p data-revision-keep-notice hidden class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">The submitted paper will be kept. Choose Revise this paper to continue editing.</p>
+                        <div data-revision-editor-content class="revision-editor-content">
+                                                    <p data-revision-editor-status role="status" class="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-slate-700 dark:text-slate-400">Loading editor…</p>
+                            <div class="revision-frame-shell">
+                                <div data-revision-editor-loading role="status" class="revision-frame-loading">
+                                    <span class="revision-loading-spinner" aria-hidden="true"></span>
+                                    <span>Loading revision editor…</span>
+                                </div>
+                                <iframe data-revision-editor-frame data-revision-editor-src="http://localhost/faculty/proposal-drafts/revision/1?document_type=work_plan&amp;revision_embed=1" title="Edit Attachment A: Work Plan alongside Research Head feedback" class="revision-editor-frame"></iframe>
+                            </div>
+                                                </div>
+                    </section>
+                    <aside class="revision-feedback-and-response" data-revision-feedback-panel id="revision-feedback-work_plan" aria-label="Reviewer feedback and your response">
+                        <header class="revision-response-heading">
+                            <h4>Feedback &amp; reply</h4>
+                            <button type="button" data-revision-feedback-dismiss aria-label="Close feedback panel"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg></button>
+                        </header>
+                        <div data-revision-resolution-panel class="revision-resolution-panel">
+                            <fieldset>
+                                <legend class="sr-only">What will you do with this paper?</legend>
+                                <div class="revision-action-options">
+                                    <label>
+                                        <input type="radio" data-revision-edit-paper name="revision_resolutions[work_plan][action]" value="" checked>
+                                        <span>Revise this paper</span>
+                                    </label>
+                                    <label>
+                                        <input type="radio" data-revision-no-change name="revision_resolutions[work_plan][action]" value="no_change" >
+                                        <span>Keep submitted paper</span>
+                                    </label>
+                                </div>
+                                <div data-revision-no-change-details  hidden  class="mt-3 space-y-2">
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                        Why keep this paper? <span class="font-normal text-slate-500">(required)</span>
+                                        <textarea name="revision_resolutions[work_plan][explanation]" data-revision-no-change-explanation rows="2" maxlength="1000"  placeholder="Explain how the submitted paper already addresses the feedback." class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+                                    </label>
+                                                                        <p class="text-xs text-slate-500 dark:text-slate-400">Your submitted PDF will carry forward. This reason fills any blank replies below; you can edit each reply.</p>
+                                </div>
+                            </fieldset>
+                        </div>
+                        <div class="revision-comment-strip" data-revision-feedback>
+                                                            <label for="revision-comment-work_plan" class="mb-2 block text-xs font-semibold text-slate-500 dark:text-slate-400">Reviewer comment</label>
+                                <select id="revision-comment-work_plan" data-revision-comment class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950">
+                                                                            <option value="file-2" data-annotation-id="" data-pdf-url="http://localhost/topics/1/versions/1/files/2/annotations?revision_embed=1">1 of 1 · work_plan.pdf</option>
+                                                                    </select>
+                                                                    <div data-revision-comment-body="file-2"  class="mt-3 space-y-3">
+                                        <span hidden data-revision-modification-status="file-2" data-annotation-id="" data-modified="false" data-reviewed="false"></span>
+                                        <blockquote class="whitespace-pre-line rounded-lg border-l-2 border-brand bg-brand-wash px-3 py-2 text-sm leading-6 text-slate-800 dark:border-rose-400 dark:bg-rose-950/30 dark:text-slate-100">Update this paper.</blockquote>
+                                                                                                                            <div data-revision-response-key="file_2" data-revision-response-source="research_head" class="space-y-3">
+    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Your response <span class="font-normal text-slate-500 dark:text-slate-400">(required)</span>
+        <textarea data-revision-response-document="work_plan" name="feedback_responses[file_2][response]" rows="2" maxlength="5000" required placeholder="Explain the change you made, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+    </label>
+    <fieldset data-comment-response-location data-response-key="file_2" data-response-document="work_plan" x-data="{ noChange: false }" class="space-y-3">
+        <legend class="sr-only">Response details</legend>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300" aria-label="Response action">
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action name="feedback_responses[file_2][no_change]" value="0" @change="noChange = false" :checked="!noChange" checked class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Changed this passage
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action data-comment-response-no-change name="feedback_responses[file_2][no_change]" value="1" @change="noChange = true" :checked="noChange"  class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Explanation only
+            </label>
+        </div>
+        <details data-response-location-details x-show="!noChange" class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200">Location of your change</summary>
+            <div class="mt-3 space-y-3">
+                <div data-location-automation x-show="!noChange" class="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Revised paper
+                        <select data-location-document class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <option value="">Choose a revised paper</option>
+                                                            <option value="detailed_proposal" >Detailed Research Proposal</option>
+                                                            <option value="work_plan" selected>Attachment A: Work Plan</option>
+                                                    </select>
+                    </label>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Changed passage
+                        <select data-location-passage class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">Read the revised paper to choose a passage</option></select>
+                    </label>
+                    <button type="button" data-location-refresh class="min-h-9 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Find page and paragraph</button>
+                    <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-600 dark:text-slate-300">Numbers will fill automatically for a single changed passage linked to this comment.</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Page
+                        <input type="number" data-comment-response-page name="feedback_responses[file_2][page]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 4" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Paragraph
+                        <input type="number" data-comment-response-paragraph name="feedback_responses[file_2][paragraph]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 2" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                </div>
+                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Check the detected location against the final revised PDF.</p>
+                            </div>
+        </details>
+    </fieldset>
+</div>
+                                                                            </div>
+                                                                                    </div>
+                    </aside>
+                </div>
+            </div>
+        </dialog>
+    </article>
+                    </div>
+                    <div class="space-y-4 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6" data-revision-general-responses>
+                <h4 class="text-sm font-semibold text-slate-900 dark:text-white">Overall feedback</h4>
+                                    <article class="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Overall proposal</p>
+                        <blockquote class="whitespace-pre-line rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-800 dark:bg-slate-800 dark:text-slate-100">Clarify the proposed methods and schedule.</blockquote>
+                        <div data-revision-response-key="overall" data-revision-response-source="research_head" class="space-y-3">
+    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Your response <span class="font-normal text-slate-500 dark:text-slate-400">(required)</span>
+        <textarea data-revision-response-document="" name="feedback_responses[overall][response]" rows="2" maxlength="5000" required placeholder="Explain the change you made, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+    </label>
+    <fieldset data-comment-response-location data-response-key="overall" data-response-document="" x-data="{ noChange: false }" class="space-y-3">
+        <legend class="sr-only">Response details</legend>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300" aria-label="Response action">
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action name="feedback_responses[overall][no_change]" value="0" @change="noChange = false" :checked="!noChange" checked class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Changed this passage
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="radio" data-comment-response-action data-comment-response-no-change name="feedback_responses[overall][no_change]" value="1" @change="noChange = true" :checked="noChange"  class="border-slate-300 text-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950">
+                Explanation only
+            </label>
+        </div>
+        <details data-response-location-details x-show="!noChange" class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200">Location of your change</summary>
+            <div class="mt-3 space-y-3">
+                <div data-location-automation x-show="!noChange" class="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Revised paper
+                        <select data-location-document class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <option value="">Choose a revised paper</option>
+                                                            <option value="detailed_proposal" >Detailed Research Proposal</option>
+                                                            <option value="work_plan" >Attachment A: Work Plan</option>
+                                                    </select>
+                    </label>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Changed passage
+                        <select data-location-passage class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">Read the revised paper to choose a passage</option></select>
+                    </label>
+                    <button type="button" data-location-refresh class="min-h-9 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Find page and paragraph</button>
+                    <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-600 dark:text-slate-300">Numbers will fill automatically for a single changed passage linked to this comment.</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Page
+                        <input type="number" data-comment-response-page name="feedback_responses[overall][page]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 4" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Paragraph
+                        <input type="number" data-comment-response-paragraph name="feedback_responses[overall][paragraph]" value="" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange"  placeholder="e.g. 2" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                    </label>
+                </div>
+                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Check the detected location against the final revised PDF.</p>
+                            </div>
+        </details>
+    </fieldset>
+</div>
+                    </article>
+                            </div>
+            </section>
+
+    <section
+        id="revision-details"
+        data-revision-step="3"
+        data-revision-step-label="Confirm details"
+        hidden
+        data-revision-proposal-details
+        data-initially-open="true"
+        x-data="{ open: true }"
+        @open-revision-proposal-details.window="open = true"
+        class="scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+        aria-labelledby="proposal-details-heading"
+    >
+        <button type="button" data-revision-proposal-details-button @click="open = !open" :aria-expanded="open" aria-controls="proposal-details-fields" class="flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#7A0019] dark:hover:bg-slate-800 sm:px-6">
+            <span class="flex min-w-0 items-start gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef3f8] text-[#1f3b57] dark:bg-slate-800 dark:text-slate-200" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h9" /></svg></span>
+                <span><span id="proposal-details-heading" class="block text-base font-black text-slate-950 dark:text-white">3. Proposal details</span><span class="mt-1 block text-sm font-normal leading-6 text-slate-500 dark:text-slate-400">Confirm that the proposal information is correct and up to date.</span></span>
+            </span>
+            <span class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-600 dark:text-slate-200" x-text="open ? 'Hide details' : 'Edit details'">Edit details</span>
+        </button>
+        <div id="proposal-details-fields" data-revision-proposal-details-fields x-show="open" x-cloak x-transition class="grid gap-4 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6 md:grid-cols-2">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200">Project title<input name="title" value="Revision loading regression" required class="mt-2 block w-full rounded-lg border-slate-200 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200">Total project cost<input name="estimated_budget" type="number" min="0" max="150000" step="0.01" value="0" required class="mt-2 block w-full rounded-lg border-slate-200 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200 md:col-span-2">Description<textarea name="description" rows="3" class="mt-2 block w-full rounded-lg border-slate-200 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea></label>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200">Duration in months<input name="estimated_duration_months" type="number" min="1" max="120" value="" required class="mt-2 block w-full rounded-lg border-slate-200 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+        </div>
+
+        <label class="mx-5 mb-5 flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200 sm:mx-6">
+            <input type="checkbox" data-revision-details-confirmed required class="mt-0.5 rounded border-slate-300 text-[#7A0019] focus:ring-[#7A0019]">
+            I have checked the title, cost, description, and duration and confirm they are correct.
+        </label>
+    </section>
+
+    <section id="review-and-submit" data-revision-step="4" data-revision-step-label="Submit" hidden class="scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div class="flex flex-col gap-5 p-5 sm:p-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex min-w-0 items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef3f8] text-[#1f3b57] dark:bg-slate-800 dark:text-slate-200" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5 20 12 4.5 4.5 6.7 11l8.3 1-8.3 1-2.2 6.5Z" /></svg></span>
+                    <div><h3 class="text-base font-black text-slate-950 dark:text-white">4. Final review and submission</h3><p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Create the next proposal version and return it to the Research Head for review.</p></div>
+                </div>
+                <button type="submit" data-revision-submit-button class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#7A0019] px-5 text-sm font-bold text-white transition hover:bg-[#650015] focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 disabled:pointer-events-none disabled:cursor-wait disabled:bg-slate-300 disabled:text-white disabled:opacity-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-300 dark:focus:ring-offset-slate-900">
+                    <span data-revision-submit-button-spinner hidden class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true"></span>
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5 20 12 4.5 4.5 6.7 11l8.3 1-8.3 1-2.2 6.5Z" /></svg>
+                    <span data-revision-submit-button-label>Submit for review</span>
+                </button>
+            </div>
+            <dl class="grid gap-4 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800 sm:grid-cols-2">
+                <div class="sm:col-span-2"><dt class="text-slate-500 dark:text-slate-400">Project title</dt><dd data-revision-summary-title class="mt-1 font-semibold text-slate-900 dark:text-white">Revision loading regression</dd></div>
+                <div><dt class="text-slate-500 dark:text-slate-400">Paper revisions</dt><dd class="mt-1 font-semibold text-slate-900 dark:text-white">2 papers addressed</dd></div>
+                <div><dt class="text-slate-500 dark:text-slate-400">Comment responses</dt><dd class="mt-1 font-semibold text-slate-900 dark:text-white">4 responses completed</dd></div>
+                <div><dt class="text-slate-500 dark:text-slate-400">Total project cost</dt><dd data-revision-summary-cost class="mt-1 font-semibold text-slate-900 dark:text-white"></dd></div>
+                <div><dt class="text-slate-500 dark:text-slate-400">Duration</dt><dd data-revision-summary-duration class="mt-1 font-semibold text-slate-900 dark:text-white"></dd></div>
+            </dl>
+            <p class="text-sm leading-6 text-slate-600 dark:text-slate-300">Submitting saves your responses in the Comment Response paper and creates the next proposal version. Papers you did not replace carry forward automatically.</p>
+            <div data-revision-submit-error role="alert" hidden class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"><p class="font-bold">Revision not sent</p><p data-revision-submit-error-message class="mt-1"></p></div>
+        </div>
+    </section>
+
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-20" data-revision-navigation>
+        <button type="button" data-revision-step-back hidden class="min-h-11 rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Back</button>
+        <p data-revision-step-error role="alert" hidden class="text-sm font-semibold text-red-700 dark:text-red-300"></p>
+        <button type="button" data-revision-step-continue class="ml-auto min-h-11 rounded-lg bg-[#7A0019] px-5 text-sm font-bold text-white hover:bg-[#650015]">Continue to revise and respond</button>
+    </div>
+
+    <div data-revision-submit-overlay role="status" aria-live="assertive" aria-hidden="true" aria-label="Revision submission progress" tabindex="-1" class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+        <div class="w-full max-w-md rounded-2xl border border-white/20 bg-white p-6 text-center shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <span class="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-red-100 border-t-red-700 dark:border-slate-700 dark:border-t-red-400" aria-hidden="true"></span>
+            <p data-revision-submit-title class="mt-4 text-lg font-black text-gray-950 dark:text-white">Preparing your revision</p>
+            <p data-revision-submit-status class="mt-2 text-base leading-7 text-gray-600 dark:text-slate-300">Saving your edits and generating the requested PDFs…</p>
+            <p class="mt-3 text-sm font-semibold leading-6 text-gray-500 dark:text-slate-400">This should finish shortly. If a step takes too long, the submission will stop and let you try again.</p>
+        </div>
+    </div>
+</form>
+            </main>
+        </div>
+    </div>
+                </div>
+            </main>
+
+        </div>
+
+                    <button
+    id="research-assistant-launcher"
+    x-cloak
+    x-show="!$store.researchAssistant.workspaceOpen"
+    type="button"
+    @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
+    :aria-expanded="$store.researchAssistant.drawerOpen"
+    :aria-label="$store.researchAssistant.drawerOpen ? 'Close Athena AI research assistant' : 'Open Athena AI research assistant'"
+    aria-controls="research-assistant-panel"
+    aria-label="Open Athena AI research assistant"
+    class="group fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-[71] inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-lg shadow-red-950/20 transition hover:from-red-700 hover:to-rose-800 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-4 dark:focus-visible:ring-offset-slate-950 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden"
+>
+    <span x-show="!$store.researchAssistant.drawerOpen" class="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-slate-700" aria-hidden="true">Ask ATHENA</span>
+    <svg x-show="!$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
+    </svg>
+    <svg x-show="$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" />
+    </svg>
+</button>
+
+<div
+    x-cloak
+    x-show="$store.researchAssistant.drawerOpen"
+    @keydown.escape.window="$store.researchAssistant.closeDrawer()"
+    class="athena-readable pointer-events-none fixed inset-0 z-[70] print:hidden"
+>
+    <aside
+        id="research-assistant-panel"
+        x-show="$store.researchAssistant.drawerOpen"
+        x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+        x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+        x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+        x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+        role="dialog"
+        aria-labelledby="research-assistant-drawer-title"
+        class="athena-chat-panel pointer-events-auto absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] right-[calc(1rem+env(safe-area-inset-right))] flex h-[42rem] max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:max-h-[calc(100dvh-7.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[30rem]"
+    >
+        <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div class="min-w-0">
+                    <h2 id="research-assistant-drawer-title" class="truncate text-lg font-bold text-gray-900 dark:text-white">Athena</h2>
+                    <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite"><span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span><span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Research assistant'"></span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button x-show="!$store.researchAssistant.workspaceOpen" type="button" @click="$store.researchAssistant.openWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Expand to full workspace" title="Expand to full workspace">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Start a new chat" title="New chat">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeDrawer()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close research assistant">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <details class="group shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 sm:px-5">
+            <summary class="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                <svg class="h-4 w-4 shrink-0 text-red-700 dark:text-red-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6"/></svg>
+                <span class="flex-1">Chats are saved to your account.</span>
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 bg-white font-semibold dark:border-slate-600 dark:bg-slate-900" aria-label="Privacy details">i</span>
+            </summary>
+            <p class="mt-3 leading-6">With context enabled, Athena uses the selected project’s saved records. On proposal forms, it can also use the focused field’s unsaved values. Contact details are redacted. Avoid sharing confidential participant data.</p>
+        </details>
+
+        <div data-assistant-messages class="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
+            <div x-show="!$store.researchAssistant.hasConversation()" class="flex min-h-full flex-col items-center justify-center px-5 py-10 text-center">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white dark:bg-white dark:text-slate-900">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <h3 class="mt-4 text-xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h3>
+                <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-7 grid w-full max-w-lg gap-2 sm:grid-cols-2">
+                    <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="rounded-2xl border border-gray-200 p-3 text-left transition hover:border-gray-300 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
+                            <span class="mt-1 block text-xs font-semibold leading-5 text-gray-700 dark:text-slate-200" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="px-4 py-6 sm:px-6">
+                <template x-for="message in $store.researchAssistant.messages" :key="message.id">
+                    <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-6 flex">
+                        <div data-assistant-user-message x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100"><p class="whitespace-pre-wrap" x-text="message.content"></p></div>
+                        <div x-show="message.role === 'assistant'" class="flex w-full gap-3">
+                            <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
+                            <div data-assistant-response class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                                <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                                    <span x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+                <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex items-center gap-3" role="status" aria-label="Athena is preparing a response">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
+                    <div class="flex gap-1.5"><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span></div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="max-h-[50dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-gray-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:pb-4">
+            <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
+                <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2">
+                <label class="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-gray-600 dark:text-slate-300"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">Project</label>
+                <select id="assistant-drawer-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
+                </select>
+            </div>
+
+            <div x-show="$store.researchAssistant.canSelectDocuments()" x-cloak class="mb-2">
+    <button
+        type="button"
+        @click="$store.researchAssistant.toggleDocumentPicker()"
+        :aria-expanded="$store.researchAssistant.documentPickerOpen"
+        aria-controls="assistant-document-picker-drawer"
+        class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+    >
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.5 6.5 8.8 12.2a2.5 2.5 0 1 0 3.5 3.5l6.1-6.1a4.5 4.5 0 0 0-6.4-6.4l-6.6 6.6a6.5 6.5 0 0 0 9.2 9.2l5.4-5.4" /></svg>
+        Analyze document
+    </button>
+
+    <div
+        id="assistant-document-picker-drawer"
+        x-show="$store.researchAssistant.documentPickerOpen"
+        x-transition.opacity.duration.150ms
+        class="mt-1.5 rounded-xl border border-gray-200 bg-gray-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70"
+    >
+        <div class="flex items-center gap-2">
+            <select
+                id="assistant-document-select-drawer"
+                x-model="$store.researchAssistant.selectedDocumentToken"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.documentOptions.length"
+                aria-label="Document to analyze"
+                class="min-w-0 flex-1 rounded-lg border-gray-200 bg-white py-1.5 text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            >
+                <template x-for="documentOption in $store.researchAssistant.documentOptions" :key="documentOption.token">
+                    <option :value="documentOption.token" x-text="`${documentOption.label} · ${documentOption.format}`"></option>
+                </template>
+            </select>
+            <button
+                type="button"
+                @click="$store.researchAssistant.analyzeSelectedDocument()"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.selectedDocumentToken || $store.researchAssistant.isLoading"
+                class="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-[11px] font-black text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                x-text="$store.researchAssistant.documentLoading ? 'Loading…' : 'Analyze'"
+            ></button>
+        </div>
+        <p x-show="$store.researchAssistant.documentError" class="mt-1.5 text-[10px] font-semibold text-red-600 dark:text-red-300" x-text="$store.researchAssistant.documentError"></p>
+        <p x-show="!$store.researchAssistant.documentError" class="mt-1.5 text-[10px] leading-4 text-gray-400">Only the selected PDF or DOCX is sent to Athena for this request.</p>
+    </div>
+</div>
+
+            <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800">
+                <label for="research-assistant-drawer-message" class="sr-only">Message Athena Research Assistant</label>
+                <textarea id="research-assistant-drawer-message" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Message Athena…" class="max-h-44 min-h-11 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"></textarea>
+                <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg></button>
+                <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
+            </form>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p class="text-sm text-gray-500 dark:text-slate-400">Check important answers.</p>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                        <span x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></span>
+                    </button>
+                    <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>Export</button>
+                </div>
+            </div>
+        </footer>
+    </aside>
+</div>
+            <div
+                x-cloak
+                x-show="$store.researchAssistant.workspaceOpen"
+                x-transition.opacity
+                class="fixed inset-0 z-[80] bg-white dark:bg-slate-900"
+                data-assistant-full-workspace
+            >
+                <section
+    id="athena-assistant-workspace"
+    class="athena-readable flex h-full min-h-0 w-full overflow-hidden border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+    aria-labelledby="assistant-heading"
+    data-assistant-workspace
+>
+    <aside class="hidden w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50/80 dark:border-slate-800 dark:bg-slate-950/60 lg:flex">
+        <div class="border-b border-gray-200 p-4 dark:border-slate-800">
+            <div class="flex items-center gap-3 px-1 py-2">
+                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-black text-gray-900 dark:text-white">Athena AI</p>
+                    <p class="text-[11px] text-gray-500 dark:text-slate-400">Research copilot</p>
+                </div>
+            </div>
+
+            <button type="button" @click="$store.researchAssistant.newConversation()" class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-red-300 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                New chat
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4">
+            <div class="flex items-center justify-between gap-2 px-2">
+                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Chat history</p>
+                <span class="text-[10px] font-semibold text-gray-400" x-text="$store.researchAssistant.history.length ? `${$store.researchAssistant.history.length} chats` : ''"></span>
+            </div>
+
+            <button type="button" @click="$store.researchAssistant.openHistorySearch()" class="mt-3 flex w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white">
+                <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                Search history
+                <kbd class="ml-auto rounded border border-gray-200 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 dark:border-slate-700">Ctrl K</kbd>
+            </button>
+
+            <div class="mt-3 space-y-1">
+                <template x-for="conversation in $store.researchAssistant.history" :key="conversation.id">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 dark:bg-slate-900 dark:text-white dark:ring-slate-700' : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'" class="w-full rounded-xl px-3 py-2.5 text-left transition">
+                        <span class="block truncate text-xs font-bold" x-text="conversation.title"></span>
+                        <span class="mt-1 block truncate text-[10px] leading-4 text-gray-400 dark:text-slate-500" x-text="conversation.preview"></span>
+                        <span class="mt-1 block text-[9px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="$store.researchAssistant.historyLoading" role="status" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Loading saved chats…</p>
+                <div x-show="$store.researchAssistant.historyLoadError" class="px-2 py-4 text-center">
+                    <p class="text-[11px] text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.historyLoadError"></p>
+                    <button type="button" @click="$store.researchAssistant.loadHistory()" class="mt-3 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Retry loading history</button>
+                </div>
+                <p x-show="!$store.researchAssistant.historyLoading && !$store.researchAssistant.historyLoadError && !$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 rounded-xl bg-red-50 px-3 py-2.5 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p class="font-black uppercase tracking-wider">Paper help</p>
+                <p class="mt-1 font-semibold leading-4" x-text="$store.researchAssistant.paperContextLabel()"></p>
+                <p x-show="$store.researchAssistant.hasLiveFormContext()" class="mt-1.5 font-bold text-red-700 dark:text-red-300">Focused field and current row context included</p>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mt-6 border-t border-gray-200 pt-5 dark:border-slate-800">
+                <label for="assistant-workspace-context" class="flex items-center gap-2 text-[11px] font-bold text-gray-700 dark:text-slate-300">
+                    <input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-slate-700">
+                    Use proposal context
+                </label>
+                <select id="assistant-workspace-context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="mt-2 block w-full rounded-xl border-gray-200 bg-white text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id">
+                        <option :value="context.id" x-text="context.label"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+
+        <div class="space-y-1 border-t border-gray-200 p-4 dark:border-slate-800">
+            <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
+            <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">Export .txt</button>
+            <p class="px-3 pt-3 text-[10px] leading-4 text-gray-400"><span class="font-bold">Privacy:</span> Chats are saved to your ATHENA account.</p>
+        </div>
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900">
+        <header class="flex min-h-16 items-center justify-between border-b border-gray-100 px-4 sm:px-6 dark:border-slate-800">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white lg:hidden">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div class="min-w-0">
+                    <h3 id="assistant-heading" class="truncate text-sm font-black text-gray-900 dark:text-white">Athena Research Assistant</h3>
+                    <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite">
+                        <span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span>
+                        <span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Ready'"></span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                    <span class="hidden sm:inline">New chat</span>
+                </button>
+                <button type="button" @click="$store.researchAssistant.collapseWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Collapse to side panel" title="Collapse to side panel">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Back to Research Support" title="Back to Research Support">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <div
+            data-assistant-messages
+            class="flex-1 overflow-y-auto scroll-smooth"
+            aria-live="polite"
+            :aria-busy="$store.researchAssistant.isLoading"
+        >
+            <div x-show="!$store.researchAssistant.hasConversation()" class="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-5 py-12 text-center">
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg dark:bg-white dark:text-slate-900">
+                    <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <h4 class="mt-5 text-2xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h4>
+                <p class="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-8 grid w-full gap-3 sm:grid-cols-2">
+                    <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="group rounded-2xl border border-gray-200 p-4 text-left transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
+                            <span class="mt-1 block text-sm font-semibold leading-6 text-gray-700 group-hover:text-gray-950 dark:text-slate-200 dark:group-hover:text-white" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+                <template x-for="message in $store.researchAssistant.messages" :key="message.id">
+                    <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-7 flex">
+                        <div x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-5 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100 sm:max-w-[75%]">
+                            <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                        </div>
+                        <div x-show="message.role === 'assistant'" class="flex w-full gap-3 sm:gap-4">
+                            <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                            </div>
+                            <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                                <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+
+                <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex gap-4" role="status" aria-label="Athena is preparing a response">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg>
+                    </div>
+                    <div class="flex h-8 items-center gap-1.5">
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="border-t border-gray-100 bg-white px-3 pb-3 pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-6 sm:pb-5">
+            <div class="mx-auto max-w-3xl">
+                <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                    <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
+                    <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200 lg:hidden">
+                    <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                    <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                    <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2 lg:hidden">
+                    <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
+                    <select id="assistant-mobile-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
+                    </select>
+                </div>
+
+                <div x-show="$store.researchAssistant.canSelectDocuments()" x-cloak class="mb-2">
+    <button
+        type="button"
+        @click="$store.researchAssistant.toggleDocumentPicker()"
+        :aria-expanded="$store.researchAssistant.documentPickerOpen"
+        aria-controls="assistant-document-picker-workspace"
+        class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+    >
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.5 6.5 8.8 12.2a2.5 2.5 0 1 0 3.5 3.5l6.1-6.1a4.5 4.5 0 0 0-6.4-6.4l-6.6 6.6a6.5 6.5 0 0 0 9.2 9.2l5.4-5.4" /></svg>
+        Analyze document
+    </button>
+
+    <div
+        id="assistant-document-picker-workspace"
+        x-show="$store.researchAssistant.documentPickerOpen"
+        x-transition.opacity.duration.150ms
+        class="mt-1.5 rounded-xl border border-gray-200 bg-gray-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70"
+    >
+        <div class="flex items-center gap-2">
+            <select
+                id="assistant-document-select-workspace"
+                x-model="$store.researchAssistant.selectedDocumentToken"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.documentOptions.length"
+                aria-label="Document to analyze"
+                class="min-w-0 flex-1 rounded-lg border-gray-200 bg-white py-1.5 text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            >
+                <template x-for="documentOption in $store.researchAssistant.documentOptions" :key="documentOption.token">
+                    <option :value="documentOption.token" x-text="`${documentOption.label} · ${documentOption.format}`"></option>
+                </template>
+            </select>
+            <button
+                type="button"
+                @click="$store.researchAssistant.analyzeSelectedDocument()"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.selectedDocumentToken || $store.researchAssistant.isLoading"
+                class="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-[11px] font-black text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                x-text="$store.researchAssistant.documentLoading ? 'Loading…' : 'Analyze'"
+            ></button>
+        </div>
+        <p x-show="$store.researchAssistant.documentError" class="mt-1.5 text-[10px] font-semibold text-red-600 dark:text-red-300" x-text="$store.researchAssistant.documentError"></p>
+        <p x-show="!$store.researchAssistant.documentError" class="mt-1.5 text-[10px] leading-4 text-gray-400">Only the selected PDF or DOCX is sent to Athena for this request.</p>
+    </div>
+</div>
+
+                <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm transition focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:focus-within:border-slate-600">
+                    <label for="research-assistant-message" class="sr-only">Message Athena Research Assistant</label>
+                    <textarea
+                        id="research-assistant-message"
+                        data-assistant-composer
+                        x-model="$store.researchAssistant.draft"
+                        @input="$store.researchAssistant.resizeComposer($event)"
+                        @keydown="$store.researchAssistant.handleComposerKeydown($event)"
+                        rows="1"
+                        maxlength="2000"
+                        placeholder="Message Athena…"
+                        class="max-h-44 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"
+                    ></textarea>
+                    <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg>
+                    </button>
+                    <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
+                </form>
+                <p class="mt-2 text-center text-[10px] leading-4 text-gray-400">Athena can make mistakes. A limited focused-field snapshot is included on proposal forms; avoid confidential data. Verify guidance with official university policies. Press Shift+Enter for a new line.</p>
+            </div>
+        </footer>
+    </div>
+
+    <div x-cloak x-show="$store.researchAssistant.historySearchOpen" @click.self="$store.researchAssistant.closeHistorySearch()" @keydown.escape.window="$store.researchAssistant.closeHistorySearch()" class="fixed inset-0 z-[100] flex items-start justify-center bg-gray-950/45 px-4 py-[12vh] backdrop-blur-sm" role="presentation">
+        <div x-show="$store.researchAssistant.historySearchOpen" x-transition role="dialog" aria-modal="true" aria-labelledby="assistant-history-search-title" class="flex max-h-[min(70vh,38rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
+                <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <label id="assistant-history-search-title" for="assistant-history-search" class="sr-only">Search chat history</label>
+                <input id="assistant-history-search" type="search" x-model="$store.researchAssistant.historySearchQuery" @input="$store.researchAssistant.queueHistorySearch()" placeholder="Search your chats" autocomplete="off" class="min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:ring-0 dark:text-white">
+                <span x-show="$store.researchAssistant.historySearchLoading || $store.researchAssistant.historyLoading" class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-red-600" aria-label="Loading history"></span>
+                <button type="button" @click="$store.researchAssistant.closeHistorySearch()" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white">Esc</button>
+            </div>
+            <div class="overflow-y-auto p-2">
+                <template x-for="conversation in $store.researchAssistant.historySearchResults" :key="`search-${conversation.id}`">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" class="w-full rounded-xl px-3 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-slate-800">
+                        <span class="block text-sm font-bold text-gray-800 dark:text-slate-100" x-html="$store.researchAssistant.highlightHistoryText(conversation.title)"></span>
+                        <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-html="$store.researchAssistant.highlightHistoryText(conversation.preview)"></span>
+                        <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="$store.researchAssistant.historyLoadError" class="px-4 py-4 text-center text-sm text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.historyLoadError"></p>
+                <p x-show="!$store.researchAssistant.historySearchLoading && !$store.researchAssistant.historyLoading && !$store.researchAssistant.historyLoadError && !$store.researchAssistant.historySearchResults.length" class="px-4 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No chats found.</p>
+            </div>
+            <div class="border-t border-gray-100 px-4 py-2.5 text-[10px] text-gray-400 dark:border-slate-800">Search matches words in your chat titles and messages.</div>
+        </div>
+    </div>
+</section>
+            </div>
+        
+        <script  data-navigate-once="true">window.livewireScriptConfig = {"csrf":"H5RmKQ1QXGvErWcso2GA11pxWv2afxqHn7NRuCBh","uri":"http:\/\/localhost\/livewire-d7275e0f\/update","moduleUrl":"http:\/\/localhost\/livewire-d7275e0f","progressBar":"","nonce":""};</script>
+    </body>
+</html>

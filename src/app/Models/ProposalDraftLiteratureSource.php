@@ -45,11 +45,18 @@ class ProposalDraftLiteratureSource extends Model
         'rrl_generated_at',
         'reference_text',
         'research_context',
+        'evidence_document',
+        'evidence_passages',
     ];
 
     protected $attributes = [
         'access_status' => LiteratureSource::ACCESS_UNKNOWN,
         'rrl_draft_status' => self::DRAFT_NONE,
+    ];
+
+    protected $hidden = [
+        'evidence_document',
+        'evidence_passages',
     ];
 
     protected function casts(): array
@@ -62,6 +69,8 @@ class ProposalDraftLiteratureSource extends Model
             'rrl_word_count' => 'integer',
             'rrl_generated_at' => 'datetime',
             'research_context' => 'array',
+            'evidence_document' => 'array',
+            'evidence_passages' => 'array',
         ];
     }
 
@@ -135,6 +144,8 @@ class ProposalDraftLiteratureSource extends Model
                     ? $this->literatureSource->collections->map->only(['id', 'name', 'slug'])->values()->all()
                     : [],
             'rrl_note' => $this->rrlNoteDraft(),
+            'has_uploaded_document' => filled($this->evidence_document['path'] ?? null),
+            'passage_count' => count($this->evidence_passages ?? []),
             'rrl_draft_status' => $this->rrl_draft_status,
             'rrl_evidence_basis' => $this->rrl_evidence_basis,
             'rrl_word_count' => $this->rrl_word_count,

@@ -1,0 +1,1 @@
+<x-proposal-signatory-summary :proposal-draft="$draft" :paper="$paper" />

@@ -186,6 +186,10 @@
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
                 <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signing &amp; Budgets</span>
             </a>
+            <a wire:navigate wire:current="{{ $sidebarCurrentClasses }}" href="{{ route('signatories.index') }}" aria-label="Signatory defaults" title="Signatory defaults" class="{{ $sidebarLinkClasses }}">
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h5M5 3h14v18H5V3m5 14h5" /></svg>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signatories</span>
+            </a>
         @endif
 
         @role('research_coordinator')

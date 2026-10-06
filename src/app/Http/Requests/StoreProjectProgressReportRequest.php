@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\MonitoringEvidenceService;
 use App\Services\MonitoringQuarterService;
 use DateTimeImmutable;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,6 +35,7 @@ class StoreProjectProgressReportRequest extends FormRequest
                 is_array($this->input('work_plan')) ? $this->input('work_plan') : [],
             ),
         ]);
+        app(MonitoringEvidenceService::class)->prepareRequest($this, $topic);
     }
 
     /**
@@ -59,6 +61,7 @@ class StoreProjectProgressReportRequest extends FormRequest
         $window = app(MonitoringQuarterService::class)->reportingWindow($this->route('topic'));
 
         return [
+            ...app(MonitoringEvidenceService::class)->rules($this),
             'reporting_date' => ['required', 'date', ...($this->routeIs('project-progress.preview') ? [] : ['before_or_equal:today']), 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
             'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
@@ -93,6 +96,7 @@ class StoreProjectProgressReportRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                app(MonitoringEvidenceService::class)->validateEvidence($this, $validator);
                 if (! $this->routeIs('project-progress.preview') && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canSubmitForDate($this->route('topic'), $this->input('reporting_date'))) {
                     $validator->errors()->add('reporting_date', 'This reporting period is still in progress. Submit after its end date.');
                 }
@@ -104,11 +108,11 @@ class StoreProjectProgressReportRequest extends FormRequest
                     ->filter(fn ($entry): bool => is_array($entry));
                 $projectCost = (float) ($this->route('topic')?->estimated_budget ?? 0);
 
-                if ($workPlan->sum(fn ($entry): float => (float) ($entry['percent_weight'] ?? 0)) > 100) {
+                if (round($workPlan->sum(fn ($entry): float => (float) ($entry['percent_weight'] ?? 0)), 2) > 100) {
                     $validator->errors()->add('work_plan', 'The total activity weight may not exceed 100%.');
                 }
 
-                if ($workPlan->sum(fn ($entry): float => (float) ($entry['accomplished_percentage'] ?? 0)) > 100) {
+                if (round($workPlan->sum(fn ($entry): float => (float) ($entry['accomplished_percentage'] ?? 0)), 2) > 100) {
                     $validator->errors()->add('work_plan', 'The total accomplished percentage may not exceed 100%.');
                 }
 

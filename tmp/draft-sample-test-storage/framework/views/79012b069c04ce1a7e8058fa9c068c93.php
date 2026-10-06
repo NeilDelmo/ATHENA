@@ -80,7 +80,7 @@
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="executive-brief">
                             <p class="detailed-proposal-section-heading"><?php echo e($sectionHeadings['executive-brief']); ?></p>
                             <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal9cebdecbe55d7dd58fce42fafa60f42d = $attributes; } ?>
@@ -104,12 +104,12 @@
 <?php $component = $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d; ?>
 <?php unset($__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d); ?>
 <?php endif; ?>
-                            <?php echo $richText->sanitize($detailedProposal['executive_brief']); ?>
+                            <?php echo $richText->sanitize($detailedProposal['executive_brief'], allowTables: true); ?>
 
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="rationale">
                             <p><span class="detailed-proposal-section-heading"><?php echo e($sectionHeadings['rationale']); ?></span> <span class="detailed-proposal-section-note">(include available statistics related to the problem)</span></p>
                             <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal9cebdecbe55d7dd58fce42fafa60f42d = $attributes; } ?>
@@ -133,16 +133,16 @@
 <?php $component = $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d; ?>
 <?php unset($__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d); ?>
 <?php endif; ?>
-                            <?php echo $richText->sanitize($detailedProposal['rationale']); ?>
+                            <?php echo $richText->sanitize($detailedProposal['rationale'], allowTables: true); ?>
 
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="general-objective">
                             <p class="detailed-proposal-section-heading"><?php echo e($sectionHeadings['objectives']); ?></p>
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(filled($detailedProposal['general_objective'])): ?>
                                 <p><strong>General Objective:</strong></p>
-                                <?php echo $richText->sanitize($detailedProposal['general_objective']); ?>
+                                <?php echo $richText->sanitize($detailedProposal['general_objective'], allowTables: true); ?>
 
                             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             <p><strong>Specific Objectives:</strong></p>
@@ -168,7 +168,8 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p><span class="detailed-proposal-section-heading"><?php echo e($sectionHeadings['literature']); ?></span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
-                            <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
+                            <div data-proposal-preview-section="introduction">
+                                <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal9cebdecbe55d7dd58fce42fafa60f42d = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-figures','data' => ['proposal' => $detailedProposal,'section' => 'introduction']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('proposal-figures'); ?>
@@ -190,9 +191,11 @@
 <?php $component = $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d; ?>
 <?php unset($__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d); ?>
 <?php endif; ?>
-                            <?php echo $richText->sanitize($detailedProposal['introduction']); ?>
+                                <?php echo $richText->sanitize($detailedProposal['introduction'], allowTables: true); ?>
 
-                            <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
+                            </div>
+                            <div data-proposal-preview-section="related-literature">
+                                <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal9cebdecbe55d7dd58fce42fafa60f42d = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-figures','data' => ['proposal' => $detailedProposal,'section' => 'related_literature']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('proposal-figures'); ?>
@@ -214,8 +217,9 @@
 <?php $component = $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d; ?>
 <?php unset($__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d); ?>
 <?php endif; ?>
-                            <?php echo $richText->sanitize($detailedProposal['related_literature']); ?>
+                                <?php echo $richText->sanitize($detailedProposal['related_literature'], allowTables: true); ?>
 
+                            </div>
                         </td>
                     </tr>
                     <tr>
@@ -224,7 +228,7 @@
                             <ul class="detailed-proposal-methodology-list">
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = config('detailed_proposal.methodology'); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                                     <?php if(blank($detailedProposal['methodology'][$key]) && ! collect($detailedProposal['methodology_images'])->contains('section', $key)) continue; ?>
-                                    <li>
+                                    <li data-proposal-preview-section="methodology-<?php echo e($key); ?>">
                                         <p class="detailed-proposal-methodology-heading"><?php echo e($label); ?></p>
                                         <?php if (isset($component)) { $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal9cebdecbe55d7dd58fce42fafa60f42d = $attributes; } ?>
@@ -248,7 +252,7 @@
 <?php $component = $__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d; ?>
 <?php unset($__componentOriginal9cebdecbe55d7dd58fce42fafa60f42d); ?>
 <?php endif; ?>
-                                        <?php echo $richText->sanitize($detailedProposal['methodology'][$key]); ?>
+                                        <?php echo $richText->sanitize($detailedProposal['methodology'][$key], allowTables: true); ?>
 
                                     </li>
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
@@ -256,11 +260,11 @@
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="responsibilities">
                             <p class="detailed-proposal-section-heading"><?php echo e($sectionHeadings['responsibilities']); ?></p>
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $detailedProposal['responsibilities']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $responsibility): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                                 <p class="detailed-proposal-responsibility-name"><?php echo e($loop->first ? 'Project Leader' : 'Project Staff (s)'); ?>: <span><?php echo e(\Illuminate\Support\Str::upper($responsibility['name'])); ?> (<?php echo e($responsibility['percentage']); ?>%)</span></p>
-                                <?php echo $richText->sanitize($responsibility['duties']); ?>
+                                <?php echo $richText->sanitize($responsibility['duties'], allowTables: true); ?>
 
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
                         </td>
@@ -282,9 +286,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="references">
                             <p class="detailed-proposal-section-heading"><?php echo e($sectionHeadings['references']); ?></p>
-                            <?php echo $richText->sanitize($detailedProposal['references']); ?>
+                            <?php echo $richText->sanitize($detailedProposal['references'], allowTables: true); ?>
 
                         </td>
                     </tr>

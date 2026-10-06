@@ -46,12 +46,7 @@ Back to saved drafts <?php echo $__env->renderComponent(); ?>
 <?php unset($__componentOriginal5426bd0bea02df2e6dd2a60e50fa4c01); ?>
 <?php endif; ?>
                 <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span><?php echo e($proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name); ?></span>
-                <a href="<?php echo e(route('signatories.edit', $proposalDraft)); ?>" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Choose signatories</a>
-                <a href="<?php echo e(route('faculty.proposal-drafts.history.index', $proposalDraft)); ?>" class="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-11" aria-label="Open recovery history<?php echo e($historyCount > 0 ? ' ('.$historyCount.' points)' : ''); ?>" title="Recovery history">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    <span class="sr-only">Recovery history</span>
-                </a>
-                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto">Review &amp; turn in</button>
+                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto"><?php echo e(auth()->user()->can('submit', $proposalDraft) ? 'Review & turn in' : 'Review working draft'); ?></button>
              <?php $__env->endSlot(); ?>
          <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
@@ -67,6 +62,7 @@ Back to saved drafts <?php echo $__env->renderComponent(); ?>
 
     <?php
         $submittedTopic = $proposalDraft->topic;
+        $canEditDraft = auth()->user()->can('update', $proposalDraft);
         $editableChecklist = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
         $automaticChecklist = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
         $completedPaperCount = $editableChecklist
@@ -82,8 +78,8 @@ Back to saved drafts <?php echo $__env->renderComponent(); ?>
 
     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($submittedTopic && $submittedTopic->status !== 'revision_requested'): ?>
         <section data-submitted-package-workspace class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
-            <h2 class="font-bold text-gray-950 dark:text-white">Update submitted package</h2>
-            <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200"><?php echo e($submittedTopic->canUpdateBeforeReview() ? 'These changes are private until you turn in the next version. The Research Head continues to see your last submitted package. Editing closes when the Research Head opens the proposal.' : 'The Research Head has opened your proposal. This working copy is kept, but further edits and submission require a revision request.'); ?></p>
+            <h2 class="font-bold text-gray-950 dark:text-white"><?php echo e($submittedTopic->canUpdateBeforeReview() ? 'Update submitted proposal' : 'Proposal under review'); ?></h2>
+            <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200"><?php echo e($submittedTopic->canUpdateBeforeReview() ? 'These changes are private until you submit the next version. Your earlier submitted PDFs stay in Versions. Editing closes when the Research Head opens the submission.' : 'The Research Head has opened this proposal. Editing and submission are locked until revisions are requested. Your saved working copy is preserved.'); ?></p>
             <a href="<?php echo e(route('topics.show', $submittedTopic)); ?>" class="mt-3 inline-flex min-h-11 items-center font-semibold text-red-700 hover:underline dark:text-red-300">View submitted versions</a>
         </section>
     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
@@ -322,9 +318,10 @@ Back to saved drafts <?php echo $__env->renderComponent(); ?>
                         </div>
 
 
-                        <form data-paper-form data-project-details-autosave-form action="<?php echo e(route('faculty.proposal-drafts.details.update', $proposalDraft)); ?>" method="POST" class="space-y-6 px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
+                        <form data-paper-form <?php if($canEditDraft): ?> data-project-details-autosave-form <?php endif; ?> action="<?php echo e(route('faculty.proposal-drafts.details.update', $proposalDraft)); ?>" method="POST" class="px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
                             <?php echo csrf_field(); ?>
                             <?php echo method_field('PUT'); ?>
+                            <fieldset <?php if(! $canEditDraft): echo 'disabled'; endif; ?> <?php if(! $canEditDraft): ?> inert data-proposal-editing-locked <?php endif; ?> class="space-y-6">
                             <input type="hidden" name="draft_version" value="<?php echo e(old('draft_version', $proposalDraft->lock_version)); ?>">
 
                             <div>
@@ -444,6 +441,7 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
                                     <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Save project details</button>
                                 </div>
                             </noscript>
+                            </fieldset>
                         </form>
                     </section>
                 </div>
@@ -470,7 +468,6 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
                         <div aria-labelledby="recent-activity-heading" class="border-t border-gray-200 p-4 dark:border-slate-800">
                         <div class="flex items-start justify-between gap-2">
                             <h4 id="recent-activity-heading" class="text-sm font-black text-gray-950 dark:text-white">Recent activity</h4>
-                            <a href="<?php echo e(route('faculty.proposal-drafts.history.index', $proposalDraft)); ?>" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:hover:bg-red-950/50" aria-label="Open recovery history" title="Recovery history"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></a>
                         </div>
                         <div class="mt-3 divide-y divide-gray-100 border-y border-gray-100 dark:divide-slate-800 dark:border-slate-800">
                             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__empty_1 = true; $__currentLoopData = $recentActivity; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $activity): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
@@ -495,7 +492,7 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
                 <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete the five proposal papers here. The GAD Checklist and Initial Screening Form are added automatically from Project Details.</p>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div data-editable-proposal-papers class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $editableChecklist; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                     <?php
                         $paper = $item['paper'];
@@ -529,7 +526,7 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
 
                             <div class="mt-2 text-xs text-gray-600 dark:text-slate-300">
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($paper['mode'] === 'automatic'): ?>
-                                    <p class="font-semibold">PDF prepared automatically from Project Details when the package is turned in.</p>
+                                    <p class="font-semibold">PDF prepared automatically from Project Details when the proposal is turned in.</p>
                                 <?php elseif($item['documents']->isNotEmpty()): ?>
                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($paper['mode'] === 'generated'): ?>
                                         <p class="font-semibold"><?php echo e($item['submission_filename']); ?></p>
@@ -551,32 +548,63 @@ unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendB
                                 </div>
                             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
-                        <a href="<?php echo e($paperRoute); ?>" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 transition hover:border-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-red-600 dark:hover:text-red-300 sm:w-auto" aria-label="<?php echo e($paperAction); ?>"><?php echo e($paperAction); ?></a>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($canEditDraft): ?>
+                            <a href="<?php echo e($paperRoute); ?>" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 transition hover:border-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-red-600 dark:hover:text-red-300 sm:w-auto" aria-label="<?php echo e($paperAction); ?>"><?php echo e($paperAction); ?></a>
+                        <?php else: ?>
+                            <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">Editing locked</span>
+                        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                     </article>
                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
             </div>
 
-            <section data-automatic-assessment-forms class="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="automatic-assessment-forms-heading">
+            <section data-automatic-assessment-forms data-automatic-assessment-preview x-data="proposalAssessmentPreview()" @resize.window.debounce.150ms="resizeProposalPaperPreview()" class="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="automatic-assessment-forms-heading">
+                <div :inert="previewFullscreen">
                 <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800 sm:px-6">
                     <h4 id="automatic-assessment-forms-heading" class="text-sm font-black text-gray-950 dark:text-white">Assessment forms added automatically</h4>
-                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">No faculty answers or file uploads are needed. These two blank forms are generated from Project Details and included when the package is turned in.</p>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">No faculty answers or file uploads are needed. These two blank forms are generated from Project Details and included when the proposal is turned in.</p>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-slate-800">
                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $automaticChecklist; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
                         <?php
-                            $previewRoute = $item['paper']['slug'] === 'gad-checklist'
-                                ? route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft)
-                                : route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft);
+                            $formRoutes = 'faculty.proposal-drafts.'.$item['paper']['slug'];
+                            $formPreview = [
+                                'label' => $item['paper']['label'],
+                                'previewUrl' => route($formRoutes.'.preview', $proposalDraft),
+                                'downloadUrl' => route($formRoutes.'.download', $proposalDraft),
+                            ];
                         ?>
                         <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-6">
                             <div class="min-w-0">
                                 <p class="text-sm font-bold text-gray-900 dark:text-white"><?php echo e($item['paper']['label']); ?></p>
-                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400"><?php echo e($item['complete'] ? 'Ready to include with the seven PDFs' : 'Available once Project Details are complete'); ?></p>
+                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400"><?php echo e($item['complete'] ? 'Added automatically to your submission' : 'Complete Project Details to prepare this form'); ?></p>
                             </div>
-                            <a href="<?php echo e($previewRoute); ?>" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Optional preview</a>
+                            <button type="button" data-assessment-preview-trigger @click="openAssessmentPreview(<?php echo \Illuminate\Support\Js::from($formPreview)->toHtml() ?>)" aria-label="Preview <?php echo e($item['paper']['label']); ?>" aria-haspopup="dialog" aria-controls="assessment-form-preview-panel" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Preview form</button>
                         </div>
                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
                 </div>
+                </div>
+                <?php if (isset($component)) { $__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-paper-preview','data' => ['panelId' => 'assessment-form-preview-panel','previewLabel' => 'Assessment form preview','frameTitle' => 'Assessment form preview']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('proposal-paper-preview'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['panel-id' => 'assessment-form-preview-panel','preview-label' => 'Assessment form preview','frame-title' => 'Assessment form preview']); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121)): ?>
+<?php $attributes = $__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121; ?>
+<?php unset($__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121)): ?>
+<?php $component = $__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121; ?>
+<?php unset($__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121); ?>
+<?php endif; ?>
             </section>
 
             <div class="mt-5 flex flex-col gap-3 rounded-xl border-l-4 border-red-600 bg-gray-950 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">

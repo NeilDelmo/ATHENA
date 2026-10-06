@@ -6,6 +6,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\MonitoringEvidenceService;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use Illuminate\Http\UploadedFile;
@@ -56,9 +57,7 @@ class PrepareProjectProgressReport
                 'period_end' => $period['end']->toDateString(),
                 'version_number' => $supersedesReport === null ? 1 : $supersedesReport->version_number + 1,
                 'supersedes_report_id' => $supersedesReport?->id,
-                'progress_percentage' => (int) round($workPlan->sum(
-                    fn (array $entry): float => (float) $entry['accomplished_percentage'],
-                )),
+                'progress_percentage' => app(MonitoringEvidenceService::class)->overallProgress($topic, $validated['reporting_date'], $validated['work_plan']),
                 'accomplishments' => $workPlan
                     ->pluck('actual_accomplishment')
                     ->filter()

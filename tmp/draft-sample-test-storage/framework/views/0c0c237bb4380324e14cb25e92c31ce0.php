@@ -1,7 +1,7 @@
 <?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
 
 $__newAttributes = [];
-$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames((['section']));
+$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames((['section', 'compact' => false]));
 
 foreach ($attributes->all() as $__key => $__value) {
     if (in_array($__key, $__propNames)) {
@@ -16,7 +16,7 @@ $attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
 unset($__propNames);
 unset($__newAttributes);
 
-foreach (array_filter((['section']), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
+foreach (array_filter((['section', 'compact' => false]), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
     $$__key = $$__key ?? $__value;
 }
 
@@ -27,12 +27,14 @@ foreach ($attributes->all() as $__key => $__value) {
 }
 
 unset($__defined_vars, $__key, $__value); ?>
-<div data-proposal-figure-section="<?php echo e($section); ?>" class="mt-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-950" x-on:dragover.prevent x-on:drop.prevent.stop="handleMethodologyDrop($event, '<?php echo e($section); ?>')">
+<div data-proposal-figure-section="<?php echo e($section); ?>" <?php if($compact): ?> x-show="methodologyImagesFor('<?php echo e($section); ?>').length > 0" x-cloak <?php endif; ?> class="<?php echo e($compact ? 'proposal-section-figures mt-3' : 'mt-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-950'); ?>" x-on:dragover.prevent x-on:drop.prevent.stop="handleMethodologyDrop($event, '<?php echo e($section); ?>')">
+    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if (! ($compact)): ?>
     <div class="flex flex-wrap items-center justify-between gap-2">
         <p class="text-xs font-semibold text-gray-600 dark:text-slate-300">Drop images here for <?php echo e(config('detailed_proposal.image_sections.'.$section)); ?>.</p>
         <button type="button" x-on:click="openMethodologyImagePicker('<?php echo e($section); ?>')" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Choose images</button>
     </div>
     <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">PNG, JPG, GIF, or BMP · up to 10 MB each · 20 figures per proposal. Figures appear before this section’s text.</p>
+    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
     <div class="mt-3 space-y-3">
         <template x-for="image in methodologyImagesFor('<?php echo e($section); ?>')" :key="image.clientId">
             <article class="rounded-xl border border-gray-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">

@@ -25,13 +25,13 @@ test('Research Head overview shows truthful activity and project-health summarie
     $html = view('livewire.research-head-overview', [
         'academicYear' => '2026-2027', 'fromDate' => '', 'toDate' => '', 'pipeline' => 'awaiting_review',
         'errors' => new ViewErrorBag, 'academicYears' => collect(['2026-2027']), 'analytics' => $analytics, 'topics' => $emptyRows(),
-        'attentionItems' => $emptyRows(), 'deadlines' => collect(),
+        'attentionItems' => $emptyRows(), 'reportItems' => $emptyRows(), 'deadlines' => collect(),
     ])->render();
     expect($html)->toContain('Submission activity', 'Project health', 'View analytics', 'View all proposals')
         ->toContain(e(route('research_head.analytics', ['academicYear' => '2026-2027', 'projectStatus' => 'delayed'])))
-        ->not->toContain('NAN', 'INF');
+        ->not->toContain('NAN', 'INF', 'packages');
     if ($hasData) {
-        expect($html)->toContain('27 packages in these months.', '4 issued projects.')
+        expect($html)->toContain('27 submissions.', 'Revision submissions', '4 issued projects.')
             ->toContain(e(route('research_head.analytics', ['academicYear' => '2026-2027', 'submissionMonth' => '2026-09'])))
             ->toContain('stroke-dasharray="50 50"');
     } else {

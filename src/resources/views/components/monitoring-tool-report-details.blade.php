@@ -57,6 +57,19 @@
         <section class="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/60"><p class="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-slate-200">Issues or delays</p><p class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700 dark:text-slate-300">{{ $report->issues ?: 'None reported.' }}</p></section>
     </div>
 
+    @foreach ($report->work_plan ?? [] as $activity)
+        @if (count($activity['evidence'] ?? []) > 0)
+            <section class="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Evidence · {{ $activity['activity'] }}</h4>
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($activity['evidence'] as $file)
+                        <a href="{{ route('project-progress.evidence', ['topic' => $topic, 'evidence' => $file['id']]) }}" class="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-red-300 hover:text-red-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">{{ $file['name'] }}</a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+    @endforeach
+
     @if ($report->attachment_path || (! Auth::user()->isUsingWorkspace('research_head') && $isCurrentVersion && $report->review_status === 'revision_requested'))
         <div class="flex flex-wrap gap-2 border-t border-gray-200 pt-4 dark:border-slate-700">
             @if ($report->attachment_path)<a href="{{ route('project-progress.download', $report) }}" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Download attachment</a>@endif

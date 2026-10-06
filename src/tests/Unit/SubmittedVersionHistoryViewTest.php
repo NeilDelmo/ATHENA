@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
-test('history labels distinguish submitted snapshots from working edits', function () {
+test('history labels distinguish submitted snapshots from working edits', function (string $submissionType, string $label) {
     DB::connection()->beforeExecuting(function (): never {
         throw new RuntimeException('Version history view test must not access the database.');
     });
@@ -18,7 +18,7 @@ test('history labels distinguish submitted snapshots from working edits', functi
         'id' => 7,
         'topic_id' => 3,
         'version_number' => 1,
-        'submission_type' => 'initial',
+        'submission_type' => $submissionType,
         'title' => 'Fruit Drop Detection',
         'estimated_budget' => 3000,
         'estimated_duration_months' => 12,
@@ -37,11 +37,15 @@ test('history labels distinguish submitted snapshots from working edits', functi
     expect($html)
         ->toContain(
             'Submitted proposal versions',
-            'Packages sent for review. Working edits appear after submission.',
+            'Proposals sent for review. Working edits appear after submission.',
             '1 version',
-            'Initial submission',
+            $label,
             '>Latest</span>',
             'data-submitted-version="1"',
         )
-        ->not->toContain('Proposal version history', 'data-version-screening-form');
-});
+        ->not->toContain('Proposal version history', 'data-version-screening-form', 'package');
+})->with([
+    'initial' => ['initial', 'Initial submission'],
+    'update' => ['update', 'Submission update before review'],
+    'revision' => ['revision', 'Revision submission'],
+]);

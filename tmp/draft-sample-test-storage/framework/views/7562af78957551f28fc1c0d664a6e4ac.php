@@ -24,7 +24,7 @@
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
              <?php $__env->slot('actions', null, []); ?> 
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider <?php echo e($workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : ($workPlanDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')); ?>"><?php echo e($workPlanDocument?->completed_at ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started')); ?></span>
+                <span class="rounded-full px-3 py-1 text-xs font-semibold <?php echo e($workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'); ?>"><?php echo e($workPlanDocument?->completed_at ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started')); ?></span>
                 <?php if (isset($component)) { $__componentOriginal5426bd0bea02df2e6dd2a60e50fa4c01 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal5426bd0bea02df2e6dd2a60e50fa4c01 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.back-link','data' => ['fixed' => true,'dataPaperCancelExit' => true,'href' => ''.e(route('faculty.proposal-drafts.show', $proposalDraft)).'#required-pdf-attachments']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -69,7 +69,10 @@ Exit editor <?php echo $__env->renderComponent(); ?>
     ?>
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="work-plan-writing-workspace mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-proposal-paper-workspace
+        data-work-plan-workspace
+        @focusin="focusWorkPlanEntry($event)"
         data-paper-editor
         data-paper-draft-save="true"
         data-work-plan-autosave="true"
@@ -192,14 +195,14 @@ Exit editor <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
         <?php if (isset($component)) { $__componentOriginal365c40492913100a7be7d48ba061239f = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal365c40492913100a7be7d48ba061239f = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-collaboration-monitor','data' => ['loadedVersion' => (int) old('document_version', $workPlanDocument?->lock_version ?? 0),'stateUrl' => route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0]),'reloadUrl' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),'historyUrl' => route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]),'label' => $paper['label']]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-collaboration-monitor','data' => ['loadedVersion' => (int) old('document_version', $workPlanDocument?->lock_version ?? 0),'stateUrl' => route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0]),'reloadUrl' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),'label' => $paper['label']]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('proposal-collaboration-monitor'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['loaded-version' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute((int) old('document_version', $workPlanDocument?->lock_version ?? 0)),'state-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])),'reload-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.work-plan.edit', $proposalDraft)),'history-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])),'label' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($paper['label'])]); ?>
+<?php $component->withAttributes(['loaded-version' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute((int) old('document_version', $workPlanDocument?->lock_version ?? 0)),'state-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])),'reload-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('faculty.proposal-drafts.work-plan.edit', $proposalDraft)),'label' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($paper['label'])]); ?>
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
 <?php echo $__env->renderComponent(); ?>
@@ -213,10 +216,30 @@ Exit editor <?php echo $__env->renderComponent(); ?>
 <?php unset($__componentOriginal365c40492913100a7be7d48ba061239f); ?>
 <?php endif; ?>
 
-        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="work-plan-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
-            <span class="text-xs text-slate-500 dark:text-slate-400">The preview stays open while you edit and can be moved or resized.</span>
-        </div>
+        <?php if (isset($component)) { $__componentOriginalb166750fc1b08ee44e679b8d084e40ec = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalb166750fc1b08ee44e679b8d084e40ec = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.work-plan-writing-toolbar','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('work-plan-writing-toolbar'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalb166750fc1b08ee44e679b8d084e40ec)): ?>
+<?php $attributes = $__attributesOriginalb166750fc1b08ee44e679b8d084e40ec; ?>
+<?php unset($__attributesOriginalb166750fc1b08ee44e679b8d084e40ec); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalb166750fc1b08ee44e679b8d084e40ec)): ?>
+<?php $component = $__componentOriginalb166750fc1b08ee44e679b8d084e40ec; ?>
+<?php unset($__componentOriginalb166750fc1b08ee44e679b8d084e40ec); ?>
+<?php endif; ?>
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Work Plan editing form">
 
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if (! ($projectDetailsComplete)): ?>
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -234,12 +257,12 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                     <a href="<?php echo e(route('faculty.proposal-drafts.details.edit', $proposalDraft)); ?>" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit details</a>
                 </div>
             </div>
-            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-5">
+            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title</dt><dd class="mt-1 text-sm font-semibold text-gray-900"><?php echo e($proposalDraft->project_title); ?></dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration</dt><dd class="mt-1 text-sm font-semibold text-gray-900"><?php echo e($proposalDraft->duration_months ? $proposalDraft->duration_months.' months' : 'Not provided'); ?></dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Planned Start</dt><dd class="mt-1 text-sm font-semibold text-gray-900"><?php echo e($proposalDraft->planned_start?->format('M j, Y') ?? 'Not provided'); ?></dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Planned End</dt><dd class="mt-1 text-sm font-semibold text-gray-900"><?php echo e($proposalDraft->planned_end?->format('M j, Y') ?? 'Not provided'); ?></dd></div>
-                <div class="sm:col-span-2 lg:col-span-5"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader / Prepared by</dt><dd class="mt-1 text-sm font-semibold text-gray-900"><?php echo e($proposalDraft->project_leader ?: 'Not provided'); ?></dd></div>
+                <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader / Prepared by</dt><dd class="mt-1 text-sm font-semibold text-gray-900"><?php echo e($proposalDraft->project_leader ?: 'Not provided'); ?></dd></div>
             </dl>
         </section>
 
@@ -264,7 +287,7 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                 <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
                 <template x-for="(entry, index) in entries" :key="entry.id">
-                    <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="rounded-2xl border p-5 shadow-sm transition-colors sm:p-6">
+                    <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" :data-work-plan-entry-id="entry.id" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="work-plan-writing-entry rounded-xl border p-4 transition-colors sm:p-5">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="min-w-0">
                                 <p class="text-xs font-black uppercase tracking-wider text-gray-500">Objective <span x-text="index + 1"></span></p>
@@ -280,8 +303,8 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                         </div>
 
                         <div x-bind:id="`work-plan-editor-${entry.id}`" x-show="isEntryExpanded(entry)" x-cloak x-transition class="mt-5">
-                            <div class="grid gap-5 lg:grid-cols-3">
-                                <div>
+                            <div class="work-plan-writing-fields grid gap-4">
+                                <div class="work-plan-writing-objective">
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective from Detailed Proposal</label>
                                     <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="4" readonly required class="mt-2 block w-full rounded-xl border-gray-200 bg-gray-50 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
                                 </div>
@@ -305,7 +328,7 @@ Exit editor <?php echo $__env->renderComponent(); ?>
                                                 <p class="text-xs font-black uppercase tracking-wider text-gray-700" x-text="`Y${yearGroup.year}`"></p>
                                                 <p class="text-[10px] font-semibold text-gray-500" x-text="`Project months ${yearGroup.months[0]}-${yearGroup.months[yearGroup.months.length - 1]}`"></p>
                                             </div>
-                                            <div class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+                                            <div class="work-plan-writing-months mt-2 grid gap-2">
                                                 <template x-for="month in yearGroup.months" :key="month">
                                                     <label
                                                         class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
@@ -361,28 +384,31 @@ Exit editor <?php echo $__env->renderComponent(); ?>
 
         <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
 
-        <?php if (isset($component)) { $__componentOriginal45f53eba72ddc2e934dbcbe4dd398776 = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776 = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-document-preview','data' => ['panelId' => 'work-plan-preview-panel','title' => 'Work Plan preview','description' => 'This preview follows the official Attachment A paper layout.','frameTitle' => 'Attachment A Work Plan preview']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
-<?php $component->withName('proposal-document-preview'); ?>
+        </div>
+        <?php if (isset($component)) { $__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.proposal-paper-preview','data' => ['panelId' => 'work-plan-preview-panel','previewLabel' => 'Work Plan preview','frameTitle' => 'Attachment A Work Plan preview']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('proposal-paper-preview'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['panel-id' => 'work-plan-preview-panel','title' => 'Work Plan preview','description' => 'This preview follows the official Attachment A paper layout.','frame-title' => 'Attachment A Work Plan preview']); ?>
+<?php $component->withAttributes(['panel-id' => 'work-plan-preview-panel','preview-label' => 'Work Plan preview','frame-title' => 'Attachment A Work Plan preview']); ?>
 <?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
 
 <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
-<?php if (isset($__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776)): ?>
-<?php $attributes = $__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776; ?>
-<?php unset($__attributesOriginal45f53eba72ddc2e934dbcbe4dd398776); ?>
+<?php if (isset($__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121)): ?>
+<?php $attributes = $__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121; ?>
+<?php unset($__attributesOriginal10a0e39c04a9eacf5d69b3b1628f0121); ?>
 <?php endif; ?>
-<?php if (isset($__componentOriginal45f53eba72ddc2e934dbcbe4dd398776)): ?>
-<?php $component = $__componentOriginal45f53eba72ddc2e934dbcbe4dd398776; ?>
-<?php unset($__componentOriginal45f53eba72ddc2e934dbcbe4dd398776); ?>
+<?php if (isset($__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121)): ?>
+<?php $component = $__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121; ?>
+<?php unset($__componentOriginal10a0e39c04a9eacf5d69b3b1628f0121); ?>
 <?php endif; ?>
+        </div>
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" aria-controls="work-plan-preview-panel" :aria-expanded="previewPaneOpen" class="proposal-writing-preview-launcher">Preview paper</button>
     </div>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>

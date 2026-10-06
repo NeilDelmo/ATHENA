@@ -7,8 +7,8 @@
         @vite('resources/css/curriculum-vitae-print.css')
     </head>
     <body class="cv-preview-page">
-        @foreach ($curriculumVitae['people'] as $person)
-            <main class="cv-sheet" aria-label="BatStateU Attachment C Curriculum Vitae for {{ $person['first_name'] }} {{ $person['last_name'] }}">
+        @foreach ($curriculumVitae['people'] as $personIndex => $person)
+            <main class="cv-sheet" data-proposal-preview-section="cv-person-{{ $personIndex + 1 }}" aria-label="BatStateU Attachment C Curriculum Vitae for {{ $person['first_name'] }} {{ $person['last_name'] }}">
                 <div class="cv-form">
                     <header class="cv-title-block">
                         <p>Attachment C-BatStateU-FO-RES-02</p>

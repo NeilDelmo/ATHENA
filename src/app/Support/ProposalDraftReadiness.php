@@ -83,13 +83,22 @@ class ProposalDraftReadiness
     public function detailedProposalChecklist(ProposalDraft $draft, array $preparedFiles = []): array
     {
         $checklist = $this->checklist($draft);
-        $hasPdf = function (string $slug) use ($checklist, $preparedFiles): bool {
+        $submittedFiles = $draft->topic_id !== null
+            ? ($draft->topic?->latestVersion?->files ?? collect())
+            : collect();
+        $hasPdf = function (string $slug) use ($checklist, $preparedFiles, $submittedFiles): bool {
             $item = $checklist->get($slug);
             $preparedFile = collect($preparedFiles)->firstWhere('document_type', $item['paper']['document_type']);
             $file = $preparedFile ?? $item['documents']->first();
             $path = data_get($file, 'file_path');
+            $complete = $item['complete'];
+            if (blank($path)) {
+                $file = $submittedFiles->firstWhere('document_type', $item['paper']['document_type']);
+                $path = data_get($file, 'file_path');
+                $complete = $file !== null;
+            }
 
-            return $item['complete'] && filled($path)
+            return $complete && filled($path)
                 && data_get($file, 'mime_type') === 'application/pdf'
                 && Storage::disk('local')->exists($path);
         };
@@ -158,19 +167,19 @@ class ProposalDraftReadiness
     }
 
     /** @return array<string, string> */
-    public function errors(ProposalDraft $draft): array
+    public function errors(ProposalDraft $draft, ?Collection $checklist = null): array
     {
         $errors = [];
 
         if (! $this->commentResponseSignatoriesAreComplete($draft)) {
-            $errors['signatories.comment_response_form'] = 'Choose the Research Head and Vice Chancellor signatories before submitting. These names carry forward to future Comment Response papers.';
+            $errors['signatories.comment_response_form'] = 'Ask the Research Head or Research Office Secretary to configure the default Comment Response signatories before submitting.';
         }
 
         if (! $this->projectDetailsAreComplete($draft)) {
             $errors['project_details'] = 'Complete Project Details before submitting this project.';
         }
 
-        foreach ($this->checklist($draft) as $slug => $item) {
+        foreach ($checklist ?? $this->checklist($draft) as $slug => $item) {
             if (! $item['complete']) {
                 $errors['papers.'.$slug] = $item['paper']['label'].' is incomplete or its staged file is unavailable.';
             }

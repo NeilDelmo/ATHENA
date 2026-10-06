@@ -24,13 +24,19 @@ class ProposalDraftReviewPackage extends Component
 
     public function mount(ProposalDraft $proposalDraft, bool $inModal = false): void
     {
+        Gate::authorize('view', $proposalDraft);
         $this->proposalDraft = $proposalDraft;
         $this->inModal = $inModal;
     }
 
+    public function placeholder(): View
+    {
+        return view('livewire.proposal-draft-review-package-loading');
+    }
+
     public function prepare(SubmitProposalDraft $submitProposalDraft): void
     {
-        Gate::authorize('submit', $this->proposalDraft);
+        Gate::authorize('prepare', $this->proposalDraft);
         $this->resetErrorBag();
         $this->statusMessage = '';
 
@@ -87,7 +93,7 @@ class ProposalDraftReviewPackage extends Component
             return;
         }
 
-        session()->flash('success', 'Proposal turned in successfully as a seven-PDF package and sent to the Research Head.');
+        session()->flash('success', 'Proposal submitted successfully with seven PDFs and sent to the Research Head.');
         $this->redirectRoute('faculty.dashboard', navigate: true);
     }
 
@@ -103,7 +109,7 @@ class ProposalDraftReviewPackage extends Component
         ]);
         $checklist = $readiness->checklist($this->proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($this->proposalDraft);
-        $readinessErrors = $readiness->errors($this->proposalDraft);
+        $readinessErrors = $readiness->errors($this->proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($this->proposalDraft);
         $readyToPrepare = $readinessErrors === [];
         $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;

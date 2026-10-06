@@ -9,24 +9,14 @@ use App\Models\ProposalSignatory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class ProposalSignatoryController extends Controller
 {
-    private const PAPER_EDIT_ROUTES = [
-        'detailed_proposal' => 'faculty.proposal-drafts.detailed-proposal.edit',
-        'work_plan' => 'faculty.proposal-drafts.work-plan.edit',
-        'line_item_budget' => 'faculty.proposal-drafts.line-item-budget.edit',
-        'gad_checklist' => 'faculty.proposal-drafts.gad-checklist.show',
-        'initial_screening_form' => 'faculty.proposal-drafts.initial-screening-form.show',
-        'comment_response_form' => 'faculty.proposal-drafts.show',
-    ];
-
     public function index(Request $request): View
     {
-        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
+        abort_unless($request->user()->isUsingWorkspace(['research_head', 'research_secretary']), 403);
 
         $roles = ProposalSignatory::roles();
         $selectedRole = $request->string('role')->toString();
@@ -57,7 +47,7 @@ class ProposalSignatoryController extends Controller
             ?->getKey();
 
         return view('research_head.signatories', [
-            'defaultSignatories' => array_intersect_key(ProposalSignatory::defaultSelections(), array_flip(['comment_response_head', 'comment_response_vice_chancellor'])),
+            'defaultSignatories' => ProposalSignatory::managedDefaultSelections(),
             'editingSignatoryId' => $editingSignatoryId,
             'roles' => $roles,
             'search' => $search,
@@ -73,26 +63,31 @@ class ProposalSignatoryController extends Controller
 
     public function store(SaveProposalSignatoryRequest $request): RedirectResponse
     {
-        ProposalSignatory::create($request->validated());
+        $this->saveDirectoryEntry($request->validated());
 
-        return back()->with('success', 'Signatory added. Faculty can now select this name.');
+        return back()->with('success', 'Signatory saved. Default names are applied automatically to editable proposals.');
     }
 
     public function update(SaveProposalSignatoryRequest $request, ProposalSignatory $signatory): RedirectResponse
     {
-        $signatory->update($request->validated());
+        $this->saveDirectoryEntry($request->validated(), $signatory);
 
         return redirect()
             ->to(route('signatories.index').'#signatory-'.$signatory->getKey())
-            ->with('success', 'Directory updated. Previously selected names remain unchanged.');
+            ->with('success', 'Signatory updated. Editable proposals use the current defaults; submitted documents stay unchanged.');
     }
 
     public function destroy(Request $request, ProposalSignatory $signatory): RedirectResponse
     {
-        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
+        abort_unless($request->user()->isUsingWorkspace(['research_head', 'research_secretary']), 403);
 
         $signatoryName = $signatory->name;
-        $signatory->delete();
+        DB::transaction(function () use ($signatory): void {
+            ProposalSignatory::query()->lockForUpdate()->get();
+            $previous = ProposalSignatory::managedDefaultSelections();
+            $signatory->delete();
+            $this->invalidatePreparedDrafts($previous);
+        });
 
         return redirect()
             ->route('signatories.index')
@@ -101,62 +96,54 @@ class ProposalSignatoryController extends Controller
 
     public function edit(Request $request, ProposalDraft $proposalDraft): View
     {
-        Gate::authorize('update', $proposalDraft);
-
-        $returnPaper = $request->string('paper')->toString();
-
-        if (! array_key_exists($returnPaper, self::PAPER_EDIT_ROUTES)) {
-            $returnPaper = '';
-        }
-
-        return view('faculty.proposal-drafts.signatories', [
-            'proposalDraft' => $proposalDraft,
-            'groups' => ProposalSignatory::FIELDS,
-            'options' => ProposalSignatory::where('active', true)->orderBy('name')->get()->groupBy('role_key'),
-            'returnPaper' => $returnPaper,
-            'returnUrl' => $this->returnUrl($proposalDraft, $returnPaper),
-        ]);
+        abort(403, 'Signatory defaults are managed by the Research Head or Research Office Secretary.');
     }
 
     public function select(SelectProposalSignatoriesRequest $request, ProposalDraft $proposalDraft): RedirectResponse
     {
-        $data = $request->validated();
-        DB::transaction(function () use ($proposalDraft, $data): void {
-            $draft = ProposalDraft::whereKey($proposalDraft->id)->lockForUpdate()->firstOrFail();
-            $draft->ensureEditable();
-            abort_unless($draft->status === 'draft' && $draft->lock_version === (int) $data['lock_version'], 409, 'The proposal changed. Reload before choosing signatories.');
-            $selected = $draft->resolvedSignatorySelections();
-            foreach ($data['signatories'] as $key => $id) {
-                if (! $id || array_key_exists($key, ProposalSignatory::defaultSelections())) {
-                    continue;
-                }
-                $person = ProposalSignatory::whereKey($id)->where('role_key', $key)->where('active', true)->firstOrFail();
-                $selected[$key] = ['id' => $person->id, 'name' => $person->name, 'position' => $person->position];
-            }
-            if ($selected !== ($draft->signatory_selections ?? [])) {
-                $changedPapers = collect(ProposalSignatory::FIELDS)
-                    ->filter(fn (array $fields): bool => array_intersect_key($selected, $fields)
-                        !== array_intersect_key($draft->signatory_selections ?? [], $fields))
-                    ->keys()->all();
-                $draft->documents()->whereIn('document_type', $changedPapers)
-                    ->update(['file_path' => null, 'lock_version' => DB::raw('lock_version + 1')]);
-                $draft->update(['signatory_selections' => $selected, 'lock_version' => $draft->lock_version + 1]);
-            }
-        });
-
-        return redirect()
-            ->to($this->returnUrl($proposalDraft, $data['return_paper'] ?? ''))
-            ->with('success', ($data['return_paper'] ?? '') === 'comment_response_form'
-                ? 'Comments-form signatories saved.'
-                : 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
+        abort(403, 'Signatory defaults are managed by the Research Head or Research Office Secretary.');
     }
 
-    private function returnUrl(ProposalDraft $proposalDraft, string $paper): string
+    /** @param array<string, mixed> $attributes */
+    private function saveDirectoryEntry(array $attributes, ?ProposalSignatory $signatory = null): void
     {
-        if ($paper === 'comment_response_form' && $proposalDraft->topic_id !== null) {
-            return route('faculty.topics.revision', $proposalDraft->topic_id).'#revision-feedback';
+        DB::transaction(function () use ($attributes, $signatory): void {
+            ProposalSignatory::query()->lockForUpdate()->get();
+            $previous = ProposalSignatory::managedDefaultSelections();
+            $attributes['is_default'] = (bool) ($attributes['is_default'] ?? $signatory?->is_default ?? false)
+                && (bool) $attributes['active'];
+
+            if ($attributes['is_default']) {
+                ProposalSignatory::query()->where('role_key', $attributes['role_key'])->update(['is_default' => false]);
+                $signatory?->refresh();
+            }
+
+            $signatory ? $signatory->update($attributes) : ProposalSignatory::create($attributes);
+            $this->invalidatePreparedDrafts($previous);
+        });
+    }
+
+    /** @param array<string, array{id: int|null, name: string, position: string}> $previous */
+    private function invalidatePreparedDrafts(array $previous): void
+    {
+        $current = ProposalSignatory::managedDefaultSelections();
+        $papers = collect(ProposalSignatory::FIELDS)->filter(
+            fn (array $fields): bool => array_intersect_key($previous, $fields) !== array_intersect_key($current, $fields),
+        )->keys()->all();
+
+        if ($papers === []) {
+            return;
         }
 
-        return route(self::PAPER_EDIT_ROUTES[$paper] ?? 'faculty.proposal-drafts.show', $proposalDraft);
+        ProposalDraft::query()->where('status', ProposalDraft::STATUS_DRAFT)->orderBy('id')->lockForUpdate()->get()
+            ->filter(fn (ProposalDraft $draft): bool => $draft->isEditable())
+            ->each(function (ProposalDraft $draft) use ($papers): void {
+                $draft->documents()->whereIn('document_type', $papers)->update([
+                    'file_path' => null, 'original_filename' => null, 'mime_type' => null,
+                    'file_size' => null, 'checksum' => null,
+                    'lock_version' => DB::raw('lock_version + 1'),
+                ]);
+                $draft->update(['lock_version' => $draft->lock_version + 1]);
+            });
     }
 }

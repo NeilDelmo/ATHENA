@@ -49,3 +49,9 @@ th small { display: block; font-weight: normal; margin-top: 6px; }
     thead { display: table-header-group; }
     th, .evaluation-box { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+.paper-preview-embedded { min-width: 8.5in; }
+.paper-preview-embedded .preview-toolbar { display: none; }
+.paper-preview-embedded .comment-response-sheet { width: 8.5in; min-height: 13in; padding: .6in; }
+.paper-preview-embedded .university-header { gap: 22px; }
+.paper-preview-embedded .university-header strong { font-size: 17pt; }
+.paper-preview-embedded h1 { font-size: 10.5pt; }

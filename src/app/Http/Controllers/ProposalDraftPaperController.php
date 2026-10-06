@@ -119,7 +119,7 @@ class ProposalDraftPaperController extends Controller
 
         return redirect()
             ->route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
-            ->with('success', $paper['label'].' file removed. Earlier recovery points remain available.');
+            ->with('success', $paper['label'].' file removed.');
     }
 
     public function download(

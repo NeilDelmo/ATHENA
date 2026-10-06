@@ -1,0 +1,126 @@
+<x-app-layout>
+    <x-slot name="header">
+        <x-page-header title="Submitted draft record" :subtitle="$topic->title">
+            <x-slot name="actions">
+                <x-back-link fixed href="{{ route('topics.show', $topic) }}">Back to submitted proposal</x-back-link>
+                <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ $versions->total() }} {{ Str::plural('saved record', $versions->total()) }}</span>
+            </x-slot>
+        </x-page-header>
+    </x-slot>
+
+    <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        @if (session('success'))
+            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
+        @endif
+
+        @if (session('warning'))
+            <x-proposal-alert type="warning">{{ session('warning') }}</x-proposal-alert>
+        @endif
+
+        <section data-submitted-record-preservation aria-labelledby="history-explanation-heading" class="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm dark:border-red-900 dark:bg-red-950/30 sm:p-6">
+            <h3 id="history-explanation-heading" class="text-base font-black text-gray-950 dark:text-white">This submitted record is preserved</h3>
+            <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-300">
+                This read-only record was kept with the submitted proposal. It includes the saved papers and PDFs that were available when the proposal was turned in.
+            </p>
+        </section>
+
+        <div class="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start">
+            <nav aria-label="Filter submitted draft record by paper" class="flex flex-col items-start gap-2">
+                <a href="{{ route('topics.draft-history.index', $topic) }}" class="inline-flex w-full items-center rounded-xl border px-3 py-2 text-xs font-bold {{ $selectedPaper === null ? 'border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800' }}">All papers</a>
+            @foreach ($papers as $paper)
+                    <a href="{{ route('topics.draft-history.index', [$topic, 'paper' => $paper['slug']]) }}" class="inline-flex w-full items-center rounded-xl border px-3 py-2 text-xs font-bold {{ ($selectedPaper['slug'] ?? null) === $paper['slug'] ? 'border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800' }}">{{ $paper['label'] }}</a>
+            @endforeach
+            </nav>
+
+            <div class="min-w-0 space-y-6">
+                @if ($versions->isEmpty())
+                    <section class="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                        <h3 class="text-base font-black text-gray-900 dark:text-white">No saved paper records</h3>
+                        <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">No saved paper records were retained for this submission.</p>
+                    </section>
+                @else
+                    <section aria-label="Submitted paper records" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div class="divide-y divide-gray-100 dark:divide-slate-800">
+                    @foreach ($versions as $version)
+                        @php
+                            $changes = collect($version->changes ?? []);
+                            $pointLabel = match ($version->action) {
+                                \App\Models\ProposalDraftDocumentVersion::ACTION_CHECKPOINT => 'Automatic',
+                                \App\Models\ProposalDraftDocumentVersion::ACTION_PRE_RESTORE => 'Before restore',
+                                \App\Models\ProposalDraftDocumentVersion::ACTION_RESTORED => 'Restored',
+                                \App\Models\ProposalDraftDocumentVersion::ACTION_SUBMITTED => 'Submitted',
+                                \App\Models\ProposalDraftDocumentVersion::ACTION_REMOVED => 'Removed',
+                                default => 'Archived',
+                            };
+                        @endphp
+                        <article class="p-5 sm:p-6">
+                            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div class="flex min-w-0 gap-4">
+                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl {{ $version->action === \App\Models\ProposalDraftDocumentVersion::ACTION_REMOVED ? 'bg-red-700' : 'bg-gray-950 dark:bg-white' }} text-white dark:text-gray-950" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                    </span>
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <h3 class="text-sm font-black text-gray-900 dark:text-white">{{ $version->label() }}</h3>
+                                            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ $pointLabel }}</span>
+                                        </div>
+
+                                        <p class="mt-2 text-sm font-bold text-gray-800 dark:text-slate-100">{{ $version->displaySummary() }}</p>
+
+                                        @if ($version->hasStoredFile())
+                                            <p class="mt-1 break-all text-xs font-semibold text-gray-700 dark:text-slate-300">{{ $version->original_filename }}</p>
+                                            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">{{ $version->file_size ? \Illuminate\Support\Number::fileSize($version->file_size) : 'Size unavailable' }} &middot; PDF attachment</p>
+                                        @else
+                                            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Structured form data saved for PDF generation during Turn in.</p>
+                                        @endif
+
+                                        @if (filled($version->change_note))
+                                            <blockquote class="mt-3 rounded-xl border-l-4 border-red-300 bg-red-50 px-4 py-3 text-sm leading-6 text-red-950 dark:border-red-700 dark:bg-red-950/40 dark:text-red-100">
+                                                <span class="font-black">Details:</span> {{ $version->change_note }}
+                                            </blockquote>
+                                        @endif
+
+                                        @if ($version->restoredFrom)
+                                            <p class="mt-3 text-xs font-semibold text-red-700 dark:text-red-300">Restored from an earlier saved version.</p>
+                                        @endif
+
+                                        <p class="mt-3 text-xs text-gray-500 dark:text-slate-400">
+                                            Saved by <span class="font-bold text-gray-700 dark:text-slate-200">{{ $version->creator?->name ?? 'ATHENA' }}</span>
+                                            <span aria-hidden="true">&middot;</span>
+                                            <time datetime="{{ $version->created_at->toIso8601String() }}" title="{{ $version->created_at->format('M j, Y g:i A') }}">{{ $version->created_at->format('M j, Y g:i A') }}</time>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                @if ($version->hasStoredFile())
+                                    <a href="{{ route('topics.draft-history.download', [$topic, $version]) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto">Download PDF</a>
+                                @endif
+                            </div>
+
+                            @if ($changes->isNotEmpty())
+                                <details class="mt-4 rounded-xl border border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/70">
+                                    <summary class="cursor-pointer px-4 py-3 text-xs font-black text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-slate-200">See {{ $changes->count() }} {{ Str::plural('change', $changes->count()) }}</summary>
+                                    <div class="overflow-x-auto border-t border-gray-200 dark:border-slate-700">
+                                        <table class="min-w-full divide-y divide-gray-200 text-left text-xs dark:divide-slate-700">
+                                            <thead class="bg-white text-[10px] font-black uppercase tracking-wider text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th class="px-4 py-3">Field</th><th class="px-4 py-3">Before</th><th class="px-4 py-3">After</th></tr></thead>
+                                            <tbody class="divide-y divide-gray-200 dark:divide-slate-700">
+                                                @foreach ($changes as $change)
+                                                    <tr><th class="px-4 py-3 font-bold text-gray-800 dark:text-slate-100">{{ $change['label'] }}</th><td class="max-w-xs whitespace-pre-wrap px-4 py-3 text-gray-500 dark:text-slate-400">{{ $change['before'] }}</td><td class="max-w-xs whitespace-pre-wrap px-4 py-3 font-semibold text-gray-800 dark:text-slate-200">{{ $change['after'] }}</td></tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            @endif
+
+                        </article>
+                    @endforeach
+                </div>
+                    </section>
+
+                    {{ $versions->links() }}
+                @endif
+            </div>
+        </div>
+    </div>
+</x-app-layout>

@@ -67,6 +67,8 @@
         </div>
     </header>
 
+    <x-monitoring-work-plan-alert :activities="$overdueWorkPlanActivities ?? []" />
+
     @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject())
         @php
             $floatingStatusClasses = match ($projectStatus) {

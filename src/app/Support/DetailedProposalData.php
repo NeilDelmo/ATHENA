@@ -122,7 +122,7 @@ class DetailedProposalData
 
     private static function narrative(mixed $value): string
     {
-        return app(ProposalRichText::class)->sanitize(self::validXml((string) $value));
+        return app(ProposalRichText::class)->sanitize(self::validXml((string) $value), allowTables: true);
     }
 
     /**

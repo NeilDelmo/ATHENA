@@ -12,6 +12,8 @@ import {
     orderedCitationSourceIds,
     proposalCitationField,
     proposalCitationFieldIds,
+    proposalCitationLocator,
+    proposalCitationSelection,
     synchronizeCitationMarkerLabels,
 } from '../../resources/js/proposal-semantic-editor.js';
 
@@ -140,12 +142,65 @@ test('manual typing updates the saved value without replacing the active editor 
 test('citation marker synchronization reports and applies only real label changes', () => {
     const marker = {
         textContent: ' [1]',
-        getAttribute: () => '42',
+        getAttribute: (name) => name === 'data-proposal-citation' ? '42' : null,
     };
 
     assert.equal(synchronizeCitationMarkerLabels([marker], { 42: 2 }), true);
     assert.equal(marker.textContent, ' [2]');
     assert.equal(synchronizeCitationMarkerLabels([marker], { 42: 2 }), false);
+});
+
+test('citation renumbering retains a readable locator and treats it as plain text', () => {
+    const marker = {
+        textContent: ' [1, p. 6]',
+        getAttribute: (name) => name === 'data-proposal-citation' ? '42' : '  p. 6\n  ',
+    };
+    assert.equal(synchronizeCitationMarkerLabels([marker], { 42: 3 }), true);
+    assert.equal(marker.textContent, ' [3, p. 6]');
+    assert.equal(synchronizeCitationMarkerLabels([marker], { 42: 3 }), false);
+    assert.equal(proposalCitationLocator('p.\u0000 6\n'), 'p. 6');
+    assert.equal(proposalCitationLocator('x'.repeat(140)).length, 100);
+    assert.equal(proposalCitationLocator('<img src=x>'), '<img src=x>');
+});
+
+test('citation targets accept a caret or selection only inside eligible narrative editors', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent('<div id="editor" contenteditable><p>Before selected text. After.</p><span data-proposal-citation="7"> [1]</span></div><p id="outside">Outside.</p>');
+        const helpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
+        await page.addScriptTag({ content: helpers });
+        const result = await page.evaluate(() => {
+            const editor = document.getElementById('editor');
+            const text = editor.querySelector('p').firstChild;
+            const range = document.createRange();
+            range.setStart(text, 7); range.setEnd(text, 20);
+            const selected = proposalCitationSelection('rationale', editor, range);
+            range.collapse(false);
+            const caret = proposalCitationSelection('rationale', editor, range);
+            const metadata = proposalCitationSelection('project-title', editor, range);
+            const references = proposalCitationSelection('references', editor, range);
+            range.setEnd(document.getElementById('outside').firstChild, 3);
+            const crossing = proposalCitationSelection('rationale', editor, range);
+            range.selectNodeContents(editor.querySelector('[data-proposal-citation]'));
+            range.collapse(false);
+            const marker = proposalCitationSelection('rationale', editor, range);
+            range.selectNodeContents(text); range.collapse(false);
+            editor.remove();
+            const detached = proposalCitationSelection('rationale', editor, range);
+            return { selected, caret, metadata, references, crossing, marker, detached };
+        });
+        assert.equal(result.selected.selectedText, 'selected text');
+        assert.equal(result.selected.collapsed, false);
+        assert.equal(result.selected.fieldKey, 'rationale');
+        assert.equal(result.selected.sectionLabel, 'VIII. Rationale');
+        assert.match(result.selected.contextText, /Before selected text\. After\./);
+        assert.equal(result.caret.selectedText, '');
+        assert.equal(result.caret.collapsed, true);
+        assert.deepEqual([result.metadata, result.references, result.crossing, result.marker, result.detached], [null, null, null, null, null]);
+    } finally {
+        await browser.close();
+    }
 });
 
 test('proposal citation fields resolve editor ids and persisted keys', () => {

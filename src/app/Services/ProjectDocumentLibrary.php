@@ -76,7 +76,9 @@ class ProjectDocumentLibrary
 
         $this->appendCommentResponsePapers($topic, $viewer, $documents);
         $this->appendReleasedDocuments($topic, $documents, $seenPaths);
-        $this->appendMonitoringDocuments($topic, $documents, $seenPaths);
+        if (! $viewer->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
+            $this->appendMonitoringDocuments($topic, $documents, $seenPaths);
+        }
 
         $topic->projectDocuments->each(function (ProjectDocument $document) use ($topic, $documents, $seenPaths): void {
             if (! Storage::disk('local')->exists($document->file_path) || $seenPaths->contains($document->file_path)) {
@@ -136,9 +138,7 @@ class ProjectDocumentLibrary
 
         $topic->loadMissing([
             'reviews.reviewer',
-            'reviews.topic',
-            'reviews.fileRevisions.file.version.files',
-            'reviews.fileRevisions.file.version.topic.stageTransitions',
+            'reviews.fileRevisions.file',
             'reviews.fileRevisions.annotations.reviewer',
         ]);
         $routePrefix = match (true) {

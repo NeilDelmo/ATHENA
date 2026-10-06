@@ -18,7 +18,9 @@
     @endphp
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-proposal-paper-workspace
+        data-expense-breakdown-workspace
         data-paper-editor
         data-paper-draft-save="true"
         data-expense-breakdown-autosave="true"
@@ -62,14 +64,8 @@
             :loaded-version="(int) old('document_version', $expenseBreakdownDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
             :reload-url="route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft)"
-            :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
             :label="$paper['label']"
         />
-
-        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="expense-breakdown-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
-            <span class="text-xs text-slate-500 dark:text-slate-400">The preview stays open while you edit and can be moved or resized.</span>
-        </div>
 
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -79,6 +75,9 @@
             </div>
         @endunless
 
+        <x-expense-breakdown-writing-toolbar />
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Estimated Expense Breakdown editing form">
         <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -120,7 +119,7 @@
 
                 <div class="mt-5 space-y-4">
                     <template x-for="(item, index) in items" :key="item.id">
-                        <article x-bind:data-repeatable-entry="`expense-item-${item.id}`" x-bind:class="isItemExpanded(item) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="rounded-2xl border p-4 shadow-sm transition-colors sm:p-5">
+                        <article x-bind:data-repeatable-entry="`expense-item-${item.id}`" x-bind:class="isItemExpanded(item) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="expense-writing-item rounded-2xl border p-4 shadow-sm transition-colors sm:p-5">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div class="min-w-0">
                                     <p class="text-xs font-black uppercase tracking-wider text-gray-500">Expense item <span x-text="index + 1"></span></p>
@@ -138,7 +137,7 @@
                             </div>
 
                             <div x-bind:id="`expense-item-editor-${item.id}`" x-show="isItemExpanded(item)" x-cloak x-transition class="mt-4">
-                                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                <div class="expense-writing-grouping grid gap-4">
                                 <div>
                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-category-${item.id}`">Expense type <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
                                     <select :id="`expense-category-${item.id}`" :name="`items[${index}][category]`" x-model="item.category" x-on:change="$nextTick(() => syncGrouping(item, true))" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
@@ -171,7 +170,7 @@
 
                             <template x-if="!isContingency(item)">
                                 <div>
-                                    <div class="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_11rem]">
+                                    <div class="expense-writing-costs mt-4 grid gap-4">
                                         <div>
                                             <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-particulars-${item.id}`">Particular/s <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
                                             <input :id="`expense-particulars-${item.id}`" :name="`items[${index}][particulars]`" x-bind:data-expense-item-primary="item.id" type="text" maxlength="255" x-model="item.particulars" required placeholder="e.g. Prepaid Card" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
@@ -190,7 +189,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                                    <div class="expense-writing-details mt-4 grid gap-4">
                                         <div>
                                             <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-details-${item.id}`">Descriptions / Specifications / Details <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
                                             <textarea :id="`expense-details-${item.id}`" :name="`items[${index}][details]`" rows="3" maxlength="500" x-model="item.details" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
@@ -204,7 +203,7 @@
                             </template>
 
                                 <template x-if="isContingency(item)">
-                                <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_14rem]">
+                                <div class="expense-writing-contingency mt-4 grid gap-4">
                                     <input type="hidden" :name="`items[${index}][particulars]`" value="N/A">
                                     <input type="hidden" :name="`items[${index}][details]`" value="N/A">
                                     <input type="hidden" :name="`items[${index}][unit]`" value="N/A">
@@ -247,12 +246,15 @@
         </form>
 
         <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
+        </div>
 
-        <x-proposal-document-preview
+        <x-proposal-paper-preview
             panel-id="expense-breakdown-preview-panel"
-            title="Estimated Expense Breakdown preview"
-            description="The official table preview automatically includes account group subtotals."
+            preview-label="Estimated Expense Breakdown preview"
             frame-title="Estimated Expense Breakdown preview"
         />
+        </div>
+
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" class="proposal-writing-preview-launcher" aria-controls="expense-breakdown-preview-panel" :aria-expanded="previewPaneOpen">Preview paper</button>
     </div>
 </x-app-layout>

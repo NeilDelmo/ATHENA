@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -6,19 +7,101 @@ import { chromium } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
-import initializeRevisionWorkspace, { synchronizeRevisionNoChangeResponses, initializeRevisionPanelResize, initializeRevisionWorkflow, applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, embeddedRevisionFileSaved } from '../../resources/js/revision-workspace.js';
+import initializeRevisionWorkspace, { synchronizeRevisionNoChangeResponses, initializeRevisionPanelResize, initializeRevisionWorkflow, applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, revealRevisionResponseFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, embeddedRevisionFileSaved } from '../../resources/js/revision-workspace.js';
 
-test('comment response locations require numbers unless no change was made, with independent accessible controls', async () => {
-    const blade = readFileSync(new URL('../../resources/views/components/proposal-revision-form.blade.php', import.meta.url), 'utf8');
-    const start = blade.indexOf('<fieldset data-comment-response-location');
-    const markup = blade.slice(start, blade.indexOf('</fieldset>', start) + '</fieldset>'.length)
-        .replace(/@js\([^\n]*\)/, 'false')
-        .replace(/@(?:checked|disabled)\([^\n]*\)/g, '')
-        .replace(/\s*@if[\s\S]*?@endif/g, '')
-        .replaceAll("{{ $item['key'] }}", 'overall')
-        .replace(/\{\{[\s\S]*?\}\}/g, '');
+test('revision stepper shows current completed and upcoming steps without overflow in both themes', async () => {
+    const rendered = spawnSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php';
+        $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        $source = file_get_contents(resource_path('views/components/proposal-revision-form.blade.php'));
+        $start = strpos($source, '<nav data-revision-progress-navigation');
+        $end = strpos($source, '</nav>', $start) + strlen('</nav>');
+        echo Illuminate\Support\Facades\Blade::render(substr($source, $start, $end - $start));
+    `], { encoding: 'utf8', cwd: resolve('.') });
+    assert.equal(rendered.status, 0, (rendered.stderr || rendered.stdout).slice(-2500));
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const labels = ['Read feedback', 'Revise and respond', 'Confirm details', 'Submit'];
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [320, 390, 768, 1440]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+                const errors = [];
+                page.on('pageerror', (error) => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body class="bg-slate-50 p-4 dark:bg-slate-950">
+                    <form class="mx-auto max-w-6xl space-y-4" data-revision-start-step="1">${rendered.stdout}
+                        ${labels.map((label, index) => `<section data-revision-step="${index + 1}" data-revision-step-label="${label}">
+                            <h2>${label}</h2>${index === 1 ? '<textarea aria-label="Response" required></textarea>' : ''}
+                            ${index === 2 ? '<input aria-label="Confirm details" type="checkbox" required data-revision-details-confirmed>' : ''}
+                        </section>`).join('')}
+                        <button type="button" data-revision-step-back>Back</button>
+                        <button type="button" data-revision-step-continue>Continue</button>
+                        <p data-revision-step-error></p>
+                    </form></body></html>`);
+                await page.addScriptTag({ content: `${revisionDocumentsWithoutResolution.toString()}
+                    ${initializeRevisionWorkflow.toString()}
+                    window.workflow = initializeRevisionWorkflow(document.querySelector('form'));` });
+                const steps = page.locator('[data-revision-progress-step]');
+                assert.equal(await steps.count(), 4);
+                for (const current of [1, 2, 4]) {
+                    await page.evaluate((step) => window.workflow.show(step, false), current);
+                    assert.equal(await page.locator('[aria-current="step"]').count(), 1);
+                    assert.equal(await steps.nth(current - 1).getAttribute('aria-current'), 'step');
+                    assert.equal(await page.locator('[data-revision-progress]').innerText(), `Step ${current} of 4 - ${labels[current - 1]}`);
+                    const states = await steps.evaluateAll((items) => items.map((item) => item.dataset.state));
+                    assert.deepEqual(states, labels.map((_, index) => index + 1 < current ? 'complete' : (index + 1 === current ? 'current' : 'upcoming')));
+                    const activeColor = await steps.nth(current - 1).locator('[data-revision-progress-mark]').evaluate((element) => getComputedStyle(element).backgroundColor);
+                    assert.equal(activeColor, dark ? 'rgb(251, 113, 133)' : 'rgb(122, 0, 25)');
+                    if (current > 1) {
+                        assert.equal(await steps.first().locator('[data-revision-progress-mark]').innerText(), '✓');
+                        assert.equal(await steps.first().locator('[data-revision-progress-description]').innerText(), 'Completed');
+                    }
+                    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                    if (process.env.REVISION_STEPPER_SCREENSHOT_DIRECTORY && [390, 1440].includes(width)) {
+                        await page.locator('[data-revision-progress-navigation]').screenshot({ path: resolve(process.env.REVISION_STEPPER_SCREENSHOT_DIRECTORY, `revision-steps-${width}-${dark ? 'dark' : 'light'}-${current}.png`) });
+                    }
+                }
+                await page.evaluate(() => window.workflow.show(2, false));
+                await page.locator('[data-revision-step-continue]').click();
+                assert.equal(await steps.nth(1).getAttribute('aria-current'), 'step');
+                await page.getByLabel('Response', { exact: true }).fill('Updated the requested passage.');
+                await page.locator('[data-revision-step-continue]').click();
+                assert.equal(await steps.nth(2).getAttribute('aria-current'), 'step');
+                await page.locator('[data-revision-step-continue]').click();
+                assert.equal(await steps.nth(2).getAttribute('aria-current'), 'step');
+                await page.getByLabel('Confirm details', { exact: true }).check();
+                await page.locator('[data-revision-step-continue]').click();
+                assert.equal(await steps.nth(3).getAttribute('aria-current'), 'step');
+                await page.locator('[data-revision-step-back]').focus();
+                await page.keyboard.press('Enter');
+                assert.equal(await steps.nth(2).getAttribute('aria-current'), 'step');
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test('replies use automatic locations and derive response actions from actual paper changes', async () => {
+    const rendered = spawnSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php';
+        $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        Illuminate\Support\Facades\View::share('errors', new Illuminate\Support\ViewErrorBag);
+        echo view('components.proposal-revision-response', [
+            'item' => ['key' => 'overall', 'response' => '', 'remarks' => ''],
+            'documentType' => 'work_plan', 'documentTypes' => collect(['work_plan']),
+        ])->render();
+    `], { encoding: 'utf8', cwd: resolve('.') });
+    assert.equal(rendered.status, 0, (rendered.stderr || rendered.stdout).slice(-2500));
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
+    const locationSource = readFileSync(new URL('../../resources/js/comment-response-location.js', import.meta.url), 'utf8')
+        .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         for (const width of [1440, 390]) {
@@ -27,56 +110,67 @@ test('comment response locations require numbers unless no change was made, with
                 const errors = [];
                 page.on('pageerror', (error) => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body class="bg-white dark:bg-slate-900">
-                    <form class="mx-auto max-w-3xl space-y-4 p-5">
-                        <article><label>Action and Response<textarea required name="feedback_responses[overall][response]"></textarea></label>${markup}</article>
-                        <article><label>Action and Response<textarea required name="feedback_responses[annotation_1][response]"></textarea></label>${markup.replaceAll('overall', 'annotation_1')}</article>
-                    </form></body></html>`);
-                await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
+                    <form class="mx-auto max-w-3xl space-y-4 p-5"><section data-revision-document="work_plan">
+                        <input type="checkbox" data-revision-no-change hidden><input data-revision-no-change-explanation type="hidden">
+                        <article>${rendered.stdout}</article><article>${rendered.stdout.replaceAll('overall', 'annotation_1')}</article>
+                    </section></form></body></html>`);
+                await page.addScriptTag({ content: `${synchronizeRevisionNoChangeResponses.toString()}\n${locationSource}` });
                 const form = page.locator('form');
                 const first = page.locator('article').first();
                 const second = page.locator('article').last();
-                const valid = () => form.evaluate((element) => element.checkValidity());
-                assert.equal(await valid(), false);
+                assert.equal(await form.evaluate((element) => element.checkValidity()), false);
                 await first.locator('textarea').fill('Revised recruitment.');
                 await second.locator('textarea').fill('The existing schedule already addresses this comment.');
-                assert.equal(await valid(), false);
-                await first.getByLabel('Page', { exact: true }).fill('4');
-                await first.getByLabel('Paragraph', { exact: true }).fill('2');
-                assert.equal(await valid(), false);
-                await second.getByLabel('No change made', { exact: true }).check();
-                await page.waitForFunction(() => document.querySelectorAll('[data-comment-response-page]')[1].disabled);
-                assert.equal(await valid(), true);
-                assert.equal(await first.locator('[data-comment-response-page]').isDisabled(), false);
-                assert.equal(await second.locator('[data-comment-response-paragraph]').isDisabled(), true);
-                await second.locator('textarea').fill('');
-                assert.equal(await valid(), false);
-                await second.locator('textarea').fill('The existing schedule already addresses this comment.');
-                await first.getByLabel('No change made', { exact: true }).check();
-                await first.getByLabel('No change made', { exact: true }).uncheck();
-                await page.waitForFunction(() => !document.querySelector('[data-comment-response-page]').disabled);
+                await page.evaluate(() => {
+                    const form = document.querySelector('form');
+                    synchronizeRevisionNoChangeResponses(form, form.querySelector('section'), { __document__: true, 1: false });
+                    window.locations = initializeCommentResponseLocations(form, {
+                        readDocuments: async () => new Map([['work_plan', { passages: [{ page: 4, paragraph: 2, text: 'Revised recruitment uses 120 participants.', label: 'Work Plan' }] }]]),
+                        suggestedTexts: () => ['Revised recruitment uses 120 participants.'],
+                    });
+                });
+                // Location generation never blocks writing replies or demands manual number entry.
+                assert.equal(await form.evaluate((element) => element.checkValidity()), true);
+                assert.equal(await form.locator('select:visible, input[type="number"]:visible, details').count(), 0);
+                await page.evaluate(() => window.locations.verify([]));
                 assert.equal(await first.locator('[data-comment-response-page]').inputValue(), '4');
-                await first.getByLabel('Page', { exact: true }).fill('0');
-                assert.equal(await valid(), false);
-                await first.getByLabel('Page', { exact: true }).fill('4');
-                await first.getByLabel('Paragraph', { exact: true }).fill('2.5');
-                assert.equal(await valid(), false);
-                await first.getByLabel('Paragraph', { exact: true }).fill('2');
-                assert.equal(await valid(), true);
+                assert.equal(await first.locator('[data-comment-response-paragraph]').inputValue(), '2');
+                // A comment can be addressed by an edit elsewhere in the same paper.
+                assert.equal(await second.locator('[data-comment-response-no-change]').isChecked(), false);
+                assert.equal(await second.locator('[data-comment-response-page]').inputValue(), '4');
                 const entries = await form.evaluate((element) => [...new FormData(element).entries()]);
                 assert.equal(Object.fromEntries(entries)['feedback_responses[overall][page]'], '4');
-                assert.equal(Object.fromEntries(entries)['feedback_responses[overall][paragraph]'], '2');
-                assert.equal(Object.fromEntries(entries)['feedback_responses[annotation_1][no_change]'], '1');
-                assert.equal(entries.some(([key]) => key === 'feedback_responses[annotation_1][page]'), false);
+                assert.equal(Object.fromEntries(entries)['feedback_responses[overall][no_change]'], '0');
+                assert.equal(Object.fromEntries(entries)['feedback_responses[annotation_1][no_change]'], '0');
+                await page.evaluate(() => {
+                    const form = document.querySelector('form');
+                    form.querySelector('[data-revision-no-change]').checked = true;
+                    synchronizeRevisionNoChangeResponses(form, form.querySelector('section'), { __document__: true, 1: false });
+                });
+                assert.equal(await second.locator('[data-comment-response-no-change]').isChecked(), true);
+                assert.equal(await second.locator('[data-comment-response-page]').isDisabled(), true);
+                const keptEntries = await form.evaluate((element) => [...new FormData(element).entries()]);
+                assert.equal(Object.fromEntries(keptEntries)['feedback_responses[annotation_1][no_change]'], '1');
+                assert.equal(keptEntries.some(([key]) => key === 'feedback_responses[annotation_1][page]'), false);
+                await second.locator('textarea').fill('');
+                assert.equal(await form.evaluate((element) => element.checkValidity()), false);
+                await second.locator('textarea').fill('Now revised the schedule too.');
+                await page.evaluate(() => {
+                    const form = document.querySelector('form');
+                    form.querySelector('[data-revision-no-change]').checked = false;
+                    synchronizeRevisionNoChangeResponses(form, form.querySelector('section'), { __document__: true, 1: true });
+                    form.dispatchEvent(new CustomEvent('revision-document-changed', { detail: { documentType: 'work_plan' } }));
+                });
+                assert.equal(await second.locator('[data-comment-response-no-change]').isChecked(), false);
+                assert.equal(await second.locator('[data-comment-response-page]').isDisabled(), false);
+                await page.evaluate(() => window.locations.verify([]));
+                assert.equal(await second.locator('[data-comment-response-page]').inputValue(), '4');
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-                const background = await first.locator('[data-comment-response-page]').evaluate((element) => getComputedStyle(element).backgroundColor);
-                assert.equal(background, dark ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)');
                 assert.deepEqual(errors, []);
                 await page.close();
             }
         }
-    } finally {
-        await browser.close();
-    }
+    } finally { await browser.close(); }
 });
 
 test('all edits are saved before any replacement is prepared so later saves cannot invalidate earlier files', async () => {
@@ -155,6 +249,34 @@ test('an invalid editor is identified before saving so its highlighted field can
     assert.equal(saved, false);
     assert.equal(prepared, false);
     assert.equal(input.text, 'My unsaved revision');
+});
+
+test('an ambiguous automatic location returns to its comment and focuses the matching text confirmation', () => {
+    const events = [];
+    const previousCustomEvent = globalThis.CustomEvent;
+    const selector = { value: '' };
+    const card = {
+        querySelector: () => selector,
+        dispatchEvent: (event) => events.push(event.type),
+    };
+    const field = {
+        dataset: { responseKey: 'annotation_12' },
+        closest: (selector) => selector === '[data-revision-document]' ? card : { dataset: { revisionCommentBody: '12' } },
+        scrollIntoView: () => events.push('scroll'),
+        querySelector: () => ({ focus: () => events.push('confirm focus') }),
+    };
+    globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
+    try {
+        assert.equal(revealRevisionResponseFailure(
+            { revisionResponseKey: 'annotation_12' },
+            { querySelectorAll: () => [field] },
+            { open: (opened) => { assert.equal(opened, card); events.push('open paper'); } },
+            { show: (step) => { assert.equal(step, 2); events.push('show replies'); } },
+        ), true);
+        assert.equal(selector.value, '12');
+        assert.deepEqual(events, ['show replies', 'open paper', 'revision-feedback-reveal', 'scroll', 'confirm focus']);
+        assert.equal(revealRevisionResponseFailure({}, { querySelectorAll: () => [field] }, null, null), false);
+    } finally { globalThis.CustomEvent = previousCustomEvent; }
 });
 
 test('a revision validation failure opens the matching editor and focuses its first invalid field', () => {
@@ -328,7 +450,7 @@ test('full-screen document switching preserves frames, synchronizes feedback and
     const original = { document: globalThis.document, window: globalThis.window };
     t.after(() => Object.assign(globalThis, original));
     globalThis.document = { body: { style: { overflow: 'auto' } } };
-    globalThis.window = { location: { search: '' } };
+    globalThis.window = { location: { search: '' }, matchMedia: () => ({ matches: true, addEventListener() {} }) };
     const actions = [];
     const formHandlers = {};
     const pendingClose = [];
@@ -378,8 +500,10 @@ test('full-screen document switching preserves frames, synchronizes feedback and
         };
         const card = {
             dataset: { revisionDocument: type },
+            hasAttribute: () => false,
             querySelector: (key) => nodes[key],
             querySelectorAll: () => bodies,
+            addEventListener() {},
         };
         return { card, dialog, selector, editorFrame, pdfFrame, pdfApi, pdfHandlers, selectionHandlers, editorHandlers, nodes, bodies, pdfLoading, editorLoading };
     };
@@ -550,6 +674,8 @@ test('workspace-only version metadata does not create a false change badge', () 
         { type: 'hidden', name: 'staff', id: '', value: '', disabled: false },
         { type: 'hidden', name: 'literature_research_history', id: '', value: '[]', disabled: false },
         { type: 'hidden', name: 'literature_citations', id: '', value: '[]', disabled: false },
+        { type: 'hidden', name: 'methodology[specific_methods]', id: '', value: '<p><strong>A. Field research</strong></p><ol><li>Conduct surveys.</li></ol>', disabled: false },
+        { type: 'text', name: 'specific_method_objectives[0][methods][0][description]', id: 'method-1', value: 'Conduct surveys.', disabled: false },
         { type: 'text', name: 'staff[0][name]', id: 'staff-name-1', value: 'Faculty Member', disabled: false },
     ];
     const form = { matches: () => false, querySelectorAll: () => controls };
@@ -559,12 +685,34 @@ test('workspace-only version metadata does not create a false change badge', () 
         staff: [{ name: 'Faculty Member' }],
         literature_research_history: '[{"query":"original"}]',
         literature_citations: '[{"id":"original"}]',
+        methodology: { specific_methods: '<p>A. Field research<br>1. Conduct surveys.</p>' },
+        specific_method_objectives: [{ methods: [{ description: 'Conduct surveys.' }] }],
     };
 
     assert.equal(
         revisionCurrentSourceFingerprint(documentRoot, null, returnedSource),
         revisionSourceFingerprint(documentRoot, null, returnedSource),
     );
+    controls.find((control) => control.id === 'method-1').value = 'Conduct interviews.';
+    assert.notEqual(
+        revisionCurrentSourceFingerprint(documentRoot, null, returnedSource),
+        revisionSourceFingerprint(documentRoot, null, returnedSource),
+    );
+});
+
+test('method comparison detects a removed last method after reopening an autosaved draft', () => {
+    const controls = [
+        { type: 'text', name: 'specific_method_objectives[0][heading]', id: '', value: 'Field research', disabled: false },
+        { type: 'text', name: 'specific_method_objectives[0][methods][0][description]', id: '', value: 'Conduct surveys.', disabled: false },
+    ];
+    const form = { matches: () => false, querySelectorAll: () => controls };
+    const documentRoot = { getElementById: () => null, querySelector: () => form };
+    const source = { specific_method_objectives: [{ heading: 'Field research', methods: [
+        { description: 'Conduct surveys.' }, { description: 'Conduct interviews.' },
+    ] }] };
+    assert.notEqual(revisionCurrentSourceFingerprint(documentRoot, null, source), revisionSourceFingerprint(documentRoot, null, source));
+    controls.push({ type: 'text', name: 'specific_method_objectives[0][methods][1][description]', id: '', value: 'Conduct interviews.', disabled: false });
+    assert.equal(revisionCurrentSourceFingerprint(documentRoot, null, source), revisionSourceFingerprint(documentRoot, null, source));
 });
 
 test('a no-change explanation reveals the paper cue only after it is complete', () => {
@@ -647,9 +795,9 @@ function workflowFixture({ unresolved = false, responseComplete = true, confirme
     const error = {};
     const confirmation = { checked: confirmed, checkValidity() { return this.checked; }, reportValidity() {}, focus() {} };
     const response = { checkValidity: () => responseComplete, reportValidity() {}, focus() {} };
-    const panels = ['Read feedback', 'Revise papers', 'Action and Response', 'Confirm details', 'Submit'].map((label, index) => ({
+    const panels = ['Read feedback', 'Revise and respond', 'Confirm details', 'Submit'].map((label, index) => ({
         dataset: { revisionStep: String(index + 1), revisionStepLabel: label },
-        querySelectorAll: () => index === 2 ? [response] : (index === 3 ? [confirmation] : []),
+        querySelectorAll: () => index === 1 ? [response] : (index === 2 ? [confirmation] : []),
         setAttribute() {}, focus() {}, scrollIntoView() {},
     }));
     const status = { dataset: { addressed: String(!unresolved) } };
@@ -672,7 +820,7 @@ function workflowFixture({ unresolved = false, responseComplete = true, confirme
     return { form, panels, next, back, confirmation, status, listeners, error };
 }
 
-test('workflow gates paper actions, then responses, then confirmation before submission', () => {
+test('workflow checks paper changes and replies together before confirming details and submitting', () => {
     const previousWindow = globalThis.window;
     globalThis.window = { location: { search: '', hash: '' } };
     try {
@@ -680,7 +828,7 @@ test('workflow gates paper actions, then responses, then confirmation before sub
         const workflow = initializeRevisionWorkflow(fixture.form);
         let opened = 0;
         workflow.setDialogs({ open() { opened++; } });
-        assert.deepEqual(fixture.panels.map((panel) => panel.hidden), [false, true, true, true, true]);
+        assert.deepEqual(fixture.panels.map((panel) => panel.hidden), [false, true, true, true]);
         fixture.next.click();
         fixture.next.click();
         assert.equal(opened, 1);
@@ -689,8 +837,7 @@ test('workflow gates paper actions, then responses, then confirmation before sub
         fixture.next.click();
         assert.equal(fixture.panels[2].hidden, false);
         fixture.next.click();
-        fixture.next.click();
-        assert.equal(fixture.panels[3].hidden, false);
+        assert.equal(fixture.panels[2].hidden, false);
         assert.equal(fixture.error.hidden, false);
         fixture.confirmation.checked = true;
         fixture.next.click();
@@ -698,13 +845,13 @@ test('workflow gates paper actions, then responses, then confirmation before sub
         fixture.listeners.input({ target: { closest: () => ({}) } });
         assert.equal(fixture.confirmation.checked, false);
         assert.equal(workflow.canSubmit(), false);
-        assert.equal(fixture.panels[3].hidden, false);
-        fixture.back.click();
         assert.equal(fixture.panels[2].hidden, false);
+        fixture.back.click();
+        assert.equal(fixture.panels[1].hidden, false);
     } finally { globalThis.window = previousWindow; }
 });
 
-test('workflow keeps incomplete responses on the response step and Enter cannot submit early', () => {
+test('incomplete replies stay with the papers and Enter cannot submit early', () => {
     const previousWindow = globalThis.window;
     globalThis.window = { location: { search: '', hash: '' } };
     try {
@@ -713,9 +860,8 @@ test('workflow keeps incomplete responses on the response step and Enter cannot 
         assert.equal(workflow.canSubmit(), false);
         assert.equal(fixture.panels[1].hidden, false);
         fixture.next.click();
-        fixture.next.click();
-        assert.equal(fixture.panels[2].hidden, false);
-        assert.match(fixture.error.textContent, /page and paragraph numbers/);
+        assert.equal(fixture.panels[1].hidden, false);
+        assert.match(fixture.error.textContent, /Write a reply to each reviewer comment/);
     } finally { globalThis.window = previousWindow; }
 });
 
@@ -779,7 +925,7 @@ test('no-change explanations fill matching replies, track edits and preserve fac
     } };
     const reply = (type, value = '') => ({ dataset: { revisionResponseDocument: type }, value });
     const replies = [reply('work_plan'), reply('work_plan'), reply('line_item_budget'), reply(''), reply('work_plan', 'My own explanation.')];
-    const form = { querySelectorAll: () => replies };
+    const form = { querySelectorAll: (selector) => selector === '[data-revision-response-document]' ? replies : [] };
     synchronizeRevisionNoChangeResponses(form, card);
     assert.equal(replies[0].value, explanation.value);
     assert.equal(replies[1].value, explanation.value);

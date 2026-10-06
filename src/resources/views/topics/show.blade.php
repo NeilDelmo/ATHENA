@@ -33,9 +33,9 @@
         $assessmentFormCount = $submittedFiles->count() - $proposalPaperCount;
           $hasProjectAccess = $isResearchHead || $canViewSigningDocuments || $topic->isAccessibleTo(Auth::user());
           $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || (($isResearchHead || $canViewSigningDocuments) && $topic->status === 'ready_for_signature'))
-              && $hasProjectAccess;
+              && $hasProjectAccess && (! $topic->hasIssuedNoticeToProceed() || $isResearchHead || $canViewSigningDocuments);
           $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
-              && $hasProjectAccess;
+              && $hasProjectAccess && ! $isFacultyWorkspace;
         [$workspaceBackRoute, $workspaceBackLabel] = match (true) {
             $isResearchHead && $topic->isCompletedProject() => ['research_head.completed-projects.index', 'Back to projects'],
             $isResearchHead && $canViewMonitoring => ['research_head.projects.index', 'Back to projects'],
@@ -75,6 +75,9 @@
             : (($noticeToProceedErrors || ($canViewNoticeToProceed && $errors->getBag('headUpload')->any()))
                 ? 'notice'
                 : (in_array(session('topic_tab'), ['details', 'review', 'notice', 'history', 'monitoring'], true) ? session('topic_tab') : null));
+        if (($initialTopicTab === 'monitoring' && ! $canViewMonitoring) || ($initialTopicTab === 'notice' && ! $canViewNoticeToProceed)) {
+            $initialTopicTab = 'details';
+        }
 
     @endphp
 
@@ -122,8 +125,8 @@
                 ['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
-                        ? 'notice'
-                    : (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))
+                        ? (@js($canViewNoticeToProceed) ? 'notice' : 'details')
+                    : (@js($canViewMonitoring) && (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))))
                         ? 'monitoring'
                         : window.location.hash === '#version-history'
                         ? 'history'
@@ -138,8 +141,8 @@
                 if (['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
-                    this.activeTopicTab = 'notice';
-                } else if (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))) {
+                    this.activeTopicTab = @js($canViewNoticeToProceed) ? 'notice' : 'details';
+                } else if (@js($canViewMonitoring) && (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))) {
                     this.activeTopicTab = 'monitoring';
                 } else if (window.location.hash === '#version-history') {
                     this.activeTopicTab = 'history';
@@ -167,6 +170,11 @@
                 this.floatingBackLinkObserver?.disconnect();
             },
             scrollToTopicHash() {
+                if (window.location.hash === '#notice-to-proceed') {
+                    this.$nextTick(() => document.getElementById('notice-to-proceed')?.scrollIntoView({ block: 'start' }));
+
+                    return;
+                }
                 if (['#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.$nextTick(() => {
                         const card = document.getElementById(window.location.hash.slice(1));
@@ -223,6 +231,15 @@
             </div>
         @endif
 
+        @if ($isFacultyWorkspace && ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject()) && $hasProjectAccess)
+            <section data-research-workspace-handoff class="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+                <div class="max-w-xl">
+                    <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ $topic->isCompletedProject() ? 'Research completed' : 'In monitoring' }}</h2>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">The signed proposal papers and Notice to Proceed are in Files. Use Switch Workspace in your account menu to manage monitoring and reports as Faculty Researcher.</p>
+                </div>
+            </section>
+        @endif
+
         <div class="space-y-3">
             <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal workspace sections">
                 <div class="flex shrink-0 gap-1" role="tablist" aria-label="Proposal workspace sections">
@@ -269,17 +286,13 @@
             </nav>
         </div>
 
-        <div class="mb-5" data-visible-proposal-workflow>
-            <x-proposal-workflow :topic="$topic" :version="$latestVersion" :reviews="$topic->reviews" />
-        </div>
-
-        @can('updatePackage', $topic)
+        @if (! $isFacultyRevision && Auth::user()->can('updatePackage', $topic))
             <section data-proposal-package-update class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
-                <h3 class="font-bold text-gray-950 dark:text-white">You can still update this proposal</h3>
-                <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">The Research Head has not opened your package yet. Edit the papers, add team members, or replace PDFs, then turn in a new version. Your submitted versions remain available in Versions.</p>
-                <a href="{{ route('faculty.topics.edit-package', $topic) }}" class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800">{{ $topic->revisionDraft ? 'Continue package update' : 'Update submitted package' }}</a>
+                <h3 class="font-bold text-gray-950 dark:text-white">Update before review</h3>
+                <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">The Research Head has not opened this proposal. Edit the papers or replace PDFs, then submit Version {{ ($latestVersion?->version_number ?? 1) + 1 }}. Version {{ $latestVersion?->version_number ?? 1 }} stays in Versions. Editing closes when the Research Head opens the submission.</p>
+                <a href="{{ route('faculty.topics.edit-package', $topic) }}" class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800">{{ $topic->revisionDraft ? 'Continue proposal update' : 'Update submitted proposal' }}</a>
             </section>
-        @endcan
+        @endif
 
         <section id="proposal-details-tab" x-show="activeTopicTab === 'details'" x-cloak role="tabpanel" aria-labelledby="proposal-details-tab-button">
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -306,12 +319,12 @@
                     <div class="p-5 sm:p-6" data-latest-package-summary="{{ $latestVersion?->id }}">
                         <div class="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h4 class="text-sm font-black text-gray-950 dark:text-white">Latest submitted package</h4>
+                                <h4 class="text-sm font-black text-gray-950 dark:text-white">Latest submission</h4>
                                 <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                                     @if ($latestVersion)
                                         Version {{ $latestVersion->version_number }} contains {{ $proposalPaperCount }} proposal {{ \Illuminate\Support\Str::plural('paper', $proposalPaperCount) }}{{ $assessmentFormCount > 0 ? ' and '.$assessmentFormCount.' automatically generated assessment '.\Illuminate\Support\Str::plural('form', $assessmentFormCount) : '' }}. Open the project folder to view them in separate categories alongside signed papers, review responses, and later project records.
                                     @else
-                                        No submitted package is available yet. Generated and uploaded PDFs will appear in the project folder.
+                                        No submission is available yet. Generated and uploaded PDFs will appear in the project folder.
                                     @endif
                                 </p>
                             </div>
@@ -334,6 +347,21 @@
                             <dt class="text-xs font-bold uppercase text-gray-500">Duration</dt>
                             <dd class="mt-1 text-sm font-bold text-gray-700">{{ $topic->estimated_duration_months }} months</dd>
                         </div>
+                        @if ($topic->hasIssuedNoticeToProceed() && ! $canViewNoticeToProceed)
+                            <div id="notice-to-proceed" data-released-notice-summary class="scroll-mt-32 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                <dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Notice to Proceed issued</dt>
+                                <dd class="mt-1 text-sm font-semibold text-gray-700 dark:text-slate-200">{{ $topic->notice_to_proceed_issued_at->format('M j, Y g:i A') }}</dd>
+                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">The signed copy and released proposal papers are available in Files.</p>
+                            </div>
+                            <div class="border-t border-gray-100 pt-3 dark:border-slate-800">
+                                <dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Approved period</dt>
+                                <dd class="mt-1 text-sm font-semibold text-gray-700 dark:text-slate-200">{{ data_get($topic->notice_to_proceed_data, 'approved_start_date', '—') }} to {{ data_get($topic->notice_to_proceed_data, 'approved_end_date', '—') }}</dd>
+                            </div>
+                            <div class="border-t border-gray-100 pt-3 dark:border-slate-800">
+                                <dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Approved budget</dt>
+                                <dd class="mt-1 text-sm font-semibold text-gray-700 dark:text-slate-200">PHP {{ number_format((float) data_get($topic->notice_to_proceed_data, 'approved_budget', $topic->estimated_budget), 2) }}</dd>
+                            </div>
+                        @endif
                         @if ($topic->category)
                             <div class="border-t border-gray-100 pt-3">
                                 <dt class="text-xs font-bold uppercase text-gray-500">Category</dt>
@@ -383,6 +411,10 @@
             }
         @endphp
         <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
+            <div data-visible-proposal-workflow>
+                <x-proposal-workflow :topic="$topic" :version="$latestVersion" :reviews="$topic->reviews" />
+            </div>
+
             @if ($isResearchHead && $latestVersion && $topic->review_stage !== 'lrec' && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true))
                 <div class="flex flex-wrap justify-end gap-2">
                     <a data-research-head-screening-form href="{{ route('research_head.topics.initial-screening-form.edit', [$topic, $latestVersion]) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">{{ Auth::user()->can('fillInitialScreeningForm', [$topic, $latestVersion]) ? 'Fill Initial Screening Form' : 'View Initial Screening Form' }}</a>
@@ -675,7 +707,7 @@
 
                             <div data-review-revision-actions class="flex flex-wrap items-center gap-3">
                                 <button type="submit" :disabled="submitting || !decision || (decision === 'gad_review' && !researchHeadClearanceConfirmed) || (decision === 'lrec_queued' && !initialClearanceConfirmed) || (decision === 'ready_for_signature' && !lrecClearanceConfirmed) || (decision === 'rejected' && !rejectionConfirmed)" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                    <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD assessment', lrec_queued: 'Route to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
+                                    <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD assessment', lrec_queued: 'For email to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
                                 </button>
                             </div>
                         </form>
@@ -866,7 +898,7 @@
                                 <p class="mt-2 text-base leading-7">Your editor changes, including added images, stay in this private working revision. They are not part of Version {{ $latestVersion?->version_number ?? 1 }}.</p>
                                 <p class="mt-1 text-base font-semibold leading-7">Submitting the revision creates Version {{ ($latestVersion?->version_number ?? 1) + 1 }}, sends it to the Research Head, and enables the comparison below.</p>
                             @else
-                                <p class="mt-2 text-base leading-7">Version {{ $latestVersion?->version_number ?? 1 }} remains the latest submitted package while the faculty member works. The Research Head receives the changes only after the faculty submits the revision.</p>
+                                <p class="mt-2 text-base leading-7">Version {{ $latestVersion?->version_number ?? 1 }} remains the latest submission while the faculty member works. The Research Head receives the changes only after the faculty submits the revision.</p>
                             @endif
                         </div>
                         @if ($isFacultyRevision)
@@ -898,7 +930,7 @@
                             @forelse ($latestVersion->files->where('is_carried_forward', false)->whereNotIn('document_type', [\App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE, \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD]) as $file)
                                 <span class="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">{{ $file->label() }}</span>
                             @empty
-                                <span class="text-xs text-gray-400">No package files were replaced.</span>
+                                <span class="text-xs text-gray-400">No submitted documents were replaced.</span>
                             @endforelse
                         </div>
                     </div>

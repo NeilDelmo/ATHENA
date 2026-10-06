@@ -1,0 +1,614 @@
+<?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
+
+$__newAttributes = [];
+$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames(([
+    'proposalDrafts' => collect(),
+    'literatureCollections' => collect(),
+    'sharedLiteratureSources' => collect(),
+]));
+
+foreach ($attributes->all() as $__key => $__value) {
+    if (in_array($__key, $__propNames)) {
+        $$__key = $$__key ?? $__value;
+    } else {
+        $__newAttributes[$__key] = $__value;
+    }
+}
+
+$attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
+
+unset($__propNames);
+unset($__newAttributes);
+
+foreach (array_filter(([
+    'proposalDrafts' => collect(),
+    'literatureCollections' => collect(),
+    'sharedLiteratureSources' => collect(),
+]), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
+    $$__key = $$__key ?? $__value;
+}
+
+$__defined_vars = get_defined_vars();
+
+foreach ($attributes->all() as $__key => $__value) {
+    if (array_key_exists($__key, $__defined_vars)) unset($$__key);
+}
+
+unset($__defined_vars, $__key, $__value); ?>
+
+<section
+    id="rrl-finder"
+    x-data="{ workspaceMode: window.location.hash === '#shared-literature-library' ? 'library' : 'find', saveOptionsOpen: false, filtersOpen: false, externalSourceOpen: false }"
+    x-init="$store.literatureSearch.initializeLibrary($el)"
+    @hashchange.window="workspaceMode = window.location.hash === '#shared-literature-library' ? 'library' : 'find'"
+    class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+    aria-label="Literature search"
+    data-rrl-workspace
+    data-literature-library-save-url="<?php echo e(route('research-support.literature-library.store')); ?>"
+    data-literature-synthesis-url="<?php echo e(route('research-support.literature-synthesis')); ?>"
+    data-literature-full-text-preview-url="<?php echo e(route('research-support.literature-full-text-preview')); ?>"
+    data-literature-collection-save-url="<?php echo e(route('research-support.literature-collections.store')); ?>"
+    data-literature-attach-url-template="<?php echo e(route('faculty.proposal-drafts.literature-sources.store', ['proposalDraft' => '__proposal__', 'literatureSource' => '__source__'])); ?>"
+    data-literature-draft-update-url-template="<?php echo e(route('faculty.proposal-drafts.literature-drafts.update', ['proposalDraft' => '__proposal__', 'proposalDraftLiteratureSource' => '__link__'])); ?>"
+    data-literature-draft-discard-url-template="<?php echo e(route('faculty.proposal-drafts.literature-drafts.destroy', ['proposalDraft' => '__proposal__', 'proposalDraftLiteratureSource' => '__link__'])); ?>"
+    data-detailed-proposal-url-template="<?php echo e(route('faculty.proposal-drafts.detailed-proposal.edit', ['proposalDraft' => '__proposal__'])); ?>"
+    data-library-sources="<?php echo e($sharedLiteratureSources->toJson()); ?>"
+    data-library-collections="<?php echo e($literatureCollections->map->only(['id', 'name', 'slug', 'sources_count'])->values()->toJson()); ?>"
+>
+    <div class="border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/55 sm:px-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="inline-flex w-full rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800 sm:w-auto" role="tablist" aria-label="Literature workspace">
+            <button type="button" @click="workspaceMode = 'find'" :aria-selected="workspaceMode === 'find'" :class="workspaceMode === 'find' ? 'bg-white text-[#7A0019] shadow-sm dark:bg-slate-950 dark:text-red-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'" class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-semibold transition sm:flex-none" role="tab" aria-controls="literature-find-workspace">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+                Find papers
+            </button>
+            <button type="button" @click="workspaceMode = 'library'; saveOptionsOpen = false" :aria-selected="workspaceMode === 'library'" :class="workspaceMode === 'library' ? 'bg-white text-[#7A0019] shadow-sm dark:bg-slate-950 dark:text-red-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'" class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-semibold transition sm:flex-none" role="tab" aria-controls="shared-literature-library">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9h7.5M8.25 12h7.5M8.25 15h4.5" /></svg>
+                Saved library
+                <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400" x-text="$store.literatureSearch.sharedSources.length"></span>
+            </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="literature-save-options" x-show="workspaceMode === 'find' && saveOptionsOpen" x-cloak x-transition class="border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/55 sm:px-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[#7A0019] ring-1 ring-red-100 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900/60">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9h7.5M8.25 12h7.5M8.25 15h4.5" /></svg>
+                    </span>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">Save the selected paper</p>
+                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400"><span x-text="$store.literatureSearch.sharedSources.length"></span> papers</span>
+                        </div>
+                        <p class="mt-1 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">Choose a collection or connect this paper to a proposal.</p>
+                    </div>
+                </div>
+
+                <div class="grid w-full gap-3 sm:grid-cols-2 lg:max-w-2xl">
+                    <div>
+                        <label for="literature-collection" class="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">Collection</label>
+                        <select id="literature-collection" x-model="$store.literatureSearch.selectedCollectionId" class="block h-11 w-full rounded-xl border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                            <option value="">Shared library only</option>
+                            <template x-for="collection in $store.literatureSearch.collections" :key="collection.id">
+                                <option :value="String(collection.id)" x-text="collection.name"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="literature-proposal-draft" class="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">Proposal <span class="font-normal">(optional)</span></label>
+                        <select id="literature-proposal-draft" x-model="$store.literatureSearch.selectedProposalId" @change="$store.literatureSearch.saveNotice = ''; $store.literatureSearch.saveError = ''" class="block h-11 w-full rounded-xl border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm focus:border-red-500 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white" <?php if($proposalDrafts->isEmpty()): echo 'disabled'; endif; ?>>
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($proposalDrafts->isEmpty()): ?>
+                                <option value="">No editable proposal</option>
+                            <?php else: ?>
+                                <option value="">Choose when needed</option>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $proposalDrafts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $proposalDraft): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                                    <option value="<?php echo e($proposalDraft->id); ?>"><?php echo e(Str::limit($proposalDraft->project_title, 72)); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(! $proposalDraft->isOwnedBy(Auth::user())): ?> · <?php echo e($proposalDraft->owner?->name); ?><?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?></option>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 dark:border-slate-800 sm:flex-row sm:items-center">
+                <label for="new-literature-collection" class="sr-only">New shared collection name</label>
+                <input id="new-literature-collection" type="text" maxlength="120" x-model="$store.literatureSearch.collectionName" @keydown.enter.prevent="$store.literatureSearch.createCollection()" placeholder="Create a collection, e.g. Environment" class="block h-10 min-w-0 flex-1 rounded-xl border-slate-200 text-xs shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
+                <button type="button" @click="$store.literatureSearch.createCollection()" :disabled="$store.literatureSearch.isCreatingCollection || !$store.literatureSearch.collectionName.trim()" class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-[10px] font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30">
+                    <span x-text="$store.literatureSearch.isCreatingCollection ? 'Creating…' : 'Create collection'"></span>
+                </button>
+            </div>
+            <p x-show="$store.literatureSearch.collectionError" x-cloak class="mt-2 text-[11px] font-semibold text-red-600 dark:text-red-300" x-text="$store.literatureSearch.collectionError"></p>
+        </div>
+    </div>
+
+    <div id="literature-find-workspace" x-show="workspaceMode === 'find'" class="border-b border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-6" role="tabpanel">
+        <div class="mb-5">
+            <h2 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">Find literature</h2>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Search by topic, research question, or paper title.</p>
+        </div>
+        <form @submit.prevent="$store.literatureSearch.search()" class="space-y-4">
+            <div class="rounded-xl border border-slate-300 bg-white p-1.5 transition-colors focus-within:border-[#7A0019] focus-within:ring-2 focus-within:ring-red-100 dark:border-slate-700 dark:bg-slate-950 dark:focus-within:border-red-400 dark:focus-within:ring-red-950/40">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div class="flex min-w-0 flex-1 items-center gap-3 px-2 sm:px-3">
+                        <svg class="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+                        <div class="min-w-0 flex-1">
+                            <label for="literature-search-query" class="sr-only">Search literature</label>
+                            <input
+                                id="literature-search-query"
+                                type="search"
+                                x-model="$store.literatureSearch.query"
+                                maxlength="180"
+                                placeholder="e.g. Community participation in mangrove restoration"
+                                class="block h-12 w-full border-0 bg-transparent px-0 text-sm text-slate-900 shadow-none placeholder:text-slate-400 focus:border-0 focus:ring-0 dark:text-white dark:placeholder:text-slate-500"
+                            >
+                        </div>
+                    </div>
+                    <button
+                        type="submit"
+                        :disabled="$store.literatureSearch.isLoading || $store.literatureSearch.query.trim().length < 3"
+                        class="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#7A0019] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#920021] focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-offset-slate-950"
+                    >
+                        <svg x-show="$store.literatureSearch.isLoading" x-cloak class="h-4 w-4 animate-spin motion-reduce:animate-none" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path></svg>
+                        <span x-text="$store.literatureSearch.isLoading ? 'Searching…' : 'Search'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-1">
+                <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen.toString()" aria-controls="literature-search-filters" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-medium text-slate-600 hover:text-[#7A0019] focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-300 dark:hover:text-red-300">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M5 7h14M8 12h8M10 17h4" /></svg>
+                    Filters <span x-show="$store.literatureSearch.activeFilterCount()" x-cloak class="rounded-full bg-red-50 px-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-200" x-text="$store.literatureSearch.activeFilterCount()"></span>
+                    <span aria-hidden="true" x-text="filtersOpen ? '−' : '+'"></span>
+                </button>
+                <button type="button" @click="externalSourceOpen = !externalSourceOpen" :aria-expanded="externalSourceOpen.toString()" aria-controls="literature-external-source" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-medium text-slate-600 hover:text-[#7A0019] focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-300 dark:hover:text-red-300">
+                    Add a source <span aria-hidden="true" x-text="externalSourceOpen ? '−' : '+'"></span>
+                </button>
+            </div>
+
+            <div id="literature-search-filters" x-show="filtersOpen" x-cloak class="rounded-xl bg-slate-50 p-4 dark:bg-slate-950/60">
+
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                    <label for="literature-search-year-from" class="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">From year</label>
+                    <input id="literature-search-year-from" type="number" min="1900" max="<?php echo e(now()->year); ?>" x-model.number="$store.literatureSearch.filters.year_from" placeholder="Any year" class="block h-11 w-full rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                </div>
+                <div>
+                    <label for="literature-search-year-to" class="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">To year</label>
+                    <input id="literature-search-year-to" type="number" min="1900" max="<?php echo e(now()->year); ?>" x-model.number="$store.literatureSearch.filters.year_to" placeholder="<?php echo e(now()->year); ?>" class="block h-11 w-full rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                </div>
+                <div>
+                    <label for="literature-search-min-citations" class="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300">Minimum citations</label>
+                    <input id="literature-search-min-citations" type="number" min="0" max="1000000" x-model.number="$store.literatureSearch.filters.min_citations" placeholder="No minimum" class="block h-11 w-full rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                </div>
+                <label class="flex min-h-11 items-center gap-3 self-end rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-bold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <input type="checkbox" x-model="$store.literatureSearch.filters.open_access" class="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-slate-600">
+                    <span>Open access only</span>
+                </label>
+                </div>
+
+                <button type="button" @click="$store.literatureSearch.filters = { year_from: '', year_to: '', min_citations: '', open_access: false }" class="mt-3 inline-flex min-h-9 items-center rounded-lg px-1 text-xs font-medium text-slate-500 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:text-red-300">Clear filters</button>
+            </div>
+        </form>
+
+        <div id="literature-external-source" x-show="externalSourceOpen" x-cloak class="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-950/40">
+            <p class="max-w-3xl text-sm leading-6 text-slate-500 dark:text-slate-400">Add a paper from another service, or paste its citation to fill in the details.</p>
+            <form class="mt-4 space-y-4" @submit.prevent="$store.literatureSearch.saveExternalSource()">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Found via<select x-model="$store.literatureSearch.externalSource.provider" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option>Google Scholar</option><option>Elicit</option><option>Other</option></select></label>
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 sm:col-span-2 lg:col-span-3">Paper title<input x-model="$store.literatureSearch.externalSource.title" required maxlength="500" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 sm:col-span-2">Authors<input x-model="$store.literatureSearch.externalSource.authors" maxlength="2000" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Year<input x-model="$store.literatureSearch.externalSource.year" type="number" min="1900" max="<?php echo e(now()->year); ?>" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Venue<input x-model="$store.literatureSearch.externalSource.venue" maxlength="500" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Enter authors in given-name surname order, separated by commas. Add the publication details below to complete the IEEE reference.</p>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = ['volume' => 'Volume', 'issue' => 'Issue / number', 'pages' => 'Pages (e.g. 15-24)', 'publisher' => 'Publisher']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <label class="text-xs font-bold text-slate-600 dark:text-slate-300"><?php echo e($label); ?>
+
+                            <input x-model="$store.literatureSearch.externalSource.<?php echo e($field); ?>" maxlength="<?php echo e($field === 'publisher' ? 500 : 100); ?>" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                        </label>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">DOI<input x-model="$store.literatureSearch.externalSource.doi" maxlength="255" placeholder="10.xxxx/example" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Public source URL<input x-model="$store.literatureSearch.externalSource.url" type="url" maxlength="2048" placeholder="https://..." class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                </div>
+                <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Paste citation, BibTeX, or RIS <span class="normal-case font-medium tracking-normal">(optional; fields are filled when recognizable)</span><textarea x-model="$store.literatureSearch.externalSource.citation" @blur="$store.literatureSearch.parseExternalCitation()" rows="5" maxlength="10000" class="mt-1 block w-full rounded-lg border-slate-200 bg-white text-xs leading-5 dark:border-slate-700 dark:bg-slate-900 dark:text-white"></textarea></label>
+                <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-[10px] leading-4 text-slate-500 dark:text-slate-400">A selected proposal is linked privately; cite the source in your own writing to add its IEEE reference.</p><button type="submit" :disabled="$store.literatureSearch.isSavingExternalSource" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-slate-900"><span x-text="$store.literatureSearch.isSavingExternalSource ? 'Saving...' : 'Save source and create IEEE reference'"></span></button></div>
+            </form>
+        </div>
+        <div x-show="$store.literatureSearch.externalReference" x-cloak class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950" role="status">
+            <label for="manual-ieee-reference" class="text-sm font-bold text-slate-800 dark:text-white">IEEE reference</label>
+            <textarea id="manual-ieee-reference" readonly rows="4" x-bind:value="$store.literatureSearch.externalReference" @focus="$el.select()" class="mt-2 w-full rounded-lg border-slate-300 bg-white text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Select to copy. Verify the publication details. ATHENA assigns [1], [2], and subsequent numbers when you cite the source in your proposal.</p>
+        </div>
+    </div>
+
+    <section id="shared-literature-library" x-show="workspaceMode === 'library'" x-cloak x-transition class="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/35 sm:p-6" aria-labelledby="shared-literature-heading" role="tabpanel">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h3 id="shared-literature-heading" class="text-sm font-semibold text-slate-900 dark:text-white">Browse the shared library</h3>
+                    <span class="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700" x-text="`${$store.literatureSearch.filteredLibrarySources().length} available`"></span>
+                </div>
+                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Find and reuse papers saved by faculty.</p>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-2 lg:w-[48rem] lg:grid-cols-3">
+                <label class="relative block">
+                    <span class="sr-only">Search the shared literature library</span>
+                    <svg class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+                    <input type="search" x-model.debounce.200ms="$store.literatureSearch.libraryQuery" placeholder="Search saved papers" class="block h-10 w-full rounded-xl border-slate-200 bg-white pl-9 text-xs shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500">
+                </label>
+                <select x-model="$store.literatureSearch.libraryCollectionFilter" aria-label="Filter shared papers by collection" class="block h-10 w-full rounded-xl border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <option value="">All collections</option>
+                    <template x-for="collection in $store.literatureSearch.collections" :key="`filter-${collection.id}`">
+                        <option :value="String(collection.id)" x-text="collection.name"></option>
+                    </template>
+                </select>
+                <select x-model="$store.literatureSearch.selectedProposalId" aria-label="Proposal to use shared papers with" class="block h-10 w-full rounded-xl border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm focus:border-red-500 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" <?php if($proposalDrafts->isEmpty()): echo 'disabled'; endif; ?>>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($proposalDrafts->isEmpty()): ?>
+                        <option value="">No editable proposal</option>
+                    <?php else: ?>
+                        <option value="">Choose proposal to use a paper</option>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $proposalDrafts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $proposalDraft): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                            <option value="<?php echo e($proposalDraft->id); ?>"><?php echo e(Str::limit($proposalDraft->project_title, 72)); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(! $proposalDraft->isOwnedBy(Auth::user())): ?> Â· <?php echo e($proposalDraft->owner?->name); ?><?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?></option>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                </select>
+            </div>
+        </div>
+
+        <div x-show="$store.literatureSearch.filteredLibrarySources().length === 0" class="mt-4 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center dark:border-slate-700 dark:bg-slate-900">
+            <p class="text-xs font-semibold text-slate-800 dark:text-slate-100" x-text="$store.literatureSearch.sharedSources.length ? 'No shared papers match these filters' : 'The shared library is empty' "></p>
+            <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400" x-text="$store.literatureSearch.sharedSources.length ? 'Try a different title, author, or collection.' : 'Find a paper first, then save it here for everyone to reuse.'"></p>
+            <button x-show="!$store.literatureSearch.sharedSources.length" type="button" @click="workspaceMode = 'find'" class="mt-3 rounded-lg bg-[#7A0019] px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-[#920021] dark:bg-red-700 dark:hover:bg-red-600">Find new papers</button>
+        </div>
+
+        <div x-show="$store.literatureSearch.filteredLibrarySources().length" x-cloak class="mt-4 grid gap-3 lg:grid-cols-2">
+            <template x-for="source in $store.literatureSearch.filteredLibrarySources().slice(0, 12)" :key="`library-${source.id}`">
+                <article class="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold leading-5 text-slate-900 dark:text-white" x-text="source.title"></p>
+                            <p class="mt-1 line-clamp-1 text-[10px] text-slate-500 dark:text-slate-400" x-text="source.authors || 'Authors not listed'"></p>
+                        </div>
+                        <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300" x-text="source.year || 'n.d.'"></span>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-1.5">
+                        <template x-for="collection in source.collections || []" :key="`${source.id}-${collection.id}`">
+                            <span class="rounded-full bg-red-50 px-2 py-1 text-[9px] font-bold text-red-700 dark:bg-red-950/30 dark:text-red-200" x-text="collection.name"></span>
+                        </template>
+                        <span x-show="!source.collections?.length" class="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">Unfiled</span>
+                    </div>
+                    <p class="mt-3 text-[10px] font-semibold text-slate-400 dark:text-slate-500" x-text="`Added by ${source.added_by_name || 'a faculty member'}`"></p>
+                    <div class="mt-auto grid grid-cols-3 gap-2 pt-4">
+                        <button type="button" @click="$store.literatureSearch.useLibrarySource(source, 'rrl')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingLibrarySource(source)" class="rounded-lg border border-slate-200 px-2 py-2 text-[9px] font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/30">Use in RRL</button>
+                        <button type="button" @click="$store.literatureSearch.useLibrarySource(source, 'reference')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingLibrarySource(source)" class="rounded-lg border border-slate-200 px-2 py-2 text-[9px] font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/30">Reference</button>
+                        <button type="button" @click="$store.literatureSearch.useLibrarySource(source, 'both')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingLibrarySource(source)" class="rounded-lg bg-red-700 px-2 py-2 text-[9px] font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">Use both</button>
+                    </div>
+                </article>
+            </template>
+        </div>
+    </section>
+
+    <div x-show="workspaceMode === 'find'">
+    <div x-show="$store.literatureSearch.saveNotice" x-cloak class="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-xs font-semibold text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-200 sm:mx-5" x-text="$store.literatureSearch.saveNotice" role="status"></div>
+    <div x-show="$store.literatureSearch.saveError" x-cloak class="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 sm:mx-5" x-text="$store.literatureSearch.saveError" role="alert"></div>
+
+    <div x-show="$store.literatureSearch.error" x-cloak class="m-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 sm:m-5">
+        <p class="font-semibold">Search unavailable</p>
+        <p class="mt-1" x-text="$store.literatureSearch.error"></p>
+    </div>
+
+    <div x-show="$store.literatureSearch.hasSearched && $store.literatureSearch.providerNotice && $store.literatureSearch.results.length" x-cloak class="m-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:m-5">
+        <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25 12 10.5m0 6.75h.008v.008H12v-.008Zm9-5.25a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+        <p><span class="font-semibold text-slate-700 dark:text-slate-200">Source coverage:</span> <span x-text="$store.literatureSearch.providerNotice"></span></p>
+    </div>
+
+    <div x-show="$store.literatureSearch.hasSearched && $store.literatureSearch.queryGuidance?.is_broad && !$store.literatureSearch.isLoading" x-cloak class="m-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:m-5">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 4.5h.008v.008H12V16.5Z" /></svg></span>
+        <div class="min-w-0">
+            <p class="text-xs font-semibold">Add research context for more precise results</p>
+            <p class="mt-1 text-[11px] leading-5" x-text="$store.literatureSearch.queryGuidance?.message"></p>
+            <p class="mt-1 text-[11px] font-bold leading-5" x-text="$store.literatureSearch.queryGuidance?.suggestion"></p>
+        </div>
+    </div>
+
+    <div x-show="$store.literatureSearch.isLoading" x-cloak class="flex items-center gap-3 px-5 py-8 sm:px-6" role="status" aria-live="polite" aria-label="Searching academic sources" data-literature-loading>
+        <svg class="h-5 w-5 shrink-0 animate-spin text-[#7A0019] motion-reduce:animate-none dark:text-red-300" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+        <p class="text-sm text-slate-600 dark:text-slate-300">Searching academic papers…</p>
+    </div>
+
+    <div x-show="$store.literatureSearch.hasSearched && !$store.literatureSearch.isLoading && !$store.literatureSearch.results.length && !$store.literatureSearch.error" x-cloak class="p-4 sm:p-5">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-8 text-center dark:border-slate-800 dark:bg-slate-950/40">
+            <p class="text-sm font-semibold text-gray-800 dark:text-slate-100" x-text="$store.literatureSearch.queryGuidance?.is_broad ? 'A more specific research query is needed' : 'No literature records found'"></p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400" x-text="$store.literatureSearch.queryGuidance?.is_broad ? 'Add at least one variable, population, method, or setting before searching the academic indexes.' : 'Try a broader phrase, a key variable, or a shorter version of the working title.'"></p>
+        </div>
+    </div>
+
+    <div x-show="$store.literatureSearch.results.length && !$store.literatureSearch.isLoading" x-cloak data-rrl-results-workspace>
+        <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div class="flex flex-wrap items-center gap-2">
+                <p class="text-xs font-semibold text-gray-900 dark:text-white"><span x-text="$store.literatureSearch.results.length"></span> papers found</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" @click="saveOptionsOpen = true; $nextTick(() => document.getElementById('literature-save-options')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))" class="rounded-lg border border-gray-200 px-3 py-2 text-[10px] font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/30">Proposal &amp; collection</button>
+                <button type="button" @click="$store.literatureSearch.clear()" class="rounded-lg border border-gray-200 px-3 py-2 text-[10px] font-semibold text-gray-500 transition hover:bg-gray-50 hover:text-red-600 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-red-300">Clear</button>
+                <button type="button" @click="$store.literatureSearch.askAthena()" :disabled="$store.researchAssistant.isLoading" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">Analyze results</button>
+            </div>
+        </div>
+
+        <div class="grid min-h-[620px] xl:grid-cols-[22rem_minmax(0,1fr)]">
+            <div class="min-w-0 border-b border-gray-200 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-slate-950/35 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:border-b-0 xl:border-r" data-rrl-results-table>
+                <table class="block w-full text-left">
+                    <caption class="sr-only">Related literature comparison results</caption>
+                    <thead class="sr-only">
+                        <tr class="border-b border-gray-200 dark:border-slate-800">
+                            <th scope="col" class="w-14 px-3 py-3 text-center text-[9px] font-semibold text-gray-400 dark:text-slate-500">#</th>
+                            <th scope="col" class="w-72 border-l border-gray-200 px-4 py-3 text-[9px] font-semibold text-gray-500 dark:border-slate-800 dark:text-slate-400">Paper</th>
+                            <th scope="col" class="w-96 border-l border-gray-200 px-4 py-3 text-[9px] font-semibold text-gray-500 dark:border-slate-800 dark:text-slate-400">Abstract excerpt</th>
+                            <th scope="col" class="w-20 border-l border-gray-200 px-3 py-3 text-center text-[9px] font-semibold text-gray-500 dark:border-slate-800 dark:text-slate-400">Year</th>
+                            <th scope="col" class="w-24 border-l border-gray-200 px-3 py-3 text-center text-[9px] font-semibold text-gray-500 dark:border-slate-800 dark:text-slate-400">Citations</th>
+                            <th scope="col" class="w-28 border-l border-gray-200 px-3 py-3 text-center text-[9px] font-semibold text-gray-500 dark:border-slate-800 dark:text-slate-400">Access</th>
+                        </tr>
+                    </thead>
+                    <tbody class="grid gap-2">
+                        <template x-for="(result, index) in $store.literatureSearch.results" :key="`${result.source}-${result.doi || result.url || result.title}`">
+                            <tr
+                                @click="$store.literatureSearch.selectResult(index)"
+                                @keydown.enter.prevent="$store.literatureSearch.selectResult(index)"
+                                @keydown.space.prevent="$store.literatureSearch.selectResult(index)"
+                                :aria-selected="$store.literatureSearch.selectedIndex === index"
+                                :class="$store.literatureSearch.selectedIndex === index ? 'border-red-300 bg-red-50 ring-1 ring-red-200 dark:border-red-800 dark:bg-red-950/25 dark:ring-red-900' : 'border-slate-200 bg-white hover:border-red-200 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-red-900'"
+                                class="block cursor-pointer rounded-2xl border p-3.5 align-top shadow-sm transition"
+                                tabindex="0"
+                            >
+                                <td class="sr-only" x-text="`Result ${index + 1}`"></td>
+                                <td class="block">
+                                    <p class="text-xs font-semibold leading-5 text-gray-900 dark:text-white" x-text="result.title"></p>
+                                    <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-gray-500 dark:text-slate-400" x-text="result.authors"></p>
+                                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                        <span class="rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300" x-text="result.source"></span>
+                                        <span class="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" x-text="result.relevance_label || 'Potential match'"></span>
+                                        <span x-show="result.venue" class="max-w-36 truncate text-[9px] font-semibold text-gray-400 dark:text-slate-500" x-text="result.venue"></span>
+                                    </div>
+                                </td>
+                                <td class="mt-2 block">
+                                    <p class="line-clamp-4 text-[11px] leading-5 text-gray-600 dark:text-slate-300" x-text="result.description"></p>
+                                </td>
+                                <td class="mt-2 inline-block text-[10px] font-bold text-gray-600 dark:text-slate-300" x-text="result.year || 'Year not listed'"></td>
+                                <td class="ml-2 mt-2 inline-block text-[10px] font-bold text-gray-600 dark:text-slate-300" x-text="Number.isInteger(result.citation_count) ? `${result.citation_count} citations` : 'Citations not listed'"></td>
+                                <td class="mt-2 block">
+                                    <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300" x-text="$store.literatureSearch.accessLabel(result)"></span>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <aside class="bg-white p-5 dark:bg-slate-900 sm:p-7 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto" aria-label="Selected paper details" data-rrl-paper-details>
+                <div x-show="$store.literatureSearch.selectedResult()" x-cloak>
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-xs font-medium text-gray-500 dark:text-slate-400">Paper details</p>
+                        <span class="rounded-md bg-red-50 px-2 py-1 text-[9px] font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300" x-text="$store.literatureSearch.selectedResult()?.source"></span>
+                    </div>
+                    <h4 class="mt-4 text-base font-semibold leading-6 text-gray-950 dark:text-white" x-text="$store.literatureSearch.selectedResult()?.title"></h4>
+                    <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="$store.literatureSearch.selectedResult()?.authors"></p>
+
+                    <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Access status</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-900 dark:text-white" x-text="$store.literatureSearch.accessLabel($store.literatureSearch.selectedResult())"></p>
+                            </div>
+                            <button type="button" x-show="$store.literatureSearch.selectedResult()?.access_status === 'open_access' && $store.literatureSearch.selectedResult()?.full_text_token" @click="$store.literatureSearch.loadFullText()" :disabled="$store.literatureSearch.isLoadingFullText" class="inline-flex min-h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50" x-text="$store.literatureSearch.isLoadingFullText ? 'Loading public text...' : ($store.literatureSearch.fullTextPreview ? 'Reload available full text' : 'Load available full text')"></button>
+                        </div>
+                        <p class="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300" x-text="$store.literatureSearch.accessExplanation($store.literatureSearch.selectedResult())"></p>
+                        <p x-show="$store.literatureSearch.fullTextError" x-cloak class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" x-text="$store.literatureSearch.fullTextError"></p>
+                    </div>
+
+                    <div class="sticky top-0 z-10 mt-4 rounded-2xl border border-red-100 bg-white/95 p-4 shadow-md shadow-slate-900/5 backdrop-blur dark:border-red-950 dark:bg-slate-900/95 dark:shadow-black/20">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">Add to a Detailed Proposal</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Choose the draft and the section where this paper should be staged.</p>
+                        </div>
+
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($proposalDrafts->isNotEmpty()): ?>
+                            <label for="detail-literature-proposal" class="mt-4 block text-xs font-bold text-slate-700 dark:text-slate-200">Proposal</label>
+                            <select id="detail-literature-proposal" x-model="$store.literatureSearch.selectedProposalId" class="mt-1.5 block h-11 w-full rounded-xl border-slate-200 bg-white text-sm font-semibold text-slate-800 shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                                <option value="">Choose a proposal</option>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $proposalDrafts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $proposalDraft): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                                    <option value="<?php echo e($proposalDraft->id); ?>"><?php echo e(Str::limit($proposalDraft->project_title, 58)); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(! $proposalDraft->isOwnedBy(Auth::user())): ?> Â· <?php echo e($proposalDraft->owner?->name); ?><?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?></option>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                            </select>
+                            <div class="mt-3 grid gap-2">
+                                <button type="button" @click="$store.literatureSearch.prepareSynthesis($store.literatureSearch.selectedResult(), 'rrl')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-left text-xs font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"><span>Prepare for RRL</span><span class="font-semibold text-red-600 dark:text-red-300">Review first →</span></button>
+                                <button type="button" @click="$store.literatureSearch.saveResult($store.literatureSearch.selectedResult(), 'reference')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-xs font-semibold text-slate-800 transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-red-900 dark:hover:bg-red-950/30"><span>Add reference</span><span class="font-semibold text-slate-500 dark:text-slate-400">Section XVI →</span></button>
+                                <button type="button" @click="$store.literatureSearch.prepareSynthesis($store.literatureSearch.selectedResult(), 'both')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="min-h-11 rounded-xl bg-red-700 px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">Create research notes</button>
+                            </div>
+                        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
+                        <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+                            <p class="text-xs font-bold text-slate-700 dark:text-slate-200">Keep for later</p>
+                            <div class="mt-2 grid grid-cols-2 gap-2">
+                                <button type="button" @click="$store.literatureSearch.saveResult($store.literatureSearch.selectedResult())" :disabled="$store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" /></svg><span x-text="$store.literatureSearch.isSavedResult($store.literatureSearch.selectedResult()) ? 'Saved' : 'Save to library'"></span></button>
+                                <a x-show="$store.literatureSearch.selectedResult()?.url" :href="$store.literatureSearch.selectedResult()?.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-black dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">Open record<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 7.5v10.125A1.875 1.875 0 0 0 7.875 19.5H18" /></svg></a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-data="{ publicationDetailsOpen: false }" class="mt-5 border-y border-slate-200 py-2 dark:border-slate-800">
+                    <button type="button" @click="publicationDetailsOpen = !publicationDetailsOpen" :aria-expanded="publicationDetailsOpen.toString()" aria-controls="literature-publication-details" class="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-slate-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-300 dark:hover:text-red-200">Publication details <span aria-hidden="true" x-text="publicationDetailsOpen ? '−' : '+'"></span></button>
+                    <dl id="literature-publication-details" x-show="publicationDetailsOpen" x-cloak class="grid grid-cols-2 gap-3 pb-3 pt-2 text-xs">
+                        <div><dt class="font-semibold text-gray-400 dark:text-slate-500">Year</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="$store.literatureSearch.selectedResult()?.year || 'Not listed'"></dd></div>
+                        <div><dt class="font-semibold text-gray-400 dark:text-slate-500">Citations</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="Number.isInteger($store.literatureSearch.selectedResult()?.citation_count) ? $store.literatureSearch.selectedResult().citation_count : 'Not listed'"></dd></div>
+                        <div><dt class="font-semibold text-gray-400 dark:text-slate-500">Relevance</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="$store.literatureSearch.selectedResult()?.relevance_label || 'Potential match'"></dd></div>
+                        <div class="col-span-2"><dt class="font-semibold text-gray-400 dark:text-slate-500">Publication</dt><dd class="mt-1 font-bold leading-5 text-gray-800 dark:text-slate-200" x-text="$store.literatureSearch.selectedResult()?.venue || 'Source venue not listed'"></dd></div>
+                        <div><dt class="font-semibold text-gray-400 dark:text-slate-500">Type</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="$store.literatureSearch.selectedResult()?.type || 'Not listed'"></dd></div>
+                        <div><dt class="font-semibold text-gray-400 dark:text-slate-500">Volume / issue</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="[$store.literatureSearch.selectedResult()?.volume, $store.literatureSearch.selectedResult()?.issue].filter(Boolean).join(' / ') || 'Not listed'"></dd></div>
+                        <div><dt class="font-semibold text-gray-400 dark:text-slate-500">Pages</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="$store.literatureSearch.selectedResult()?.pages || 'Not listed'"></dd></div>
+                        <div class="col-span-2"><dt class="font-semibold text-gray-400 dark:text-slate-500">Publisher</dt><dd class="mt-1 font-bold text-gray-800 dark:text-slate-200" x-text="$store.literatureSearch.selectedResult()?.publisher || 'Not listed'"></dd></div>
+                    </dl>
+                    </div>
+
+                    <p class="mt-3 text-[10px] font-semibold leading-4 text-gray-500 dark:text-slate-400" x-text="$store.literatureSearch.selectedResult()?.match_reason"></p>
+
+                    <div
+                        x-data="{ abstractExpanded: true }"
+                        x-init="$watch(() => $store.literatureSearch.selectedIndex, () => abstractExpanded = true)"
+                        class="mt-5"
+                    >
+                        <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500">Abstract</p>
+                        <p
+                            class="mt-2 text-xs leading-6 text-gray-600 dark:text-slate-300"
+                            :class="abstractExpanded ? '' : 'line-clamp-12'"
+                            x-text="$store.literatureSearch.selectedResult()?.description"
+                        ></p>
+                        <button
+                            type="button"
+                            x-show="String($store.literatureSearch.selectedResult()?.description || '').length > 720"
+                            @click="abstractExpanded = !abstractExpanded"
+                            :aria-expanded="abstractExpanded.toString()"
+                            class="mt-3 inline-flex min-h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-200"
+                        >
+                            <span x-text="abstractExpanded ? 'Show less' : 'Show full abstract'"></span>
+                        </button>
+                    </div>
+
+                    <div x-show="$store.literatureSearch.selectedResult()?.doi" class="mt-5">
+                        <p class="text-[10px] font-semibold text-gray-400 dark:text-slate-500">DOI</p>
+                        <p class="mt-1 break-all text-[11px] font-semibold text-gray-600 dark:text-slate-300" x-text="$store.literatureSearch.selectedResult()?.doi"></p>
+                    </div>
+
+                    <div x-show="$store.literatureSearch.fullTextPreview" x-cloak class="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200">Loaded open-access full-text preview</p>
+                            <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-300" x-text="$store.literatureSearch.fullTextContentType"></span>
+                        </div>
+                        <p class="mt-2 text-xs font-semibold leading-5 text-emerald-900 dark:text-emerald-100" x-text="$store.literatureSearch.fullTextNotice"></p>
+                        <div class="mt-3 max-h-[32rem] overflow-y-auto rounded-xl border border-emerald-100 bg-white p-4 dark:border-emerald-900 dark:bg-slate-950">
+                            <p class="whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200" x-text="$store.literatureSearch.fullTextPreview"></p>
+                        </div>
+                        <a x-show="$store.literatureSearch.fullTextSourceUrl" :href="$store.literatureSearch.fullTextSourceUrl" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex text-xs font-semibold text-emerald-800 underline dark:text-emerald-200">Open public source</a>
+                    </div>
+
+                </div>
+            </aside>
+        </div>
+    </div>
+    </div>
+
+    <template x-teleport="body">
+        <div
+            x-show="$store.literatureSearch.synthesisReviewOpen"
+            x-cloak
+            x-transition.opacity
+            @keydown.escape.window="$store.literatureSearch.closeSynthesisReview()"
+            class="fixed inset-0 z-[105] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="literature-synthesis-title"
+        >
+            <button type="button" @click="$store.literatureSearch.closeSynthesisReview()" class="absolute inset-0 cursor-default" aria-label="Close RRL preparation dialog"></button>
+
+            <div class="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 id="literature-synthesis-title" class="text-lg font-semibold text-slate-950 dark:text-white">Create editable research notes</h2>
+                            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Loaded open-access full text' : 'Indexed abstract only'"></span>
+                            <span class="sr-only">Abstract only</span>
+                        </div>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Save abstract-based notes for reading. Inserting text into Section XI requires full-paper evidence and your review.</p>
+                    </div>
+                    <button type="button" @click="$store.literatureSearch.closeSynthesisReview()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close RRL preparation dialog">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                    </button>
+                </header>
+
+                <div class="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:overflow-hidden">
+                    <section class="border-b border-slate-200 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-950/45 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-6">
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Source evidence</p>
+                        <h3 class="mt-3 text-base font-semibold leading-6 text-slate-950 dark:text-white" x-text="$store.literatureSearch.synthesisSource?.title || 'Selected paper'"></h3>
+                        <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                            <span x-text="$store.literatureSearch.synthesisSource?.authors || 'Authors not listed'"></span>
+                            <span aria-hidden="true"> &middot; </span>
+                            <span x-text="$store.literatureSearch.synthesisSource?.year || 'Year not listed'"></span>
+                        </p>
+
+                        <div x-show="$store.literatureSearch.fullTextPreview && $store.literatureSearch.fullTextResultKey === $store.literatureSearch.resultKey($store.literatureSearch.synthesisSource)" x-cloak class="mt-4 inline-flex rounded-xl bg-slate-200/80 p-1 dark:bg-slate-800" aria-label="RRL evidence basis">
+                            <button type="button" @click="$store.literatureSearch.setSynthesisBasis('abstract')" :class="$store.literatureSearch.synthesisBasis === 'abstract' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="rounded-lg px-3 py-2 text-[10px] font-semibold">Use abstract</button>
+                            <button type="button" @click="$store.literatureSearch.setSynthesisBasis('full_text')" :class="$store.literatureSearch.synthesisBasis === 'full_text' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-950 dark:text-emerald-200' : 'text-slate-500 dark:text-slate-400'" class="rounded-lg px-3 py-2 text-[10px] font-semibold">Use loaded full text</button>
+                        </div>
+
+                        <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                            <p class="text-xs font-semibold text-slate-800 dark:text-slate-100" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Transient open-access full-text evidence' : 'Indexed abstract evidence'"></p>
+                            <p x-show="$store.literatureSearch.hasSynthesisEvidence()" class="mt-3 max-h-[34rem] overflow-y-auto whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300" x-text="$store.literatureSearch.synthesisEvidenceText"></p>
+                            <p x-show="!$store.literatureSearch.hasSynthesisEvidence()" class="mt-3 text-sm leading-6 text-amber-800 dark:text-amber-200">No usable abstract was returned by the academic indexes. ATHENA will not generate claims from metadata alone.</p>
+                        </div>
+
+                        <div class="mt-4 flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:bg-blue-950/35 dark:text-blue-200">
+                            <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25 12 10.5m0 0 .75-.75M12 10.5v4.125m0 6.375a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" /></svg>
+                            <p>The DOI and source link stay with the evidence record and reference entry. They will not be inserted into the RRL paragraph.</p>
+                        </div>
+                    </section>
+
+                    <section class="flex min-h-[28rem] flex-col p-5 dark:bg-slate-900 lg:overflow-y-auto sm:p-6">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <label for="literature-synthesis-draft" class="text-sm font-semibold text-slate-950 dark:text-white">Editable research notes</label>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Revise the wording so it fits your study. Do not treat this as a direct quotation.</p>
+                            </div>
+                            <button type="button" x-show="$store.literatureSearch.hasSynthesisEvidence()" @click="$store.literatureSearch.generateSynthesis()" :disabled="$store.literatureSearch.isSynthesizing" class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3.5 text-xs font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30">
+                                <svg :class="$store.literatureSearch.isSynthesizing ? 'animate-spin' : ''" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12a7.5 7.5 0 0 1 12.8-5.3L19.5 9M19.5 4.5V9H15M19.5 12a7.5 7.5 0 0 1-12.8 5.3L4.5 15M4.5 19.5V15H9" /></svg>
+                                <span x-text="$store.literatureSearch.isSynthesizing ? 'Generating...' : ($store.literatureSearch.synthesisDraft ? 'Generate again' : 'Generate draft')"></span>
+                            </button>
+                        </div>
+
+                        <div x-show="$store.literatureSearch.isSynthesizing && !$store.literatureSearch.synthesisDraft" class="mt-4 flex min-h-56 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-red-200 bg-red-50/60 p-6 text-center dark:border-red-900 dark:bg-red-950/20" role="status">
+                            <span class="h-8 w-8 animate-spin rounded-full border-2 border-red-200 border-t-red-700 dark:border-red-950 dark:border-t-red-300"></span>
+                            <p class="mt-4 text-sm font-semibold text-red-900 dark:text-red-100">Preparing editable research notes</p>
+                            <p class="mt-1 text-xs leading-5 text-red-700 dark:text-red-300">ATHENA is constrained to the evidence shown on the left.</p>
+                        </div>
+
+                        <textarea
+                            id="literature-synthesis-draft"
+                            x-show="!$store.literatureSearch.isSynthesizing || $store.literatureSearch.synthesisDraft"
+                            x-model="$store.literatureSearch.synthesisDraft"
+                            rows="12"
+                            maxlength="5000"
+                            placeholder="Generate or write an RRL paragraph from the available evidence, then review it before inserting it with its reference."
+                            class="mt-4 min-h-64 w-full flex-1 resize-y rounded-2xl border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+                        ></textarea>
+
+                        <p x-show="$store.literatureSearch.synthesisDraft.trim().length < 40" class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400" role="status">Generate a draft or write at least 40 characters to enable adding it to the RRL and references.</p>
+
+                        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <p class="font-medium text-slate-500 dark:text-slate-400"><span x-text="$store.literatureSearch.synthesisWordCount()"></span> words <span aria-hidden="true">&middot;</span> Review required before saving the proposal</p>
+                            <span x-show="$store.literatureSearch.synthesisBasis === 'abstract'" class="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Abstract-based</span>
+                            <span x-show="$store.literatureSearch.synthesisBasis === 'full_text'" class="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">Loaded full-text based</span>
+                        </div>
+
+                        <p x-show="$store.literatureSearch.synthesisNotice" x-cloak class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" x-text="$store.literatureSearch.synthesisNotice" role="status"></p>
+                        <p x-show="$store.literatureSearch.synthesisError" x-cloak class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs font-semibold leading-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="$store.literatureSearch.synthesisError" role="alert"></p>
+
+                        <div class="mt-5 flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:justify-end">
+                            <button type="button" @click="$store.literatureSearch.closeSynthesisReview()" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
+                            <button type="button" @click="$store.literatureSearch.discardSynthesisDraft()" :disabled="$store.literatureSearch.isDiscardingDraft || !$store.literatureSearch.synthesisDraft" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30">Discard draft</button>
+                            <button type="button" @click="$store.literatureSearch.persistSynthesisDraft('draft')" :disabled="$store.literatureSearch.isSavingDraft || $store.literatureSearch.synthesisDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" x-text="$store.literatureSearch.isSavingDraft ? 'Saving...' : 'Save draft'"></button>
+                            <button type="button" @click="$store.literatureSearch.confirmSynthesis()" :disabled="$store.literatureSearch.isSynthesizing || $store.literatureSearch.isSavingDraft || $store.literatureSearch.isSavingResult($store.literatureSearch.synthesisSource) || $store.literatureSearch.synthesisDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">
+                                <span>Insert reviewed RRL + IEEE reference</span>
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </template>
+</section>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views/components/rrl-finder.blade.php ENDPATH**/ ?>

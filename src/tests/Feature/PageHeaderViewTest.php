@@ -126,7 +126,7 @@ test('regular workspace pages use the shared page header', function () {
         'faculty/proposal-drafts/create.blade.php',
         'faculty/proposal-drafts/show.blade.php',
         'faculty/proposal-drafts/review.blade.php',
-        'faculty/proposal-drafts/history.blade.php',
+        'topics/draft-history.blade.php',
         'faculty/proposal-drafts/signatories.blade.php',
         'faculty/proposal-drafts/details/edit.blade.php',
         'faculty/proposal-drafts/work-plan/edit.blade.php',
@@ -146,7 +146,13 @@ test('regular workspace pages use the shared page header', function () {
     ];
 
     foreach ($views as $view) {
-        expect(File::get(resource_path('views/'.$view)))
+        $viewContents = File::get(resource_path('views/'.$view));
+
+        if (str_contains($viewContents, '<x-proposal-assessment-form ')) {
+            $viewContents = File::get(resource_path('views/components/proposal-assessment-form.blade.php'));
+        }
+
+        expect($viewContents)
             ->toContain('<x-page-header')
             ->not->toContain('<x-workspace-header-banner', 'variant="hero"', 'variant="banner"');
     }

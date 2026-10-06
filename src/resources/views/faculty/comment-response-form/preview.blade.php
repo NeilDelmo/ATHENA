@@ -6,7 +6,7 @@
         <title>{{ $commentResponseForm['form_label'] }} — {{ $commentResponseForm['project_title'] }}</title>
         @vite('resources/css/comment-response-form-print.css')
     </head>
-    <body>
+    <body @class(['paper-preview-embedded' => $embedded ?? false])>
         <nav class="preview-toolbar" aria-label="Form actions">
             <span>{{ $commentResponseForm['form_label'] }}</span>
             <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}" target="_blank" rel="noopener">Open PDF</a>
@@ -40,10 +40,10 @@
                 <thead><tr><th>NO.</th><th>COMMENTS AND SUGGESTIONS</th><th>ACTION AND RESPONSE<small>(Changes made in the revised proposal)</small></th><th>REMARKS<small>Page and paragraph number of the changes made</small></th></tr></thead>
                 <tbody>
                     @forelse ($commentResponseForm['feedback'] as $item)
-                        <tr>
+                        <tr data-comment-response-row="{{ $item['key'] ?? '' }}">
                             <td>{{ $loop->iteration }}.</td>
                             <td class="comment">{{ $item['comment'] }}</td>
-                            <td class="comment">{{ $item['response'] }}</td><td class="comment">{{ $item['remarks'] }}</td>
+                            <td class="comment" data-comment-response-answer>{{ $item['response'] }}</td><td class="comment" data-comment-response-remarks>{{ $item['remarks'] }}</td>
                         </tr>
                     @empty
                         <tr><td>1.</td><td></td><td></td><td></td></tr>

@@ -1,0 +1,557 @@
+<section class="rounded-2xl border border-red-200 bg-red-50/50 dark:border-red-950 dark:bg-slate-950" data-proposal-paper-workspace data-monitoring-paper-workspace data-narrative-progress-autosave="true" x-data="narrativeProgressReportForm({
+        initialAccomplishments: JSON.parse('[{\u0022objective\u0022:\u0022\u0022,\u0022target\u0022:\u0022\u0022,\u0022actual\u0022:\u0022\u0022,\u0022activities\u0022:\u0022\u0022}]'),
+        evidenceUrlTemplate: 'http:\/\/localhost\/research\/2\/progress-report-evidence\/__EVIDENCE__',
+        initialFigures: [],
+        previewUrl: 'http:\/\/localhost\/research\/2\/narrative-progress-reports\/preview',
+        previewTitle: 'Progress Report preview',
+        draftSaveUrl: 'http:\/\/localhost\/research\/2\/narrative-progress-reports\/draft',
+        initialDraftVersion: 0,
+        csrfToken: 'JQZX60LNgjCfNSOx0Ld7PLfL8uIgNVLiXmyTaOOS',
+        submissionOpen: true,
+        submissionOpensAt: 'Apr 1, 2026',
+    })">
+    
+    <div data-proposal-workspace-toolbar :inert="previewFullscreen" :class="{ 'proposal-writing-toolbar-closed': !writingToolbarOpen }" class="proposal-writing-toolbar mb-4" data-monitoring-writing-toolbar="data-monitoring-writing-toolbar" aria-label="Progress Report tools" role="group">
+    <div class="proposal-writing-toolbar-heading">
+        <div x-show="writingToolbarOpen" class="proposal-writing-toolbar-context"><div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p class="proposal-writing-target">Editing: <span>Progress Report</span></p>
+            <p data-proposal-autosave-status role="status" aria-live="polite" class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-slate-400">
+    <span data-proposal-autosave-indicator aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400"></span>
+    <span data-proposal-autosave-message>Changes save automatically.</span>
+</p>
+        </div></div>
+        <button type="button" data-writing-toolbar-close x-show="writingToolbarOpen" x-on:click="closeWritingToolbar()" aria-label="Hide tools" aria-controls="progress-form-2-tools-controls" :aria-expanded="writingToolbarOpen">
+            <svg aria-hidden="true" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18"></path></svg>
+        </button>
+        <button type="button" data-writing-toolbar-open x-show="!writingToolbarOpen" x-cloak x-on:click="showWritingToolbar()" aria-controls="progress-form-2-tools-controls" :aria-expanded="writingToolbarOpen">Show tools</button>
+    </div>
+    <div id="progress-form-2-tools-controls" data-writing-toolbar-controls x-show="writingToolbarOpen"><div class="proposal-writing-toolbar-row" role="toolbar" aria-label="Progress Report editing and preview">
+        <div class="proposal-writing-buttons">
+            <button type="button" x-on:click="saveNarrativeDraft()" :disabled="autoSaveInFlight || autoSaveBlocked || submitting">Save draft</button>
+            <button type="button" data-proposal-preview-toggle x-on:click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :disabled="previewLoading || submitting" :aria-expanded="previewPaneOpen" aria-controls="progress-preview-2" x-text="previewPaneOpen ? 'Hide preview' : 'Preview paper'"></button>
+            <button type="submit" form="progress-form-2" :disabled="!submissionOpen || submitting || previewLoading" :title="!submissionOpen ? 'Official PDF preparation opens ' + submissionOpensAt : ''" class="!border-red-700 !bg-red-700 !text-white hover:!bg-red-800">
+                <span x-show="!submitting">Prepare official PDF</span>
+                <span x-show="submitting" x-cloak>Preparing PDF…</span>
+            </button>
+                            <a data-paper-cancel-exit href="http://localhost/research/2#project-monitoring" class="proposal-preview-download inline-flex items-center">Exit monitoring</a>
+                    </div>
+    </div>
+    <p class="proposal-writing-hint">Changes save automatically. Open the paper preview to review your report.</p></div>
+</div>
+
+<button type="button" data-monitoring-preview-launcher x-show="!previewPaneOpen" x-cloak x-on:click="showProposalPreview()" :disabled="previewLoading || submitting" aria-controls="progress-preview-2" :aria-expanded="previewPaneOpen" class="proposal-writing-preview-launcher">Preview paper</button>
+
+    <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" x-on:resize.window.debounce.150ms="resizeProposalPaperPreview()">
+    <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
+    <form id="progress-form-2" x-ref="form" data-narrative-progress-autosave-form method="POST" action="http://localhost/research/2/narrative-progress-reports/prepare" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" x-on:submit="submitNarrativeReport($event)">
+        <input type="hidden" name="_token" value="JQZX60LNgjCfNSOx0Ld7PLfL8uIgNVLiXmyTaOOS" autocomplete="off">        <input type="hidden" name="draft_version" value="0">
+        <input type="hidden" name="report_type" value="progress">
+        <div class="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
+            <label for="progress-reporting-date" class="block text-base font-semibold text-gray-950 dark:text-white">Reporting quarter</label>
+            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-slate-300">Use the same three-month period as the Monitoring Tool. Submission opens after the period ends; the final period may be shorter.</p>
+            <select id="progress-reporting-date" x-on:change="submissionOpen = $event.target.selectedOptions[0]?.dataset.submissionOpen === 'true'; submissionOpensAt = $event.target.selectedOptions[0]?.dataset.opensAt || ''" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                <option value="">Choose a quarter</option>
+                                    <option data-submission-open="true" data-opens-at="Apr 1, 2026" value="2026-03-31" selected>Q1 · Jan 1, 2026 – Mar 31, 2026</option>
+                                    <option data-submission-open="true" data-opens-at="Jul 1, 2026" value="2026-06-30">Q2 · Apr 1, 2026 – Jun 30, 2026</option>
+                                    <option data-submission-open="true" data-opens-at="Oct 1, 2026" value="2026-09-30">Q3 · Jul 1, 2026 – Sep 30, 2026</option>
+                                    <option data-submission-open="true" data-opens-at="Jan 1, 2027" value="2026-12-31">Q4 · Oct 1, 2026 – Dec 31, 2026</option>
+                            </select>
+                    </div>
+
+        
+        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes and accomplishment evidence save privately as a draft. Evidence stays out of the report preview and downloaded PDF. Select figure files before preparing the PDF; figures are included in the report and must be selected again after reloading.</p>
+        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">Apr 1, 2026</span>.</p>
+
+        <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="sm:col-span-2">
+                <p class="text-sm font-medium text-gray-400">Research project title</p>
+                <p class="mt-1 text-base font-bold text-gray-800">Monitoring performance project</p>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-gray-400">Project leader</p>
+                <p class="mt-1 text-base font-bold text-gray-800">Maxie Schumm V</p>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-gray-400">Approved budget</p>
+                <p class="mt-1 text-base font-bold text-gray-800">₱0.00</p>
+            </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+                <label for="progress_submission_date" class="text-sm font-semibold text-gray-600">Submission date</label>
+                <div x-data="datePicker({
+        initialValue: '2027-01-02',
+        min: null,
+        max: '2027-01-02',
+        required: true,
+    })" x-on:click.outside="close" class="relative mt-1">
+    <input type="hidden" name="submission_date" x-model="value">
+
+    <div class="relative">
+        <input x-ref="display" type="text" id="progress_submission_date" x-bind:value="formattedValue" x-on:focus="handleFocus" x-on:click="open" x-on:beforeinput.prevent x-on:paste.prevent x-on:keydown.enter.prevent="open" x-on:keydown.space.prevent="open" x-on:keydown.arrow-down.prevent="open" x-on:keydown.escape.prevent.stop="close" x-on:keydown.tab="close" x-bind:aria-controls="panelId" x-bind:aria-expanded="isOpen" aria-haspopup="dialog" aria-autocomplete="none" aria-required="true" role="combobox" inputmode="none" autocomplete="off" placeholder="Select date" required class="block w-full cursor-pointer rounded-xl border-gray-300 bg-white py-2.5 pl-3 pr-11 text-sm text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-red-600 focus:ring-red-600">
+        <button type="button" x-on:click="toggle" class="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-xl text-gray-400 transition hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600" aria-label="Open calendar" tabindex="-1">
+            <svg aria-hidden="true" class="h-5 w-5" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 9h16.5M5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div x-cloak x-show="isOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="translate-y-1 opacity-0" x-transition:enter-end="translate-y-0 opacity-100" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="translate-y-0 opacity-100" x-transition:leave-end="translate-y-1 opacity-0" x-bind:id="panelId" x-on:keydown.escape.prevent.stop="closeAndFocus" role="dialog" aria-label="Choose a date" class="absolute left-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm origin-top-left rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl sm:w-80">
+        <div class="flex items-center gap-2">
+            <button type="button" x-on:click="changeMonth(-1)" x-bind:disabled="!canChangeMonth(-1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"></path></svg>
+            </button>
+
+            <div class="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                <label class="sr-only" x-bind:for="monthSelectId">Calendar month</label>
+                <select x-bind:id="monthSelectId" x-model.number="viewMonth" class="min-w-0 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar month">
+                                            <option value="0">January</option>
+                                            <option value="1">February</option>
+                                            <option value="2">March</option>
+                                            <option value="3">April</option>
+                                            <option value="4">May</option>
+                                            <option value="5">June</option>
+                                            <option value="6">July</option>
+                                            <option value="7">August</option>
+                                            <option value="8">September</option>
+                                            <option value="9">October</option>
+                                            <option value="10">November</option>
+                                            <option value="11">December</option>
+                                    </select>
+
+                <label class="sr-only" x-bind:for="yearInputId">Calendar year</label>
+                <input x-bind:id="yearInputId" x-model.number="viewYear" x-on:change="clampViewYear" type="number" inputmode="numeric" x-bind:min="minYear" x-bind:max="maxYear" class="min-w-0 rounded-xl border-gray-200 px-2 py-2 text-center text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar year">
+            </div>
+
+            <button type="button" x-on:click="changeMonth(1)" x-bind:disabled="!canChangeMonth(1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"></path></svg>
+            </button>
+        </div>
+
+        <p class="mt-2 text-center text-[11px] font-medium text-gray-500">Choose a month or type a year to jump directly.</p>
+
+        <div class="mt-3 grid grid-cols-7 gap-1 text-center" aria-hidden="true">
+            <template x-for="weekday in weekdays" x-bind:key="weekday">
+                <span class="py-1 text-[10px] font-black uppercase tracking-wide text-gray-400" x-text="weekday"></span>
+            </template>
+        </div>
+
+        <div class="mt-1 grid grid-cols-7 gap-1" role="grid" aria-label="Calendar days">
+            <template x-for="day in calendarDays" x-bind:key="day.iso">
+                <button type="button" x-on:click="selectDate(day.iso)" x-bind:disabled="!day.selectable" x-bind:aria-label="day.label" x-bind:aria-current="day.isToday ? 'date' : null" x-bind:aria-pressed="day.isSelected" x-bind:class="{
+                        'bg-red-600 text-white shadow-sm hover:bg-red-700': day.isSelected,
+                        'text-gray-900 hover:bg-red-50 hover:text-red-700': day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'text-gray-300 hover:bg-gray-50': !day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'ring-1 ring-inset ring-red-300': day.isToday &amp;&amp; !day.isSelected,
+                        'cursor-not-allowed text-gray-300 opacity-40': !day.selectable,
+                    }" class="inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1" x-text="day.dayNumber"></button>
+            </template>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+            <button x-show="!required &amp;&amp; value" type="button" x-on:click="clear" class="rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500">Clear</button>
+            <span x-show="required || !value" aria-hidden="true"></span>
+            <button type="button" x-on:click="selectToday" x-bind:disabled="!todaySelectable" class="rounded-lg px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Today</button>
+        </div>
+    </div>
+</div>
+            </div>
+            <label class="text-sm font-semibold text-gray-600">Tracking number <span class="font-normal text-gray-400">(optional)</span>
+                <input type="text" name="tracking_number" value="" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter the official tracking number">
+            </label>
+        </div>
+
+        <section class="grid gap-4 md:grid-cols-2">
+            <label class="text-sm font-semibold text-gray-600 md:col-span-2">II. Researchers
+                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter one researcher per line">Maxie Schumm V</textarea>
+            </label>
+            <div>
+                <label for="implementation_start" class="text-sm font-semibold text-gray-600">III. Approved implementation start</label>
+                <div x-data="datePicker({
+        initialValue: '2026-01-01',
+        min: null,
+        max: null,
+        required: true,
+    })" x-on:click.outside="close" class="relative mt-1">
+    <input type="hidden" name="implementation_start" x-model="value">
+
+    <div class="relative">
+        <input x-ref="display" type="text" id="implementation_start" x-bind:value="formattedValue" x-on:focus="handleFocus" x-on:click="open" x-on:beforeinput.prevent x-on:paste.prevent x-on:keydown.enter.prevent="open" x-on:keydown.space.prevent="open" x-on:keydown.arrow-down.prevent="open" x-on:keydown.escape.prevent.stop="close" x-on:keydown.tab="close" x-bind:aria-controls="panelId" x-bind:aria-expanded="isOpen" aria-haspopup="dialog" aria-autocomplete="none" aria-required="true" role="combobox" inputmode="none" autocomplete="off" placeholder="Select date" required class="block w-full cursor-pointer rounded-xl border-gray-300 bg-white py-2.5 pl-3 pr-11 text-sm text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-red-600 focus:ring-red-600">
+        <button type="button" x-on:click="toggle" class="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-xl text-gray-400 transition hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600" aria-label="Open calendar" tabindex="-1">
+            <svg aria-hidden="true" class="h-5 w-5" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 9h16.5M5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div x-cloak x-show="isOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="translate-y-1 opacity-0" x-transition:enter-end="translate-y-0 opacity-100" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="translate-y-0 opacity-100" x-transition:leave-end="translate-y-1 opacity-0" x-bind:id="panelId" x-on:keydown.escape.prevent.stop="closeAndFocus" role="dialog" aria-label="Choose a date" class="absolute left-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm origin-top-left rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl sm:w-80">
+        <div class="flex items-center gap-2">
+            <button type="button" x-on:click="changeMonth(-1)" x-bind:disabled="!canChangeMonth(-1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"></path></svg>
+            </button>
+
+            <div class="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                <label class="sr-only" x-bind:for="monthSelectId">Calendar month</label>
+                <select x-bind:id="monthSelectId" x-model.number="viewMonth" class="min-w-0 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar month">
+                                            <option value="0">January</option>
+                                            <option value="1">February</option>
+                                            <option value="2">March</option>
+                                            <option value="3">April</option>
+                                            <option value="4">May</option>
+                                            <option value="5">June</option>
+                                            <option value="6">July</option>
+                                            <option value="7">August</option>
+                                            <option value="8">September</option>
+                                            <option value="9">October</option>
+                                            <option value="10">November</option>
+                                            <option value="11">December</option>
+                                    </select>
+
+                <label class="sr-only" x-bind:for="yearInputId">Calendar year</label>
+                <input x-bind:id="yearInputId" x-model.number="viewYear" x-on:change="clampViewYear" type="number" inputmode="numeric" x-bind:min="minYear" x-bind:max="maxYear" class="min-w-0 rounded-xl border-gray-200 px-2 py-2 text-center text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar year">
+            </div>
+
+            <button type="button" x-on:click="changeMonth(1)" x-bind:disabled="!canChangeMonth(1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"></path></svg>
+            </button>
+        </div>
+
+        <p class="mt-2 text-center text-[11px] font-medium text-gray-500">Choose a month or type a year to jump directly.</p>
+
+        <div class="mt-3 grid grid-cols-7 gap-1 text-center" aria-hidden="true">
+            <template x-for="weekday in weekdays" x-bind:key="weekday">
+                <span class="py-1 text-[10px] font-black uppercase tracking-wide text-gray-400" x-text="weekday"></span>
+            </template>
+        </div>
+
+        <div class="mt-1 grid grid-cols-7 gap-1" role="grid" aria-label="Calendar days">
+            <template x-for="day in calendarDays" x-bind:key="day.iso">
+                <button type="button" x-on:click="selectDate(day.iso)" x-bind:disabled="!day.selectable" x-bind:aria-label="day.label" x-bind:aria-current="day.isToday ? 'date' : null" x-bind:aria-pressed="day.isSelected" x-bind:class="{
+                        'bg-red-600 text-white shadow-sm hover:bg-red-700': day.isSelected,
+                        'text-gray-900 hover:bg-red-50 hover:text-red-700': day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'text-gray-300 hover:bg-gray-50': !day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'ring-1 ring-inset ring-red-300': day.isToday &amp;&amp; !day.isSelected,
+                        'cursor-not-allowed text-gray-300 opacity-40': !day.selectable,
+                    }" class="inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1" x-text="day.dayNumber"></button>
+            </template>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+            <button x-show="!required &amp;&amp; value" type="button" x-on:click="clear" class="rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500">Clear</button>
+            <span x-show="required || !value" aria-hidden="true"></span>
+            <button type="button" x-on:click="selectToday" x-bind:disabled="!todaySelectable" class="rounded-lg px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Today</button>
+        </div>
+    </div>
+</div>
+            </div>
+            <div>
+                <label for="implementation_end" class="text-sm font-semibold text-gray-600">III. Approved implementation end</label>
+                <div x-data="datePicker({
+        initialValue: '2026-12-31',
+        min: null,
+        max: null,
+        required: true,
+    })" x-on:click.outside="close" class="relative mt-1">
+    <input type="hidden" name="implementation_end" x-model="value">
+
+    <div class="relative">
+        <input x-ref="display" type="text" id="implementation_end" x-bind:value="formattedValue" x-on:focus="handleFocus" x-on:click="open" x-on:beforeinput.prevent x-on:paste.prevent x-on:keydown.enter.prevent="open" x-on:keydown.space.prevent="open" x-on:keydown.arrow-down.prevent="open" x-on:keydown.escape.prevent.stop="close" x-on:keydown.tab="close" x-bind:aria-controls="panelId" x-bind:aria-expanded="isOpen" aria-haspopup="dialog" aria-autocomplete="none" aria-required="true" role="combobox" inputmode="none" autocomplete="off" placeholder="Select date" required class="block w-full cursor-pointer rounded-xl border-gray-300 bg-white py-2.5 pl-3 pr-11 text-sm text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-red-600 focus:ring-red-600">
+        <button type="button" x-on:click="toggle" class="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-xl text-gray-400 transition hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600" aria-label="Open calendar" tabindex="-1">
+            <svg aria-hidden="true" class="h-5 w-5" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 9h16.5M5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div x-cloak x-show="isOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="translate-y-1 opacity-0" x-transition:enter-end="translate-y-0 opacity-100" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="translate-y-0 opacity-100" x-transition:leave-end="translate-y-1 opacity-0" x-bind:id="panelId" x-on:keydown.escape.prevent.stop="closeAndFocus" role="dialog" aria-label="Choose a date" class="absolute left-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm origin-top-left rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl sm:w-80">
+        <div class="flex items-center gap-2">
+            <button type="button" x-on:click="changeMonth(-1)" x-bind:disabled="!canChangeMonth(-1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"></path></svg>
+            </button>
+
+            <div class="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                <label class="sr-only" x-bind:for="monthSelectId">Calendar month</label>
+                <select x-bind:id="monthSelectId" x-model.number="viewMonth" class="min-w-0 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar month">
+                                            <option value="0">January</option>
+                                            <option value="1">February</option>
+                                            <option value="2">March</option>
+                                            <option value="3">April</option>
+                                            <option value="4">May</option>
+                                            <option value="5">June</option>
+                                            <option value="6">July</option>
+                                            <option value="7">August</option>
+                                            <option value="8">September</option>
+                                            <option value="9">October</option>
+                                            <option value="10">November</option>
+                                            <option value="11">December</option>
+                                    </select>
+
+                <label class="sr-only" x-bind:for="yearInputId">Calendar year</label>
+                <input x-bind:id="yearInputId" x-model.number="viewYear" x-on:change="clampViewYear" type="number" inputmode="numeric" x-bind:min="minYear" x-bind:max="maxYear" class="min-w-0 rounded-xl border-gray-200 px-2 py-2 text-center text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar year">
+            </div>
+
+            <button type="button" x-on:click="changeMonth(1)" x-bind:disabled="!canChangeMonth(1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"></path></svg>
+            </button>
+        </div>
+
+        <p class="mt-2 text-center text-[11px] font-medium text-gray-500">Choose a month or type a year to jump directly.</p>
+
+        <div class="mt-3 grid grid-cols-7 gap-1 text-center" aria-hidden="true">
+            <template x-for="weekday in weekdays" x-bind:key="weekday">
+                <span class="py-1 text-[10px] font-black uppercase tracking-wide text-gray-400" x-text="weekday"></span>
+            </template>
+        </div>
+
+        <div class="mt-1 grid grid-cols-7 gap-1" role="grid" aria-label="Calendar days">
+            <template x-for="day in calendarDays" x-bind:key="day.iso">
+                <button type="button" x-on:click="selectDate(day.iso)" x-bind:disabled="!day.selectable" x-bind:aria-label="day.label" x-bind:aria-current="day.isToday ? 'date' : null" x-bind:aria-pressed="day.isSelected" x-bind:class="{
+                        'bg-red-600 text-white shadow-sm hover:bg-red-700': day.isSelected,
+                        'text-gray-900 hover:bg-red-50 hover:text-red-700': day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'text-gray-300 hover:bg-gray-50': !day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'ring-1 ring-inset ring-red-300': day.isToday &amp;&amp; !day.isSelected,
+                        'cursor-not-allowed text-gray-300 opacity-40': !day.selectable,
+                    }" class="inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1" x-text="day.dayNumber"></button>
+            </template>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+            <button x-show="!required &amp;&amp; value" type="button" x-on:click="clear" class="rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500">Clear</button>
+            <span x-show="required || !value" aria-hidden="true"></span>
+            <button type="button" x-on:click="selectToday" x-bind:disabled="!todaySelectable" class="rounded-lg px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Today</button>
+        </div>
+    </div>
+</div>
+            </div>
+            <label class="text-sm font-semibold text-gray-600 md:col-span-2">V. Funding agency
+                <input type="text" name="funding_agency" value="Batangas State University" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-base">
+            </label>
+        </section>
+
+        <section class="space-y-4">
+            <div>
+                <p class="text-lg font-bold text-gray-900">VI. Summary of Accomplishment for the Monitoring Period</p>
+                <p class="mt-1 text-sm text-gray-600">Compare the planned outputs with what was completed during this monitoring period.</p>
+            </div>
+
+                        <div class="space-y-4">
+                <template x-for="(row, index) in accomplishmentRows" :key="row.id">
+                    <div data-progress-accomplishment class="space-y-3 rounded-xl border border-red-200 p-4 dark:border-red-900">
+                        <div class="flex items-center justify-between gap-3">
+                            <h4 class="text-base font-semibold text-brand dark:text-red-200" x-text="'Objective ' + (index + 1)"></h4>
+                                                            <button type="button" x-on:click="removeAccomplishment(index)" :disabled="accomplishmentRows.length === 1" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-300">Remove row</button>
+                                                    </div>
+                        <p x-show="row.activities" x-text="'Planned activities: ' + row.activities" class="whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-slate-300"></p>
+                        <div class="grid gap-4 md:grid-cols-2" :class="{ 'xl:grid-cols-4': !previewPaneOpen }">
+                            <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Approved objective
+                                <textarea :name="'accomplishments[' + index + '][objective]'" x-model="row.objective" rows="4" maxlength="1000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                            </label>
+                            <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Target accomplishment
+                                <textarea :name="'accomplishments[' + index + '][target]'" x-model="row.target" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Expected outputs from the approved work plan"></textarea>
+                            </label>
+                            <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Actual accomplishment
+                                <textarea :name="'accomplishments[' + index + '][actual]'" x-model="row.actual" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="What was completed during this period? Include partial progress or work not yet started."></textarea>
+                            </label>
+                            <div data-progress-evidence class="min-w-0 space-y-2 print:hidden">
+                                <input type="hidden" :name="`accomplishments[${index}][evidence_key]`" :value="row.evidence_key">
+                                <label :for="`progress-evidence-${row.id}`" class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Evidence <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></label>
+                                <input :id="`progress-evidence-${row.id}`" :name="`accomplishment_evidence[${row.evidence_key}][]`" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" x-on:change="selectAccomplishmentEvidence(row, $event)" class="block w-full rounded-lg border border-gray-300 text-sm text-gray-600 file:mr-2 file:cursor-pointer file:border-0 file:bg-gray-100 file:px-3 file:py-3 file:font-semibold file:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
+                                <p class="text-xs leading-5 text-gray-500 dark:text-slate-400">Up to 5 PDF, Word, Excel, JPG or PNG files; 10 MB each. Saved for review, excluded from preview and PDF.</p>
+                                <p x-show="row.evidenceError" x-text="row.evidenceError" role="alert" class="text-sm font-semibold text-red-700 dark:text-red-300"></p>
+                                <template x-for="file in row.evidence" :key="file.id">
+                                    <div class="flex items-start gap-2 rounded-lg border border-gray-200 p-2 dark:border-slate-700">
+                                        <input type="hidden" :name="`accomplishments[${index}][evidence_ids][]`" :value="file.id">
+                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words text-sm font-medium text-gray-700 underline underline-offset-4 hover:text-red-700 dark:text-slate-200"></a>
+                                        <button type="button" x-on:click="removeAccomplishmentEvidence(row, file.id)" :aria-label="`Remove ${file.name}`" title="Remove evidence" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300"><svg class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6"></path></svg></button>
+                                    </div>
+                                </template>
+                                <template x-for="(file, fileIndex) in row.pendingEvidenceFiles" :key="fileIndex">
+                                    <p class="break-words text-xs text-gray-600 dark:text-slate-300" x-text="file.name + ' · waiting to save'"></p>
+                                </template>
+                                <button type="button" x-show="row.pendingEvidenceFiles.length" x-on:click="clearPendingAccomplishmentEvidence(row)" class="min-h-9 text-sm font-semibold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-red-300">Clear selected files</button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+                            <button type="button" x-on:click="addAccomplishment" class="inline-flex min-h-11 items-center rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-brand hover:bg-red-50 dark:border-red-900 dark:text-red-200">Add accomplishment row</button>
+                    </section>
+
+        <section class="space-y-4">
+            <div>
+                <p class="text-lg font-bold text-gray-900">Narrative sections</p>
+                <p class="mt-1 text-sm text-gray-600">Introduction, rationale, objectives, and methodology start from the approved detailed proposal. Review the methods used this period and write new results. This progress-report format has no separate RRL section.</p>
+            </div>
+                            <label class="block text-sm font-semibold text-gray-600">VII. Introduction
+                    <textarea name="introduction" rows="4" maxlength="100000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                </label>
+                            <label class="block text-sm font-semibold text-gray-600">VIII. Rationale
+                    <textarea name="rationale" rows="4" maxlength="100000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                </label>
+                            <label class="block text-sm font-semibold text-gray-600">VIII. Objectives
+                    <textarea name="objectives" rows="4" maxlength="100000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                </label>
+                            <label class="block text-sm font-semibold text-gray-600">IX. Methodology
+                    <textarea name="methodology" rows="4" maxlength="100000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                </label>
+                            <label class="block text-sm font-semibold text-gray-600">X. Results and Discussion
+                    <textarea name="results_discussion" rows="4" maxlength="100000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                </label>
+                    </section>
+
+        <section class="space-y-4 rounded-xl border border-red-200 bg-red-50/40 p-4 dark:border-red-900 dark:bg-red-950/20" data-progress-report-figures>
+            <div class="space-y-2">
+                <h3 class="text-xl font-bold text-brand dark:text-red-200">Figures</h3>
+                <p class="text-base leading-7 text-gray-600 dark:text-slate-300">Add diagrams, charts, screenshots, or research photos that support your methods and results. Use a caption for each figure. JPG or PNG, up to 10 MB per file.</p>
+                <p class="text-sm text-gray-600 dark:text-slate-300">Add as many figures as the report needs. Figures are optional; files must fit the server’s upload limits.</p>
+            </div>
+            <p x-show="figureRows.length === 0" class="text-base text-gray-600 dark:text-slate-300">No figures added.</p>
+            <template x-for="(figure, index) in figureRows" :key="figure.id">
+                <div class="space-y-4 rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h4 class="text-base font-bold text-brand dark:text-red-200" x-text="'Figure entry ' + (index + 1)"></h4>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" x-on:click="moveFigure(index, -1)" :disabled="index === 0" aria-label="Move figure earlier" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold disabled:opacity-40 dark:border-slate-700 dark:text-white">Move up</button>
+                            <button type="button" x-on:click="moveFigure(index, 1)" :disabled="index === figureRows.length - 1" aria-label="Move figure later" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold disabled:opacity-40 dark:border-slate-700 dark:text-white">Move down</button>
+                            <button type="button" x-on:click="removeFigure(index)" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300">Remove</button>
+                        </div>
+                    </div>
+                    <img x-show="figure.previewUrl" :src="figure.previewUrl" :alt="figure.caption || 'Selected figure preview'" class="max-h-64 max-w-full rounded-lg object-contain">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Figure image
+                            <input type="file" :name="'figures[' + index + '][image]'" accept=".jpg,.jpeg,.png" x-on:change="selectFigureFile(figure, $event)" class="mt-2 block w-full rounded-xl border border-gray-200 p-3 text-sm dark:border-slate-700">
+                        </label>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Caption
+                            <input type="text" :name="'figures[' + index + '][caption]'" x-model="figure.caption" :required="!!figure.previewUrl" maxlength="1000" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Describe what this figure demonstrates">
+                        </label>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Place in section
+                            <select :name="'figures[' + index + '][section]'" x-model="figure.section" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                                <option value="methodology">Methodology</option>
+                                <option value="results_discussion">Results and Discussion</option>
+                            </select>
+                        </label>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Insert after paragraph
+                            <input type="number" :name="'figures[' + index + '][after_paragraph]'" x-model="figure.after_paragraph" min="0" max="100000" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                            <span class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300">Use 0 for the end of the section. Separate paragraphs with a blank line. Figures are numbered in document order.</span>
+                        </label>
+                    </div>
+                </div>
+            </template>
+            <button type="button" x-on:click="addFigure" class="inline-flex min-h-11 items-center rounded-lg bg-brand px-5 py-2.5 text-base font-semibold text-white hover:bg-brand-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">Add figure</button>
+        </section>
+
+        <div class="rounded-xl bg-gray-50 p-4">
+            <div>
+                <label for="progress_prepared_by_date_signed" class="text-sm font-semibold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
+                <div x-data="datePicker({
+        initialValue: '',
+        min: null,
+        max: '2027-01-02',
+        required: false,
+    })" x-on:click.outside="close" class="relative mt-1">
+    <input type="hidden" name="prepared_by_date_signed" x-model="value">
+
+    <div class="relative">
+        <input x-ref="display" type="text" id="progress_prepared_by_date_signed" x-bind:value="formattedValue" x-on:focus="handleFocus" x-on:click="open" x-on:beforeinput.prevent x-on:paste.prevent x-on:keydown.enter.prevent="open" x-on:keydown.space.prevent="open" x-on:keydown.arrow-down.prevent="open" x-on:keydown.escape.prevent.stop="close" x-on:keydown.tab="close" x-bind:aria-controls="panelId" x-bind:aria-expanded="isOpen" aria-haspopup="dialog" aria-autocomplete="none" aria-required="false" role="combobox" inputmode="none" autocomplete="off" placeholder="Select date" class="block w-full cursor-pointer rounded-xl border-gray-300 bg-white py-2.5 pl-3 pr-11 text-sm text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-red-600 focus:ring-red-600">
+        <button type="button" x-on:click="toggle" class="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-xl text-gray-400 transition hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600" aria-label="Open calendar" tabindex="-1">
+            <svg aria-hidden="true" class="h-5 w-5" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 9h16.5M5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div x-cloak x-show="isOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="translate-y-1 opacity-0" x-transition:enter-end="translate-y-0 opacity-100" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="translate-y-0 opacity-100" x-transition:leave-end="translate-y-1 opacity-0" x-bind:id="panelId" x-on:keydown.escape.prevent.stop="closeAndFocus" role="dialog" aria-label="Choose a date" class="absolute left-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm origin-top-left rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl sm:w-80">
+        <div class="flex items-center gap-2">
+            <button type="button" x-on:click="changeMonth(-1)" x-bind:disabled="!canChangeMonth(-1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"></path></svg>
+            </button>
+
+            <div class="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                <label class="sr-only" x-bind:for="monthSelectId">Calendar month</label>
+                <select x-bind:id="monthSelectId" x-model.number="viewMonth" class="min-w-0 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar month">
+                                            <option value="0">January</option>
+                                            <option value="1">February</option>
+                                            <option value="2">March</option>
+                                            <option value="3">April</option>
+                                            <option value="4">May</option>
+                                            <option value="5">June</option>
+                                            <option value="6">July</option>
+                                            <option value="7">August</option>
+                                            <option value="8">September</option>
+                                            <option value="9">October</option>
+                                            <option value="10">November</option>
+                                            <option value="11">December</option>
+                                    </select>
+
+                <label class="sr-only" x-bind:for="yearInputId">Calendar year</label>
+                <input x-bind:id="yearInputId" x-model.number="viewYear" x-on:change="clampViewYear" type="number" inputmode="numeric" x-bind:min="minYear" x-bind:max="maxYear" class="min-w-0 rounded-xl border-gray-200 px-2 py-2 text-center text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600" aria-label="Calendar year">
+            </div>
+
+            <button type="button" x-on:click="changeMonth(1)" x-bind:disabled="!canChangeMonth(1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next month">
+                <svg aria-hidden="true" class="h-4 w-4" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"></path></svg>
+            </button>
+        </div>
+
+        <p class="mt-2 text-center text-[11px] font-medium text-gray-500">Choose a month or type a year to jump directly.</p>
+
+        <div class="mt-3 grid grid-cols-7 gap-1 text-center" aria-hidden="true">
+            <template x-for="weekday in weekdays" x-bind:key="weekday">
+                <span class="py-1 text-[10px] font-black uppercase tracking-wide text-gray-400" x-text="weekday"></span>
+            </template>
+        </div>
+
+        <div class="mt-1 grid grid-cols-7 gap-1" role="grid" aria-label="Calendar days">
+            <template x-for="day in calendarDays" x-bind:key="day.iso">
+                <button type="button" x-on:click="selectDate(day.iso)" x-bind:disabled="!day.selectable" x-bind:aria-label="day.label" x-bind:aria-current="day.isToday ? 'date' : null" x-bind:aria-pressed="day.isSelected" x-bind:class="{
+                        'bg-red-600 text-white shadow-sm hover:bg-red-700': day.isSelected,
+                        'text-gray-900 hover:bg-red-50 hover:text-red-700': day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'text-gray-300 hover:bg-gray-50': !day.isCurrentMonth &amp;&amp; !day.isSelected &amp;&amp; day.selectable,
+                        'ring-1 ring-inset ring-red-300': day.isToday &amp;&amp; !day.isSelected,
+                        'cursor-not-allowed text-gray-300 opacity-40': !day.selectable,
+                    }" class="inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1" x-text="day.dayNumber"></button>
+            </template>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+            <button x-show="!required &amp;&amp; value" type="button" x-on:click="clear" class="rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500">Clear</button>
+            <span x-show="required || !value" aria-hidden="true"></span>
+            <button type="button" x-on:click="selectToday" x-bind:disabled="!todaySelectable" class="rounded-lg px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Today</button>
+        </div>
+    </div>
+</div>
+            </div>
+        </div>
+
+    </form>
+    </div>
+    <aside x-show="previewPaneOpen" x-cloak class="proposal-preview-dock" :class="{ 'proposal-preview-dock-expanded': previewFullscreen }" aria-label="Progress Report preview" x-on:keydown.escape.stop="returnToProposalPaperEditor()" x-on:keydown.stop="trapProposalPaperPreviewFocus($event)">
+    <section id="progress-preview-2" x-ref="previewPanel" :role="previewFullscreen ? 'dialog' : 'region'" :aria-modal="previewFullscreen ? 'true' : null" aria-labelledby="progress-preview-2-heading">
+        <header class="proposal-preview-dock-heading">
+            <div><h3 id="progress-preview-2-heading" x-text="previewTitle">Paper preview</h3><p x-text="previewLoading ? 'Updating…' : previewReadOnly ? 'Read-only form' : previewStale ? 'Edits awaiting preview' : previewReady ? 'Up to date' : 'Your official form'"></p></div>
+            <button type="button" x-ref="previewClose" x-on:click="previewFullscreen ? returnToProposalPaperEditor() : closeProposalPreview()" :aria-label="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize preview' : 'Collapse preview'"><span x-text="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize' : 'Hide'"></span></button>
+        </header>
+        <div class="proposal-preview-dock-actions">
+            <button type="button" x-on:click="generatePreview()" :disabled="previewLoading">Refresh preview</button>
+            <button type="button" x-on:click="printPreview()" :disabled="!previewReady || previewStale || previewLoading">Print</button>
+            <a x-show="previewReadOnly &amp;&amp; previewDownloadUrl" x-cloak :href="previewDownloadUrl" class="proposal-preview-download">Download Word</a>
+        </div>
+        <p x-show="previewError || validationMessage" x-cloak role="alert" class="proposal-preview-error" x-text="previewError || validationMessage"></p>
+        <div class="proposal-preview-paper" :aria-busy="previewLoading">
+            <p x-show="!previewHtml" x-text="previewLoading ? 'Preparing your document…' : 'Your paper will appear here. You can preview an unfinished draft.'"></p>
+            <iframe x-ref="previewFrame" x-show="previewHtml" :srcdoc="previewHtml" x-on:load="proposalPreviewLoaded()" title="Progress report document preview" :title="previewReadOnly ? previewTitle : 'Progress report document preview'" :tabindex="previewFullscreen ? 0 : -1"></iframe>
+            <button type="button" x-show="previewHtml &amp;&amp; !previewFullscreen" x-on:click="expandProposalPaperPreview()" class="proposal-preview-paper-open" aria-label="Enlarge the paper preview"></button>
+        </div>
+        <footer x-show="previewFullscreen" class="proposal-preview-dock-footer">
+            <div x-show="previewFullscreen" class="proposal-preview-zoom" aria-label="Document zoom controls">
+                <button type="button" x-on:click="decreaseProposalPreviewZoom()" :disabled="previewZoom &lt;= 50" aria-label="Zoom out">−</button>
+                <output x-text="`${previewZoom}%`" aria-live="polite"></output>
+                <button type="button" x-on:click="increaseProposalPreviewZoom()" :disabled="previewZoom &gt;= 150" aria-label="Zoom in">+</button>
+                <button type="button" x-on:click="fitProposalPreview('page')" :aria-pressed="previewFit === 'page'">Fit page</button>
+                <button type="button" x-on:click="fitProposalPreview('width')" :aria-pressed="previewFit === 'width'">Fit width</button>
+            </div>
+        </footer>
+    </section>
+</aside>
+    </div>
+</section>

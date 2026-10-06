@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="$paper['label']" subtitle="Use MOOE, Capital Outlay, or both. Leave any category that does not apply empty; its total will be zero.">
             <x-slot name="actions">
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($lineItemBudgetDocument?->completed_at ? 'bg-green-100 text-green-800' : ($lineItemBudgetDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')) }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($lineItemBudgetDocument?->completed_at ? 'Complete' : ($lineItemBudgetDocument ? 'In progress' : 'Not started')) }}</span>
+                <span class="rounded-full px-3 py-1 text-xs font-semibold {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($lineItemBudgetDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700') }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($lineItemBudgetDocument?->completed_at ? 'Complete' : ($lineItemBudgetDocument ? 'In progress' : 'Not started')) }}</span>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
             </x-slot>
         </x-page-header>
@@ -22,7 +22,9 @@
     @endphp
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-proposal-paper-workspace
+        data-line-item-budget-workspace
         data-paper-editor
         data-paper-draft-save="true"
         data-line-item-budget-autosave="true"
@@ -67,14 +69,13 @@
             :loaded-version="(int) old('document_version', $lineItemBudgetDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
             :reload-url="route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft)"
-            :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
             :label="$paper['label']"
         />
 
-        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="line-item-budget-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
-            <span class="text-xs text-slate-500 dark:text-slate-400">The preview stays open while you edit and can be moved or resized.</span>
-        </div>
+        <x-line-item-budget-writing-toolbar />
+
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Line-Item Budget editing form">
 
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -103,8 +104,8 @@
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit details</a>
                 </div>
             </div>
-            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
+            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+                <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration on paper <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm italic text-gray-900">{{ $proposalDraft->planned_start?->format('F j, Y') ?? 'Not provided' }} - {{ $proposalDraft->planned_end?->format('F j, Y') ?? 'Not provided' }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Institutional budget limit</dt><dd class="mt-1 text-sm font-semibold text-gray-900">PHP {{ number_format($budgetCeiling, 2) }}</dd></div>
@@ -117,20 +118,20 @@
             <input type="hidden" name="document_version" value="{{ old('document_version', $lineItemBudgetDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
-            <section data-revision-section="section-project-team" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <section data-revision-section="section-project-team" class="budget-writing-section rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="budget-writing-section-heading flex flex-col gap-3">
                     <div><h3 class="text-base font-black text-gray-900">Project leader and staff</h3><p class="mt-1 text-xs text-gray-500">Choose a proposal workspace member to reuse their account name and college, or type an external member manually.</p></div>
                     <button type="button" x-on:click="addStaff" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Add project staff</button>
                 </div>
 
-                <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <div class="budget-writing-fields mt-5 grid gap-4">
                     <div><label for="leader-campus" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project leader campus</label><input id="leader-campus" name="leader_campus" type="text" maxlength="120" x-model="leaderCampus" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="leader-college" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project leader college</label><input id="leader-college" name="leader_college" type="text" list="line-item-budget-colleges" maxlength="120" x-model="leaderCollege" placeholder="Select or type a college" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
 
                 <div class="mt-5 space-y-3">
                     <template x-for="(member, index) in staff" :key="member.id">
-                        <div class="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
+                        <div class="budget-writing-staff grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-name-${member.id}`">Name</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" list="proposal-workspace-member-names" maxlength="120" x-model="member.name" x-on:change="syncStaff(member)" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-campus-${member.id}`">Campus</label><input :id="`staff-campus-${member.id}`" :name="`staff[${index}][campus]`" type="text" maxlength="120" x-model="member.campus" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-college-${member.id}`">College</label><input :id="`staff-college-${member.id}`" :name="`staff[${index}][college]`" type="text" list="line-item-budget-colleges" maxlength="120" x-model="member.college" placeholder="Select or type" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
@@ -152,23 +153,23 @@
 
             @foreach (['mooe' => 'I. Maintenance and Other Operating Expenses (MOOE)', 'co' => 'II. Capital Outlays (CO)'] as $sectionKey => $sectionHeading)
                 @php($customProperty = $sectionKey === 'mooe' ? 'customMooeItems' : 'customCoItems')
-                <section data-revision-section="section-{{ $sectionKey }}" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <section id="line-item-budget-section-{{ $sectionKey }}" data-revision-section="section-{{ $sectionKey }}" class="budget-writing-section rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div class="budget-writing-section-heading flex flex-col gap-3">
                         <div><h3 class="text-base font-black text-gray-900">{{ $sectionHeading }} <span class="text-xs font-normal text-gray-500">(Optional)</span></h3><p class="mt-1 text-xs text-gray-500">This entire category may be left empty if it does not apply. Empty amounts count as zero. Enter numbers without commas.</p></div>
                         <button type="button" x-on:click="addCustomItem('{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">Add category or sub-category</button>
                     </div>
 
                     <div class="mt-5 overflow-hidden rounded-xl border border-gray-200">
-                        <div class="grid grid-cols-[minmax(0,1fr)_10rem] bg-gray-100 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600"><span>Particulars</span><span class="text-right">Amount (Php)</span></div>
+                        <div class="budget-writing-amount-heading grid gap-1 bg-gray-100 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-600"><span>Particulars</span><span>Amount (Php)</span></div>
                         @foreach ($sections[$sectionKey]['items'] as $item)
-                            <div class="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-3 border-t border-gray-100 px-4 py-2.5">
+                            <div class="budget-writing-amount-row grid items-center gap-3 border-t border-gray-100 px-4 py-2.5">
                                 <label for="amount-{{ $item['key'] }}" class="text-sm text-gray-800 {{ $item['level'] ? 'pl-6' : 'font-semibold' }}">{{ $item['label'] }}</label>
                                 <input id="amount-{{ $item['key'] }}" name="amounts[{{ $item['key'] }}]" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="amounts['{{ $item['key'] }}']" class="block w-full rounded-lg border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                             </div>
                         @endforeach
 
                         <template x-for="(item, index) in {{ $customProperty }}" :key="item.id">
-                            <div x-bind:data-repeatable-entry="`line-item-budget-custom-${item.id}`" class="grid gap-3 border-t border-gray-100 bg-red-50/40 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-center">
+                            <div x-bind:data-repeatable-entry="`line-item-budget-custom-${item.id}`" class="budget-writing-custom-row grid gap-3 border-t border-gray-100 bg-red-50/40 px-4 py-3">
                                 <input :id="`custom-{{ $sectionKey }}-particular-${item.id}`" :name="`custom_{{ $sectionKey }}_items[${index}][particular]`" x-bind:data-line-item-budget-custom-input="item.id" type="text" maxlength="255" x-model="item.particular" aria-label="Custom {{ strtoupper($sectionKey) }} particular" placeholder="Custom category or sub-category" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 <input :id="`custom-{{ $sectionKey }}-amount-${item.id}`" :name="`custom_{{ $sectionKey }}_items[${index}][amount]`" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="item.amount" aria-label="Custom {{ strtoupper($sectionKey) }} amount" class="block w-full rounded-lg border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 <button type="button" x-on:click="removeCustomItem('{{ $sectionKey }}', index)" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
@@ -201,9 +202,9 @@
                 <p class="mt-1 leading-6">The Line-Item Budget is over the research call limit by <strong>Php <span x-text="formatMoney(budgetOverage())"></span></strong>. Your changes are retained as a draft, and you can still preview and print this working copy. Reduce the total to <strong>Php <span x-text="formatMoney(budgetCeiling)"></span></strong> or less before downloading or completing the paper.</p>
             </div>
 
-            <section data-revision-section="section-research-office" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-research-office" class="budget-writing-section rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div><h3 class="text-base font-black text-gray-900">Research Office section</h3><p class="mt-1 text-xs text-gray-500">Constituent Campus is selected by default. Change the Level of Call if needed to put a cross in its box on the Line-Item Budget, Detailed Proposal, and Initial Screening Form. Approval details may remain blank.</p></div>
-                <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div class="budget-writing-fields mt-5 grid gap-5">
                     <div><label for="level-of-call" class="block text-xs font-black uppercase tracking-wider text-gray-600">Level of call</label><select id="level-of-call" name="level_of_call" x-model="levelOfCall" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"><option value="central_agency">Central Agency (VPRDES, President)</option><option value="constituent_campus">Constituent Campus (VCRDES, Chancellor)</option></select></div>
                     <div><label for="approval-body" class="block text-xs font-black uppercase tracking-wider text-gray-600">Approving body</label><select id="approval-body" name="approval_body" x-model="approvalBody" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"><option value="">Leave blank</option><option value="research_council">Research Council</option><option value="lrec">Local Research Evaluation Committee</option></select></div>
                     <div><label for="resolution-number" class="block text-xs font-black uppercase tracking-wider text-gray-600">Resolution number</label><input id="resolution-number" name="resolution_number" type="text" maxlength="50" x-model="resolutionNumber" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
@@ -217,13 +218,16 @@
             </noscript>
         </form>
 
-        <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
+        <div x-show="downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="downloadError"></div>
+        </div>
 
-        <x-proposal-document-preview
+        <x-proposal-paper-preview
             panel-id="line-item-budget-preview-panel"
-            title="Line-Item Budget preview"
-            description="Review the official Attachment B layout while editing the budget."
+            preview-label="Line-Item Budget preview"
             frame-title="Attachment B Line-Item Budget preview"
         />
+        </div>
+
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" class="proposal-writing-preview-launcher" aria-controls="line-item-budget-preview-panel" :aria-expanded="previewPaneOpen">Preview paper</button>
     </div>
 </x-app-layout>

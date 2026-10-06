@@ -57,7 +57,7 @@ class ProposalRichText
             ->all();
     }
 
-    public function sanitize(string $value): string
+    public function sanitize(string $value, bool $allowTables = false): string
     {
         $value = str_replace(["\r\n", "\r"], "\n", $value);
 
@@ -76,7 +76,7 @@ class ProposalRichText
         }
 
         return collect(iterator_to_array($wrapper->childNodes))
-            ->map(fn (DOMNode $node): string => $this->sanitizeNode($node))
+            ->map(fn (DOMNode $node): string => $this->sanitizeNode($node, $allowTables))
             ->filter()
             ->implode('');
     }
@@ -95,7 +95,7 @@ class ProposalRichText
         return $document;
     }
 
-    private function sanitizeNode(DOMNode $node): string
+    private function sanitizeNode(DOMNode $node, bool $allowTables = false): string
     {
         if ($node instanceof DOMText) {
             return htmlspecialchars($node->wholeText, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -105,8 +105,12 @@ class ProposalRichText
             return '';
         }
 
+        if ($allowTables && $node->tagName === 'table') {
+            return $this->sanitizeTable($node);
+        }
+
         $content = collect(iterator_to_array($node->childNodes))
-            ->map(fn (DOMNode $child): string => $this->sanitizeNode($child))
+            ->map(fn (DOMNode $child): string => $this->sanitizeNode($child, $allowTables))
             ->implode('');
         $tag = match ($node->tagName) {
             'b', 'strong' => 'strong',
@@ -131,13 +135,105 @@ class ProposalRichText
 
         if ($tag === 'span') {
             $citationSourceId = trim($node->getAttribute('data-proposal-citation'));
+            $locator = mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $node->getAttribute('data-proposal-locator'))), 0, 100);
+            $locatorAttribute = $locator !== '' ? ' data-proposal-locator="'.htmlspecialchars($locator, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"' : '';
 
             return ctype_digit($citationSourceId)
-                ? '<span data-proposal-citation="'.$citationSourceId.'">'.$content.'</span>'
+                ? '<span data-proposal-citation="'.$citationSourceId.'"'.$locatorAttribute.'>'.$content.'</span>'
                 : $content;
         }
 
         return '<'.$tag.'>'.$content.'</'.$tag.'>';
+    }
+
+    private function sanitizeTable(DOMElement $table): string
+    {
+        $rows = [];
+
+        foreach ($table->getElementsByTagName('tr') as $row) {
+            $ancestor = $row->parentNode;
+
+            while ($ancestor instanceof DOMElement && $ancestor->tagName !== 'table') {
+                $ancestor = $ancestor->parentNode;
+            }
+
+            if ($ancestor !== $table || count($rows) >= 100) {
+                continue;
+            }
+
+            $cells = [];
+
+            foreach ($row->childNodes as $cell) {
+                if (! $cell instanceof DOMElement || ! in_array($cell->tagName, ['td', 'th'], true) || count($cells) >= 12) {
+                    continue;
+                }
+
+                $content = collect(iterator_to_array($cell->childNodes))
+                    ->map(fn (DOMNode $child): string => $this->sanitizeNode($child))
+                    ->implode('');
+                $cells[] = '<'.$cell->tagName.'>'.$content.'</'.$cell->tagName.'>';
+            }
+
+            if ($cells !== []) {
+                $rows[] = $cells;
+            }
+        }
+
+        if ($rows === []) {
+            return '';
+        }
+
+        $columns = max(array_map(count(...), $rows));
+
+        return '<table><tbody>'.implode('', array_map(
+            fn (array $cells): string => '<tr>'.implode('', $cells).str_repeat('<td><p><br></p></td>', $columns - count($cells)).'</tr>',
+            $rows,
+        )).'</tbody></table>';
+    }
+
+    /**
+     * @return list<array{type: string, runs?: list<array{text: string, bold: bool, italic: bool, underline: bool, break: bool}>, rows?: list<list<array{header: bool, html: string}>>}>
+     */
+    public function contentBlocks(string $value): array
+    {
+        $document = $this->document($this->sanitize($value, allowTables: true));
+        $wrapper = $document->getElementById('proposal-rich-text');
+        $blocks = [];
+
+        if (! $wrapper instanceof DOMElement) {
+            return [];
+        }
+
+        foreach ($wrapper->childNodes as $node) {
+            if ($node instanceof DOMElement && $node->tagName === 'table') {
+                $rows = [];
+
+                foreach ($node->getElementsByTagName('tr') as $row) {
+                    $cells = [];
+
+                    foreach ($row->childNodes as $cell) {
+                        if ($cell instanceof DOMElement && in_array($cell->tagName, ['td', 'th'], true)) {
+                            $cells[] = [
+                                'header' => $cell->tagName === 'th',
+                                'html' => collect(iterator_to_array($cell->childNodes))
+                                    ->map(fn (DOMNode $child): string => $document->saveHTML($child))
+                                    ->implode(''),
+                            ];
+                        }
+                    }
+
+                    $rows[] = $cells;
+                }
+
+                $blocks[] = ['type' => 'table', 'rows' => $rows];
+
+                continue;
+            }
+
+            array_push($blocks, ...$this->blocks($document->saveHTML($node)));
+        }
+
+        return $blocks;
     }
 
     /**

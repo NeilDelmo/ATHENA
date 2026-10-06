@@ -64,7 +64,7 @@ async function enterFacultyWorkspace(page) {
     }
 
     if (new URL(page.url()).pathname.endsWith('/select-role')) {
-        await page.getByRole('button', { name: /Continue as Faculty/i }).click();
+        await page.locator('form').filter({ has: page.locator('input[name="role"][value="faculty"]') }).getByRole('button').click();
         await page.waitForLoadState('domcontentloaded');
     }
 

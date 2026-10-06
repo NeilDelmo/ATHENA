@@ -516,7 +516,7 @@ return [
         'gad-checklist' => [
             'label' => 'GAD Generic Checklist',
             'aliases' => ['Box 7a', 'gender and development checklist', 'GAD checklist'],
-            'purpose' => 'Provides the official Gender and Development checklist included with the initial proposal package.',
+            'purpose' => 'Provides the official Gender and Development checklist included with the initial proposal submission.',
             'relationships' => [
                 'ATHENA automatically fills the Project Title and Project Leader from Project Details.',
                 'The current workspace does not ask the faculty user to encode the checklist’s evaluator fields.',

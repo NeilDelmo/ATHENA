@@ -14,6 +14,16 @@ class LibreOfficeProcess
         string $profilePath,
         string $filter,
     ): ProcessResult {
+        return $this->runMany([$sourcePath], $outputDirectory, $profilePath, $filter);
+    }
+
+    /** @param list<string> $sourcePaths */
+    public function runMany(
+        array $sourcePaths,
+        string $outputDirectory,
+        string $profilePath,
+        string $filter,
+    ): ProcessResult {
         $binary = $this->binary();
         $process = Process::timeout((int) config('document_pdf.timeout_seconds'));
 
@@ -32,7 +42,7 @@ class LibreOfficeProcess
             $filter,
             '--outdir',
             $outputDirectory,
-            $this->fileUri($sourcePath),
+            ...array_map(fn (string $path): string => $this->fileUri($path), $sourcePaths),
         ]);
     }
 

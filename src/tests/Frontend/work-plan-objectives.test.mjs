@@ -11,7 +11,7 @@ function editor(config) {
     let factory;
     runInNewContext(source, {
         Alpine: { data: (_, callback) => { factory = callback; } },
-        proposalPreviewWorkspace: () => ({}),
+        proposalPaperPreviewWorkspace: () => ({}),
     });
     const state = factory(config);
     state.$refs = { form: { querySelectorAll: () => [] } };

@@ -27,9 +27,6 @@
                         <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                         <span>Download signed PDF</span>
                     </a>
-                    @if (! $isResearchHead && $topic->user_id === Auth::id())
-                        <a href="{{ route('workspace.select') }}" class="rh-button-secondary !min-h-12 !text-base gap-2"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Open researcher workspace</span></a>
-                    @endif
                 </div>
             @elseif ($noticePreparedForSigning && $canManageNoticeToProceed)
                 <a href="{{ route('topics.notice-to-proceed.download-unsigned', $topic) }}" class="rh-button-secondary !min-h-12 !text-base shrink-0 gap-2">

@@ -45,16 +45,19 @@ class NotificationController extends Controller
 
     public function index(Request $request): JsonResponse|View
     {
+        if ($request->expectsJson()) {
+            $query = $request->user()->visibleNotificationsQuery();
+
+            return response()->json([
+                'notifications' => (clone $query)->latest()->limit(15)->get()
+                    ->map(fn (DatabaseNotification $notification): array => $this->presentNotification($notification)),
+                'unread_count' => $query->whereNull('read_at')->count(),
+            ]);
+        }
+
         $notifications = $request->user()->visibleNotifications();
         $notificationItems = $notifications->map(fn (DatabaseNotification $notification): array => $this->presentNotification($notification));
         $unreadCount = $notifications->whereNull('read_at')->count();
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'notifications' => $notificationItems->take(15),
-                'unread_count' => $unreadCount,
-            ]);
-        }
 
         $categoryCounts = $notificationItems->countBy('category');
         $categories = collect(self::INBOX_CATEGORIES)

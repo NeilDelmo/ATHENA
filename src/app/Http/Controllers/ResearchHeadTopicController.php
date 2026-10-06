@@ -200,7 +200,7 @@ class ResearchHeadTopicController extends Controller
 
             if (! $signatureWorkflow->hasRequiredPapers($latestVersion)) {
                 throw ValidationException::withMessages([
-                    'status' => 'The latest package must contain the Detailed Proposal, Work Plan, Line-Item Budget, GAD Checklist, and Initial Screening Form before signing.',
+                    'status' => 'The latest submission must contain the Detailed Proposal, Work Plan, Line-Item Budget, GAD Checklist, and Initial Screening Form before signing.',
                 ]);
             }
         }

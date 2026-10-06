@@ -1,0 +1,3 @@
+<div role="status" aria-live="polite" aria-busy="true" class="rounded-xl border border-gray-200 bg-white px-5 py-8 text-sm text-gray-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+    Loading proposal review…
+</div>

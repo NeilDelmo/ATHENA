@@ -47,6 +47,11 @@ class ProposalDraftPolicy
             && ($proposalDraft->topic_id === null || ($proposalDraft->topic?->canUpdateBeforeReview() ?? false));
     }
 
+    public function prepare(User $user, ProposalDraft $proposalDraft): bool
+    {
+        return $this->owns($user, $proposalDraft) && $proposalDraft->isEditable();
+    }
+
     public function manageMembers(User $user, ProposalDraft $proposalDraft): bool
     {
         return $this->owns($user, $proposalDraft) && $proposalDraft->isEditable();

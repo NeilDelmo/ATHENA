@@ -80,25 +80,25 @@
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="executive-brief">
                             <p class="detailed-proposal-section-heading">{{ $sectionHeadings['executive-brief'] }}</p>
                             <x-proposal-figures :proposal="$detailedProposal" section="executive_brief" />
-                            {!! $richText->sanitize($detailedProposal['executive_brief']) !!}
+                            {!! $richText->sanitize($detailedProposal['executive_brief'], allowTables: true) !!}
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="rationale">
                             <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['rationale'] }}</span> <span class="detailed-proposal-section-note">(include available statistics related to the problem)</span></p>
                             <x-proposal-figures :proposal="$detailedProposal" section="rationale" />
-                            {!! $richText->sanitize($detailedProposal['rationale']) !!}
+                            {!! $richText->sanitize($detailedProposal['rationale'], allowTables: true) !!}
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="general-objective">
                             <p class="detailed-proposal-section-heading">{{ $sectionHeadings['objectives'] }}</p>
                             @if (filled($detailedProposal['general_objective']))
                                 <p><strong>General Objective:</strong></p>
-                                {!! $richText->sanitize($detailedProposal['general_objective']) !!}
+                                {!! $richText->sanitize($detailedProposal['general_objective'], allowTables: true) !!}
                             @endif
                             <p><strong>Specific Objectives:</strong></p>
                             <ol class="detailed-proposal-output-list">
@@ -123,10 +123,14 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['literature'] }}</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
-                            <x-proposal-figures :proposal="$detailedProposal" section="introduction" />
-                            {!! $richText->sanitize($detailedProposal['introduction']) !!}
-                            <x-proposal-figures :proposal="$detailedProposal" section="related_literature" />
-                            {!! $richText->sanitize($detailedProposal['related_literature']) !!}
+                            <div data-proposal-preview-section="introduction">
+                                <x-proposal-figures :proposal="$detailedProposal" section="introduction" />
+                                {!! $richText->sanitize($detailedProposal['introduction'], allowTables: true) !!}
+                            </div>
+                            <div data-proposal-preview-section="related-literature">
+                                <x-proposal-figures :proposal="$detailedProposal" section="related_literature" />
+                                {!! $richText->sanitize($detailedProposal['related_literature'], allowTables: true) !!}
+                            </div>
                         </td>
                     </tr>
                     <tr>
@@ -135,21 +139,21 @@
                             <ul class="detailed-proposal-methodology-list">
                                 @foreach (config('detailed_proposal.methodology') as $key => $label)
                                     @continue(blank($detailedProposal['methodology'][$key]) && ! collect($detailedProposal['methodology_images'])->contains('section', $key))
-                                    <li>
+                                    <li data-proposal-preview-section="methodology-{{ $key }}">
                                         <p class="detailed-proposal-methodology-heading">{{ $label }}</p>
                                         <x-proposal-figures :proposal="$detailedProposal" :section="$key" />
-                                        {!! $richText->sanitize($detailedProposal['methodology'][$key]) !!}
+                                        {!! $richText->sanitize($detailedProposal['methodology'][$key], allowTables: true) !!}
                                     </li>
                                 @endforeach
                             </ul>
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="responsibilities">
                             <p class="detailed-proposal-section-heading">{{ $sectionHeadings['responsibilities'] }}</p>
                             @foreach ($detailedProposal['responsibilities'] as $responsibility)
                                 <p class="detailed-proposal-responsibility-name">{{ $loop->first ? 'Project Leader' : 'Project Staff (s)' }}: <span>{{ \Illuminate\Support\Str::upper($responsibility['name']) }} ({{ $responsibility['percentage'] }}%)</span></p>
-                                {!! $richText->sanitize($responsibility['duties']) !!}
+                                {!! $richText->sanitize($responsibility['duties'], allowTables: true) !!}
                             @endforeach
                         </td>
                     </tr>
@@ -170,9 +174,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="detailed-proposal-narrative">
+                        <td colspan="4" class="detailed-proposal-narrative" data-proposal-preview-section="references">
                             <p class="detailed-proposal-section-heading">{{ $sectionHeadings['references'] }}</p>
-                            {!! $richText->sanitize($detailedProposal['references']) !!}
+                            {!! $richText->sanitize($detailedProposal['references'], allowTables: true) !!}
                         </td>
                     </tr>
                     <tr>

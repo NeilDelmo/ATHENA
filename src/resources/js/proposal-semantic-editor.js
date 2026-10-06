@@ -19,6 +19,47 @@ export function proposalCitationFieldIds() {
     return proposalCitationFields.map((field) => field.id);
 }
 
+export function proposalCitationSelection(fieldId, editor, range) {
+    const field = proposalCitationField(fieldId);
+
+    if (!field || !editor || editor.isConnected === false || !range
+        || !editor.contains(range.startContainer) || !editor.contains(range.endContainer)) return null;
+
+    const containingElement = (node) => node?.nodeType === 1 ? node : node?.parentElement;
+    if ([range.startContainer, range.endContainer].some((node) => (
+        containingElement(node)?.closest('[data-proposal-citation]')
+    ))) return null;
+
+    const selectedText = range.collapsed ? '' : range.toString().trim();
+    if (!range.collapsed && !selectedText) return null;
+
+    try {
+        const before = range.cloneRange();
+        before.selectNodeContents(editor);
+        before.setEnd(range.startContainer, range.startOffset);
+        const after = range.cloneRange();
+        after.selectNodeContents(editor);
+        after.setStart(range.endContainer, range.endOffset);
+        const contextText = `${before.toString().slice(-400)}${selectedText.slice(0, 1200)}${after.toString().slice(0, 400)}`
+            .replace(/\s+/g, ' ').trim();
+
+        return {
+            fieldId: field.id,
+            fieldKey: field.key,
+            sectionLabel: field.label,
+            selectedText,
+            collapsed: range.collapsed,
+            contextText,
+        };
+    } catch {
+        return null;
+    }
+}
+
+export function proposalCitationLocator(value) {
+    return String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+}
+
 export function notifySemanticEditorInput(textarea) {
     const event = new Event('input');
 
@@ -47,7 +88,8 @@ export function synchronizeCitationMarkerLabels(markers, referenceNumbers = {}) 
 
         if (!Number.isInteger(referenceNumber) || referenceNumber < 1) return;
 
-        const label = ` [${referenceNumber}]`;
+        const locator = proposalCitationLocator(marker.getAttribute('data-proposal-locator'));
+        const label = ` [${referenceNumber}${locator ? `, ${locator}` : ''}]`;
 
         if (marker.textContent === label) return;
 

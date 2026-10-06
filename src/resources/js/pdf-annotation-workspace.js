@@ -206,6 +206,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
         let paperFocusTrigger = null;
         let bodyOverflowBeforePaperFocus = '';
         let resizeObserver = null;
+        let visibilityObserver = null;
         let resizeTimer = null;
         let viewerWidth = 0;
         let viewportChange = null;
@@ -225,7 +226,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             commentMenuId: null,
             deletingAnnotationId: null,
             scale: 1.15,
+            previewZoom: 100,
+            previewFit: 'width',
             paperFocusOpen: false,
+            commentsOpen: true,
             loading: true,
             loadError: '',
             viewerRefreshRequired: false,
@@ -282,6 +286,13 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 if (this.config.fitWidth) {
                     window.athenaRevisionPdf = {
                         onSelect: null,
+                        setZoom: (zoom, fit = 'width') => {
+                            const nextZoom = Math.max(50, Math.min(150, Number(zoom) || 100));
+                            if (this.previewZoom === nextZoom && this.previewFit === fit) return;
+                            this.previewZoom = nextZoom;
+                            this.previewFit = fit;
+                            this.renderDocument().catch((error) => { this.loadError = error.message; });
+                        },
                         focus: (id) => {
                             const annotation = this.annotations.find((item) => String(item.id) === String(id));
                             if (!annotation) return;
@@ -292,11 +303,15 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                             }
                         },
                     };
+                    window.frameElement?.dispatchEvent(new Event('revision-pdf-ready'));
                     this.$nextTick(() => {
+                        let viewerHeight = 0;
                         resizeObserver = new ResizeObserver(() => {
                             const width = this.$refs.viewer.clientWidth;
-                            if (width <= 0 || width === viewerWidth) return;
+                            const height = this.$refs.viewer.clientHeight;
+                            if (width <= 0 || (width === viewerWidth && height === viewerHeight)) return;
                             viewerWidth = width;
+                            viewerHeight = height;
                             window.clearTimeout(resizeTimer);
                             resizeTimer = window.setTimeout(async () => {
                                 try {
@@ -316,10 +331,13 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 }
                 if (!this.config.fitWidth) {
                     this.$nextTick(() => {
+                        let viewerHeight = 0;
                         resizeObserver = new ResizeObserver(() => {
                             const width = this.$refs.viewer.clientWidth;
-                            if (width <= 0 || width === viewerWidth) return;
+                            const height = this.$refs.viewer.clientHeight;
+                            if (width <= 0 || (width === viewerWidth && height === viewerHeight)) return;
                             viewerWidth = width;
+                            viewerHeight = height;
                             window.clearTimeout(resizeTimer);
                             resizeTimer = window.setTimeout(() => {
                                 this.renderDocument().catch((error) => { this.loadError = error.message; });
@@ -331,11 +349,22 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 viewportChange = () => this.positionCommentComposer();
                 window.visualViewport?.addEventListener('resize', viewportChange);
                 window.visualViewport?.addEventListener('scroll', viewportChange);
-                this.loadPdf();
+                if (this.config.loadWhenVisible && typeof IntersectionObserver !== 'undefined') {
+                    visibilityObserver = new IntersectionObserver((entries) => {
+                        if (!entries.some((entry) => entry.isIntersecting)) return;
+                        visibilityObserver.disconnect();
+                        this.loadPdf();
+                    });
+                    visibilityObserver.observe(this.$el);
+                } else {
+                    this.loadPdf();
+                }
             },
 
             destroy() {
+                if (this.paperFocusOpen) document.body.style.overflow = bodyOverflowBeforePaperFocus;
                 resizeObserver?.disconnect();
+                visibilityObserver?.disconnect();
                 window.visualViewport?.removeEventListener('resize', viewportChange);
                 window.visualViewport?.removeEventListener('scroll', viewportChange);
                 window.clearTimeout(resizeTimer);
@@ -362,6 +391,42 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         paperFocusTrigger.focus();
                     }
                 });
+            },
+
+            async setPaperZoom(zoom) {
+                this.previewZoom = Math.max(50, Math.min(150, Number(zoom) || 100));
+                await this.refreshPaperView();
+            },
+
+            async fitPaper(fit) {
+                this.previewFit = fit === 'page' ? 'page' : 'width';
+                this.previewZoom = 100;
+                await this.refreshPaperView();
+            },
+
+            async refreshPaperView() {
+                try {
+                    await this.renderDocument();
+                    const selected = this.annotations.find((annotation) => Number(annotation.id) === Number(this.selectedAnnotationId));
+                    if (selected) this.jumpToAnnotation(selected, false);
+                } catch (error) {
+                    this.loadError = error instanceof Error ? error.message : 'The PDF view could not be updated.';
+                }
+            },
+
+            trapPaperFocus(event) {
+                if (!this.paperFocusOpen || event.key !== 'Tab') return;
+                const controls = [...this.$refs.paperFocusPanel.querySelectorAll('button, a[href], textarea, [tabindex="0"]')]
+                    .filter((control) => !control.disabled && control.getClientRects().length > 0);
+                const first = controls[0];
+                const last = controls.at(-1);
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last?.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first?.focus();
+                }
             },
 
             readFocusAnnotationId() {
@@ -435,6 +500,9 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 const availableWidth = viewerWidth
                     - (Number.parseFloat(viewerStyle?.paddingLeft) || 0)
                     - (Number.parseFloat(viewerStyle?.paddingRight) || 0);
+                const scrollTop = viewer.scrollTop;
+                const scrollLeft = viewer.scrollLeft;
+                const firstDisplay = viewer.childElementCount === 0;
                 const nextPages = document.createDocumentFragment();
                 const nextPageElements = new Map();
 
@@ -443,7 +511,14 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
 
                     const page = await pdfDocument.getPage(pageNumber);
                     const baseViewport = page.getViewport({ scale: 1 });
-                    const scale = pdfScaleToFit(baseViewport.width, availableWidth);
+                    let scale = pdfScaleToFit(baseViewport.width, availableWidth);
+                    if (this.previewFit === 'page') {
+                        const availableHeight = viewer.clientHeight
+                            - (Number.parseFloat(viewerStyle?.paddingTop) || 0)
+                            - (Number.parseFloat(viewerStyle?.paddingBottom) || 0);
+                        if (availableHeight > 0) scale = Math.min(scale, availableHeight / baseViewport.height);
+                    }
+                    scale *= this.previewZoom / 100;
                     const viewport = page.getViewport({ scale });
                     const pageElement = document.createElement('section');
                     pageElement.className = 'pdf-annotation-page';
@@ -462,12 +537,6 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     canvas.style.height = `${viewport.height}px`;
                     pageElement.append(canvas);
 
-                    await page.render({
-                        canvasContext: canvas.getContext('2d'),
-                        viewport,
-                        transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
-                    }).promise;
-
                     const textLayerElement = document.createElement('div');
                     textLayerElement.className = 'textLayer';
                     pageElement.append(textLayerElement);
@@ -479,7 +548,14 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         container: textLayerElement,
                         viewport,
                     });
-                    await textLayer.render();
+                    await Promise.all([
+                        page.render({
+                            canvasContext: canvas.getContext('2d'),
+                            viewport,
+                            transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
+                        }).promise,
+                        textLayer.render(),
+                    ]);
                     if (activeRender !== renderToken) return;
 
                     const annotationLayer = document.createElement('div');
@@ -487,17 +563,34 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     pageElement.append(annotationLayer);
                     pageElement.addEventListener('pointerdown', (event) => this.startAreaSelection(event, pageElement));
 
-                    nextPages.append(pageElement);
                     nextPageElements.set(pageNumber, pageElement);
+                    if (!firstDisplay) {
+                        nextPages.append(pageElement);
+                    } else if (pageNumber === 1) {
+                        viewer.replaceChildren(pageElement);
+                        pageElements = nextPageElements;
+                        viewer.scrollTop = scrollTop;
+                        viewer.scrollLeft = scrollLeft;
+                        this.loading = false;
+                    } else {
+                        viewer.append(pageElement);
+                    }
+                    if (firstDisplay) this.renderAnnotationsForPage(pageNumber);
+                    if (firstDisplay && this.annotations.some((annotation) => Number(annotation.id) === this.focusAnnotationId && Number(annotation.pageNumber) === pageNumber)) {
+                        this.focusRequestedAnnotation();
+                    }
+                    if (firstDisplay && pageNumber === 1 && pdfDocument.numPages > 1) {
+                        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+                    }
                 }
                 if (activeRender !== renderToken) return;
-                const scrollTop = viewer.scrollTop;
-                const scrollLeft = viewer.scrollLeft;
-                viewer.replaceChildren(nextPages);
-                pageElements = nextPageElements;
-                viewer.scrollTop = scrollTop;
-                viewer.scrollLeft = scrollLeft;
-                pageElements.forEach((_page, pageNumber) => this.renderAnnotationsForPage(pageNumber));
+                if (!firstDisplay) {
+                    viewer.replaceChildren(nextPages);
+                    pageElements = nextPageElements;
+                    viewer.scrollTop = scrollTop;
+                    viewer.scrollLeft = scrollLeft;
+                    pageElements.forEach((_page, number) => this.renderAnnotationsForPage(number));
+                }
                 if (this.draftSelection) {
                     this.renderSelectionPreview(this.draftSelection);
                     this.$nextTick(() => this.positionCommentComposer());
@@ -904,6 +997,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             jumpToAnnotation(annotation, notify = true) {
                 this.selectAnnotation(annotation, notify);
                 const pageElement = pageElements.get(Number(annotation.pageNumber));
+                if (!pageElement) {
+                    this.focusAnnotationId = Number(annotation.id);
+                    return;
+                }
                 const mark = pageElement?.querySelector(`[data-annotation-id="${Number(annotation.id)}"]`);
                 const target = mark || pageElement;
 

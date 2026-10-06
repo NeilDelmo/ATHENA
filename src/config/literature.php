@@ -1,6 +1,16 @@
 <?php
 
 return [
+    'evidence' => [
+        'maximum_pdf_kilobytes' => 8 * 1024,
+        'maximum_pdf_pages' => 40,
+        'maximum_characters' => 120000,
+        'maximum_passages' => 100,
+        'maximum_selected_passages' => 12,
+        'maximum_prompt_characters' => 18000,
+        'extraction_timeout' => 20,
+        'pdfinfo_binary' => env('PDFINFO_BINARY', 'pdfinfo'),
+    ],
     'web_harvest' => [
         'enabled' => (bool) env('LITERATURE_WEB_HARVEST_ENABLED', true),
         'queue' => 'literature-harvest',

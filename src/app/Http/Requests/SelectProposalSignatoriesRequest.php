@@ -14,7 +14,7 @@ class SelectProposalSignatoriesRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('update', $this->route('proposalDraft')) ?? false;
+        return false;
     }
 
     /**
