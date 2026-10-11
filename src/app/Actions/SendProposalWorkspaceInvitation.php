@@ -21,8 +21,8 @@ class SendProposalWorkspaceInvitation
         if ($member->user && ! $member->isAccepted()) {
             try {
                 $member->user->notify(new ProposalActivityNotification(
-                    title: 'Proposal workspace invitation',
-                    message: $proposalDraft->owner->name.' invited you to join the project team for “'.$proposalDraft->project_title.'”.',
+                    title: 'Project staff invitation',
+                    message: $proposalDraft->owner->name.' invited you to serve as project staff for “'.$proposalDraft->project_title.'”.',
                     url: $workspaceUrl,
                     actionUrl: route('notifications.proposal-invitations.accept', $member),
                     actionData: [

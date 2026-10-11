@@ -7,7 +7,7 @@
         "demo:proposal": "playwright test tests/Playwright/fill-proposal-papers.spec.js --headed --workers=1",
         "demo:proposal:session": "node scripts/playwright/save-faculty-session.mjs",
         "dev": "vite",
-        "test:frontend": "node --test tests/Frontend/*.test.mjs"
+        "test:frontend": "node --test --test-concurrency=1 tests/Frontend/*.test.mjs"
     },
     "devDependencies": {
         "@playwright/test": "^1.63.0",

@@ -12,7 +12,7 @@
     <div data-monitoring-workspace class="w-full space-y-5">
         <x-monitoring-work-plan-alert :activities="$overdueWorkPlanActivities" />
         <div class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div class="border-l-4 border-red-600 px-5 py-5 sm:px-6">
+            <div class="px-5 py-5 sm:px-6">
                 <h3 class="text-lg font-black text-gray-950 dark:text-white">{{ $revisionReport ? 'Correct '.$revisionReport->quarter_label.' Monitoring Tool' : 'Submit monitoring tool' }}</h3>
                 <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">Record your activities, accomplishments, and spending for this quarter. Your draft saves automatically and you can preview it now. Official PDF preparation and submission open after the quarter ends.</p>
                 @if ($revisionReport?->research_head_remarks)

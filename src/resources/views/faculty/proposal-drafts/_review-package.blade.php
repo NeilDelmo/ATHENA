@@ -178,7 +178,7 @@
 
     <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <article class="rounded-xl border border-rose-200 bg-brand-wash p-4 dark:border-rose-900 dark:bg-rose-950/40">
-            <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900">{{ $proposalDraft->owner->name }}</p><span class="rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Owner</span></div>
+            <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900">{{ $proposalDraft->owner->name }}</p><span class="rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Project leader</span></div>
             <p class="mt-1 break-all text-xs text-gray-600">{{ $proposalDraft->owner->email }}</p>
         </article>
         @foreach ($proposalDraft->members as $member)
@@ -188,8 +188,10 @@
                     <div class="flex shrink-0 flex-col items-end gap-1">
                         @if ($member->isProjectSecretary())
                             <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">Project Secretary</span>
+                        @elseif ($member->isAccepted())
+                            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gray-700">Project staff</span>
                         @endif
-                        <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isLinked() ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $member->isLinked() ? 'Joined' : 'Pending sign-in' }}</span>
+                        <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isAccepted() ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $member->isAccepted() ? 'Confirmed' : ($member->isLinked() ? 'Invitation pending' : 'Pending sign-in') }}</span>
                     </div>
                 </div>
             </article>

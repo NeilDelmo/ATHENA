@@ -11,6 +11,25 @@ test('signing shortcut opens signed papers and the Files button returns to all d
     assert.equal(drawer.activeCategory, 'all');
 });
 
+test('inline project files navigate categories without locking the page or losing the upload selection', () => {
+    const files = projectDocumentDrawer({ inline: true });
+    let watches = 0;
+    files.$watch = () => { watches++; };
+    files.init();
+    assert.equal(watches, 0);
+    assert.equal(files.open, true);
+    files.selectedFiles = [{ name: 'support.pdf' }];
+    files.selectItem('category:signed_papers');
+    assert.equal(files.selectedItem, 'category:signed_papers');
+    files.openCategory('signed_papers');
+    assert.equal(files.activeCategory, 'signed_papers');
+    assert.equal(files.selectedItem, null);
+    files.selectItem('signed-copy');
+    files.openCategory('all');
+    assert.equal(files.selectedItem, null);
+    assert.equal(files.selectedFiles.length, 1);
+});
+
 test('the project document dropzone accepts only unique PDFs', () => {
     const proposal = { name: 'proposal.pdf', type: 'application/pdf', size: 120, lastModified: 1 };
     const scanned = { name: 'scanned.PDF', type: '', size: 240, lastModified: 2 };

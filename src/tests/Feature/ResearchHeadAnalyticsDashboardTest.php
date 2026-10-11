@@ -55,8 +55,8 @@ test('overview prioritizes reviews and preserves compact independently paginated
 
     $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
         ->assertSet('overview', true)->assertSet('pipeline', 'awaiting_review')
-        ->assertSee('Proposal reviews')->assertSee('View all proposals')->assertSee('9 / 0')
-        ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Overview filters', 'id="received-proposals"', 'id="dashboard-report-reviews"', 'id="needs-attention"', 'Upcoming deadlines', 'data-dashboard-visual-summary'], false)
+        ->assertSee('Proposal reviews')->assertSee('View all proposals')->assertSee('View analytics')
+        ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Overview filters', 'id="received-proposals"', 'id="dashboard-report-reviews"', 'id="needs-attention"', 'Upcoming deadlines', 'data-dashboard-reporting-links'], false)
         ->assertDontSeeHtml('<table')->assertDontSee('Monthly submission trend')
         ->assertViewHas('topics', fn ($items): bool => $items->total() === 9 && $items->count() === 4)
         ->assertViewHas('attentionItems', fn ($items): bool => $items->total() === 9 && $items->count() === 4);
@@ -84,7 +84,7 @@ test('overview prioritizes reviews and preserves compact independently paginated
         ->set('search', 'Priority proposal 1')
         ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 1 && $items->total() === 1)
         ->set('search', '')->call('setPipeline', 'lrec')
-        ->assertSeeHtml('aria-pressed="true" aria-label="Show LREC proposals: 1"')
+        ->assertSeeHtml('value="lrec" selected')
         ->assertViewHas('topics', fn ($items): bool => $items->total() === 1 && $items->first()->title === 'Committee review')
         ->call('showReviewQueue')->assertSet('pipeline', 'awaiting_review')
         ->assertViewHas('topics', fn ($items): bool => $items->total() === 9)
@@ -156,6 +156,19 @@ test('dashboard orders proposals by their current waiting period and displays it
         ->assertViewHas('topics', fn ($topics) => $topics->pluck('id')->all() === [$recentRecord->id, $olderRecord->id])
         ->assertSee('29 days in this stage')->assertSee('2 days in this stage')
         ->assertSeeInOrder(['Longest waiting proposal', 'Recently returned proposal']);
+});
+
+test('changing the compact review stage resets pagination and conflicting status filters', function () {
+    foreach (range(1, 9) as $index) {
+        ($this->topic)(['title' => 'Pending proposal '.$index]);
+    }
+    ($this->topic)(['title' => 'LREC committee proposal', 'status' => 'lrec_review']);
+
+    Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
+        ->set('status', 'pending')->call('nextPage')->call('nextPage')
+        ->assertViewHas('topics', fn ($topics): bool => $topics->currentPage() === 3)
+        ->set('pipeline', 'lrec')->assertSet('status', '')
+        ->assertViewHas('topics', fn ($topics): bool => $topics->currentPage() === 1 && $topics->total() === 1 && $topics->first()->title === 'LREC committee proposal');
 });
 
 test('calendar and analytics have separate protected routes and grouped functional navigation', function () {
@@ -233,10 +246,10 @@ test('overview carries the selected academic year and date range to its analytic
     Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027'])->test(ResearchHeadDashboard::class, ['overview' => true])
         ->assertSee('Date range applied')
         ->assertSeeHtml('data-dashboard-date-filters  open')
-        ->assertSee('0 / 4')->assertSee('0 / 2')->assertSee('0 / 6')
+        ->assertDontSee('0 / 4')->assertDontSee('0 / 2')->assertDontSee('0 / 6')
         ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-08-01', 'toDate' => '2027-07-31'])).'#annual-targets"')
-        ->set('fromDate', '2026-09-01')->assertDontSee('0 / 4')
-        ->assertSee('select the full academic year');
+        ->set('fromDate', '2026-09-01')
+        ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-09-01', 'toDate' => '2027-07-31'])).'#annual-targets"');
 });
 
 test('the pipeline reuses workflow statuses and review KPIs exclude external review stages', function () {
@@ -302,16 +315,45 @@ test('report replacements remove missing-report alerts and only the latest termi
     expect($types)->not->toContain('quarterly', 'terminal', 'terminal_review');
 });
 
-test('budget utilization uses only usable latest submitted snapshots and does not treat missing reports as zero spend', function () {
-    $reported = ($this->project)(['project_status' => 'completed']);
+test('budget utilization keeps each projects latest submitted figures separate', function () {
+    $reported = ($this->project)(['title' => 'Coastal monitoring', 'project_status' => 'completed']);
     ($this->report)($reported, ['budget_utilization' => [['actual_amount' => 10000]]]);
     ($this->report)($reported, ['reporting_date' => '2026-09-20', 'budget_utilization' => [['actual_amount' => 30000]]]);
     ($this->report)($reported, ['reporting_date' => '2026-09-25', 'submission_status' => 'prepared', 'budget_utilization' => [['actual_amount' => 99999]]]);
-    ($this->project)();
+    $other = ($this->project)(['title' => 'Campus energy', 'estimated_budget' => 200000]);
+    ($this->report)($other, ['review_status' => 'pending', 'budget_utilization' => [['actual_amount' => 40000], ['actual_amount' => 60000]]]);
+    $missing = ($this->project)(['title' => 'Unreported project']);
     $data = app(ResearchHeadAnalytics::class)->summarize();
-    expect($data['budget']['percentage'])->toBe(30.0)->and($data['budget']['utilized'])->toBe(30000.0)
-        ->and($data['budget']['budget'])->toBe(100000.0)->and($data['budget']['reported'])->toBe(1)->and($data['budget']['total'])->toBe(2)
+    expect($data['budget'])->toBe(['reported' => 2, 'total' => 3])
+        ->and($data['projects']->firstWhere('id', $reported->id)['percentage'])->toBe(30.0)
+        ->and($data['projects']->firstWhere('id', $reported->id)['utilized'])->toBe(30000.0)
+        ->and($data['projects']->firstWhere('id', $other->id)['percentage'])->toBe(50.0)
+        ->and($data['projects']->firstWhere('id', $missing->id)['percentage'])->toBeNull()
         ->and($data['attention']->pluck('type'))->toContain('budget');
+
+    $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
+        ->assertDontSee('Projects reporting budget utilization')->assertDontSee('Latest submitted Monitoring Tools')->assertDontSee('View budget breakdown');
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    $rows = $xpath->query('//*[@id="reported-budget"]//*[@data-project-budget]');
+    expect($rows)->toHaveCount(3);
+    $coastal = $xpath->query('//*[@data-project-budget="'.$reported->id.'"]')->item(0);
+    $campus = $xpath->query('//*[@data-project-budget="'.$other->id.'"]')->item(0);
+    $unreported = $xpath->query('//*[@data-project-budget="'.$missing->id.'"]')->item(0);
+    expect($coastal->textContent)->toContain('Coastal monitoring', '30.0%', '₱30,000.00', '₱100,000.00')
+        ->and($campus->textContent)->toContain('Campus energy', '50.0%', '₱100,000.00', '₱200,000.00')
+        ->and($unreported->textContent)->toContain('No utilization reported')
+        ->and($unreported->textContent)->not->toContain('0.0%')
+        ->and($xpath->query('//*[@data-dashboard-kpi-band]/*'))->toHaveCount(5);
+
+    Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
+        ->assertDontSee('Projects reporting budget utilization')->assertDontSee('View utilization per project')->assertDontSee('43.3%');
+
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/analytics-budget-individual.html'), $component->html());
+    }
 });
 
 test('faculty participation deduplicates accepted faculty and excludes invitations and secretaries', function () {
@@ -357,7 +399,7 @@ test('year targets count dated published outputs rather than acceptances or unda
 test('unknown year dates and empty datasets have honest no-data states', function () {
     $data = app(ResearchHeadAnalytics::class)->summarize('2026-2027');
     expect($data['periodAvailable'])->toBeFalse()->and($data['trend'])->toBeEmpty()->and($data['targets']->pluck('actual')->all())->toBe([null, null, null])
-        ->and($data['budget']['percentage'])->toBeNull();
+        ->and($data['budget'])->toBe(['reported' => 0, 'total' => 0]);
     Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)->assertSee('No data yet')
         ->set('academicYear', '2026-2027')->assertSee('Set this academic year');
 });
@@ -395,7 +437,7 @@ test('analytics presents readable project titles and accessible icon actions', f
     $document = new DOMDocument;
     @$document->loadHTML($component->html());
     $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@data-dashboard-kpi-band]/*[self::a or self::button]'))->toHaveCount(6)
+    expect($xpath->query('//*[@data-dashboard-kpi-band]/*[self::a or self::button]'))->toHaveCount(5)
         ->and($xpath->query('//form[@*[name()="wire:submit"]="applyFilters"]/button[1]/svg[@aria-hidden="true"]'))->toHaveCount(1)
         ->and($xpath->query('//button[@*[name()="wire:click"]="resetAnalyticsFilters"]/svg'))->toHaveCount(1)
         ->and($xpath->query('//*[@id="active-projects"]//strong[@title="'.$title.'" and contains(@class,"line-clamp-2")]'))->toHaveCount(1)
@@ -580,7 +622,7 @@ test('analytics charts distinguish actionable filters from static summaries', fu
     $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
         ->assertDontSeeHtml('data-dashboard-section-navigation')
         ->assertSeeInOrder(['Monthly submission trend', 'Proposal pipeline', 'Annual research targets'])
-        ->assertSee('View faculty directory')->assertSee('View budget breakdown')
+        ->assertSee('View user directory')->assertDontSee('Projects reporting budget utilization')->assertDontSee('View budget breakdown')
         ->assertSeeHtml('data-project-distribution-chart')
         ->assertSeeHtml('style="width: 50%"')
         ->call('showProjects', 'completed')

@@ -13,7 +13,7 @@
         </div>
     </header>
 @elseif (in_array($variant, ['hero', 'banner'], true))
-    <div data-page-header-variant="{{ $variant }}" data-workspace-header-banner {{ $attributes->class(['flex flex-col gap-4 border-l-4 border-[#800000] !bg-transparent px-5 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between dark:!bg-transparent']) }}>
+    <div data-page-header-variant="{{ $variant }}" data-workspace-header-banner {{ $attributes->class(['flex flex-col gap-4 !bg-transparent px-5 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between dark:!bg-transparent']) }}>
         <div class="min-w-0 sm:min-w-[min(100%,16rem)] sm:flex-1">
             <p class="text-sm font-bold uppercase tracking-[0.2em] text-[#800000] dark:text-red-300">{{ $eyebrow }}</p>
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">{{ $title }}</h2>

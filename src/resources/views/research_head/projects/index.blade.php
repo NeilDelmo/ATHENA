@@ -3,29 +3,54 @@
 @endphp
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header class="rh-review-page-header [&_h1]:text-3xl [&_p]:text-base [&_p]:leading-6" :title="($completedOnly ?? false) ? 'Completed projects' : 'Research projects'" subtitle="Track approved projects and review submitted progress updates." />
+        <x-page-header class="rh-review-page-header [&_h1]:text-3xl [&_p]:text-base [&_p]:leading-6" :title="($completedOnly ?? false) ? 'Completed projects' : 'Research projects'" :subtitle="($completedOnly ?? false) ? 'Browse completed research, final reports, and project records.' : 'Organize approved research and review project progress.'" />
     </x-slot>
 
-    <div class="rh-review-page space-y-5" data-project-monitoring-list>
-        <x-kpi-strip class="[&_dt]:text-sm [&_dt]:leading-5 [&_dd]:!text-[28px] [&_svg]:h-4 [&_svg]:w-4" :items="[
-            ['label' => 'Ongoing', 'value' => $summary['ongoing'], 'icon' => 'play'],
-            ['label' => 'Delayed', 'value' => $summary['delayed'], 'icon' => 'alert-triangle'],
-            ['label' => 'Completion pending', 'value' => $summary['completion_pending'], 'icon' => 'hourglass'],
-            ['label' => 'Completed', 'value' => $summary['completed'], 'icon' => 'circle-check'],
-            ['label' => 'Reports awaiting review', 'value' => $summary['pending_reports'], 'icon' => 'file-text'],
-        ]" />
+    <div class="rh-review-page space-y-5" x-data="{recordsView: @js($initialRecordsView)}" data-project-monitoring-list data-project-records-page>
+        <div x-cloak role="tablist" aria-label="Project views" class="flex gap-2"
+            @keydown.arrow-right.prevent="recordsView = recordsView === 'files' ? 'monitoring' : 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
+            @keydown.arrow-left.prevent="recordsView = recordsView === 'files' ? 'monitoring' : 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
+            @keydown.home.prevent="recordsView = 'monitoring'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
+            @keydown.end.prevent="recordsView = 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())">
+            <button id="project-monitoring-tab" type="button" role="tab" aria-controls="project-monitoring-panel" :aria-selected="recordsView === 'monitoring'" :tabindex="recordsView === 'monitoring' ? 0 : -1" @click="recordsView = 'monitoring'" class="workspace-view">Monitoring</button>
+            <button id="project-files-tab" type="button" role="tab" aria-controls="project-files-panel" :aria-selected="recordsView === 'files'" :tabindex="recordsView === 'files' ? 0 : -1" @click="recordsView = 'files'" class="workspace-view">Files</button>
+        </div>
 
-        <form method="GET" action="{{ route($projectRoute) }}" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_240px_260px_auto]">
-            <label class="sr-only" for="project-search">Search project or researcher</label>
-            <input id="project-search" name="search" type="search" value="{{ $search }}" placeholder="Search project or researcher..." class="block w-full rounded-xl border-gray-200 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-white">
-            <label class="sr-only" for="project-status">Project status</label>
-            <select id="project-status" @if ($completedOnly ?? false) disabled aria-label="Completed project status" @endif name="status" class="block w-full rounded-xl border-gray-200 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">All project statuses</option>@foreach (['ongoing' => 'Ongoing', 'delayed' => 'Delayed', 'completion_pending' => 'Completion pending', 'completed' => 'Completed'] as $value => $label)<option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>@endforeach</select>
-            <label class="sr-only" for="project-attention">Report state</label>
-            <select id="project-attention" name="attention" class="block w-full rounded-xl border-gray-200 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">All report states</option><option value="needs_attention" @selected($attention === 'needs_attention')>Needs attention</option><option value="pending_reports" @selected($attention === 'pending_reports')>Reports awaiting review</option></select>
-            <div class="flex gap-2"><button type="submit" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Filter</button>@if ($search !== '' || $status !== '' || $attention !== '')<a href="{{ route($projectRoute) }}" class="inline-flex min-h-11 items-center rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Clear</a>@endif</div>
-        </form>
+        <div x-cloak x-show="recordsView === 'monitoring'" class="space-y-4" data-project-monitoring-controls>
+            @unless ($completedOnly)
+                <x-kpi-strip class="[&_dt]:text-sm [&_dt]:leading-5 [&_dd]:!text-[28px] [&_svg]:h-4 [&_svg]:w-4" :items="[
+                    ['label' => 'Ongoing', 'value' => $summary['ongoing'], 'icon' => 'play'],
+                    ['label' => 'Delayed', 'value' => $summary['delayed'], 'icon' => 'alert-triangle'],
+                    ['label' => 'Completion pending', 'value' => $summary['completion_pending'], 'icon' => 'hourglass'],
+                    ['label' => 'Completed', 'value' => $summary['completed'], 'icon' => 'circle-check'],
+                    ['label' => 'Reports awaiting review', 'value' => $summary['pending_reports'], 'icon' => 'file-text'],
+                ]" />
+            @endunless
 
-        <section aria-labelledby="project-records-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <form method="GET" action="{{ route($projectRoute) }}" @class(['grid gap-2 sm:grid-cols-2', 'xl:grid-cols-[minmax(0,1fr)_260px_auto]' => $completedOnly, 'xl:grid-cols-[minmax(0,1fr)_240px_260px_auto]' => ! $completedOnly])>
+                <input type="hidden" name="view" value="monitoring">
+                <label class="sr-only" for="project-search">Search project or researcher</label>
+                <input id="project-search" name="search" type="search" value="{{ $search }}" placeholder="Search project or researcher..." class="block w-full rounded-xl border-gray-200 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                @unless ($completedOnly)
+                    <label class="sr-only" for="project-status">Project status</label>
+                    <select id="project-status" name="status" class="block w-full rounded-xl border-gray-200 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">All project statuses</option>@foreach (['ongoing' => 'Ongoing', 'delayed' => 'Delayed', 'completion_pending' => 'Completion pending', 'completed' => 'Completed'] as $value => $label)<option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>@endforeach</select>
+                @endunless
+                <label class="sr-only" for="project-attention">Report state</label>
+                <select id="project-attention" name="attention" class="block w-full rounded-xl border-gray-200 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">All report states</option><option value="needs_attention" @selected($attention === 'needs_attention')>Needs attention</option><option value="pending_reports" @selected($attention === 'pending_reports')>Reports awaiting review</option></select>
+                <div class="flex gap-2">
+                    <button type="submit" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Filter</button>
+                    @if ($search !== '' || (! $completedOnly && $status !== '') || $attention !== '')
+                        <a href="{{ route($projectRoute, ['view' => 'monitoring']) }}" class="inline-flex min-h-11 items-center rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Clear</a>
+                    @endif
+                </div>
+            </form>
+        </div>
+
+        <div id="project-files-panel" role="tabpanel" aria-labelledby="project-files-tab" x-cloak x-show="recordsView === 'files'">
+            <x-project-records-workspace :projects="$workspaceProjects" :preferences="$workspacePreferences" :completed-only="$completedOnly" />
+        </div>
+
+        <section id="project-monitoring-panel" role="tabpanel" aria-labelledby="project-monitoring-tab" x-show="recordsView === 'monitoring'" data-project-monitoring class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800"><h3 id="project-records-heading" class="text-xl font-black text-gray-900 dark:text-white">{{ ($completedOnly ?? false) ? 'Completed project records' : 'Research projects under monitoring' }}</h3><p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Review implementation status and submitted reports. Delayed projects and projects with reports awaiting review appear first.</p></div>
             <div data-project-list-layout="rows" class="overflow-hidden rounded-b-xl border-x border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
                 <div aria-hidden="true" class="hidden grid-cols-[minmax(0,1fr)_160px_170px_220px_160px_196px] items-center gap-4 border-b border-brand bg-brand px-4 py-3 text-sm font-semibold text-white dark:border-red-900 2xl:grid">
@@ -90,7 +115,7 @@
                                 <p @class(['mt-1', 'font-medium text-red-700 dark:text-red-300' => $pendingReportCount > 0])>{{ $pendingReportCount }} awaiting review</p>
                             </div>
                             <div class="text-right sm:col-span-2 2xl:col-span-1">
-                                <a href="{{ route('topics.show', $project) }}#project-monitoring" aria-label="Monitor {{ $project->title }}" class="inline-flex min-h-11 w-48 whitespace-nowrap items-center justify-center gap-2 rounded-lg bg-brand px-4 text-base font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-red-400">Monitor <span aria-hidden="true">→</span></a>
+                                <a href="{{ route('topics.show', $project) }}{{ $projectStatus === 'completed' ? '' : '#project-monitoring' }}" aria-label="{{ $projectStatus === 'completed' ? 'View record' : 'Monitor project' }}: {{ $project->title }}" class="inline-flex min-h-11 w-48 whitespace-nowrap items-center justify-center gap-2 rounded-lg bg-brand px-4 text-base font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-red-400">{{ $projectStatus === 'completed' ? 'View record' : 'Monitor project' }}</a>
                             </div>
                         </article>
                     @empty

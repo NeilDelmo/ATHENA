@@ -41,9 +41,9 @@ class UpdateResearchCoordinatorRequest extends FormRequest
                 $member = $this->route('member');
 
                 if ($member?->hasRole('research_head')) {
-                    $validator->errors()->add('action', 'Research Heads cannot be assigned to the Research Office.');
+                    $validator->errors()->add('action', 'Research Heads cannot be assigned as Research Coordinators.');
                 } elseif (! $member?->college) {
-                    $validator->errors()->add('action', 'Set the member\'s college before assigning the Research Office role.');
+                    $validator->errors()->add('action', 'Set the member\'s college before assigning the Research Coordinator role.');
                 }
             },
         ];

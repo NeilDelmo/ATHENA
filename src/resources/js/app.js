@@ -18,9 +18,11 @@ import { proposalAssessmentPreview } from './proposal-assessment-preview';
 import { curriculumVitaePaperWorkspace } from './curriculum-vitae-workspace';
 import { commentResponsePaperPreview } from './comment-response-paper-preview';
 import '../css/proposal-paper-workspace.css';
+import '../css/project-workspace.css';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import { projectDocumentDrawer } from './project-document-drawer';
 import { projectStatusManager } from './project-status-manager';
+import { projectWorkspace } from './project-workspace';
 import { proposalSignedUploads } from './proposal-signed-uploads';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
@@ -113,6 +115,7 @@ Alpine.store('sidebar', {
 Alpine.data('journalFinder', journalFinder);
 Alpine.data('projectDocumentDrawer', projectDocumentDrawer);
 Alpine.data('projectStatusManager', projectStatusManager);
+Alpine.data('projectWorkspace', projectWorkspace);
 Alpine.data('proposalSignedUploads', proposalSignedUploads);
 Alpine.data('researchSecretaryPicker', (config = {}) => ({
     candidates: Array.isArray(config.candidates) ? config.candidates : [],
@@ -306,8 +309,13 @@ function sanitizedSemanticHtml(value, allowTables = false) {
             const locator = String(node.getAttribute('data-proposal-locator') || '').trim().slice(0, 100);
 
             return /^\d+$/.test(citationSourceId)
-                ? `<span data-proposal-citation="${citationSourceId}"${locator ? ` data-proposal-locator="${escapeHtml(locator)}"` : ''}>${content}</span>`
+                ? `<span data-proposal-citation="${citationSourceId}"${locator ? ` data-proposal-locator="${escapeHtml(locator)}"` : ''} contenteditable="false">${content}</span>`
                 : content;
+        }
+
+        const managedReferenceId = String(node.getAttribute('data-proposal-managed-reference') || '');
+        if (tag === 'p' && /^\d+$/.test(managedReferenceId) && Number(managedReferenceId) > 0) {
+            return `<p data-proposal-managed-reference="${managedReferenceId}">${content}</p>`;
         }
 
         return `<${tag}>${content}</${tag}>`;
@@ -362,8 +370,20 @@ function initializeSemanticEditors() {
         ];
 
         let syncingFromEditor = false;
+        const decorateCitations = () => {
+            editor.querySelectorAll('[data-proposal-citation]').forEach((marker) => {
+                marker.contentEditable = 'false';
+                if (sharedToolbar && proposalCitationField(textarea.id)) {
+                    marker.setAttribute('role', 'button');
+                    marker.setAttribute('tabindex', '0');
+                    marker.setAttribute('aria-label', `Edit citation${marker.textContent}`);
+                    marker.title = 'Edit citation source or page';
+                }
+            });
+        };
         const sync = () => {
             syncingFromEditor = true;
+            decorateCitations();
             mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML, sharedToolbar), { preserveEditorDom: true });
             notifySemanticEditorInput(textarea);
             syncingFromEditor = false;
@@ -371,7 +391,9 @@ function initializeSemanticEditors() {
         const refreshFromTextarea = () => {
             if (syncingFromEditor) return false;
 
-            return mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(textarea.value, sharedToolbar));
+            const changed = mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(textarea.value, sharedToolbar));
+            decorateCitations();
+            return changed;
         };
         textarea._syncSemanticEditor = refreshFromTextarea;
         textarea.addEventListener('input', refreshFromTextarea);
@@ -451,6 +473,21 @@ function initializeSemanticEditors() {
         });
 
         if (proposalCitationField(textarea.id)) {
+            const editCitation = (event) => {
+                const marker = event.target.closest?.('[data-proposal-citation]');
+                if (!sharedToolbar || !marker || !editor.contains(marker)) return;
+                if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+                event.preventDefault();
+                const range = document.createRange();
+                range.selectNode(marker);
+                textarea._semanticCitationRange = range;
+                textarea._semanticCitationEditingMarker = marker;
+                window.dispatchEvent(new CustomEvent('proposal-cite-selection', {
+                    detail: { fieldId: textarea.id, editing: true, sourceId: Number(marker.dataset.proposalCitation), locator: marker.dataset.proposalLocator || '' },
+                }));
+            };
+            editor.addEventListener('click', editCitation);
+            editor.addEventListener('keydown', editCitation);
             citationButton = document.createElement('button');
             citationButton.type = 'button';
             citationButton.className = 'rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-800 shadow-sm transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40';
@@ -469,6 +506,7 @@ function initializeSemanticEditors() {
                 if (!citationSelection) return;
 
                 textarea._semanticCitationRange = savedRange.cloneRange();
+                textarea._semanticCitationEditingMarker = null;
                 window.dispatchEvent(new CustomEvent('proposal-cite-selection', {
                     detail: citationSelection,
                 }));
@@ -521,7 +559,7 @@ function initializeSemanticEditors() {
             restoreSelection,
             selection: () => savedRange && editor.contains(savedRange.startContainer) && editor.contains(savedRange.endContainer) ? savedRange : null,
             canCite: Boolean(citationButton),
-            cite: () => citationButton?.click(),
+            cite: () => { updateActionButtons(); citationButton?.click(); },
             execute(command, value = null) {
                 focusWithSelection();
                 document.execCommand(command, false, value);
@@ -530,6 +568,7 @@ function initializeSemanticEditors() {
                 updateActionButtons();
             },
         };
+        decorateCitations();
     });
 }
 
@@ -553,14 +592,18 @@ window.insertProposalCitationMarker = (fieldId, sourceLinkId, referenceNumber, l
     const normalizedLocator = proposalCitationLocator(locator);
     if (normalizedLocator) marker.dataset.proposalLocator = normalizedLocator;
     marker.textContent = ` [${referenceNumber}${normalizedLocator ? `, ${normalizedLocator}` : ''}]`;
-    range.collapse(false);
-    range.insertNode(marker);
-    range.setStartAfter(marker);
-    range.collapse(true);
+    const editingMarker = textarea._semanticCitationEditingMarker;
+    if (editingMarker && (!editingMarker.isConnected || !textarea._semanticEditor.contains(editingMarker))) return false;
+    if (editingMarker) range.selectNode(editingMarker);
+    else range.collapse(false);
+    textarea._semanticEditor.focus();
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
-    textarea._semanticCitationRange = range.cloneRange();
+    if (!document.execCommand('insertHTML', false, `${marker.outerHTML}${editingMarker ? '' : '&nbsp;'}`)) return false;
+    textarea._semanticCitationEditingMarker = null;
+    textarea._semanticApi?.saveSelection();
+    textarea._semanticCitationRange = selection.getRangeAt(0).cloneRange();
     textarea._semanticEditor.dispatchEvent(new Event('input', { bubbles: true }));
 
     return true;
@@ -1855,11 +1898,12 @@ Alpine.store('researchAssistant', {
         this.workspaceOpen = true;
         this.drawerOpen = false;
         this.syncPageScroll();
-        window.setTimeout(() => document.getElementById('research-assistant-message')?.focus(), 220);
+        window.setTimeout(() => document.getElementById(this.historySearchOpen ? 'assistant-history-search' : 'research-assistant-message')?.focus(), 220);
     },
 
     closeDrawer() {
         void this.saveConversation();
+        this.historySearchOpen = false;
         this.workspaceOpen = false;
         this.drawerOpen = false;
         this.syncPageScroll();
@@ -1926,13 +1970,13 @@ Alpine.store('researchAssistant', {
     },
 
     starterPromptHeading() {
-        return this.hasStarterPrompts() ? 'Work with this record' : 'Start a focused conversation';
+        return this.hasStarterPrompts() ? 'Let’s move your research forward.' : 'What are we working on?';
     },
 
     starterPromptDescription() {
         return this.hasStarterPrompts()
-            ? 'Choose an action that states exactly which saved ATHENA records it will use.'
-            : 'Ask a specific question, or open a proposal, paper, literature result, reviewer feedback, or monitoring record for context-aware actions.';
+            ? 'Pick a starting point below, or ask a question of your own.'
+            : 'Talk through an idea, review your work, or add a project for answers grounded in its saved records.';
     },
 
     capturePaperField(target) {
@@ -2115,6 +2159,17 @@ Alpine.store('researchAssistant', {
         return this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId)) || null;
     },
 
+    selectProjectContext(contextId) {
+        const context = this.contextOptions.find((option) => Number(option.id) === Number(contextId));
+        this.selectedContextId = context?.id || 0;
+        this.contextEnabled = Boolean(context);
+        this.documentRequestSequence++;
+        this.closeDocumentPicker();
+        this.documentOptions = [];
+        this.selectedDocumentToken = '';
+        this.documentLoading = false;
+    },
+
     contextPayload(includeForm = true) {
         const context = {};
 
@@ -2285,10 +2340,13 @@ Alpine.store('researchAssistant', {
     },
 
     closeHistorySearch() {
+        if (!this.historySearchOpen) return;
+
         this.historySearchOpen = false;
         this.historySearchQuery = '';
         this.historySearchResults = this.history;
         window.clearTimeout(this.historySearchTimer);
+        window.setTimeout(() => document.getElementById('research-assistant-message')?.focus());
     },
 
     queueHistorySearch() {
@@ -2875,7 +2933,6 @@ Alpine.store('literatureSearch', {
     synthesisReviewOpen: false,
     synthesisSource: null,
     synthesisSourceIsSaved: false,
-    synthesisApplyTo: 'rrl',
     synthesisDraft: '',
     synthesisNotice: '',
     synthesisError: '',
@@ -3177,10 +3234,6 @@ Alpine.store('literatureSearch', {
 
             this.externalReference = saved.reference || '';
 
-            if (Number(this.selectedProposalId)) {
-                await this.attachSourceToProposal(saved, null, null, false);
-            }
-
             this.externalSource = {
                 provider: this.externalSource.provider || 'Google Scholar',
                 title: '',
@@ -3195,9 +3248,7 @@ Alpine.store('literatureSearch', {
                 pages: '',
                 publisher: '',
             };
-            this.saveNotice = Number(this.selectedProposalId)
-                ? 'Source saved and linked to the selected proposal. Cite it in your writing to add its numbered IEEE reference.'
-                : 'External source saved to the shared library. Link it to a proposal when you are ready.';
+            this.saveNotice = 'External source saved to the shared library. Choose Add to proposal from the library when you are ready.';
         } finally {
             this.isSavingExternalSource = false;
         }
@@ -3291,8 +3342,8 @@ Alpine.store('literatureSearch', {
         }
     },
 
-    async prepareSynthesis(source, applyTo = 'rrl', sourceIsSaved = false) {
-        if (!source || !['rrl', 'both'].includes(applyTo)) return;
+    async prepareSynthesis(source, sourceIsSaved = false) {
+        if (!source) return;
 
         if (!Number(this.selectedProposalId)) {
             this.saveError = 'Choose an editable proposal before saving research notes.';
@@ -3311,7 +3362,6 @@ Alpine.store('literatureSearch', {
 
         this.synthesisSource = linkedSource;
         this.synthesisSourceIsSaved = true;
-        this.synthesisApplyTo = applyTo;
         this.synthesisDraft = String(linkedSource.rrl_note || '').trim();
         this.synthesisNotice = '';
         this.synthesisError = '';
@@ -3417,7 +3467,6 @@ Alpine.store('literatureSearch', {
     async confirmSynthesis() {
         const draft = this.synthesisDraft.trim();
         const source = this.synthesisSource;
-        const applyTo = this.synthesisApplyTo;
         if (!source || draft.length < 40 || this.isSynthesizing) {
             this.synthesisError = 'Review or write a complete RRL paragraph before inserting it.';
             return;
@@ -3427,7 +3476,7 @@ Alpine.store('literatureSearch', {
 
         if (!saved) return;
 
-        this.redirectToDetailedProposal(source, applyTo);
+        this.redirectToDetailedProposal(source, 'both');
     },
 
     async saveResult(result, applyTo = null, rrlNote = null) {
@@ -3540,7 +3589,7 @@ Alpine.store('literatureSearch', {
         }
 
         if (['rrl', 'both'].includes(applyTo)) {
-            await this.prepareSynthesis(source, applyTo, true);
+            await this.prepareSynthesis(source, true);
             return;
         }
 
@@ -4613,10 +4662,10 @@ Alpine.data('notificationMenu', (config) => ({
     async acceptProposalInvitation(item) {
         const actionData = item.data.action_data || {};
         const proposalTitle = actionData.proposal_title || 'this research proposal';
-        const inviterName = actionData.inviter_name || 'The proposal owner';
+        const inviterName = actionData.inviter_name || 'The project leader';
         const confirmed = await showProposalConfirmation({
-            title: 'Join proposal workspace?',
-            text: `${inviterName} invited you to join the project team for “${proposalTitle}”. Do you want to accept?`,
+            title: 'Project staff invitation',
+            text: `${inviterName} invited you to serve as project staff for “${proposalTitle}”. Do you want to accept?`,
             confirmButtonText: 'Accept invitation',
             cancelButtonText: 'Not now',
             icon: 'question',
@@ -4646,7 +4695,7 @@ Alpine.data('notificationMenu', (config) => ({
         await this.markNotificationRead(item);
 
         await Swal.fire({
-            title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'You joined the project team',
+            title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'Project staff membership confirmed',
             text: payload.workload_warning || `You can now access the current draft “${proposalTitle}”.`,
             icon: payload.workload_warning ? 'warning' : 'success',
             confirmButtonText: 'Open draft',
@@ -8312,7 +8361,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             .filter(Boolean)
             .join(' ');
 
-        return name || 'New team member';
+        return name || 'New project staff member';
     },
 
     isComplete() {
@@ -9041,13 +9090,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             template.innerHTML = this.literatureCitationFieldValue(field?.key);
             const hasMarker = [...template.content.querySelectorAll('[data-proposal-citation]')]
                 .some((marker) => Number(marker.getAttribute('data-proposal-citation')) === citation.source_link_id);
-            if (hasMarker) return true;
-            const selectedText = this.plainText(citation.selected_text).toLowerCase().replace(/\s+/g, ' ');
-            const fieldText = this.plainText(this.literatureCitationFieldValue(field?.key))
-                .toLowerCase()
-                .replace(/\s+/g, ' ');
-
-            return Boolean(field && selectedText && fieldText.includes(selectedText));
+            return Boolean(field && hasMarker);
         });
     },
 
@@ -9129,16 +9172,16 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             .toLowerCase()
             .replace(/\s+/g, ' ')
             .trim();
-        const identities = this.literatureSources
-            .flatMap((source) => [source.doi, source.title])
+        const identities = this.citationReferenceSources()
+            .map((source) => source.reference)
             .map((identity) => normalize(identity))
-            .filter((identity) => identity.length >= 8);
+            .filter(Boolean);
         const seenManualReferences = new Set();
 
         [...template.content.querySelectorAll('[data-proposal-managed-reference], p, li')].forEach((block) => {
             const text = normalize(block.textContent || '');
             const isManagedReference = block.hasAttribute('data-proposal-managed-reference')
-                || identities.some((identity) => text.includes(identity));
+                || identities.includes(text);
 
             if (isManagedReference || (text && seenManualReferences.has(text))) {
                 block.remove();
@@ -9232,15 +9275,17 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             fieldId: field.id,
             fieldKey: field.key,
             sectionLabel: field.label,
-            selectedText: currentSelection.selectedText,
+            selectedText: selection.editing ? '' : currentSelection.selectedText,
             collapsed: currentSelection.collapsed,
             contextText: currentSelection.contextText,
+            editing: Boolean(selection.editing),
         };
         this.citationPickerQuery = '';
         this.citationPickerResults = [];
         this.citationPickerError = '';
-        this.citationPickerLocator = '';
         this.openSourceWorkspace('paper', true);
+        this.citationPickerLocator = proposalCitationLocator(selection.locator);
+        if (selection.editing) this.sourceWorkspaceCitationSource = this.literatureSources.find((source) => Number(source.id) === Number(selection.sourceId)) || null;
     },
 
     openSourceWorkspaceFromToolbar(selection) {
@@ -9260,7 +9305,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     sourceWorkspaceCanCite() {
         const field = proposalCitationField(this.citationPickerSelection?.fieldId);
         const textarea = field ? document.getElementById(field.id) : null;
-        return Boolean(proposalCitationSelection(field?.id, textarea?._semanticEditor, textarea?._semanticCitationRange));
+        return Boolean(this.sourceWorkspaceCitationMode) && Boolean(proposalCitationSelection(field?.id, textarea?._semanticEditor, textarea?._semanticCitationRange))
+            && (!this.citationPickerSelection?.editing || Boolean(textarea?._semanticCitationEditingMarker?.isConnected));
     },
 
     insertSourceWorkspaceDraft(draft, fieldId = this.sourceWorkspaceDestination || 'related-literature') {
@@ -9439,8 +9485,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             this.synchronizeLiteratureCitations();
             this.literatureSourceNotice = `Citation added to ${this.citationPickerSelection.sectionLabel}; its IEEE reference is synchronized in Section XVI.`;
-            this.closeSourceWorkspace();
-            this.closeCitationPicker();
+            if (!this.sourceWorkspaceOpen) this.closeCitationPicker();
             return true;
         } catch (error) {
             if (!markerInserted) this.literatureCitations = previousCitations;
@@ -10288,6 +10333,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             : this.detailedProposalFingerprint(form);
 
         form.addEventListener('input', () => this.triggerDetailedProposalAutoSave());
+        form.addEventListener('input', (event) => {
+            const citationField = proposalCitationField(event.target.id) || proposalCitationFieldIds()
+                .map((fieldId) => document.getElementById(fieldId))
+                .find((field) => field?._semanticEditor?.contains(event.target));
+            if (citationField) this.$nextTick(() => this.synchronizeLiteratureCitations());
+        });
         form.addEventListener('change', () => this.triggerDetailedProposalAutoSave());
         form.addEventListener('input', (event) => this.clearDetailedProposalFieldHighlight(event.target));
         form.addEventListener('change', (event) => this.clearDetailedProposalFieldHighlight(event.target));

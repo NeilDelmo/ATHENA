@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { chromium, expect } from '@playwright/test';
 
 function workspace(kind = 'finder') {
@@ -11,9 +12,19 @@ function workspace(kind = 'finder') {
         $app = require 'bootstrap/app.php';
         $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
         Illuminate\Support\Facades\View::share('errors', new Illuminate\Support\ViewErrorBag);
-        echo ($argv[1] ?? 'finder') === 'proposal'
-            ? view('faculty.proposal-drafts.detailed-proposal.partials.literature-workspace')->render()
-            : Illuminate\Support\Facades\Blade::render('<x-rrl-finder />');
+        if (($argv[1] ?? 'finder') === 'proposal') {
+            echo view('faculty.proposal-drafts.detailed-proposal.partials.literature-workspace')->render();
+        } else {
+            Illuminate\Support\Facades\Auth::setUser(App\Models\User::factory()->make(['id' => 7]));
+            $drafts = collect([(new App\Models\ProposalDraft)->forceFill(['id' => 42, 'user_id' => 7, 'project_title' => 'Community coastal monitoring'])]);
+            if (($argv[1] ?? '') === 'pickers') {
+                $drafts->push((new App\Models\ProposalDraft)->forceFill(['id' => 43, 'user_id' => 8, 'project_title' => 'Mobile Nutrition Tracking App for Pregnant and Lactating Mothers in Rural Coastal Communities'])->setRelation('owner', (new App\Models\User)->forceFill(['name' => 'Djanisse Villaflor'])));
+                foreach (range(44, 70) as $id) {
+                    $drafts->push((new App\Models\ProposalDraft)->forceFill(['id' => $id, 'user_id' => 7, 'project_title' => 'Research proposal '.$id]));
+                }
+            }
+            echo Illuminate\Support\Facades\Blade::render('<x-rrl-finder :proposal-drafts="$drafts" />', ['drafts' => ($argv[1] ?? '') === 'empty' ? collect() : $drafts]);
+        }
     `, kind], { encoding: 'utf8', cwd: resolve('.') });
     assert.equal(result.status, 0, (result.stderr || result.stdout).slice(-3000));
     return result.stdout;
@@ -31,6 +42,97 @@ const results = [
     { title: 'Participation in coastal conservation', authors: 'Ana Reyes', year: 2024, source: 'Crossref', venue: 'Marine Studies', doi: '10.1234/coastal', citation_count: 8, description: 'A study of community participation in coastal conservation.', access_status: 'metadata_only' },
 ];
 
+function finderStore(request) {
+    let state;
+    const navigations = [];
+    const dataset = {
+        literatureLibrarySaveUrl: '/library',
+        literatureAttachUrlTemplate: '/proposals/__proposal__/sources/__source__',
+        literatureSynthesisUrl: '/synthesis',
+        literatureDraftUpdateUrlTemplate: '/proposals/__proposal__/links/__link__/draft',
+        detailedProposalUrlTemplate: '/proposals/__proposal__/paper',
+    };
+    runInNewContext(store, {
+        Alpine: { store(name, value) { state = value; } },
+        document: { querySelector: (selector) => selector === '[data-rrl-workspace]' ? { dataset } : { content: 'token' }, body: { classList: { add() {}, remove() {} } } },
+        window: { location: { origin: 'https://athena.test', assign: (url) => navigations.push(url) }, setTimeout() {} },
+        fetch: request,
+        URL,
+    });
+    state.selectedProposalId = '42';
+    return { state, navigations };
+}
+
+test('RRL preparation saves and links once, then requires reviewed confirmation before inserting prose and its reference', async () => {
+    const calls = [];
+    const source = { ...results[0], description: 'Community participation supported monitoring across the coastal communities described in this study. Methods and limitations still require checking the full paper.' };
+    const linked = { id: 12, literature_source_id: 8, ...source };
+    const paragraph = 'The abstract describes community participation in coastal monitoring, providing a starting point for this study. The full paper must be reviewed to assess its methods and limitations.';
+    const { state, navigations } = finderStore(async (url, options) => {
+        const body = JSON.parse(options.body);
+        calls.push({ url, body });
+        const payload = url === '/library' ? { source: { id: 8, ...source } }
+            : url === '/synthesis' ? { synthesis: paragraph, basis: 'abstract' }
+                : { source: { ...linked, ...(body.rrl_note ? { rrl_note: body.rrl_note, rrl_draft_status: body.rrl_draft_status, rrl_evidence_basis: body.rrl_evidence_basis } : {}) } };
+        return new Response(JSON.stringify(payload), { status: 200 });
+    });
+    await state.prepareSynthesis(source);
+    assert.deepEqual(calls.map((call) => call.url), ['/library', '/proposals/42/sources/8', '/synthesis', '/proposals/42/links/12/draft']);
+    assert.equal(state.sharedSources.length, 1);
+    assert.equal(state.synthesisReviewOpen, true);
+    assert.equal(state.synthesisSource.rrl_draft_status, 'draft');
+    assert.equal(calls[2].body.evidence_basis, 'abstract');
+    assert.deepEqual(navigations, []);
+    state.synthesisDraft = `${paragraph} Reviewed wording.`;
+    await state.confirmSynthesis();
+    assert.equal(calls.at(-1).body.rrl_draft_status, 'confirmed');
+    assert.equal(calls.at(-1).body.rrl_note, state.synthesisDraft);
+    const destination = new URL(navigations[0]);
+    assert.equal(destination.searchParams.get('literature_source'), '12');
+    assert.equal(destination.searchParams.get('apply_to'), 'both');
+    assert.equal(destination.hash, '#related-literature');
+});
+
+test('adding a shared source to a proposal links it without generating or confirming RRL prose', async () => {
+    const calls = [];
+    const { state, navigations } = finderStore(async (url, options) => {
+        calls.push({ url, body: JSON.parse(options.body) });
+        return new Response(JSON.stringify({ source: { id: 12, literature_source_id: 8, ...results[0] } }), { status: 201 });
+    });
+    await state.useLibrarySource({ id: 8, ...results[0] }, 'reference');
+    assert.deepEqual(calls, [{ url: '/proposals/42/sources/8', body: {} }]);
+    assert.equal(state.synthesisReviewOpen, false);
+    assert.equal(state.synthesisDraft, '');
+    assert.equal(new URL(navigations[0]).searchParams.get('apply_to'), 'reference');
+});
+
+test('a failed proposal link keeps its shared source and does not generate a draft or navigate', async () => {
+    const { state, navigations } = finderStore(async (url) => new Response(JSON.stringify(url === '/library'
+        ? { source: { id: 8, ...results[0] } } : { message: 'Forbidden' }), { status: url === '/library' ? 201 : 403 }));
+    await state.prepareSynthesis(results[0]);
+    assert.equal(state.sharedSources[0].id, 8);
+    assert.equal(state.saveError, 'You no longer have permission to edit that proposal.');
+    assert.equal(state.synthesisReviewOpen, false);
+    assert.deepEqual(navigations, []);
+    assert.equal(state.savingResultKeys.length, 0);
+});
+
+test('external source entry saves to the shared library without silently linking the previously selected proposal', async () => {
+    const calls = [];
+    const { state, navigations } = finderStore(async (url, options) => {
+        calls.push({ url, body: JSON.parse(options.body) });
+        return new Response(JSON.stringify({ source: { id: 8, ...results[0], reference: 'Unnumbered IEEE reference' } }), { status: 201 });
+    });
+    state.externalSource.title = results[0].title;
+    state.externalSource.doi = results[0].doi;
+    await state.saveExternalSource();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, '/library');
+    assert.equal(state.externalReference, 'Unnumbered IEEE reference');
+    assert.equal(state.saveNotice.includes('Choose Add to proposal'), true);
+    assert.deepEqual(navigations, []);
+});
+
 test('literature search keeps optional controls quiet and works in both themes on mobile and desktop', async () => {
     const html = workspace();
     assert.equal(/<details|<summary/.test(html), false);
@@ -45,7 +147,7 @@ test('literature search keeps optional controls quiet and works in both themes o
                 await page.addScriptTag({ content: `${helpers}
                     window.fetch = async (url, options) => {
                         window.searchRequest = JSON.parse(options.body);
-                        return new Promise((done) => { window.finishSearch = (results) => done(new Response(JSON.stringify({results}), {status: 200, headers: {'Content-Type': 'application/json'}})); });
+                        return new Promise((done) => { window.finishSearch = (payload) => done(new Response(JSON.stringify(payload), {status: 200, headers: {'Content-Type': 'application/json'}})); });
                     };
                     document.addEventListener('alpine:init', () => {
                         ${store}
@@ -82,13 +184,24 @@ test('literature search keeps optional controls quiet and works in both themes o
                 const payload = await page.evaluate(() => window.searchRequest);
                 assert.equal(payload.year_from, 2020);
                 assert.equal(payload.open_access, true);
-                await page.evaluate((records) => window.finishSearch(records), results);
+                await page.evaluate((records) => window.finishSearch({ results: records }), results);
                 await page.locator('[data-rrl-results-workspace]').waitFor({ state: 'visible' });
-                const second = page.locator('[data-rrl-results-table] tr[tabindex]').nth(1);
+                const second = page.locator('[data-rrl-results-table] button').nth(1);
                 await second.focus();
                 await page.keyboard.press('Enter');
-                await expect(second).toHaveAttribute('aria-selected', 'true');
+                await expect(second).toHaveAttribute('aria-pressed', 'true');
                 await expect(page.locator('[data-rrl-paper-details] h4')).toHaveText(results[1].title);
+                await expect(page.locator('[data-rrl-paper-details]').getByRole('button', { name: 'Add to proposal', exact: true })).toHaveCount(1);
+                await expect(page.locator('[data-rrl-paper-details]').getByRole('button', { name: 'Draft RRL', exact: true })).toHaveCount(1);
+                assert.equal(await page.getByRole('button', { name: /Prepare for RRL|Create research notes|Add reference|Use both/ }).count(), 0);
+                const collectionsToggle = page.getByRole('button', { name: 'Collections', exact: true });
+                await expect(collectionsToggle).toHaveAttribute('aria-expanded', 'false');
+                await collectionsToggle.click();
+                await expect(page.locator('#literature-save-options')).toBeVisible();
+                await expect(collectionsToggle).toHaveAttribute('aria-expanded', 'true');
+                await expect(page.locator('#literature-proposal-draft')).toHaveCount(0);
+                await collectionsToggle.click();
+                await expect(page.locator('#literature-save-options')).toBeHidden();
                 await expect(page.locator('#literature-publication-details')).toBeHidden();
                 const publication = page.getByRole('button', { name: 'Publication details', exact: true });
                 await publication.click();
@@ -97,15 +210,190 @@ test('literature search keeps optional controls quiet and works in both themes o
                 await expect(page.locator('#literature-publication-details')).toBeHidden();
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
                 if (process.env.LITERATURE_SCREENSHOT_DIRECTORY) {
+                    await page.locator('[data-rrl-paper-details]').evaluate((element) => { element.scrollTop = 0; });
+                    await page.locator('button[aria-controls="literature-publication-details"]').evaluate((element) => element.blur());
                     await page.screenshot({ path: resolve(process.env.LITERATURE_SCREENSHOT_DIRECTORY, `literature-results-${width}-${dark ? 'dark' : 'light'}.png`), fullPage: true });
                 }
-                await page.getByRole('tab', { name: /Saved library/ }).click();
+                await page.getByLabel('Search literature', { exact: true }).fill('babylon');
+                await page.getByRole('button', { name: 'Search', exact: true }).click();
+                await expect(page.locator('[data-literature-loading]')).toBeVisible();
+                await page.evaluate(() => window.finishSearch({
+                    results: [],
+                    query_guidance: { is_broad: true, message: '“babylon” is too broad.', suggestion: 'Add a subject, place, or time period.' },
+                }));
+                const hint = page.getByRole('status').filter({ hasText: '“babylon” is too broad.' });
+                await expect(hint).toBeVisible();
+                await expect(page.getByText('A more specific research query is needed', { exact: true })).toBeHidden();
+                assert.equal(await hint.locator('svg').count(), 0);
+                assert.equal(await hint.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                if (process.env.LITERATURE_SCREENSHOT_DIRECTORY) {
+                    await hint.screenshot({ path: resolve(process.env.LITERATURE_SCREENSHOT_DIRECTORY, `literature-query-hint-${width}-${dark ? 'dark' : 'light'}.png`) });
+                }
+                await page.getByLabel('Search literature', { exact: true }).fill('Community mangrove restoration');
+                await page.getByRole('button', { name: 'Search', exact: true }).click();
+                await page.evaluate(() => window.finishSearch({ results: [] }));
+                await expect(hint).toBeHidden();
+                await expect(page.getByText('No literature records found', { exact: true })).toBeVisible();
+                await page.getByRole('tab', { name: /Shared library/ }).click();
                 await expect(page.locator('#shared-literature-library')).toBeVisible();
                 await expect(page.locator('#literature-find-workspace')).toBeHidden();
                 assert.deepEqual(errors, []);
                 await page.close();
             }
         }
+    } finally {
+        await browser.close();
+    }
+});
+
+test('saved papers remain readable and show proposal action errors in both themes and narrow layouts', async () => {
+    const html = workspace();
+    const sources = [
+        { id: 8, ...results[0], added_by_name: 'Maria Santos', collections: [{ id: 3, name: 'Environment' }] },
+        { id: 9, ...results[1], added_by_name: 'Ana Reyes', collections: [] },
+    ];
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [320, 390, 1024, 1440]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 900 } });
+                const errors = [];
+                page.on('pageerror', (error) => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><meta name="csrf-token" content="test"><style>${styles}</style></head><body class="bg-slate-50 p-4 dark:bg-slate-950"><main class="mx-auto max-w-6xl">${html}</main></body></html>`);
+                await page.locator('[data-rrl-workspace]').evaluate((element, records) => {
+                    element.dataset.librarySources = JSON.stringify(records);
+                    element.dataset.libraryCollections = JSON.stringify([{ id: 3, name: 'Environment' }]);
+                }, sources);
+                await page.addScriptTag({ content: `${helpers}
+                    window.fetch = async () => new Response(JSON.stringify({ message: 'Forbidden' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+                    document.addEventListener('alpine:init', () => { ${store} Alpine.store('researchAssistant', { isLoading: false }); });` });
+                await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+                await page.getByRole('tab', { name: /Shared library/ }).click();
+                const library = page.locator('#shared-literature-library');
+                await expect(library.locator('article')).toHaveCount(2);
+                await expect(library.getByRole('button', { name: 'Draft RRL', exact: true }).first()).toBeDisabled();
+                const primary = library.getByRole('button', { name: 'Add to proposal', exact: true }).first();
+                const disabledColor = await primary.evaluate((element) => getComputedStyle(element).backgroundColor);
+                await page.getByRole('button', { name: 'Proposal to use shared papers with', exact: true }).click();
+                await page.getByRole('option', { name: /Community coastal monitoring/ }).click();
+                await expect(primary).toBeEnabled();
+                await expect.poll(() => primary.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(disabledColor);
+                await primary.click();
+                await expect(page.getByRole('alert').filter({ hasText: 'You no longer have permission to edit that proposal.' })).toBeVisible();
+                await page.getByRole('button', { name: 'Filter shared papers by collection', exact: true }).click();
+                await page.getByRole('option', { name: 'Environment', exact: true }).click();
+                await expect(library.locator('article')).toHaveCount(1);
+                await page.getByLabel('Search the shared literature library').fill('no matching paper');
+                await expect(library.locator('article')).toHaveCount(0);
+                await expect(library.getByText('No shared papers match these filters')).toBeVisible();
+                await page.getByLabel('Search the shared literature library').fill('');
+                await page.getByRole('button', { name: 'Filter shared papers by collection', exact: true }).click();
+                await page.getByRole('option', { name: 'All collections', exact: true }).click();
+                await expect(library.locator('article')).toHaveCount(2);
+                await expect(library.locator('article').first()).toBeVisible();
+                const actions = await library.locator('article button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+                assert.ok(actions.every((height) => height >= 44), 'Paper actions need usable touch targets');
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                if (process.env.LITERATURE_SCREENSHOT_DIRECTORY) {
+                    await page.evaluate(() => { Alpine.store('literatureSearch').saveError = ''; });
+                    await page.getByLabel('Search the shared literature library').evaluate((element) => element.blur());
+                    await page.screenshot({ path: resolve(process.env.LITERATURE_SCREENSHOT_DIRECTORY, `literature-library-${width}-${dark ? 'dark' : 'light'}.png`), fullPage: true });
+                }
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test('literature pickers search full titles and owners, support keyboard selection, and stay synchronized', async () => {
+    const html = workspace('pickers');
+    const title = 'Mobile Nutrition Tracking App for Pregnant and Lactating Mothers in Rural Coastal Communities';
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [320, 390, 1440]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 900 } });
+                const errors = [];
+                page.on('pageerror', error => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${styles}</style></head><body class="bg-slate-50 p-4 dark:bg-slate-950"><main class="mx-auto max-w-6xl">${html}</main></body></html>`);
+                await page.locator('[data-rrl-workspace]').evaluate(element => {
+                    element.dataset.libraryCollections = JSON.stringify([{ id: 3, name: 'Environment' }]);
+                });
+                await page.addScriptTag({ content: `${helpers} document.addEventListener('alpine:init', () => { ${store} Alpine.store('researchAssistant', { isLoading: false }); });` });
+                await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+                await page.getByRole('tab', { name: /Shared library/ }).click();
+                const trigger = page.locator('#library-literature-proposal');
+                await expect(trigger).toHaveAttribute('aria-haspopup', 'dialog', { timeout: 1000 });
+                await trigger.click();
+                const menu = page.getByRole('dialog', { name: 'Proposal to use shared papers with', exact: true });
+                const search = menu.getByRole('combobox');
+                await expect(search).toBeFocused();
+                const option = menu.getByRole('option', { name: new RegExp(title) });
+                await expect(option).toContainText(title);
+                await expect(option).toContainText('Shared by Djanisse Villaflor');
+                assert.equal(await menu.getByRole('listbox').evaluate(element => element.scrollHeight > element.clientHeight), true);
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+                if (process.env.LITERATURE_SCREENSHOT_DIRECTORY) {
+                    await page.screenshot({ path: resolve(process.env.LITERATURE_SCREENSHOT_DIRECTORY, `literature-proposal-menu-${width}-${dark ? 'dark' : 'light'}.png`), fullPage: true });
+                }
+                await search.fill('villaflor');
+                await expect(menu.getByRole('option')).toHaveCount(1);
+                await search.press('ArrowDown');
+                await search.press('Enter');
+                await expect(menu).toBeHidden();
+                await expect(trigger).toContainText(title);
+                await expect(trigger).toBeFocused();
+                assert.equal(await page.evaluate(() => Alpine.store('literatureSearch').selectedProposalId), '43');
+                await trigger.click();
+                await search.fill('no such proposal');
+                await expect(menu.getByRole('option')).toHaveCount(0);
+                await expect(menu.getByRole('status')).toContainText('No matches');
+                await search.press('Enter');
+                await expect(menu).toBeVisible();
+                await search.press('Escape');
+                await expect(menu).toBeHidden();
+                await expect(trigger).toBeFocused();
+                await page.evaluate(() => { Alpine.store('literatureSearch').selectedProposalId = '42'; });
+                await expect(trigger).toContainText('Community coastal monitoring');
+                await trigger.click();
+                await search.press('Tab');
+                await expect(menu).toBeHidden();
+                await trigger.click();
+                await menu.getByRole('option', { name: 'Choose a proposal', exact: true }).click();
+                assert.equal(await page.evaluate(() => Alpine.store('literatureSearch').selectedProposalId), '');
+
+                const collection = page.getByRole('button', { name: 'Filter shared papers by collection', exact: true });
+                await collection.click();
+                const collections = page.getByRole('dialog', { name: 'Filter shared papers by collection', exact: true });
+                await collections.getByRole('combobox').fill('environ');
+                await collections.getByRole('option', { name: 'Environment', exact: true }).click();
+                assert.equal(await page.evaluate(() => Alpine.store('literatureSearch').libraryCollectionFilter), '3');
+                await collection.click();
+                await page.getByRole('heading', { name: 'Browse the shared library' }).click();
+                await expect(collections).toBeHidden();
+                await page.evaluate(() => {
+                    Alpine.store('literatureSearch').collections.push({ id: 9, name: 'Public health' });
+                    Alpine.store('literatureSearch').selectedCollectionId = '9';
+                });
+                await page.getByRole('tab', { name: 'Find papers', exact: true }).click();
+                await page.evaluate(() => { Alpine.$data(document.querySelector('[data-rrl-workspace]')).saveOptionsOpen = true; });
+                await expect(page.locator('#literature-collection')).toContainText('Public health');
+                await expect(page.locator('#literature-proposal-draft')).toHaveCount(0);
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+        const page = await browser.newPage();
+        await page.setContent(workspace('empty'));
+        await page.addScriptTag({ content: `${helpers} document.addEventListener('alpine:init', () => { ${store} });` });
+        await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+        await page.getByRole('tab', { name: /Shared library/ }).click();
+        await expect(page.locator('#library-literature-proposal')).toBeDisabled();
+        await expect(page.locator('#library-literature-proposal')).toContainText('No editable proposal');
     } finally {
         await browser.close();
     }

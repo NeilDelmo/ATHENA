@@ -172,18 +172,18 @@
                     <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-950/80 dark:bg-red-950/20 sm:p-5">
                         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Proposal workspace</p>
-                                <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add a workspace member</h4>
-                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Search the available team members and add them directly as project staff.</p>
+                                <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Project team</p>
+                                <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add from the project team</h4>
+                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Search the project team and add staff to this proposal.</p>
                             </div>
                             <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" x-text="`${availableWorkspacePeople().length} available`"></span>
                         </div>
 
                         <div class="relative mt-4" x-on:click.outside="workspacePickerOpen = false">
-                            <label for="workspace-person-search" class="sr-only">Search workspace members</label>
+                            <label for="workspace-person-search" class="sr-only">Search project team</label>
                             <div class="relative">
                                 <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.474 9.765l3.63 3.63a.75.75 0 0 0 1.06-1.06l-3.629-3.63A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
-                                <input id="workspace-person-search" type="search" autocomplete="off" placeholder="Search workspace members" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-person-options" class="block w-full rounded-xl border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                                <input id="workspace-person-search" type="search" autocomplete="off" placeholder="Search project team" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-person-options" class="block w-full rounded-xl border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
                             </div>
                             <div id="workspace-person-options" x-show="workspacePickerOpen" x-transition.origin.top x-cloak role="listbox" class="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-xl shadow-gray-900/10 dark:border-slate-700 dark:bg-slate-800">
                                 <template x-for="person in filteredWorkspacePeople()" :key="person.key">
@@ -200,7 +200,7 @@
                                     </button>
                                 </template>
                                 <div x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center">
-                                    <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No available workspace member matches your search.</p>
+                                    <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No available project team member matches your search.</p>
                                     <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Members already on the project staff list are hidden.</p>
                                 </div>
                             </div>
@@ -209,7 +209,7 @@
 
                     <div class="flex flex-col justify-between rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:p-5">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">External team member</p>
+                            <p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">External project staff</p>
                             <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add someone manually</h4>
                             <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Enter the external staff member&rsquo;s optional professional title, name, email, and 11-digit contact number manually.</p>
                         </div>
@@ -230,7 +230,7 @@
                     </div>
                     <div class="flex min-w-0 flex-col">
                         <label for="leader-name" class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300"><span>IV. Project Leader:</span><span class="text-[9px] text-red-600">Required</span></label>
-                        <input id="leader-name" name="project_leader" type="text" required maxlength="120" list="detailed-proposal-member-names" x-model="projectLeader" x-on:change="syncProjectLeader()" placeholder="Type or choose a workspace member" aria-describedby="leader-name-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                        <input id="leader-name" name="project_leader" type="text" required maxlength="120" list="detailed-proposal-member-names" x-model="projectLeader" x-on:change="syncProjectLeader()" placeholder="Type or choose a project team member" aria-describedby="leader-name-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
                         <p id="leader-name-help" class="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-slate-400">Changes also update Project Details and the prepared-by name.</p>
                     </div>
                     <div class="flex min-w-0 flex-col"><label for="leader-email" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300">Email Address</label><input id="leader-email" name="leader_email" type="email" required maxlength="255" x-model="leaderEmail" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></div>
@@ -241,7 +241,7 @@
                 <div class="mt-5 border-t border-gray-100 pt-5 dark:border-slate-800">
                     <div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Staff (s):</p><p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Each staff member can have an optional professional title.</p></div><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600 dark:bg-slate-800 dark:text-slate-300" x-text="`${staff.length} ${staff.length === 1 ? 'member' : 'members'}`"></span></div>
                     <div class="mt-4 space-y-3">
-                    <p x-show="staff.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">No project staff added yet. Choose a workspace member or add an external person above.</p>
+                    <p x-show="staff.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">No project staff added yet. Choose someone from the project team or add external project staff above.</p>
                     <template x-for="(member, index) in staff" :key="member.id">
                         <div class="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-2">
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:text-slate-400">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>

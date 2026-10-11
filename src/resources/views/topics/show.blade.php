@@ -78,11 +78,14 @@
         if (($initialTopicTab === 'monitoring' && ! $canViewMonitoring) || ($initialTopicTab === 'notice' && ! $canViewNoticeToProceed)) {
             $initialTopicTab = 'details';
         }
+        if (session('project_documents_open') || $errors->getBag('projectDocuments')->any()) {
+            $initialTopicTab = 'files';
+        }
 
     @endphp
 
     <x-slot name="header">
-        <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal')">
+        <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal')" :class="$canViewMonitoring ? 'project-page-header' : ''">
             <x-slot name="actions">
                     @if ($sampleProposalDraft)
                         <a href="{{ route('faculty.proposal-drafts.show', $sampleProposalDraft) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-900 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Open sample proposal draft</a>
@@ -91,7 +94,7 @@
                         <a href="{{ route('research.show', $sampleReportProject) }}#project-monitoring" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800">Open editable report sample</a>
                     @endif
                     @if ($topic->isDisseminationAvailable() && Auth::user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo(Auth::user()))
-                        <a data-find-journals href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">
+                        <a data-find-journals href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path stroke-linecap="round" d="m16 16 4 4"/></svg>
                             Find journals
                         </a>
@@ -114,23 +117,23 @@
         </x-page-header>
     </x-slot>
 
-    <x-project-document-drawer :topic="$topic" :library="$projectDocumentLibrary" />
-
     <div
         class="mx-auto max-w-7xl space-y-6"
         data-topic-workspace
         x-data="{
-            floatingBackLinkObserver: null,
             activeTopicTab: @js($initialTopicTab) || (
+                window.location.hash === '#project-files' ? 'files' :
                 ['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
                         ? (@js($canViewNoticeToProceed) ? 'notice' : 'details')
-                    : (@js($canViewMonitoring) && (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))))
+                    : (@js($canViewMonitoring) && (['#project-monitoring', '#quarterly-reports', '#progress-reports', '#terminal-reports'].includes(window.location.hash) || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))))
                         ? 'monitoring'
+                        : window.location.hash === '#proposal-details'
+                        ? 'details'
                         : window.location.hash === '#version-history'
                         ? 'history'
-                        : @js($isResearchOffice || $canDecide || ($isResearchHead && $topic->status === 'revision_requested') ? 'review' : 'details')
+                        : @js($canViewMonitoring ? 'monitoring' : ($isResearchOffice || $canDecide || ($isResearchHead && $topic->status === 'revision_requested') ? 'review' : 'details'))
             ),
             decisionHistoryOpen: false,
             setTopicTab(tab, hash) {
@@ -138,36 +141,23 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                if (['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
+                if (window.location.hash === '#project-files') {
+                    this.activeTopicTab = 'files';
+                } else if (['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
                     this.activeTopicTab = @js($canViewNoticeToProceed) ? 'notice' : 'details';
-                } else if (@js($canViewMonitoring) && (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))) {
+                } else if (@js($canViewMonitoring) && (['#project-monitoring', '#quarterly-reports', '#progress-reports', '#terminal-reports'].includes(window.location.hash) || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))) {
                     this.activeTopicTab = 'monitoring';
                 } else if (window.location.hash === '#version-history') {
                     this.activeTopicTab = 'history';
                 } else {
-                    this.activeTopicTab = 'details';
+                    this.activeTopicTab = window.location.hash === '#proposal-details' ? 'details' : @js($canViewMonitoring ? 'monitoring' : 'details');
                 }
                 this.scrollToTopicHash();
             },
             init() {
-                this.$nextTick(() => {
-                    this.floatingBackLinkObserver = new ResizeObserver(() => {
-                        this.$el.style.setProperty('--athena-topic-back-link-height', `${this.$refs.workspaceBackLink.getBoundingClientRect().height}px`);
-                        const statusManager = this.$el.querySelector('[data-project-status-manager]');
-                        this.$el.style.setProperty('--athena-topic-status-height', `${statusManager?.getBoundingClientRect().height ?? 0}px`);
-                    });
-                    this.floatingBackLinkObserver.observe(this.$refs.workspaceBackLink);
-                    const statusManager = this.$el.querySelector('[data-project-status-manager]');
-                    if (statusManager) {
-                        this.floatingBackLinkObserver.observe(statusManager);
-                    }
-                });
                 this.scrollToTopicHash();
-            },
-            destroy() {
-                this.floatingBackLinkObserver?.disconnect();
             },
             scrollToTopicHash() {
                 if (window.location.hash === '#notice-to-proceed') {
@@ -191,13 +181,11 @@
                 this.scrollToProjectMonitoring();
             },
             scrollToProjectMonitoring() {
-                if (window.location.hash !== '#project-monitoring' && ! (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))) {
+                if (!['#project-monitoring', '#quarterly-reports', '#progress-reports', '#terminal-reports'].includes(window.location.hash) && ! (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))) {
                     return;
                 }
                 this.$nextTick(() => {
-                    const targetId = (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))
-                        ? window.location.hash.slice(1)
-                        : 'project-monitoring';
+                    const targetId = window.location.hash.slice(1);
                     const section = document.getElementById(targetId) || document.getElementById('project-monitoring');
                     if (!section) {
                         return;
@@ -208,6 +196,7 @@
             },
         }"
         @hashchange.window="syncTopicTab()"
+        @open-project-documents.window="setTopicTab('files', 'project-files')"
     >
         @if (session('revision_submitted'))
             <div id="revision-submitted" data-revision-submission-success role="status" class="rounded-2xl border border-green-200 bg-green-50 p-5 text-green-950 shadow-sm dark:border-green-900 dark:bg-green-950/40 dark:text-green-100">
@@ -241,8 +230,38 @@
         @endif
 
         <div class="space-y-3">
-            <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal workspace sections">
-                <div class="flex shrink-0 gap-1" role="tablist" aria-label="Proposal workspace sections">
+            @if ($canViewMonitoring)
+                @php
+                    $projectRecordSections = collect([
+                        ['id' => 'proposal-details', 'tab' => 'details', 'hash' => 'proposal-details', 'label' => 'Proposal'],
+                        ['id' => 'proposal-review', 'tab' => 'review', 'hash' => $reviewTabHash, 'label' => 'Review history'],
+                        ['id' => 'notice-to-proceed', 'tab' => 'notice', 'hash' => 'notice-to-proceed', 'label' => 'Released documents'],
+                        ['id' => 'version-history', 'tab' => 'history', 'hash' => 'version-history', 'label' => 'Versions'],
+                    ])->filter(fn ($section) => $section['tab'] !== 'notice' || $canViewNoticeToProceed);
+                @endphp
+                <nav data-project-workspace-navigation role="tablist" aria-label="Project workspace sections" class="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+                    <div class="flex min-w-0 flex-wrap gap-x-5">
+                    <button id="project-monitoring-tab-button" type="button" role="tab" aria-controls="project-monitoring-tab" :aria-selected="activeTopicTab === 'monitoring'" @click="setTopicTab('monitoring', 'project-monitoring')" :class="activeTopicTab === 'monitoring' ? 'border-slate-900 text-slate-950 dark:border-white dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'" class="inline-flex min-h-14 shrink-0 items-center border-b-2 text-base font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">
+                        {{ $topic->isCompletedProject() ? 'Archived reports' : 'Monitoring & reports' }}
+                    </button>
+                    <button id="project-files-tab-button" type="button" role="tab" aria-controls="project-files-tab" :aria-selected="activeTopicTab === 'files'" @click="setTopicTab('files', 'project-files')" :class="activeTopicTab === 'files' ? 'border-slate-900 text-slate-950 dark:border-white dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'" class="inline-flex min-h-14 shrink-0 items-center gap-2 border-b-2 text-base font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Files <span class="text-sm font-normal">{{ $projectDocumentLibrary['total'] }}</span></button>
+                    </div>
+                    <details data-project-record-menu x-ref="projectRecordMenu" class="group relative min-w-0" @click.outside="$el.open = false" @keydown.escape.prevent="$el.open = false; $el.querySelector('summary').focus()">
+                        <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs text-slate-500 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:text-white [&::-webkit-details-marker]:hidden">
+                            <span class="truncate" x-text="(@js($projectRecordSections->pluck('label', 'tab')))[activeTopicTab] || 'Project record'">Project record</span>
+                            <svg class="h-3.5 w-3.5 shrink-0 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                        </summary>
+                        <div class="absolute right-0 top-full z-40 w-56 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                            @foreach ($projectRecordSections as $recordSection)
+                                <button id="{{ $recordSection['id'] }}-tab-button" type="button" role="tab" aria-controls="{{ $recordSection['id'] }}-tab" :aria-selected="activeTopicTab === '{{ $recordSection['tab'] }}'" @click="setTopicTab('{{ $recordSection['tab'] }}', '{{ $recordSection['hash'] }}'); $refs.projectRecordMenu.open = false; $refs.projectRecordMenu.querySelector('summary').focus()" :class="activeTopicTab === '{{ $recordSection['tab'] }}' ? 'bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'" class="flex min-h-11 w-full items-center rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:hover:bg-slate-800">{{ $recordSection['label'] }}</button>
+                            @endforeach
+                        </div>
+                    </details>
+                </nav>
+                <button x-show="activeTopicTab === 'history'" x-cloak type="button" @click="decisionHistoryOpen = ! decisionHistoryOpen" data-decision-history-toggle :aria-expanded="decisionHistoryOpen.toString()" aria-expanded="false" aria-controls="decision-history-list" class="inline-flex min-h-11 items-center px-5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white sm:px-6">View Decision History ({{ $decisionReviews->count() }})</button>
+            @else
+            <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900" aria-label="{{ $canViewMonitoring ? 'Project workspace sections' : 'Proposal workspace sections' }}">
+                <div class="flex shrink-0 gap-1" role="tablist" aria-label="{{ $canViewMonitoring ? 'Project workspace sections' : 'Proposal workspace sections' }}">
                 <button id="proposal-details-tab-button" type="button" role="tab" aria-controls="proposal-details-tab" :aria-selected="activeTopicTab === 'details'" @click="setTopicTab('details', 'proposal-details')" :class="activeTopicTab === 'details' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.25A2.25 2.25 0 0 1 6.25 3h11.5A2.25 2.25 0 0 1 20 5.25v13.5A2.25 2.25 0 0 1 17.75 21H6.25A2.25 2.25 0 0 1 4 18.75V5.25Z" /><path stroke-linecap="round" d="M8 8h8M8 12h8M8 16h5" /></svg>
                     Proposal
@@ -257,16 +276,12 @@
                         {{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}
                     </button>
                 @endif
-                @if ($canViewMonitoring)
-                    <button id="project-monitoring-tab-button" type="button" role="tab" aria-controls="project-monitoring-tab" :aria-selected="activeTopicTab === 'monitoring'" @click="setTopicTab('monitoring', 'project-monitoring')" :class="activeTopicTab === 'monitoring' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V10m5.25 9.5V4.5m5.25 15v-7m5.25 7V7" /></svg>
-                        Monitoring
-                    </button>
-                @endif
+
                 <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     Versions
                 </button>
+                <button id="project-files-tab-button" type="button" role="tab" aria-controls="project-files-tab" :aria-selected="activeTopicTab === 'files'" @click="setTopicTab('files', 'project-files')" :class="activeTopicTab === 'files' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-base font-semibold transition">Files <span class="text-sm font-normal">{{ $projectDocumentLibrary['total'] }}</span></button>
                 </div>
                 <div x-show="activeTopicTab === 'history'" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
                     <button
@@ -284,6 +299,7 @@
                     </button>
                 </div>
             </nav>
+            @endif
         </div>
 
         @if (! $isFacultyRevision && Auth::user()->can('updatePackage', $topic))
@@ -387,13 +403,15 @@
                             </li>
                             @foreach ($topic->collaborators as $collaborator)
                                 <li class="flex items-start gap-3">
-                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-black text-red-700">TM</span>
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-black text-red-700">PS</span>
                                     <span class="min-w-0">
                                         <span class="block truncate text-sm font-bold text-gray-900">{{ $collaborator->name }}</span>
                                         <span class="block truncate text-xs text-gray-500">{{ $collaborator->email }}</span>
-                                        <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Accepted team member' : 'Invitation pending' }}</span>
+                                        <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Confirmed' : 'Invitation pending' }}</span>
                                         @if ($collaborator->isProjectSecretary() || $collaborator->user_id === $topic->research_secretary_id)
                                             <span class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">Project Secretary</span>
+                                        @elseif ($collaborator->accepted_at)
+                                            <span class="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gray-700">Project staff</span>
                                         @endif
                                     </span>
                                 </li>
@@ -956,6 +974,10 @@
                 @include('topics.partials.project-monitoring')
             </section>
         @endif
+
+        <section id="project-files-tab" x-show="activeTopicTab === 'files'" x-cloak role="tabpanel" aria-labelledby="project-files-tab-button">
+            <x-project-document-drawer :topic="$topic" :library="$projectDocumentLibrary" :inline="true" />
+        </section>
 
         @if ($topic->signed_approval_path)
             <a href="{{ route('topics.approval', $topic) }}" class="flex justify-center rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-black dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download previous signed approval</a>

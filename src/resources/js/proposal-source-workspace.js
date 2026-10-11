@@ -123,6 +123,7 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceOpen: false,
         sourceWorkspaceTab: 'paper',
         sourceWorkspaceView: 'list',
+        sourceWorkspaceCitationSource: null,
         sourceWorkspaceCitationMode: false,
         sourceWorkspaceQuery: '',
         sourceWorkspaceLibraryResults: [],
@@ -218,6 +219,9 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceOpen = true;
             this.lockSourceWorkspaceScroll();
             this.sourceWorkspaceCitationMode = Boolean(citationMode);
+            if (!citationMode) this.citationPickerSelection = null;
+            this.sourceWorkspaceQuery = '';
+            this.sourceWorkspaceCitationSource = null;
             this.sourceWorkspaceView = 'list';
             this.sourceWorkspaceError = '';
             this.sourceWorkspaceNotice = '';
@@ -232,6 +236,14 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceVersion++;
             this.sourceWorkspaceLoading = false;
             this.unlockSourceWorkspaceScroll();
+            const field = typeof document !== 'undefined' ? document.getElementById(this.citationPickerSelection?.fieldId) : null;
+            if (field) {
+                field._semanticApi?.restoreSelection?.();
+                field._semanticCitationRange = null;
+                field._semanticCitationEditingMarker = null;
+            }
+            this.citationPickerSelection = null;
+            this.sourceWorkspaceCitationSource = null;
             this.sourceWorkspaceReturnFocus?.focus?.();
             return true;
         },
@@ -251,20 +263,29 @@ export function proposalSourceWorkspace(config = {}) {
             if (this.sourceWorkspaceSaving || this.sourceWorkspaceAiLoading) return;
             this.sourceWorkspaceVersion++;
             this.sourceWorkspaceLoading = false;
+            if (this.sourceWorkspaceCitationMode && tab !== this.sourceWorkspaceTab) this.citationPickerLocator = '';
             this.sourceWorkspaceTab = ['paper', 'library', 'search', 'add'].includes(tab) ? tab : 'paper';
+            this.sourceWorkspaceCitationSource = null;
             this.sourceWorkspaceView = 'list';
             this.sourceWorkspaceError = '';
             this.sourceWorkspaceNotice = '';
-            if (this.sourceWorkspaceTab === 'library' && !this.sourceWorkspaceLibraryResults.length) await this.searchSourceWorkspaceLibrary();
+            if (this.sourceWorkspaceTab === 'library') await this.searchSourceWorkspaceLibrary();
         },
 
         sourceWorkspaceUrl(value) { return sourceWorkspaceSafeUrl(value); },
         sourceWorkspaceMetadata(source) { return [sourceAuthors(source?.authors), sourceText(source?.year)].filter(Boolean).join(' · ') || 'Publication details not supplied'; },
         sourceWorkspaceSelectedClaim() { return sourceText(this.citationPickerSelection?.selectedText); },
+        selectSourceWorkspaceCitation(source) {
+            if (this.sourceWorkspaceBusy()) return;
+            if (this.sourceWorkspaceSourceKey(source) !== this.sourceWorkspaceSourceKey(this.sourceWorkspaceCitationSource)) this.citationPickerLocator = '';
+            this.sourceWorkspaceCitationSource = source;
+        },
         sourceWorkspaceSources() {
             if (this.sourceWorkspaceTab === 'library') return this.sourceWorkspaceLibraryResults;
             if (this.sourceWorkspaceTab === 'search') return this.sourceWorkspaceSearchResults;
-            return this.literatureSources || [];
+            const query = this.sourceWorkspaceQuery.trim().toLowerCase();
+            return (this.literatureSources || []).filter((source) => !query
+                || [source.title, sourceAuthors(source.authors), source.doi].some((value) => sourceText(value).toLowerCase().includes(query)));
         },
         sourceWorkspaceSourceKey(source) { return sourceText(source?.id || source?.doi || source?.url || source?.title); },
         sourceWorkspaceLinkedSource(source) {
@@ -351,7 +372,7 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceError = '';
             try {
                 const linked = await this.sourceWorkspaceEnsureLinked(source);
-                this.sourceWorkspaceNotice = 'Source saved to this paper. You can cite it or open its reader.';
+                this.sourceWorkspaceNotice = 'Source added to this proposal. Read it here, or use Insert citation in the editor.';
                 return linked;
             } catch (error) { this.sourceWorkspaceError = error.message; return false; }
             finally { this.sourceWorkspaceSaving = false; }
@@ -631,9 +652,19 @@ export function proposalSourceWorkspace(config = {}) {
                     this.sourceWorkspacePendingFile = null;
                     this.sourceWorkspacePendingLinkedSource = null;
                 }
-                this.sourceWorkspaceNotice = 'Source saved and linked to this paper.';
+                this.sourceWorkspaceNotice = 'Source saved to the shared library and added to this proposal.';
                 const imported = this.sourceWorkspaceImports[Number(this.sourceWorkspaceImportIndex)];
                 if (imported) imported._saved = true;
+                if (this.sourceWorkspaceCitationMode) {
+                    this.sourceWorkspaceTab = 'paper';
+                    this.sourceWorkspaceQuery = '';
+                    this.sourceWorkspaceCitationSource = linked;
+                    this.sourceWorkspaceSaving = false;
+                    if (!await this.citeSourceWorkspaceSource(linked)) return false;
+                } else if (!this.sourceWorkspaceImports.length) {
+                    this.sourceWorkspaceTab = 'paper';
+                    this.sourceWorkspaceQuery = '';
+                }
                 return linked;
             } catch (error) { this.sourceWorkspaceError = error.message; return false; }
             finally { this.sourceWorkspaceSaving = false; }

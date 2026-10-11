@@ -333,7 +333,7 @@ class SubmitProposalDraft
                     $collaborators,
                     new ProposalActivityNotification(
                         title: 'Proposal submitted for review',
-                        message: 'The collaborative proposal “'.$topic->title.'” was submitted for Research Head review.',
+                        message: 'The research proposal “'.$topic->title.'” was submitted for Research Head review.',
                         url: route('topics.show', $topic),
                         topicId: $topic->id,
                         workspace: User::WORKSPACE_FACULTY,

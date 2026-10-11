@@ -35,7 +35,7 @@ class ProposalDraftMemberController extends Controller
 
             if ($lockedDraft->members()->count() >= 50) {
                 throw ValidationException::withMessages([
-                    'email' => 'This proposal workspace already has the maximum of 50 team members.',
+                    'email' => 'This proposal workspace already has the maximum of 50 project staff members.',
                 ]);
             }
 
@@ -62,14 +62,14 @@ class ProposalDraftMemberController extends Controller
         if (! $invitationQueued) {
             return redirect()
                 ->route('faculty.proposal-drafts.show', $proposalDraft)
-                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the team member card.')
+                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the project staff card.')
                 ->with('workload_warning', $workloadWarning);
         }
 
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', $linkedUser
-                ? 'Invitation sent to '.$linkedUser->name.'. They can contribute after accepting it in ATHENA.'
+                ? 'Invitation sent to '.$linkedUser->name.'. Their project staff access starts after accepting it in ATHENA.'
                 : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.')
             ->with('workload_warning', $workloadWarning);
     }
@@ -142,7 +142,7 @@ class ProposalDraftMemberController extends Controller
 
         $proposalDraftMember = $proposalDraft->members()->findOrFail($member);
         $name = $proposalDraftMember->name;
-        abort_if($proposalDraftMember->isAccepted(), 403, 'Accepted collaborators remain part of the project through completion.');
+        abort_if($proposalDraftMember->isAccepted(), 403, 'Confirmed project staff remain part of the project through completion.');
         abort_unless($proposalDraft->members()->whereKey($proposalDraftMember->id)->whereNull('accepted_at')->delete() === 1, 403);
 
         return redirect()

@@ -18,7 +18,8 @@ class ResearchCoordinatorController extends Controller
             ->accessibleForDocumentRelease($coordinator)
             ->awaitingDocumentRelease()
             ->with('user:id,name,college')
-            ->latest('updated_at')
+            ->orderByRaw('COALESCE(status_started_at, created_at)')
+            ->orderBy('id')
             ->paginate(10, ['*'], 'signing_page');
         $lrecProposals = TopicProposal::query()
             ->with(['user:id,name,college', 'latestVersion'])
@@ -34,7 +35,8 @@ class ResearchCoordinatorController extends Controller
             ])
             ->whereHas('user', fn (Builder $query) => $query->where('college', $coordinator->college))
             ->when(blank($coordinator->college), fn (Builder $query) => $query->whereRaw('1 = 0'))
-            ->latest()
+            ->orderByRaw('COALESCE(status_started_at, created_at)')
+            ->orderBy('id')
             ->paginate(12);
 
         return view('research_coordinator.dashboard', [

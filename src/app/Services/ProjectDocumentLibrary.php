@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProjectDocument;
+use App\Models\ProjectNarrativeReport;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
@@ -20,6 +21,23 @@ class ProjectDocumentLibrary
         private readonly CommentResponseFeedback $commentResponseFeedback,
         private readonly ProposalSignatureWorkflow $signatureWorkflow,
     ) {}
+
+    public function terminalPosterUrl(ProjectNarrativeReport $report, int $photoIndex): ?string
+    {
+        $photo = ($report->photos ?? [])[$photoIndex] ?? null;
+        $path = $photo['path'] ?? null;
+        if (! $report->isSubmitted()
+            || $report->report_type !== 'terminal'
+            || ($photo['section'] ?? null) !== 'cover'
+            || ! is_string($path)
+            || $path === ''
+            || ! Storage::disk('local')->exists($path)
+            || ! in_array(Storage::disk('local')->mimeType($path), ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            return null;
+        }
+
+        return route('project-narrative-reports.photos.view', [$report, $photoIndex]);
+    }
 
     /** @return array{categories: Collection<int, array{key: string, label: string, description: string, count: int}>, documents: Collection<int, array<string, mixed>>, total: int, canUpload: bool, uploadCategories: array<string, string>} */
     public function build(TopicProposal $topic, User $viewer): array
@@ -355,6 +373,38 @@ class ProjectDocumentLibrary
         });
 
         $topic->narrativeReports->each(function ($report) use ($documents, $seenPaths): void {
+            if (! $report->isSubmitted()) {
+                return;
+            }
+
+            if ($report->report_type === 'terminal') {
+                foreach ($report->photos ?? [] as $index => $photo) {
+                    $previewUrl = $this->terminalPosterUrl($report, $index);
+                    $path = $photo['path'] ?? '';
+                    if ($previewUrl === null || $seenPaths->contains($path)) {
+                        continue;
+                    }
+
+                    $seenPaths->push($path);
+                    $documents->push([
+                        'key' => 'terminal-report-poster-'.$report->id.'-'.$index,
+                        'category' => ProjectDocument::CATEGORY_MONITORING_REPORTS,
+                        'title' => 'Terminal report poster',
+                        'filename' => $photo['original_name'] ?? basename($path),
+                        'note' => $photo['caption'] ?? null,
+                        'source' => 'Terminal report · '.$report->submission_date?->format('M j, Y'),
+                        'uploaded_by' => $report->submitter?->name,
+                        'uploaded_at' => $report->submitted_at ?? $report->created_at,
+                        'file_size' => $photo['size'] ?? Storage::disk('local')->size($path),
+                        'view_url' => $previewUrl,
+                        'download_url' => route('project-narrative-reports.photos.download', [$report, $index]),
+                        'thumbnail_url' => $previewUrl,
+                        'preview_kind' => 'image',
+                        'official' => true,
+                    ]);
+                }
+            }
+
             if (filled($report->official_pdf_path)
                 && Storage::disk('local')->exists($report->official_pdf_path)
                 && ! $seenPaths->contains($report->official_pdf_path)) {
@@ -409,7 +459,7 @@ class ProjectDocumentLibrary
             ProjectDocument::CATEGORY_SIGNED_PAPERS => 'Signed PDFs, including accepted copies from GAD and initial screening reviews.',
             ProjectDocument::CATEGORY_REVIEWS_RESPONSES => 'Assessments, evaluations, and comment-response papers.',
             ProjectDocument::CATEGORY_NOTICE_TO_PROCEED => 'The project’s official authority to begin.',
-            ProjectDocument::CATEGORY_MONITORING_REPORTS => 'Progress, narrative, and terminal report PDFs.',
+            ProjectDocument::CATEGORY_MONITORING_REPORTS => 'Progress and terminal reports, with their project posters.',
             ProjectDocument::CATEGORY_SUPPORTING_FILES => 'References and attachments kept with the project.',
             default => 'Additional PDFs kept for the project record.',
         };

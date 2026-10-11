@@ -4,7 +4,7 @@
             <h3 class="text-lg font-bold">Find a conference for this project</h3>
             <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">Start with the suggested topic words. Compare the scope and dates on the official call before making a submission.</p>
             <details class="mt-3 text-sm">
-                <summary class="cursor-pointer font-semibold">Project context</summary>
+                <summary class="disclosure-summary cursor-pointer font-semibold">Project context</summary>
                 <p class="mt-2 whitespace-pre-line text-gray-600 dark:text-slate-300">{{ $projectAbstract ?: 'Use the project title and your manuscript keywords to narrow the search.' }}</p>
             </details>
             <form @submit.prevent="searchConferences" class="mt-5 grid gap-3 sm:grid-cols-2">
@@ -77,7 +77,7 @@
                 @if ($conference->notes)<p class="mt-3 whitespace-pre-line text-sm text-gray-600 dark:text-slate-300">{{ $conference->notes }}</p>@endif
                 @if ($canEdit)
                     <details class="mt-4 border-t border-gray-200 pt-4 dark:border-slate-700" @if ((string) old('conference_id') === (string) $conference->id) open @endif>
-                        <summary class="cursor-pointer text-sm font-bold">Update details or submission progress</summary>
+                        <summary class="disclosure-summary cursor-pointer text-sm font-bold">Update details or submission progress</summary>
                         <form method="POST" action="{{ route('research.dissemination.conferences.update', [$topic, $conference]) }}" class="mt-4 space-y-4">
                             @csrf @method('PATCH')
                             <x-project-conference-fields :conference="$conference" />

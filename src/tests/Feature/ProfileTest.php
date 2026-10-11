@@ -3,6 +3,7 @@
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
 
 test('authenticated users can view their Google managed profile', function () {
@@ -78,20 +79,93 @@ test('users can save their contact number from their profile', function () {
 });
 
 test('users can save their college and contact number together from their profile', function () {
+    $this->withoutVite();
+
     $user = User::factory()->create(['college' => null, 'contact_number' => null]);
     $college = 'College of Informatics and Computing Sciences';
     $contactNumber = '09788978768';
 
+    $response = $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertSee('data-missing-college-reminder', false)
+        ->assertSee('href="'.route('profile.edit').'#college"', false);
+
+    if (getenv('ATHENA_EXPORT_COLLEGE_REMINDER') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/college-reminder.html'), $response->getContent());
+    }
+
     $this->actingAs($user)
+        ->from(route('profile.edit'))
         ->patch(route('profile.details.update'), [
             'college' => $college,
             'contact_number' => $contactNumber,
         ])
-        ->assertRedirect()
+        ->assertRedirect(route('profile.edit'))
         ->assertSessionHas('status', 'profile-details-updated');
 
     expect($user->refresh()->college)->toBe($college)
         ->and($user->contact_number)->toBe($contactNumber);
+
+    $this->get(route('profile.edit'))
+        ->assertOk()
+        ->assertDontSee('data-missing-college-reminder', false);
+});
+
+test('missing college reminders appear across workspaces', function (string $role, string $workspace, string $dashboardRoute, ?string $college, string $anchor) {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => $role]);
+    $user = User::factory()->create(['college' => $college]);
+    $user->assignRole($role);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
+        ->actingAs($user)
+        ->get(route($dashboardRoute))
+        ->assertOk()
+        ->assertSee('data-missing-college-reminder', false)
+        ->assertSee('href="'.route('profile.edit').$anchor.'"', false);
+})->with([
+    'faculty' => ['faculty', User::WORKSPACE_FACULTY, 'faculty.dashboard', null, '#college'],
+    'researcher' => ['faculty_researcher', User::WORKSPACE_FACULTY_RESEARCHER, 'faculty.dashboard', null, '#college'],
+    'head' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, 'research_head.dashboard', null, '#college'],
+    'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.dashboard', null, '#college-locked'],
+    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard', null, '#college'],
+    'empty college' => ['faculty', User::WORKSPACE_FACULTY, 'faculty.dashboard', '', '#college'],
+    'whitespace college' => ['faculty', User::WORKSPACE_FACULTY, 'faculty.dashboard', '   ', '#college'],
+]);
+
+test('completed colleges hide the missing college reminder', function (string $college) {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'faculty']);
+    $user = User::factory()->create(['college' => $college]);
+    $user->assignRole('faculty');
+
+    $this->actingAs($user)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertDontSee('data-missing-college-reminder', false);
+})->with([User::COLLEGES['CICS'], 'CICS']);
+
+test('coordinators with no college receive Research Head guidance in every workspace', function () {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    Role::firstOrCreate(['name' => 'faculty']);
+    $user = User::factory()->create(['college' => null]);
+    $user->assignRole(['research_coordinator', 'faculty']);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->actingAs($user)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Contact the Research Head')
+        ->assertSee('href="'.route('profile.edit').'#college-locked"', false)
+        ->assertDontSee('href="'.route('profile.edit').'#college"', false);
+
+    $this->get(route('profile.edit'))
+        ->assertOk()
+        ->assertSee('Contact the Research Head')
+        ->assertSee('id="college-locked" disabled', false);
 });
 
 test('contact number must contain exactly 11 digits when provided', function () {
@@ -148,7 +222,7 @@ test('research coordinators must be removed before changing their college', func
         ->patch(route('profile.college.update'), ['college' => User::COLLEGES['CTE']])
         ->assertRedirect(route('profile.edit'))
         ->assertSessionHasErrors([
-            'college' => 'Remove your Research Office assignment before changing your college.',
+            'college' => 'Remove your Research Coordinator assignment before changing your college.',
         ]);
 
     expect($user->refresh()->college)->toBe(User::COLLEGES['CICS']);
@@ -177,8 +251,9 @@ test('research coordinators see that their college is locked', function () {
         ->get(route('profile.edit'))
         ->assertOk()
         ->assertSee('data-college-locked', false)
-        ->assertSee('College is locked while you are part of the Research Office.')
-        ->assertSee('Ask the Research Head to remove your Research Office assignment before changing it.')
+        ->assertSee('College is locked while you are a Research Coordinator.')
+        ->assertSee('Ask the Research Head to remove your Research Coordinator assignment before changing it.')
+        ->assertDontSee('data-missing-college-reminder', false)
         ->assertDontSee('action="'.route('profile.college.update').'"', false);
 });
 

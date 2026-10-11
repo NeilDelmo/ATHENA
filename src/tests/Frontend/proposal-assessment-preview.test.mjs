@@ -59,7 +59,7 @@ function renderForms() {
             'review' => $review,
             'preparedReview' => Illuminate\Support\Facades\Blade::render($input['review'], $reviewData),
             'workspace' => Illuminate\Support\Facades\Blade::render($input['section'], ['proposalDraft' => $draft, 'automaticChecklist' => $forms]),
-            'papers' => Illuminate\Support\Facades\Blade::render($input['papers'], ['proposalDraft' => $draft, 'editableChecklist' => $papers, 'templates' => collect()]),
+            'papers' => Illuminate\Support\Facades\Blade::render($input['papers'], ['proposalDraft' => $draft, 'editableChecklist' => $papers, 'templates' => collect(), 'submissionFilesPrepared' => false]),
             'gad' => Illuminate\Support\Facades\Blade::render($input['gad'], ['gadChecklist' => App\Support\GADChecklistData::fromValidated([
                 'project_title' => 'Community Survey', 'project_leader' => 'Faculty Owner',
             ])]),

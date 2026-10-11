@@ -26,9 +26,10 @@ test('hero headers keep dashboard spacing and typography with transparent conten
         </x-page-header>
         BLADE);
 
-    expect($html)->toContain('data-page-header-variant="hero"', 'border-l-4 border-[#800000]',
+    expect($html)->toContain('data-page-header-variant="hero"',
         '!bg-transparent', 'dark:!bg-transparent', 'px-5 py-4', 'text-sm font-bold uppercase tracking-[0.2em]',
-        'text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl', 'Welcome back.', 'href="/existing-action"');
+        'text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl', 'Welcome back.', 'href="/existing-action"')
+        ->not->toContain('border-l-4', 'border-[#800000]');
 });
 
 test('page header container preserves padding and places all content above the decoration', function () {
@@ -57,9 +58,10 @@ test('banner headings retain their typography attributes and actions through the
         </x-workspace-header-banner>
         BLADE);
 
-    expect($html)->toContain('data-workspace-header-banner', 'data-custom-header', '!pt-0', 'border-l-4 border-[#800000]',
+    expect($html)->toContain('data-workspace-header-banner', 'data-custom-header', '!pt-0',
         'text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl', 'Research Head', 'Dashboard', 'Your review queue.',
-        'href="/existing-action"', 'Existing action');
+        'href="/existing-action"', 'Existing action')
+        ->not->toContain('border-l-4', 'border-[#800000]');
 });
 
 test('every workspace dashboard renders the reference hero style beneath the untouched topbar', function (string $workspace, string $role, string $routeName, string $title) {
@@ -87,17 +89,18 @@ test('every workspace dashboard renders the reference hero style beneath the unt
         ->and($xpath->query('//header[@data-page-header-container]//*[@data-page-header-variant="simple"]')->length)->toBe(0)
         ->and($hero)->not->toBeNull()
         ->and(trim($xpath->query('.//h2', $hero)->item(0)->textContent))->toBe($title)
-        ->and($hero->getAttribute('class'))->toContain('border-l-4 border-[#800000]', 'px-5 py-4', 'sm:items-center sm:justify-between')
+        ->and($hero->getAttribute('class'))->toContain('px-5 py-4', 'sm:items-center sm:justify-between')
+        ->and($hero->getAttribute('class'))->not->toContain('border-l-4', 'border-[#800000]')
         ->and($hero->getAttribute('class'))->not->toContain('!border-l-0', '!px-0', '!pt-0', '!normal-case', '!tracking-normal')
         ->and($xpath->query('./div/p[1]', $hero)->item(0)->getAttribute('class'))->toContain('text-sm font-bold uppercase tracking-[0.2em]')
         ->and($xpath->query('.//h2', $hero)->item(0)->getAttribute('class'))->toContain('text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl')
         ->and($xpath->query('./div/p[2]', $hero)->item(0)->getAttribute('class'))->toContain('text-base leading-6 text-slate-500');
 })->with([
     'Research Head' => ['research_head', 'research_head', 'research_head.dashboard', 'Dashboard'],
-    'Research Office' => ['research_office', 'research_coordinator', 'research_coordinator.dashboard', 'Research Office Dashboard'],
-    'Faculty' => ['faculty', 'faculty', 'faculty.dashboard', 'Faculty'],
-    'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard', 'Your research at a glance'],
-    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard', 'Research Secretary Workspace'],
+    'Research Coordinator' => ['research_office', 'research_coordinator', 'research_coordinator.dashboard', 'Research Coordinator Dashboard'],
+    'Faculty' => ['faculty', 'faculty', 'faculty.dashboard', 'Dashboard'],
+    'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard', 'Dashboard'],
+    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard', 'Research Office / Secretary Workspace'],
 ]);
 
 test('regular workspace pages use the shared page header', function () {

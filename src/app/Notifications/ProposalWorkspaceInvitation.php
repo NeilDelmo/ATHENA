@@ -39,17 +39,17 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('ATHENA proposal invitation: '.$this->projectTitle)
+            ->subject('ATHENA project staff invitation: '.$this->projectTitle)
             ->greeting('Hello '.$this->recipientName.',')
-            ->line($this->inviterName.' invited you to join the project team for “'.$this->projectTitle.'” in ATHENA.')
+            ->line($this->inviterName.' invited you to serve as project staff for “'.$this->projectTitle.'” in ATHENA.')
             ->line($this->accountLinked
                 ? ($this->requiresAcceptance
-                    ? 'Your verified ATHENA account is ready. Review and accept the invitation in ATHENA to join this proposal workspace.'
+                    ? 'Your verified ATHENA account is ready. Review and accept the invitation in ATHENA to confirm your place on the project team.'
                     : 'Your verified ATHENA account is already linked to this proposal workspace.')
                 : 'Your workspace access will activate automatically after you sign in with the invited BatStateU Google account.')
             ->action('Open ATHENA', $this->workspaceUrl)
             ->line('Sign in using '.$this->invitedEmail.'. The shared proposal will appear in your Proposal Workspace.')
-            ->line('Team members may edit draft papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
+            ->line('Project staff may edit draft papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
     }
 
     /**

@@ -1446,7 +1446,7 @@ test('the research catalog is unavailable to regular faculty and the research he
         ->assertForbidden();
 });
 
-test('research support is available to authenticated users', function () {
+test('research support is available only in faculty workspaces', function () {
     $this->withoutVite();
 
     $researcher = User::factory()->create();
@@ -1470,7 +1470,7 @@ test('research support is available to authenticated users', function () {
 
     $this->actingAs($head)
         ->get('/research-support')
-        ->assertOk();
+        ->assertForbidden();
 });
 
 test('proposal versions are downloadable only by authorized topic participants', function () {

@@ -129,7 +129,7 @@ test('research heads can view every initial proposal submission and revision', f
             'aria-label="Monitoring"',
             'aria-label="Research projects"',
             'aria-label="Completed projects"',
-            'aria-label="Faculty directory"',
+            'aria-label="User directory"',
             'aria-label="Resources"',
             'aria-label="Signatories"',
         ], false)
@@ -140,6 +140,13 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertDontSee('aria-label="Proposal Templates"', false)
         ->assertDontSee('aria-label="Athena Knowledge"', false);
 
+    if (getenv('ATHENA_EXPORT_PROPOSAL_CONSISTENCY') === '1') {
+        $directory = storage_path('framework/testing');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.'/proposal-consistency-review.html', $response->getContent());
+    }
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
@@ -150,6 +157,8 @@ test('research heads can view every initial proposal submission and revision', f
         ->and($xpath->query('//*[@data-submission-history-layout="rows"]//details[not(@open)]')->length)->toBe(2)
         ->and($xpath->query('//*[@data-submission-history-layout="rows"]//summary[contains(@class, "list-none")]')->length)->toBe(2)
         ->and($xpath->query('//*[@data-submission-history-layout="rows"]//a[contains(@href, "#version-history")]')->length)->toBe(2);
+    expect($xpath->query('//*[@data-proposal-queue-layout="rows"]//*[@data-document-file-icon and @aria-hidden="true"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//*[@data-document-file-icon and @aria-hidden="true"]')->length)->toBe(2);
 
     $review = $topic->reviews()->create([
         'reviewer_id' => $this->researchHead->id,

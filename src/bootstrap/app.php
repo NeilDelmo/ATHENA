@@ -69,6 +69,8 @@ return Application::configure(basePath: dirname(__DIR__))
                     'project-narrative-reports.preview',
                     'project-progress.preview',
                     'research_head.topics.notice-to-proceed.store',
+                    'research_head.projects.workspace.update',
+                    'research_head.projects.workspace.documents',
                 )),
         );
     })->create();

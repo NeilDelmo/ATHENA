@@ -1018,6 +1018,73 @@ test('review previews all seven proposal papers in the shared viewer without ope
     $response->assertSee('Preview GAD Generic Checklist')->assertSee('Preview Initial Screening Form');
 })->with(['saved forms' => false, 'prepared PDFs' => true]);
 
+test('draft attachment previews use stored prepared PDFs without changing required paper actions', function (string $state) {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $document = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+
+    if ($state === 'saved forms') {
+        $draft->documents()->update(['file_path' => null, 'mime_type' => null]);
+    } elseif ($state === 'missing PDF') {
+        Storage::disk('local')->delete($document->file_path);
+    } elseif ($state === 'wrong format') {
+        $document->update(['mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+    }
+
+    $response = $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.show', $draft))->assertOk();
+    $index = $this->get(route('faculty.proposal-drafts.index'))->assertOk();
+
+    if ($state === 'prepared PDFs' && getenv('ATHENA_EXPORT_PROPOSAL_CONSISTENCY') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/proposal-consistency-draft.html'), $response->getContent());
+        File::put(storage_path('framework/testing/proposal-consistency-drafts.html'), $index->getContent());
+    }
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+
+    expect($xpath->query('//*[@data-editable-proposal-papers]//article[@data-proposal-paper]')->length)->toBe(5)
+        ->and($xpath->query('//*[@data-editable-proposal-papers]//*[@data-document-file-icon]')->length)->toBe(5)
+        ->and($xpath->query('//*[@data-editable-proposal-papers]//a[starts-with(@aria-label, "Open ")]')->length)->toBe(5)
+        ->and($xpath->query('//*[@data-editable-proposal-papers]//button[@data-proposal-paper-preview-trigger]')->length)->toBe($state === 'prepared PDFs' ? 5 : 0)
+        ->and($xpath->query('//*[@id="draft-paper-preview-panel"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-automatic-assessment-forms]//button[@data-assessment-preview-trigger]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-automatic-assessment-forms]//*[@data-document-file-icon]')->length)->toBe(2);
+
+    $index
+        ->assertSee('data-document-file-icon', false)
+        ->assertSee('Resume')
+        ->assertSee('Delete');
+
+    if ($state === 'prepared PDFs') {
+        $previewUrl = route('faculty.proposal-drafts.submission-files.download', [$draft, 'detailed-proposal']);
+        $response->assertSee('Prepared PDF');
+        $this->get($previewUrl)->assertDownload($document->original_filename)->assertHeader('Content-Type', 'application/pdf');
+    } else {
+        $response->assertSee('Submission PDFs not fully prepared')->assertDontSee('Preview PDF');
+    }
+})->with(['prepared PDFs', 'saved forms', 'missing PDF', 'wrong format']);
+
+test('prepared draft previews preserve collaborator access and locked editing', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->members()->create([
+        'user_id' => $this->otherFaculty->id,
+        'name' => $this->otherFaculty->name,
+        'email' => $this->otherFaculty->email,
+        'accepted_at' => now(),
+    ]);
+    $draft->update(['status' => ProposalDraft::STATUS_SUBMITTING]);
+    $previewUrl = route('faculty.proposal-drafts.submission-files.download', [$draft, 'detailed-proposal']);
+
+    $this->actingAs($this->otherFaculty)->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('data-proposal-paper-preview-trigger', false)
+        ->assertSee('Editing locked')
+        ->assertDontSee('>Open Research Proposal</a>', false);
+    $this->get($previewUrl)->assertOk();
+    $this->actingAs($this->head)->get($previewUrl)->assertForbidden();
+});
+
 test('project details are validated once and reused by the Work Plan workflow', function () {
     $draft = ($this->createDraft)();
 

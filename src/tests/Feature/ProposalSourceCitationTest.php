@@ -4,6 +4,8 @@ use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Services\DetailedProposalDocumentService;
+use App\Support\DetailedProposalData;
 use App\Support\ProposalRichText;
 use Spatie\Permission\Models\Role;
 
@@ -79,4 +81,40 @@ test('citation locators remain plain text in saved markup and exported narrative
         ->not->toContain('onclick')
         ->and(collect($richText->blocks($sanitized))->flatMap(fn (array $block): array => $block['runs'])->pluck('text')->implode(''))
         ->toContain('Supported wording.', '[1, p. 6]');
+});
+
+test('managed references survive autosave reopening and Word export', function () {
+    $reference = '[1] A. Reader, "Reading evidence in community monitoring," 2025.';
+    $html = '<p data-proposal-managed-reference="'.$this->link['id'].'">'.htmlspecialchars($reference, ENT_QUOTES, 'UTF-8').'</p>';
+
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), [
+        'document_version' => 0, 'save_as_draft' => '1',
+        'references' => $html,
+    ])->assertOk();
+    $document = $this->draft->documents()->where('document_type', config('proposal_papers.detailed-proposal.document_type'))->sole();
+
+    expect($document->source_data['references'])->toBe($html);
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertViewHas('sourceData', fn (array $sourceData): bool => $sourceData['references'] === $html);
+
+    $proposal = DetailedProposalData::fromValidated([
+        ...$document->source_data,
+        'project_title' => $this->draft->project_title,
+        'project_leader' => $this->draft->project_leader,
+    ]);
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'managed-reference-export-');
+    file_put_contents($temporaryPath, app(DetailedProposalDocumentService::class)->generate($proposal));
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath))->toBeTrue();
+        $xml = $archive->getFromName('word/document.xml');
+        expect(html_entity_decode($xml, ENT_QUOTES | ENT_XML1, 'UTF-8'))
+            ->toContain($reference)
+            ->not->toContain('data-proposal-managed-reference');
+    } finally {
+        $archive->close();
+        unlink($temporaryPath);
+    }
 });

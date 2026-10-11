@@ -1,105 +1,141 @@
-@props(['quarterRows', 'topic' => null])
-<section class="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900 dark:bg-slate-900" aria-labelledby="quarterly-reporting-schedule-heading">
-    <div class="border-b border-red-200 bg-red-50 px-5 py-5 dark:border-red-900 dark:bg-red-950/30 sm:px-6">
-        <h4 id="quarterly-reporting-schedule-heading" class="text-xl font-bold text-red-800 dark:text-red-300">Monitoring Tool</h4>
-        <p class="mt-2 max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300">Submit a Monitoring Tool for each three-month reporting period after it ends. The final period may be shorter.</p>
-    </div>
+@props(['quarterRows', 'progressQuarterRows', 'topic', 'canReport' => false])
 
-    <div class="overflow-x-auto" data-monitoring-schedule-table>
-        <table class="min-w-full divide-y divide-slate-200 text-left dark:divide-slate-800">
-            <caption class="sr-only">Quarterly Monitoring Tool periods and available actions</caption>
-            <thead class="bg-white dark:bg-slate-950/50">
-                <tr class="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                    <th scope="col" class="w-24 px-5 py-3 sm:px-6">Quarter</th>
-                    <th scope="col" class="min-w-[16rem] px-5 py-3">Reporting period</th>
-                    <th scope="col" class="min-w-[11rem] px-5 py-3">Status</th>
-                    <th scope="col" class="min-w-[13rem] px-5 py-3 text-right sm:px-6">Actions</th>
+@php
+    $canViewProgressReport = Auth::user()->isUsingWorkspace('research_head') || $topic->isAccessibleTo(Auth::user());
+@endphp
+
+<section id="progress-reports" class="quarterly-reports overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900" aria-labelledby="quarterly-reporting-schedule-heading">
+    <header id="quarterly-reports" class="bg-slate-200/70 px-5 py-4 text-slate-950 dark:bg-slate-800 dark:text-white sm:px-6">
+        <div>
+            <h4 id="quarterly-reporting-schedule-heading" class="text-base font-semibold">Quarterly reports</h4>
+            @if (! $topic->isCompletedProject())
+                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Submit both reports after each quarter ends. The final period may be shorter.</p>
+            @else
+                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Open a report to read the submitted paper.</p>
+            @endif
+        </div>
+    </header>
+
+    <div data-monitoring-schedule-table data-progress-schedule-table>
+        <table class="w-full table-fixed text-left">
+            <caption class="sr-only">Quarterly Monitoring Tool and Progress Report periods and available actions</caption>
+            <thead class="border-y border-slate-200 bg-slate-100 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
+                <tr>
+                    <th scope="col" class="w-2/5 px-5 py-3 font-medium sm:px-6">Reporting period</th>
+                    <th scope="col" class="w-[30%] px-1 py-3 font-medium"><span class="quarterly-report-rail">Monitoring Tool</span></th>
+                    <th scope="col" class="w-[30%] px-1 py-3 font-medium"><span class="quarterly-report-rail">Progress Report</span></th>
                 </tr>
             </thead>
             <tbody
-                x-data="{ openReportId: window.location.hash.startsWith('#monitoring-tool-') ? Number(window.location.hash.replace('#monitoring-tool-', '')) : null }"
-                class="divide-y divide-slate-100 dark:divide-slate-800"
+                x-data="{
+                    openReportId: /^#(monitoring-tool|narrative-report)-\d+$/.test(window.location.hash) ? window.location.hash.slice(1) : null,
+                    closeReport() {
+                        const trigger = $el.querySelector('button[aria-controls=&quot;' + this.openReportId + '&quot;]');
+                        if (window.location.hash === '#' + this.openReportId) {
+                            history.replaceState(history.state, '', '#project-monitoring');
+                        }
+                        this.openReportId = null;
+                        $nextTick(() => trigger?.focus());
+                    },
+                    toggleReport(id) {
+                        if (this.openReportId === id) { this.closeReport(); }
+                        else { this.openReportId = id; }
+                    }
+                }"
+                x-on:close-quarter-report.stop="closeReport()"
+                x-on:keydown.escape="if (openReportId && ! $event.target.closest('[data-quarter-pdf-preview-modal]')) { $event.stopPropagation(); closeReport(); }"
+                x-on:hashchange.window="if (/^#(monitoring-tool|narrative-report)-\d+$/.test(window.location.hash)) { openReportId = window.location.hash.slice(1) }"
             >
                 @forelse ($quarterRows as $row)
                     @php
-                        $report = $row['report'];
-                        $canSubmit = $topic && ! auth()->user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(auth()->user()) && $row['reporting_date'];
-                        $canDraft = $topic && ! auth()->user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(auth()->user()) && ($row['drafting_date'] ?? null);
-                        $statusClass = match (true) {
-                            $report?->review_status === 'reviewed' => 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
-                            $report?->review_status === 'revision_requested' => 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900',
-                            $report?->isPrepared() => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
-                            $report !== null => 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900',
-                            $row['reporting_date'] !== null => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900',
-                            default => 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
-                        };
+                        $report = ($canReport ? $topic->preparedProgressReports->first(fn ($preparedReport) => $preparedReport->reporting_date->betweenIncluded($row['start'], $row['end'])) : null) ?? $row['report'];
+                        $progressRow = $progressQuarterRows->firstWhere('quarter', $row['quarter']);
+                        $progressReport = $progressRow['report'] ?? null;
+                        $overallProgress = $row['report']?->isSubmitted() ? $row['report']->progress_percentage : null;
+                        $quarterProgress = ($row['has_approved_work_plan'] ?? false) ? ($row['quarter_completion'] ?? null) : $overallProgress;
+                        $progressLabel = ($row['has_approved_work_plan'] ?? false) ? 'quarter targets' : 'project progress';
+                        $canSubmit = $canReport && $row['reporting_date'];
+                        $canDraft = $canReport && ($row['drafting_date'] ?? null);
+                        $toolStatus = $topic->isCompletedProject() && $report === null ? 'No tool on file' : ($report?->isPrepared() ? 'PDF prepared' : $row['status']);
+                        $progressStatus = $topic->isCompletedProject() && $progressReport === null ? 'No report on file' : ($progressRow['status'] ?? 'No report on file');
                     @endphp
-                    <tr class="align-middle transition hover:bg-slate-50/70 dark:hover:bg-slate-950/30">
-                        <th scope="row" class="px-5 py-4 sm:px-6">
-                            <span class="inline-flex h-11 min-w-11 items-center justify-center rounded-xl bg-red-700 px-3 text-base font-bold text-white shadow-sm ring-1 ring-inset ring-red-800 dark:bg-red-700 dark:ring-red-600">{{ $row['label'] }}</span>
-                        </th>
-                        <td class="px-5 py-4">
-                            <p class="whitespace-nowrap text-base font-semibold text-slate-900 dark:text-white">{{ $row['period'] }}</p>
-                            @if (! $row['reporting_date'] && isset($row['opens_at']))
-                                <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Opens {{ $row['opens_at']->format('M j, Y') }}</p>
+                    <tr data-reporting-quarter="{{ $row['quarter'] }}" class="border-t border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-900">
+                        <th scope="row" class="px-5 py-3 align-top font-normal sm:px-6">
+                            <p data-reporting-period class="flex min-h-11 items-center gap-3 text-sm leading-6 text-slate-900 dark:text-white"><span class="quarterly-report-quarter">{{ $row['label'] }}</span><span>{{ $row['period'] }}</span></p>
+                            @if ($quarterProgress !== null)
+                                <div class="ml-[3.25rem] mt-2 flex max-w-64 items-center gap-3">
+                                    <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-label="{{ $row['label'] }} {{ $progressLabel }}" aria-valuenow="{{ $quarterProgress }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-slate-700 dark:bg-slate-300" style="width: {{ $quarterProgress }}%"></div></div>
+                                    <span class="shrink-0 text-xs tabular-nums text-slate-600 dark:text-slate-300">{{ $quarterProgress }}% {{ $progressLabel }}</span>
+                                </div>
+                                @if (($row['has_approved_work_plan'] ?? false) && $quarterProgress < 100 && now()->greaterThan($row['end']))
+                                    <div class="ml-[3.25rem] mt-2"><x-report-review-status status="revision_requested" label="Targets overdue" /></div>
+                                @endif
+                            @elseif ($overallProgress !== null && ($row['has_approved_work_plan'] ?? false))
+                                <span class="ml-[3.25rem] mt-1 block text-xs text-slate-500 dark:text-slate-400">No targets due this quarter</span>
                             @endif
-                        </td>
-                        <td class="px-5 py-4">
-                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold ring-1 ring-inset {{ $statusClass }}">{{ $row['status'] }}</span>
-                        </td>
-                        <td class="px-5 py-4 sm:px-6">
-                            <div class="flex min-w-max flex-wrap items-center justify-end gap-2">
+                            @if (! $topic->isCompletedProject())
+                                <span class="sr-only">{{ $row['reporting_date'] ? 'Open for submission' : 'Submission opens '.$row['opens_at']->format('M j, Y') }}</span>
+                            @endif
+                        </th>
+                        <td data-monitoring-quarter="{{ $row['quarter'] }}" class="px-1 py-3 align-top">
+                            <div class="quarterly-report-rail"><span class="quarterly-report-mobile-label">Monitoring Tool</span>
+                            <div data-report-controls class="flex flex-wrap items-center justify-start gap-1">
                                 @if ($report)
-                                    <button
-                                        type="button"
-                                        x-on:click="openReportId = openReportId === {{ $report->id }} ? null : {{ $report->id }}; if (openReportId === {{ $report->id }}) { $nextTick(() => document.getElementById('monitoring-tool-{{ $report->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })) }"
-                                        data-monitoring-action
-                                        aria-controls="monitoring-tool-{{ $report->id }}"
-                                        x-bind:aria-expanded="openReportId === {{ $report->id }}"
-                                        class="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300 dark:focus-visible:ring-offset-slate-900"
-                                    >
-                                        View tool
-                                        <svg class="h-3.5 w-3.5 transition-transform" x-bind:class="openReportId === {{ $report->id }} && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    @if (! $report->isPrepared())
+                                    <button type="button" x-on:click="toggleReport('monitoring-tool-{{ $report->id }}')" data-monitoring-action aria-controls="monitoring-tool-{{ $report->id }}" x-bind:aria-expanded="openReportId === 'monitoring-tool-{{ $report->id }}'" aria-label="View {{ $row['label'] }} monitoring tool: {{ $toolStatus }}" title="{{ $row['label'] }} Monitoring Tool · {{ $toolStatus }}" class="monitoring-report-control quarterly-report-primary">
+                                        <span>View tool</span>
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 17v-3m4 3v-5m4 5v-2" /></svg>
+                                        <x-report-review-status data-monitoring-report-status :compact="true" :status="$report?->review_status ?? 'unsubmitted'" :label="$toolStatus" />
                                     </button>
+                                    @endif
                                     @if ($canSubmit && $report->isPrepared() && $report->submitted_by === auth()->id())
-                                        <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $report->reporting_date->toDateString(), 'revise_monitoring_report' => $report->supersedes_report_id]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Review and submit</a>
+                                        <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $report->reporting_date->toDateString(), 'revise_monitoring_report' => $report->supersedes_report_id]) }}" title="Review and submit {{ $row['label'] }} monitoring tool" aria-label="Review and submit {{ $row['label'] }} monitoring tool" class="monitoring-report-control quarterly-report-primary"><span>Review and submit</span><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m-4 4 4-4 4 4M5 14v6h14v-6" /></svg><x-report-review-status data-monitoring-report-status :compact="true" :status="$report?->review_status ?? 'unsubmitted'" :label="$toolStatus" /></a>
                                     @elseif ($canSubmit && $report->review_status === 'revision_requested' && ! $report->nextVersion)
-                                        <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'revise_monitoring_report' => $report->id]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Revise tool</a>
+                                        <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'revise_monitoring_report' => $report->id]) }}" title="Revise {{ $row['label'] }} monitoring tool" aria-label="Revise {{ $row['label'] }} monitoring tool" class="monitoring-report-control"><span>Revise tool</span><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16 4 4 4M4 20l5-1L20 8a3 3 0 0 0-4-4L5 15l-1 5Z" /></svg></a>
+                                    @endif
+                                    @if ($canReport && $report->isPrepared())
+                                        <a href="{{ route('project-budget.edit', [$topic, $report]) }}" title="{{ $report->hasPreparedBudget() ? 'Review budget' : 'Complete budget' }}" aria-label="{{ $report->hasPreparedBudget() ? 'Review budget' : 'Complete budget' }}" class="monitoring-report-control {{ $canSubmit && $report->submitted_by === auth()->id() ? '' : 'quarterly-report-primary' }}"><span>{{ $report->hasPreparedBudget() ? 'Review budget' : 'Complete budget' }}</span><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m3-10h-4a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9" /></svg>@if (! $canSubmit || $report->submitted_by !== auth()->id())<x-report-review-status data-monitoring-report-status :compact="true" :status="$report?->review_status ?? 'unsubmitted'" :label="$toolStatus" />@endif</a>
+                                    @endif
+                                    @if ($report->isPrepared() && ! $canReport)
+                                        <span class="monitoring-report-control quarterly-report-primary" aria-disabled="true" role="img" aria-label="{{ $row['label'] }} monitoring tool unavailable" title="{{ $toolStatus }}"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 17v-3m4 3v-5m4 5v-2" /></svg><x-report-review-status data-monitoring-report-status :compact="true" :status="$report?->review_status ?? 'unsubmitted'" :label="$toolStatus" /></span>
                                     @endif
                                 @elseif ($canDraft)
-                                    <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $row['drafting_date']]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">{{ $canSubmit ? 'Start tool' : 'Fill draft' }}</a>
-                                @elseif (! $row['reporting_date'])
-                                    <button type="button" disabled class="inline-flex min-h-11 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">Not open yet</button>
+                                    <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $row['drafting_date']]) }}" title="{{ $canSubmit ? 'Start tool' : 'Fill draft' }} · {{ $row['label'] }} Monitoring Tool" aria-label="{{ $canSubmit ? 'Start' : 'Draft' }} {{ $row['label'] }} monitoring tool" class="monitoring-report-control quarterly-report-primary"><span>{{ $canSubmit ? 'Start tool' : 'Fill draft' }}</span><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 15h8m-4-4v8" /></svg><x-report-review-status data-monitoring-report-status :compact="true" :status="$report?->review_status ?? 'unsubmitted'" :label="$toolStatus" /></a>
                                 @else
-                                    <span class="text-sm font-semibold text-slate-400 dark:text-slate-500">No action available</span>
+                                    <span class="monitoring-report-control quarterly-report-primary" aria-disabled="true" role="img" aria-label="{{ $row['label'] }} monitoring tool unavailable" title="{{ $toolStatus }}"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 17v-3m4 3v-5m4 5v-2" /></svg><x-report-review-status data-monitoring-report-status :compact="true" :status="$report?->review_status ?? 'unsubmitted'" :label="$toolStatus" /></span>
                                 @endif
-                            </div>
+                            </div></div>
+                        </td>
+                        <td data-progress-quarter="{{ $row['quarter'] }}" class="px-1 py-3 align-top">
+                            <div class="quarterly-report-rail"><span class="quarterly-report-mobile-label">Progress Report</span>
+                            <div data-report-controls class="flex flex-wrap items-center justify-start gap-1">
+                                @if ($progressReport && ! $progressReport->isPrepared() && $canViewProgressReport)
+                                    <button type="button" x-on:click="toggleReport('narrative-report-{{ $progressReport->id }}')" data-progress-action aria-controls="narrative-report-{{ $progressReport->id }}" x-bind:aria-expanded="openReportId === 'narrative-report-{{ $progressReport->id }}'" aria-label="View {{ $row['label'] }} progress report: {{ $progressStatus }}" title="{{ $row['label'] }} Progress Report · {{ $progressStatus }}" class="monitoring-report-control quarterly-report-primary"><span>Open report</span><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5" /></svg><x-report-review-status data-narrative-report-status :compact="true" :status="$progressReport?->review_status ?? 'unsubmitted'" :label="$progressStatus" :description="$progressReport?->review_status_label" /></button>
+                                @endif
+                                @if ($canReport && ($progressRow['drafting_date'] ?? null))
+                                    <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'progress', 'reporting_date' => $progressRow['drafting_date']]) }}" aria-label="{{ $progressReport?->isPrepared() ? 'Review' : ($progressReport ? 'Revise' : 'Fill') }} {{ $row['label'] }} progress report" title="{{ $progressReport?->isPrepared() ? 'Review and submit' : ($progressReport ? 'Revise report' : ($progressRow['submission_open'] ? 'Start report' : 'Fill draft')) }} · {{ $row['label'] }} Progress Report" class="monitoring-report-control {{ $progressReport && ! $progressReport->isPrepared() && $canViewProgressReport ? '' : 'quarterly-report-primary' }}"><span>{{ $progressReport?->isPrepared() ? 'Review and submit' : ($progressReport ? 'Revise report' : ($progressRow['submission_open'] ? 'Start report' : 'Fill draft')) }}</span><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16 4 4 4M4 20l5-1L20 8a3 3 0 0 0-4-4L5 15l-1 5Z" /></svg>@if (! $progressReport || $progressReport->isPrepared() || ! $canViewProgressReport)<x-report-review-status data-narrative-report-status :compact="true" :status="$progressReport?->review_status ?? 'unsubmitted'" :label="$progressStatus" :description="$progressReport?->review_status_label" />@endif</a>
+                                @elseif (! $progressReport || ! $canViewProgressReport)
+                                    <span class="monitoring-report-control quarterly-report-primary" aria-disabled="true" role="img" aria-label="{{ $row['label'] }} progress report unavailable" title="{{ $progressStatus }}"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5" /></svg><x-report-review-status data-narrative-report-status :compact="true" :status="$progressReport?->review_status ?? 'unsubmitted'" :label="$progressStatus" :description="$progressReport?->review_status_label" /></span>
+                                @endif
+                            </div></div>
                         </td>
                     </tr>
-                    @if ($report)
-                        <tr
-                            id="monitoring-tool-{{ $report->id }}"
-                            x-cloak
-                            x-show="openReportId === {{ $report->id }}"
-                            x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
-                            x-transition:enter-start="-translate-y-2 opacity-0"
-                            x-transition:enter-end="translate-y-0 opacity-100"
-                            x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
-                            x-transition:leave-start="translate-y-0 opacity-100"
-                            x-transition:leave-end="-translate-y-2 opacity-0"
-                            class="bg-slate-50/70 dark:bg-slate-950/30"
-                        >
-                            <td colspan="4" class="p-0">
-                                <div class="border-y border-slate-200 p-5 dark:border-slate-800 sm:px-6">
-                                    <x-monitoring-tool-report-details :topic="$topic" :report="$report" />
-                                </div>
+                    @if ($report && ! $report->isPrepared())
+                        <tr id="monitoring-tool-{{ $report->id }}" x-cloak x-show="openReportId === 'monitoring-tool-{{ $report->id }}'" class="bg-slate-100 dark:bg-slate-950/40">
+                            <td colspan="3" class="border-t border-slate-200 p-3 dark:border-slate-700 sm:p-4">
+                                <x-monitoring-tool-report-details :topic="$topic" :report="$report" :closable="true" />
+                            </td>
+                        </tr>
+                    @endif
+                    @if ($progressReport && ! $progressReport->isPrepared() && $canViewProgressReport)
+                        <tr id="narrative-report-{{ $progressReport->id }}" data-narrative-history-entry="{{ $progressReport->id }}" x-cloak x-show="openReportId === 'narrative-report-{{ $progressReport->id }}'" class="bg-slate-100 dark:bg-slate-950/40">
+                            <td colspan="3" class="border-t border-slate-200 p-3 dark:border-slate-700 sm:p-4">
+                                <x-progress-report-details :report="$progressReport" :progress-percentage="$overallProgress" :closable="true" />
                             </td>
                         </tr>
                     @endif
                 @empty
-                    <tr>
-                        <td colspan="4" class="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">No reporting periods are scheduled. Check the approved project dates.</td>
-                    </tr>
+                    <tr><td colspan="3" class="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">No reporting periods are scheduled. Check the approved project dates.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -1,0 +1,1 @@
+<x-workspace-selector :user="$user" :workspaces="$workspaces" :action="$action" :field="$field" :current-workspace="$currentWorkspace" />

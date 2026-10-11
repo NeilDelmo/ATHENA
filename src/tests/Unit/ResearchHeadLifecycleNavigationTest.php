@@ -10,7 +10,7 @@ uses(TestCase::class);
 
 test('Research Head sidebar separates lifecycle destinations and exposes a report review badge', function () {
     $html = Blade::render('<x-research-head-navigation :report-review-count="4" />');
-    $labels = ['Overview', 'Dashboard', 'Calendar', 'Analytics', 'Submission', 'Research calls', 'Received submissions', 'Review', 'Proposal reviews', 'Report reviews', 'Monitoring', 'Research projects', 'Completed projects', 'Faculty directory', 'Resources', 'Signatories'];
+    $labels = ['Overview', 'Dashboard', 'Calendar', 'Analytics', 'Submission', 'Research calls', 'Received submissions', 'Review', 'Proposal reviews', 'Report reviews', 'Monitoring', 'Research projects', 'Completed projects', 'User directory', 'Resources', 'Signatories'];
     $offset = 0;
     foreach ($labels as $label) {
         $position = strpos($html, $label, $offset);

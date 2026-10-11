@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
@@ -124,14 +124,33 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 assert.equal(await page.locator('[aria-label="Text formatting"]').count(), 0);
                 const boldButton = page.getByRole('button', { name: 'Bold', exact: true });
                 assert.equal(await boldButton.isDisabled(), true);
-                assert.equal(await page.getByRole('button', { name: 'Sources', exact: true }).isDisabled(), false);
-                await page.getByRole('button', { name: 'Sources', exact: true }).click();
-                assert.deepEqual(await page.evaluate(() => window.sourceTargets), [null]);
+                assert.equal(await page.getByRole('button', { name: 'Sources', exact: true }).count(), 0);
+                assert.equal(await page.locator('[data-writing-menu-toggle]').count(), 3);
+                assert.equal(await page.locator('[data-writing-editor-expand]').count(), 2);
+                assert.equal(await page.locator('[data-writing-expand]').count(), 0);
+                await page.evaluate(() => {
+                    const field = document.createElement('textarea');
+                    field.id = 'new-method-details'; field.name = 'method_details'; field.dataset.semanticEditor = '';
+                    const label = document.createElement('label'); label.htmlFor = field.id; label.textContent = 'New method details';
+                    document.querySelector('form').append(label, field);
+                    initializeSemanticEditors();
+                });
+                const dynamicExpand = page.locator('[data-writing-editor-expand="new-method-details"]');
+                await dynamicExpand.waitFor();
+                await dynamicExpand.click();
+                await expect(dynamicExpand).toHaveAttribute('aria-expanded', 'true');
+                await dynamicExpand.click();
+                await expect(dynamicExpand).toHaveAttribute('aria-expanded', 'false');
+                await page.locator('#date').focus();
+                const citationBounds = await page.locator('[data-writing-cite]').boundingBox();
+                const toolbarBounds = await page.locator('[data-proposal-writing-toolbar]').boundingBox();
+                assert.ok(citationBounds.x >= toolbarBounds.x && citationBounds.x + citationBounds.width <= toolbarBounds.x + toolbarBounds.width);
                 assert.equal(await boldButton.locator('svg[aria-hidden="true"]').count(), 1);
-                assert.ok(await boldButton.evaluate((button) => parseFloat(getComputedStyle(button).fontSize) >= 15));
+                assert.ok(await boldButton.evaluate((button) => parseFloat(getComputedStyle(button).fontSize) >= 13));
                 assert.ok(await boldButton.evaluate((button) => parseFloat(getComputedStyle(button).opacity) >= .7));
-                assert.ok((await boldButton.boundingBox()).height >= 42);
-                for (const group of ['Text style', 'Lists', 'History', 'Insert', 'Field view']) {
+                const boldHeight = (await boldButton.boundingBox()).height;
+                assert.ok(width < 640 ? boldHeight >= 44 : boldHeight <= 36);
+                for (const group of ['Text style', 'History', 'Insert']) {
                     assert.equal(await page.getByRole('group', { name: group, exact: true }).count(), 1);
                 }
                 await rationale.evaluate((element) => {
@@ -140,6 +159,32 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 });
                 await boldButton.locator('svg').click();
                 assert.match(await page.locator('#rationale').inputValue(), /<strong>Study paragraph\.<\/strong>/);
+                const moreButton = page.getByRole('button', { name: 'More', exact: true });
+                await moreButton.click();
+                const moreMenu = page.getByRole('menu', { name: 'More formatting', exact: true });
+                await expect(moreMenu.getByRole('menuitem', { name: 'Underline', exact: true })).toBeFocused();
+                await page.keyboard.press('ArrowDown');
+                await expect(moreMenu.getByRole('menuitem', { name: 'Clear formatting', exact: true })).toBeFocused();
+                await page.keyboard.press('Escape');
+                await expect(moreButton).toBeFocused();
+                assert.equal(await moreMenu.isVisible(), false);
+                await moreButton.click();
+                await page.getByRole('button', { name: 'Hide tools', exact: true }).click();
+                await expect(page.locator('[data-writing-toolbar-controls]')).toBeHidden();
+                await page.getByRole('button', { name: 'Show tools', exact: true }).click();
+                await expect(page.locator('[data-writing-toolbar-controls]')).toBeVisible();
+                assert.equal(await moreMenu.isVisible(), false);
+                await moreButton.click();
+                await moreMenu.getByRole('menuitem', { name: 'Underline', exact: true }).click();
+                assert.match(await page.locator('#rationale').inputValue(), /<u>/);
+                await page.getByRole('button', { name: 'Lists', exact: true }).click();
+                const listsMenu = page.getByRole('menu', { name: 'Lists', exact: true });
+                const menuBounds = await listsMenu.boundingBox();
+                assert.ok(menuBounds.x >= 0 && menuBounds.x + menuBounds.width <= width);
+                await listsMenu.getByRole('menuitem', { name: 'Bullets', exact: true }).click();
+                assert.equal(await rationale.locator('ul').count(), 1);
+                await page.locator('[data-writing-command="undo"]').click();
+                assert.equal(await rationale.locator('ul').count(), 0);
                 await page.locator('[data-writing-cite]').click();
                 assert.equal((await page.evaluate(() => window.citations))[0].fieldId, 'rationale');
 
@@ -150,14 +195,27 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 assert.equal(caretCitation.fieldId, 'rationale');
                 assert.equal(caretCitation.selectedText, '');
                 assert.equal(caretCitation.collapsed, true);
-                await page.getByRole('button', { name: 'Sources', exact: true }).click();
-                assert.equal((await page.evaluate(() => window.sourceTargets)).at(-1).fieldId, 'rationale');
+                await rationale.evaluate((element) => {
+                    document.execCommand('insertHTML', false, '<span data-proposal-citation="42" contenteditable="false"> [1]</span>&nbsp;');
+                    const range = document.createRange(); range.selectNodeContents(element);
+                    const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+                    element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                });
+                await moreButton.click();
+                await moreMenu.getByRole('menuitem', { name: 'Clear formatting', exact: true }).click();
+                assert.equal(await rationale.locator('strong, u').count(), 0);
+                assert.equal(await rationale.locator('[data-proposal-citation="42"]').count(), 1);
+                await rationale.press('ControlOrMeta+End');
+                await page.getByRole('button', { name: 'Insert', exact: true }).click();
                 await page.locator('[data-writing-table]').click();
                 await page.locator('[data-table-rows]').fill('3');
                 await page.locator('[data-writing-insert-table]').click();
                 assert.equal(await rationale.locator('tr').count(), 3);
                 assert.equal(await rationale.locator('th').count(), 2);
-                assert.match(await rationale.locator('table').evaluate((table) => table.previousElementSibling?.textContent || ''), /Study paragraph/);
+                assert.match(await rationale.locator('table').evaluate((table) => {
+                    const range = document.createRange(); range.selectNodeContents(table.parentElement); range.setEndBefore(table);
+                    return range.toString();
+                }), /Study paragraph/);
                 await rationale.locator('th').first().click();
                 await rationale.press('Tab');
                 assert.equal(await page.evaluate(() => {
@@ -193,16 +251,16 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 assert.equal(await rationale.locator('tr').count(), 2);
                 await page.locator('[data-writing-command="redo"]').click();
                 assert.equal(await rationale.locator('table').count(), 0);
+                await page.getByRole('button', { name: 'Insert', exact: true }).click();
                 await page.locator('[data-writing-image]').click();
                 assert.deepEqual(await page.evaluate(() => window.imageTargets), ['rationale']);
-                await page.locator('[data-writing-expand]').click();
+                const expandButton = page.locator('[data-writing-editor-expand="rationale"]');
+                await expandButton.click();
                 assert.ok((await rationale.boundingBox()).height >= 320);
-                const shrinkButton = page.getByRole('button', { name: 'Shrink field', exact: true });
-                assert.equal(await shrinkButton.locator('.proposal-writing-shrink-icon').isVisible(), true);
-                assert.equal(await shrinkButton.locator('.proposal-writing-expand-icon').isVisible(), false);
-                await shrinkButton.locator('svg:visible').click();
-                const expandButton = page.getByRole('button', { name: 'Expand field', exact: true });
-                assert.equal(await expandButton.locator('.proposal-writing-expand-icon').isVisible(), true);
+                await expect(expandButton).toHaveText('Shrink editor');
+                await expect(expandButton).toHaveAttribute('aria-expanded', 'true');
+                await expandButton.click();
+                await expect(expandButton).toHaveText('Expand editor');
                 assert.ok((await rationale.boundingBox()).height < 320);
                 await page.locator('#date').focus();
                 assert.equal(await page.locator('[data-writing-cite]').isDisabled(), true);
@@ -210,6 +268,7 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 assert.equal(await page.locator('[data-writing-command="bold"]').isDisabled(), true);
                 await page.locator('#method-details').focus();
                 assert.equal(await page.locator('[data-writing-command="bold"]').isDisabled(), true);
+                await page.getByRole('button', { name: 'Insert', exact: true }).click();
                 await page.locator('[data-writing-image]').click();
                 assert.deepEqual(await page.evaluate(() => window.imageTargets), ['rationale', 'specific_methods']);
 
@@ -225,15 +284,17 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 await page.locator('.proposal-preview-dock-expanded').waitFor({ state: 'visible' });
                 assert.equal(await page.locator('.proposal-preview-dock-expanded').isVisible(), true);
                 assert.equal(await page.locator('.proposal-edit-pane').evaluate((element) => element.inert), true);
+                await page.waitForFunction(() => !window.writingState.previewLoading
+                    && document.querySelector('[x-ref="previewFrame"]').contentDocument?.readyState === 'complete');
                 await page.locator('[x-ref="previewFrame"]').focus();
                 await page.keyboard.press('Tab');
-                assert.equal(await page.getByRole('button', { name: 'Zoom out', exact: true }).evaluate((element) => element === document.activeElement), true);
+                await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeFocused();
                 await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
                 assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '110%');
                 await page.keyboard.press('Escape');
                 await page.waitForFunction(() => !window.writingState.previewFullscreen);
                 const focusTarget = width >= 1024 ? page.getByRole('button', { name: 'Enlarge the paper preview' }) : page.getByRole('button', { name: 'Preview paper', exact: true });
-                assert.equal(await focusTarget.evaluate((element) => element === document.activeElement), true);
+                await expect(focusTarget).toBeFocused();
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                 if (process.env.ATHENA_EDITOR_VISUAL_DIR) {
                     await rationale.focus();

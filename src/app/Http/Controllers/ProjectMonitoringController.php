@@ -18,6 +18,7 @@ use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\MonitoringEvidenceService;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
+use App\Services\ProjectDocumentLibrary;
 use App\Services\ProjectMonitoringFormDataService;
 use App\Services\SidebarAttentionService;
 use Carbon\CarbonImmutable;
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -127,7 +130,7 @@ class ProjectMonitoringController extends Controller
         ]);
     }
 
-    public function index(Request $request)
+    public function index(Request $request, ProjectDocumentLibrary $documentLibrary): View
     {
         $completedOnly = $request->routeIs('research_head.completed-projects.index');
         $status = $completedOnly ? 'completed' : $request->string('status')->toString();
@@ -135,6 +138,10 @@ class ProjectMonitoringController extends Controller
         $search = trim($request->string('search')->toString());
         $allowedStatuses = ['ongoing', 'delayed', 'completion_pending', 'completed'];
         $allowedAttention = ['needs_attention', 'pending_reports'];
+        $hasMonitoringFilters = $search !== '' || in_array($attention, $allowedAttention, true)
+            || (! $completedOnly && in_array($status, $allowedStatuses, true));
+        $initialRecordsView = $request->query('view') === 'monitoring' || $hasMonitoringFilters || ! $completedOnly
+            ? 'monitoring' : 'files';
 
         $summary = [
             'ongoing' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_ONGOING)->withoutCompletionPending()->count(),
@@ -142,14 +149,16 @@ class ProjectMonitoringController extends Controller
             'completion_pending' => TopicProposal::withIssuedNotice()->completionPending()->count(),
             'completed' => TopicProposal::completedProject()->count(),
             'pending_reports' => ProjectProgressReport::submitted()->where('review_status', 'pending')
-                ->whereHas('topic', fn ($query) => $query->withIssuedNotice())
+                ->whereHas('topic', fn (Builder $query): Builder => $query->withIssuedNotice())
                 ->count()
                 + ProjectNarrativeReport::submitted()->where('review_status', ProjectNarrativeReport::STATUS_PENDING)
-                    ->whereHas('topic', fn ($query) => $query->withIssuedNotice())
+                    ->whereHas('topic', fn (Builder $query): Builder => $query->withIssuedNotice())
                     ->count(),
         ];
 
-        $projects = TopicProposal::withIssuedNotice()
+        // shortcut: folder navigation loads all route-scoped summaries; move folder filtering to the server if portfolio payloads become slow.
+        $projectQuery = TopicProposal::withIssuedNotice()
+            ->select(['id', 'user_id', 'research_secretary_id', 'research_call_id', 'title', 'status', 'project_status', 'notice_to_proceed_issued_at', 'created_at', 'updated_at'])
             ->with([
                 'user:id,name',
                 'researchSecretary:id,name,avatar',
@@ -159,11 +168,14 @@ class ProjectMonitoringController extends Controller
             ])
             ->withCount([
                 'progressReports',
-                'progressReports as pending_reports_count' => fn ($query) => $query->where('review_status', 'pending'),
+                'progressReports as pending_reports_count' => fn (Builder $query): Builder => $query->where('review_status', 'pending'),
                 'narrativeReports',
-                'narrativeReports as pending_narrative_reports_count' => fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
+                'narrativeReports as pending_narrative_reports_count' => fn (Builder $query): Builder => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
             ])
-            ->when(in_array($status, $allowedStatuses, true), function ($query) use ($status) {
+            ->when($completedOnly, fn (Builder $query): Builder => $query->where('project_status', TopicProposal::PROJECT_STATUS_COMPLETED));
+
+        $allProjects = (clone $projectQuery)
+            ->when(in_array($status, $allowedStatuses, true), function (Builder $query) use ($status): void {
                 if ($status === TopicProposal::PROJECT_STATUS_COMPLETION_PENDING) {
                     $query->completionPending();
 
@@ -176,25 +188,25 @@ class ProjectMonitoringController extends Controller
                     $query->withoutCompletionPending();
                 }
             })
-            ->when(in_array($attention, $allowedAttention, true), function ($query) use ($attention) {
+            ->when(in_array($attention, $allowedAttention, true), function (Builder $query) use ($attention): void {
                 if ($attention === 'pending_reports') {
-                    $query->where(function ($query) {
-                        $query->whereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'))
-                            ->orWhereHas('narrativeReports', fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
+                    $query->where(function (Builder $query): void {
+                        $query->whereHas('progressReports', fn (Builder $query): Builder => $query->where('review_status', 'pending'))
+                            ->orWhereHas('narrativeReports', fn (Builder $query): Builder => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
                     });
                 } else {
-                    $query->where(function ($query) {
+                    $query->where(function (Builder $query): void {
                         $query->where('project_status', 'delayed')
-                            ->orWhere(fn ($query) => $query->completionPending())
-                            ->orWhereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'))
-                            ->orWhereHas('narrativeReports', fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
+                            ->orWhere(fn (Builder $query): Builder => $query->completionPending())
+                            ->orWhereHas('progressReports', fn (Builder $query): Builder => $query->where('review_status', 'pending'))
+                            ->orWhereHas('narrativeReports', fn (Builder $query): Builder => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
                     });
                 }
             })
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $query->where(function (Builder $query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
-                        ->orWhereHas('user', fn ($query) => $query->where('name', 'like', "%{$search}%"));
+                        ->orWhereHas('user', fn (Builder $query): Builder => $query->where('name', 'like', "%{$search}%"));
                 });
             })
             ->orderByRaw(
@@ -202,10 +214,79 @@ class ProjectMonitoringController extends Controller
                 [ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED],
             )
             ->latest('updated_at')
-            ->paginate(15)
-            ->withQueryString();
+            ->get();
 
-        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search', 'completedOnly'));
+        $fileProjects = $hasMonitoringFilters ? (clone $projectQuery)->latest('updated_at')->get() : $allProjects;
+        $fileProjects = $fileProjects->filter(fn (TopicProposal $project): bool => Gate::forUser($request->user())->allows('view', $project))->values();
+
+        $posterUrls = ProjectNarrativeReport::submitted()
+            ->where('report_type', 'terminal')
+            ->whereIn('topic_id', $fileProjects->modelKeys())
+            ->latest('submission_date')->latest('id')
+            ->get(['id', 'topic_id', 'report_type', 'submission_status', 'photos'])
+            ->groupBy('topic_id')
+            ->map(function (Collection $reports) use ($documentLibrary): ?string {
+                foreach ($reports as $report) {
+                    foreach (array_keys($report->photos ?? []) as $index) {
+                        $url = $documentLibrary->terminalPosterUrl($report, $index);
+                        if ($url !== null) {
+                            return $url;
+                        }
+                    }
+                }
+
+                return null;
+            });
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $projects = (new LengthAwarePaginator(
+            $allProjects->forPage($page, 15)->values(), $allProjects->count(), 15, $page,
+            ['path' => $request->url()],
+        ))->withQueryString()->appends(['view' => 'monitoring']);
+        $workspacePreferences = $request->user()->projectWorkspacePreferences();
+        if ($workspacePreferences['assignments'] !== []) {
+            $assignedProjects = TopicProposal::withIssuedNotice()
+                ->whereKey(array_column($workspacePreferences['assignments'], 'project_id'))
+                ->get(['id', 'user_id', 'status', 'project_status', 'notice_to_proceed_issued_at'])
+                ->filter(fn (TopicProposal $project): bool => Gate::forUser($request->user())->allows('view', $project))
+                ->keyBy('id');
+            $workspacePreferences['assignments'] = array_values(array_filter(
+                $workspacePreferences['assignments'],
+                fn (array $assignment): bool => $assignedProjects->has($assignment['project_id']),
+            ));
+        }
+        $workspaceProjects = $fileProjects->map(function (TopicProposal $project) use ($posterUrls): array {
+            $progress = $project->latestProgressReport?->progress_percentage;
+            $date = $project->notice_to_proceed_issued_at ?? $project->created_at;
+            $secretary = $project->researchSecretary?->name;
+            $completed = $project->isCompletedProject();
+
+            return [
+                'id' => $project->id,
+                'title' => $project->title,
+                'researcher' => $project->user->name,
+                'call' => $project->researchCall?->title ?? 'Independent submission',
+                'status' => $project->monitoringStatusForProgress($progress),
+                'status_label' => $project->monitoringStatusLabelForProgress($progress),
+                'year' => (int) $date->year,
+                'date' => $date->toDateString(),
+                'progress' => $progress,
+                'latest_label' => $project->latestProgressReport
+                    ? 'Tool · '.$project->latestProgressReport->reporting_date->format('M d, Y')
+                    : ($project->latestNarrativeReport ? 'Progress report · '.$project->latestNarrativeReport->submission_date->format('M d, Y') : 'No report yet'),
+                'secretary' => $secretary,
+                'secretary_initials' => collect(explode(' ', $secretary ?? ''))->filter()
+                    ->map(fn (string $part): string => mb_substr($part, 0, 1))->take(2)->implode(''),
+                'reports' => $project->progress_reports_count + $project->narrative_reports_count,
+                'pending' => $project->pending_reports_count + $project->pending_narrative_reports_count,
+                'url' => route('topics.show', $project).($completed ? '' : '#project-monitoring'),
+                'documents_url' => route('research_head.projects.workspace.documents', $project),
+                'poster_url' => $posterUrls->get($project->id),
+                'action_label' => $completed ? 'View record' : 'Monitor project',
+            ];
+        })->all();
+
+        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search', 'completedOnly', 'initialRecordsView', 'workspacePreferences', 'workspaceProjects'));
     }
 
     private function ensureResearcherCanPrepareReport(Request $request, TopicProposal $topic): void
@@ -534,6 +615,13 @@ class ProjectMonitoringController extends Controller
                 && (! $terminalReport->hasSignedCopy()
                     || ! Storage::disk('local')->exists($terminalReport->signedCopy()['path']))) {
                 throw ValidationException::withMessages(['project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.']);
+            }
+
+            if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED) {
+                $missingReports = app(MonitoringQuarterService::class)->missingTerminalReportPeriods($topic);
+                if ($missingReports !== []) {
+                    throw ValidationException::withMessages(['project_status' => 'Complete all quarterly Monitoring Tools and Progress Reports before completing the project. Missing or requiring corrections: '.implode(', ', $missingReports).'.']);
+                }
             }
 
             $topic->update(['project_status' => $validated['project_status']]);

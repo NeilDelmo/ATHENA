@@ -4,7 +4,7 @@
 
 <section class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950" data-submitted-version-history>
     <details @if ($expanded) open @endif>
-        <summary class="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-red-700 sm:px-6">
+        <summary class="disclosure-summary flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-red-700 sm:px-6">
             <div class="min-w-0">
                 <h3 class="text-lg font-bold text-gray-950 dark:text-white">Submitted proposal versions</h3>
                 <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Proposals sent for review. Working edits appear after submission.</p>

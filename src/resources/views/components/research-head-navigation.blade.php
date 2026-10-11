@@ -26,7 +26,7 @@
         'Monitoring' => [
             ['Research projects', 'research_head.projects.index', 'chart', 'project_monitoring'],
             ['Completed projects', 'research_head.completed-projects.index', 'document', null],
-            ['Faculty directory', 'research_head.faculty-directory.index', 'faculty', null],
+            ['User directory', 'research_head.faculty-directory.index', 'faculty', null],
         ],
         'Resources' => [
             ['Signatories', 'signatories.index', 'signatories', null],

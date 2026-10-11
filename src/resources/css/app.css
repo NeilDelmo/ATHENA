@@ -18,6 +18,211 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 }
 
 @layer components {
+    .disclosure-summary {
+        @apply flex min-h-11 cursor-pointer items-center gap-3;
+    }
+
+    .disclosure-summary::after {
+        content: '+';
+        @apply ml-auto shrink-0 text-lg font-normal leading-none;
+    }
+
+    details[open] > .disclosure-summary::after {
+        content: '\2212';
+    }
+
+    .monitoring-report-control {
+        @apply relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800;
+    }
+
+    .monitoring-report-control[aria-expanded="true"] {
+        @apply bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-white;
+    }
+
+    .monitoring-report-control[aria-disabled="true"] {
+        @apply border-transparent opacity-30;
+    }
+
+    .monitoring-report-dot {
+        @apply absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full;
+    }
+
+    .quarterly-reports [data-report-controls] .monitoring-report-control {
+        @apply h-11 w-11 max-w-full border-slate-200 bg-white p-0 dark:border-slate-600 dark:bg-slate-900;
+    }
+
+    .quarterly-reports [data-report-controls] {
+        @apply min-h-11 items-start;
+    }
+
+    .quarterly-reports [data-report-controls] .monitoring-report-control > span:not(.monitoring-report-dot):not(.report-review-status) {
+        @apply sr-only;
+    }
+
+    .quarterly-reports [data-report-controls] .monitoring-report-control[aria-disabled="true"] {
+        @apply border-slate-200 opacity-100 dark:border-slate-600;
+    }
+
+    .quarterly-reports .monitoring-report-control[aria-disabled="true"] svg {
+        @apply text-slate-400 dark:text-slate-500;
+    }
+
+    .quarterly-reports .monitoring-report-control[aria-expanded="true"] {
+        @apply border-red-700 bg-red-50 text-red-800 dark:border-red-400 dark:bg-red-950/40 dark:text-red-200;
+    }
+
+    .quarterly-reports .monitoring-report-dot {
+        @apply hidden;
+    }
+
+    .quarterly-report-quarter {
+        @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-700 font-semibold text-white dark:bg-slate-700 dark:text-white;
+    }
+
+    .quarterly-report-mobile-label {
+        @apply mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 sm:hidden;
+    }
+
+    .quarterly-report-rail {
+        @apply mx-auto block w-36 max-w-full text-left;
+    }
+
+    .quarterly-reports [data-report-controls] .quarterly-report-primary {
+        @apply w-full justify-start gap-2 px-3;
+    }
+
+    .quarterly-reports [data-report-controls] .quarterly-report-primary > .report-review-status {
+        @apply not-sr-only static m-0 inline-flex h-auto w-auto min-w-0 rounded-none border-0 bg-transparent p-0 text-inherit dark:bg-transparent;
+    }
+
+    .quarterly-report-primary > .report-review-status > svg {
+        @apply hidden;
+    }
+
+    .report-review-status {
+        @apply inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium leading-4 text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300;
+    }
+
+    .monitoring-secondary-action {
+        @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+    }
+
+    .monitoring-disclosure > summary {
+        @apply flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-slate-200;
+    }
+
+    .quarter-report-document {
+        @apply min-w-0 space-y-3;
+    }
+
+    .quarter-report-heading {
+        @apply relative flex min-w-0 flex-wrap items-start gap-3 border-b border-slate-200 pb-3 pr-12 dark:border-slate-700;
+    }
+
+    .quarter-report-heading > :first-child {
+        flex: 1 1 18rem;
+    }
+
+    .quarter-report-actions {
+        @apply flex min-w-0 flex-wrap items-center gap-2;
+    }
+
+    .quarter-report-close {
+        @apply absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800;
+    }
+
+    .quarter-report-layout {
+        @apply grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:gap-4;
+    }
+
+    .quarter-report-layout > [data-submitted-report-paper] {
+        @apply w-full;
+    }
+
+    .quarter-report-download {
+        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 sm:px-3 sm:text-sm;
+    }
+
+    @media (max-width: 639px) {
+        .quarterly-reports table,
+        .quarterly-reports tbody {
+            @apply block w-full;
+        }
+
+        .quarterly-reports thead {
+            @apply sr-only;
+        }
+
+        .quarterly-reports tr[data-reporting-quarter] {
+            @apply grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-4;
+        }
+
+        .quarterly-reports tr[data-reporting-quarter] > th {
+            @apply col-span-2 p-0 pb-2;
+        }
+
+        .quarterly-reports tr[data-reporting-quarter] > td {
+            @apply min-w-0 p-0 text-center;
+        }
+
+        .quarterly-reports tr:not([data-reporting-quarter]) > td {
+            @apply block w-full px-3 py-4;
+        }
+
+        .quarterly-reports tr:not([data-reporting-quarter]) {
+            @apply block w-full;
+        }
+    }
+
+    .project-page-header h1 {
+        @apply text-2xl font-semibold leading-snug;
+    }
+
+    .project-page-header > div:last-child {
+        @apply w-auto flex-row flex-wrap;
+    }
+
+    .report-reader-layout {
+        @apply grid min-w-0;
+    }
+
+    .report-reader-navigation {
+        @apply flex min-w-0 gap-1 overflow-x-auto border-b border-slate-100 px-5 py-2 dark:border-slate-800 sm:px-8;
+    }
+
+    .report-reader-navigation a {
+        @apply flex min-h-11 shrink-0 items-center rounded-md px-3 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white;
+    }
+
+    .report-reader-document p {
+        @apply leading-7;
+        max-width: 72ch;
+        overflow-wrap: anywhere;
+    }
+
+    .report-reader [data-narrative-report-content] {
+        overflow-wrap: anywhere;
+    }
+
+    @media (min-width: 1024px) {
+        .report-reader-layout {
+            grid-template-columns: minmax(0, 1fr) 12rem;
+        }
+
+        .report-reader-navigation {
+            @apply sticky top-36 col-start-2 row-start-1 flex-col self-start overflow-visible border-b-0 border-l px-3 py-5;
+        }
+
+        .report-reader [data-narrative-report-content] {
+            @apply col-start-1 row-start-1;
+        }
+    }
+
+    .athena-page-header:has(.project-page-header)::before,
+    .athena-page-header:has(.project-page-header)::after {
+        display: none;
+    }
+
     .athena-page-header::before,
     .athena-page-header::after {
         content: '';
@@ -128,7 +333,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .dashboard-action {
-        @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
     }
 
     .rh-panel {
@@ -610,6 +815,18 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 }
 
 @layer base {
+    summary {
+        list-style: none;
+    }
+
+    summary::marker {
+        content: '';
+    }
+
+    summary::-webkit-details-marker {
+        display: none;
+    }
+
     [x-cloak] {
         display: none !important;
     }
@@ -1162,6 +1379,10 @@ html.dark .revision-embedded [data-proposal-autosave-status] {
     overflow: visible;
 }
 
+html:has([data-fixed-back-link]) {
+    scroll-padding-bottom: 7rem;
+}
+
 body:has([data-fixed-back-link]) main {
     padding-bottom: 7rem;
 }
@@ -1181,7 +1402,7 @@ body:has([data-fixed-back-link]) main {
         padding-bottom: calc(7rem + env(safe-area-inset-bottom));
     }
 
-    body[data-app-shell]:has(#research-assistant-launcher) :is([data-fixed-back-link], [data-monitoring-action-dock-fixed], [data-project-status-manager]) {
+    body[data-app-shell]:has(#research-assistant-launcher) :is([data-fixed-back-link], [data-monitoring-action-dock-fixed]) {
         right: var(--athena-page-action-right);
         bottom: calc(var(--athena-floating-control-edge) + env(safe-area-inset-bottom));
         max-width: calc(100vw - var(--athena-page-action-right) - var(--athena-page-action-left));
@@ -1196,20 +1417,7 @@ body:has([data-fixed-back-link]) main {
         left: var(--athena-page-action-left);
     }
 
-    [data-topic-workspace] [data-project-status-manager],
-    body[data-app-shell]:has(#research-assistant-launcher) [data-topic-workspace] [data-project-status-manager] {
-        bottom: calc(var(--athena-floating-control-edge, 1rem) + env(safe-area-inset-bottom) + var(--athena-topic-back-link-height, 4.5rem) + .75rem);
-    }
-
-    [data-topic-workspace] [data-project-status-manager] > [role='dialog'] {
-        max-height: calc(100dvh - var(--athena-floating-control-edge, 1rem) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--athena-topic-back-link-height, 4.5rem) - var(--athena-topic-status-height, 4.5rem) - 2.5rem);
-    }
-
-    [data-topic-workspace]:has([data-project-status-manager]) {
-        padding-bottom: calc(var(--athena-topic-back-link-height, 4.5rem) + var(--athena-topic-status-height, 4.5rem) + 1.5rem);
-    }
-
-    body:has([data-topic-workspace]) #research-assistant-launcher > span[aria-hidden='true'] {
+    body:has([data-topic-workspace], [data-report-reader-page]) #research-assistant-launcher > span[aria-hidden='true'] {
         right: 0;
         bottom: calc(100% + .75rem);
         width: 3.5rem;
@@ -1242,7 +1450,7 @@ body:has([data-fixed-back-link]) main {
     body:has([data-topic-workspace]) [data-project-documents-floating-trigger] {
         top: auto;
         right: calc(var(--athena-floating-control-edge, 1rem) + env(safe-area-inset-right));
-        bottom: calc(var(--athena-floating-control-edge, 1rem) + 7.75rem + env(safe-area-inset-bottom));
+        bottom: calc(var(--athena-floating-control-edge, 1rem) + 4.25rem + env(safe-area-inset-bottom));
         width: 3.5rem;
         height: 3.5rem;
         justify-content: center;
@@ -1251,6 +1459,10 @@ body:has([data-fixed-back-link]) main {
     }
 
     body:has([data-topic-workspace]) [data-project-documents-floating-trigger] > span {
+        display: none;
+    }
+
+    body:has([data-topic-workspace]) #research-assistant-launcher > span[aria-hidden='true'] {
         display: none;
     }
 }

@@ -21,7 +21,7 @@ test('faculty workspace separates submissions and calendar from its dashboard', 
     $otherUser->assignRole('faculty');
     TopicProposal::create(['user_id' => $otherUser->id, 'title' => 'Private submission', 'status' => 'pending']);
     for ($index = 1; $index <= 13; $index++) {
-        TopicProposal::create(['user_id' => $user->id, 'title' => 'Own submission '.$index, 'status' => 'pending']);
+        TopicProposal::create(['user_id' => $user->id, 'title' => 'Own submission '.$index, 'status' => $index === 1 ? 'revision_requested' : 'pending']);
     }
 
     $this->actingAs($user)->get(route('faculty.dashboard'))->assertOk()
@@ -32,11 +32,23 @@ test('faculty workspace separates submissions and calendar from its dashboard', 
         ->assertDontSee('data-calendar-compact', false)
         ->assertDontSee('Submission history');
 
-    $this->get(route('faculty.submissions'))->assertOk()
+    $response = $this->get(route('faculty.submissions'))->assertOk()
         ->assertSee('data-faculty-submissions', false)
         ->assertSee('View proposal')
         ->assertDontSee('Private submission')
         ->assertViewHas('topics', fn ($topics): bool => $topics->total() === 13 && $topics->count() === 12);
+    if (getenv('ATHENA_EXPORT_PROPOSAL_CONSISTENCY') === '1') {
+        $directory = storage_path('framework/testing');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.'/proposal-consistency-submissions.html', $response->getContent());
+    }
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-faculty-submissions]//article//*[@data-document-file-icon and @aria-hidden="true"]')->length)->toBe(12)
+        ->and($xpath->query('//*[@data-revision-action-required]')->length)->toBe(1);
     $this->get(route('faculty.submissions', ['page' => 2]))->assertOk()
         ->assertViewHas('topics', fn ($topics): bool => $topics->count() === 1);
 });

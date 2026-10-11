@@ -35,7 +35,7 @@
                                     </div>
                                     <p x-show="source.relevance.reason" class="text-xs leading-5 text-gray-600 dark:text-slate-300"><span class="font-semibold">Why it fits: </span><span x-text="source.relevance.reason"></span></p>
                                     <details x-show="source.description" class="text-xs text-gray-600 dark:text-slate-300">
-                                        <summary class="cursor-pointer font-semibold focus:outline-none focus:ring-2 focus:ring-red-500">Read available evidence</summary>
+                                        <summary class="disclosure-summary cursor-pointer font-semibold focus:outline-none focus:ring-2 focus:ring-red-500">Read available evidence</summary>
                                         <p class="mt-2 whitespace-pre-wrap break-words leading-5" x-text="source.description"></p>
                                     </details>
                                     <p x-show="!source.can_synthesize" class="text-xs leading-5 text-amber-800 dark:text-amber-200">Evidence is unavailable for drafting. Open the study to review it.</p>

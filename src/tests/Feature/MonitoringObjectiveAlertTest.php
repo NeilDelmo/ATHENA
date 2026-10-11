@@ -54,6 +54,35 @@ afterEach(function () {
     $this->travelBack();
 });
 
+test('quarter completion measures only approved targets due in that reporting period', function () {
+    $rows = [
+        ['source_work_plan_index' => 0, 'accomplished_percentage' => 16.67],
+        ['source_work_plan_index' => 1, 'accomplished_percentage' => 50],
+        ['source_work_plan_index' => 2, 'accomplished_percentage' => 0],
+    ];
+    $report = ($this->makeReport)($rows, ['period_end' => '2026-04-14', 'progress_percentage' => 67]);
+    expect($this->workPlan->quarterCompletionPercentage($this->topic, $report))->toBe(100);
+    $report->work_plan = [
+        ['source_work_plan_index' => 0, 'accomplished_percentage' => 16.67],
+        ['source_work_plan_index' => 1, 'accomplished_percentage' => 49.99],
+    ];
+    expect($this->workPlan->quarterCompletionPercentage($this->topic, $report))->toBe(99);
+    $report->work_plan = [
+        ['activity' => 'Conduct interviews', 'accomplished_percentage' => 99],
+        ['source_work_plan_index' => 1, 'accomplished_percentage' => 25],
+        ['source_work_plan_index' => 2, 'accomplished_percentage' => 100],
+    ];
+    expect($this->workPlan->quarterCompletionPercentage($this->topic, $report))->toBe(63);
+    $report->work_plan = [];
+    expect($this->workPlan->quarterCompletionPercentage($this->topic, $report))->toBe(0);
+    $report->submission_status = 'prepared';
+    expect($this->workPlan->quarterCompletionPercentage($this->topic, $report))->toBeNull();
+    $report->submission_status = 'submitted';
+    $report->period_start = '2026-07-15';
+    $report->period_end = '2026-10-14';
+    expect($this->workPlan->quarterCompletionPercentage($this->topic, $report))->toBeNull();
+});
+
 test('alerts begin the day after the final scheduled project month and respect the notice start', function () {
     $this->travelTo('2026-02-14 23:59:59');
     expect($this->workPlan->overdueActivities($this->topic))->toBeEmpty();
@@ -145,6 +174,15 @@ test('monitoring alerts are visible to the faculty and research head with the ap
     $response->assertSee('Work Plan targets need attention')->assertSee('Establish the baseline')
         ->assertSee('Due Feb 14, 2026')->assertSee('No submitted progress yet');
     expect($response->viewData('overdueWorkPlanActivities'))->toHaveCount(1);
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $alert = (new DOMXPath($document))->query('//*[@data-monitoring-work-plan-alert]')->item(0);
+    expect($alert->getAttribute('class'))->not->toContain('amber')
+        ->and((new DOMXPath($document))->query('.//details[contains(@class, "monitoring-disclosure")]/summary/*[local-name()="svg"]', $alert)->length)->toBe(1);
+    if (getenv('ATHENA_EXPORT_MONITORING_LAYOUT') === '1') {
+        file_put_contents(storage_path('framework/testing/monitoring-overdue-alert.html'), $document->saveHTML($alert));
+    }
+
 })->with(['leader', 'head']);
 
 test('the monitoring editor shows official overdue alerts and a live per-activity warning', function () {

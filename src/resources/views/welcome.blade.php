@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="ATHENA brings BatStateU ARASOF–Nasugbu research work into one focused, collaborative digital workspace.">
+    <meta name="description" content="ATHENA brings BatStateU ARASOF–Nasugbu research work into one focused workspace for research project teams.">
     <title>ATHENA | BatStateU ARASOF–Nasugbu</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -85,7 +85,7 @@
                     </h1>
 
                     <p class="mt-6 max-w-2xl text-base font-medium leading-8 text-white/85 sm:text-lg">
-                        ATHENA brings proposals, collaboration, progress, and research support together for the ARASOF–Nasugbu community.
+                        ATHENA brings proposals, project teams, progress, and research support together for the ARASOF–Nasugbu community.
                     </p>
 
                     <div class="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -104,7 +104,7 @@
 
                     <div class="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-white/75" aria-label="ATHENA capabilities">
                         <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Submit</span>
-                        <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Collaborate</span>
+                        <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Project teams</span>
                         <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Track</span>
                         <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Discover</span>
                     </div>
@@ -195,7 +195,7 @@
                         ['Research Head', 'Review proposals, guide research teams, and monitor project progress.'],
                         ['Research Office', 'Coordinate submissions, maintain research records, and support reporting.'],
                         ['Faculty Researcher', 'Prepare proposals, manage research documents, and report project milestones.'],
-                        ['Faculty', 'Explore research opportunities, collaborate, and access research support.'],
+                        ['Faculty', 'Explore research opportunities, work with your project team, and access research support.'],
                     ];
                 @endphp
 

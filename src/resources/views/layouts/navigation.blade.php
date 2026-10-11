@@ -179,8 +179,8 @@
                 wire:current="{{ $sidebarCurrentClasses }}"
                 @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('research_secretary.dashboard') }}"
-                aria-label="Research Secretary Dashboard"
-                title="Research Secretary Dashboard"
+                aria-label="Research Office / Secretary Dashboard"
+                title="Research Office / Secretary Dashboard"
                 class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
@@ -194,7 +194,7 @@
 
         @role('research_coordinator')
             @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE))
-                <nav aria-label="Research Office navigation" class="space-y-4" data-research-office-navigation>
+                <nav aria-label="Research Coordinator navigation" class="space-y-4" data-research-office-navigation>
                     <section aria-label="Overview">
                         <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                             Overview<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>

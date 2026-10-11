@@ -26,6 +26,7 @@ use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProjectDocumentLibrary;
+use App\Services\ProjectMonitoringHealth;
 use App\Services\ProposalFormVerifier;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
@@ -60,6 +61,7 @@ class TopicController extends Controller
         private NoticeToProceedDataService $noticeToProceedDataService,
         private MonitoringQuarterService $monitoringQuarterService,
         private ProjectDocumentLibrary $projectDocumentLibrary,
+        private ProjectMonitoringHealth $projectMonitoringHealth,
     ) {}
 
     public function index(ProposalDraftReadiness $readiness): View
@@ -71,8 +73,9 @@ class TopicController extends Controller
             return $this->researchDashboard($user);
         }
 
-        $topics = $user->proposals()
-            ->with('researchCall:id,title')
+        $topics = TopicProposal::query()->accessibleTo($user)
+            ->where('status', '!=', 'draft')
+            ->with('researchCall:id,title,paper_revisions_end_date')
             ->latest()
             ->get();
 
@@ -162,23 +165,27 @@ class TopicController extends Controller
     public function submissions(Request $request): View
     {
         $categories = [
+            'all' => 'All submissions',
             'active' => 'Active proposals',
             'monitoring' => 'In monitoring',
             'closed' => 'Closed',
         ];
         $category = $request->string('category')->toString();
         $category = array_key_exists($category, $categories) ? $category : 'active';
-        $query = TopicProposal::query()->accessibleTo($request->user());
+        $query = TopicProposal::query()->accessibleTo($request->user())->where('status', '!=', 'draft');
         $categoryCounts = collect($categories)->mapWithKeys(
             fn (string $label, string $key): array => [$key => (clone $query)->inSubmissionCategory($key)->count()],
         );
+        $status = in_array($request->query('status'), ['review', 'revision_requested'], true) ? $request->query('status') : '';
         $topics = $query->inSubmissionCategory($category)
+            ->when($status === 'review', fn ($query) => $query->whereIn('status', TopicProposal::AWAITING_APPROVAL_STATUSES)->where('status', '!=', 'revision_requested'))
+            ->when($status === 'revision_requested', fn ($query) => $query->where('status', 'revision_requested'))
             ->with(['researchCall', 'versions'])
             ->when($category === 'active', fn ($query) => $query->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['revision_requested']))
             ->latest()->latest('id')
-            ->paginate(12)->appends(['category' => $category]);
+            ->paginate(12)->appends(['category' => $category, 'status' => $status]);
 
-        return view('faculty.submissions', compact('topics', 'categories', 'category', 'categoryCounts'));
+        return view('faculty.submissions', compact('topics', 'categories', 'category', 'categoryCounts', 'status'));
     }
 
     public function create(Request $request)
@@ -210,9 +217,15 @@ class TopicController extends Controller
         }
 
         $monitoringReports = $topic->progressReports->values();
-        $overdueWorkPlanActivities = app(ApprovedWorkPlanMonitoringService::class)->overdueActivities($topic);
+        $approvedWorkPlan = app(ApprovedWorkPlanMonitoringService::class);
+        $overdueWorkPlanActivities = $approvedWorkPlan->overdueActivities($topic);
+        $hasApprovedWorkPlan = $approvedWorkPlan->hasApprovedWorkPlan($topic);
 
-        $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic);
+        $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic)
+            ->map(fn (array $row): array => [...$row,
+                'has_approved_work_plan' => $hasApprovedWorkPlan,
+                'quarter_completion' => $row['report'] ? $approvedWorkPlan->quarterCompletionPercentage($topic, $row['report']) : null,
+            ]);
         $progressReports = $topic->narrativeReports;
         if (! $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && $topic->isAccessibleTo($request->user())) {
             $progressReports = $progressReports->merge(ProjectNarrativeReport::query()
@@ -1455,35 +1468,29 @@ class TopicController extends Controller
     {
         $projects = TopicProposal::query()
             ->accessibleTo($user)
-            ->with('latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,progress_percentage');
+            ->with(['latestProgressReport', 'progressReports', 'narrativeReports']);
 
         $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
         $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();
         $completedProjects = (clone $projects)->completedProject()->latest('updated_at')->get();
 
-        $averageProgress = $activeProjects->isEmpty()
-            ? 0
-            : (int) round($activeProjects->avg(
-                fn (TopicProposal $topic): int => min(100, max(0, (int) ($topic->latestProgressReport?->progress_percentage ?? 0))),
-            ));
-
-        $attentionProjects = $activeProjects
-            ->filter(function (TopicProposal $topic): bool {
-                $progress = $topic->latestProgressReport?->progress_percentage;
-
-                return $topic->monitoringStatusForProgress($progress) !== TopicProposal::PROJECT_STATUS_ONGOING
-                    || $topic->latestProgressReport === null;
-            })
-            ->sortBy(function (TopicProposal $topic): int {
-                $status = $topic->monitoringStatusForProgress($topic->latestProgressReport?->progress_percentage);
-
-                return match ($status) {
-                    TopicProposal::PROJECT_STATUS_COMPLETION_PENDING => 0,
-                    TopicProposal::PROJECT_STATUS_DELAYED => 1,
+        $reportedProjects = $activeProjects->filter(fn (TopicProposal $topic): bool => $topic->latestProgressReport?->progress_percentage !== null);
+        $averageProgress = $reportedProjects->isEmpty() ? null : (int) round($reportedProjects->avg(
+            fn (TopicProposal $topic): int => min(100, max(0, $topic->latestProgressReport->progress_percentage)),
+        ));
+        $projectHealth = $activeProjects->mapWithKeys(function (TopicProposal $topic): array {
+            $health = $this->projectMonitoringHealth->assess($topic);
+            $health['actions'] = $health['issues']->reject(fn (array $issue): bool => ($issue['review_status'] ?? null) === 'pending' || $issue['type'] === 'completion')
+                ->sortBy(fn (array $issue): int => match ($issue['type']) {
+                    'report_review', 'narrative_review', 'terminal_review' => 0,
+                    'delayed' => 1,
                     default => 2,
-                };
-            })
-            ->values();
+                })->values();
+
+            return [$topic->id => $health];
+        });
+        $attentionProjects = $activeProjects->filter(fn (TopicProposal $topic): bool => $projectHealth[$topic->id]['actions']->isNotEmpty())
+            ->sortByDesc(fn (TopicProposal $topic): int => $projectHealth[$topic->id]['actions']->max('days') ?? -1)->values();
 
         return view('research.dashboard', compact(
             'activeProjects',
@@ -1491,6 +1498,8 @@ class TopicController extends Controller
             'completedProjects',
             'attentionProjects',
             'averageProgress',
+            'projectHealth',
+            'reportedProjects',
         ));
     }
 

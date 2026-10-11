@@ -166,7 +166,7 @@ test('research head workspace presents the GAD gate before co-evaluator review',
         ->and($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(0);
 });
 
-test('queued LREC review uses the floating project folder without the old file review list', function () {
+test('queued LREC review uses the project Files tab without the old file review list', function () {
     $this->topic->update([
         'status' => TopicProposal::STATUS_LREC_QUEUED,
         'review_stage' => 'lrec',
@@ -176,7 +176,8 @@ test('queued LREC review uses the floating project folder without the old file r
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('data-project-documents-floating-trigger', false)
+        ->assertSee('id="project-files-tab-button"', false)
+        ->assertDontSee('data-project-documents-floating-trigger', false)
         ->assertSee('data-project-document-drawer', false)
         ->assertSee('data-project-document-key="proposal-version-file-'.$workPlan->id.'"', false)
         ->assertSee('data-lrec-waiting-workspace', false)
@@ -1015,7 +1016,7 @@ describe('screening narrative transcription', function () {
         $document = new DOMDocument;
         @$document->loadHTML($page->getContent());
         $xpath = new DOMXPath($document);
-        $folderLink = $xpath->query('//*[@data-project-document-key="proposal-version-file-'.$this->initialScreening->id.'"]//a[contains(., "Editable DOCX")]')->item(0);
+        $folderLink = $xpath->query('//*[@data-project-file-selection="proposal-version-file-'.$this->initialScreening->id.'"]//a[contains(., "Editable DOCX")]')->item(0);
         expect($folderLink?->getAttribute('href'))->toBe($url);
         if ($workspace === 'research_head') {
             $reviewLink = $xpath->query('//*[@id="co-evaluator-review"]//a[contains(., "Download editable DOCX")]')->item(0);

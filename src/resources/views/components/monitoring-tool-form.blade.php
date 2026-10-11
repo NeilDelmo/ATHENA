@@ -400,7 +400,7 @@
                     @endphp
                     <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700" @if ((float) ($budget['amount_requested'] ?? 0) > 0 || filled($budget['details'] ?? null)) open @endif>
                         <input type="hidden" name="budget_utilization[{{ $index }}][type]" value="{{ $budgetType }}">
-                        <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">{{ $budgetType }}</summary>
+                        <summary class="disclosure-summary cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">{{ $budgetType }}</summary>
                         <div class="mt-3 grid gap-4 sm:grid-cols-2">
                             <label class="text-sm font-medium text-gray-700 dark:text-slate-200 sm:col-span-2">Details of request
                                 <textarea name="budget_utilization[{{ $index }}][details]" rows="2" maxlength="300" autocomplete="off" class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ $budget['details'] ?? '' }}</textarea>
@@ -422,7 +422,7 @@
         </section>
 
         <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
-            <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-100">Supporting Details <span class="font-normal text-gray-500">(optional)</span></summary>
+            <summary class="disclosure-summary cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-100">Supporting Details <span class="font-normal text-gray-500">(optional)</span></summary>
         <div class="mt-4 grid gap-4 rounded-xl bg-gray-50 p-4 dark:bg-slate-950 sm:grid-cols-2">
             <div>
                 <label for="prepared_by_date_signed" class="text-sm font-medium text-gray-700 dark:text-slate-200">Date signed by project leader <span class="font-normal text-gray-400">(optional)</span></label>

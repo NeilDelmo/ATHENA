@@ -1,0 +1,132 @@
+.workspace-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-base font-semibold text-white hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50;
+}
+.workspace-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+}
+.workspace-input {
+    @apply min-h-11 rounded-lg border-slate-200 bg-white text-base text-slate-700 focus:border-brand focus:ring-brand disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200;
+}
+.workspace-nav {
+    @apply flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-base text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+}
+.workspace-nav[aria-current="location"] {
+    @apply bg-brand-wash font-semibold text-brand dark:bg-rose-950/50 dark:text-rose-300;
+}
+.workspace-count {
+    @apply ml-auto text-sm tabular-nums text-slate-500 dark:text-slate-400;
+}
+.workspace-view {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-base font-medium text-slate-600 disabled:opacity-50 dark:text-slate-300;
+}
+.workspace-view[aria-pressed="true"] {
+    @apply bg-slate-100 text-slate-950 dark:bg-slate-700 dark:text-white;
+}
+.workspace-view[aria-selected="true"] {
+    @apply bg-brand-wash font-semibold text-brand dark:bg-rose-950/50 dark:text-rose-300;
+}
+.workspace-icon {
+    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-800;
+}
+.workspace-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    gap: 12px;
+}
+.workspace-item {
+    @apply relative min-w-0 cursor-default rounded-lg border-2 border-transparent text-slate-950 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800/60;
+}
+.workspace-items-grid .workspace-item {
+    @apply flex min-h-[168px] flex-col items-center gap-2 px-3 py-4 text-center;
+}
+.workspace-item-name {
+    @apply block min-w-0 text-base font-medium leading-6;
+    overflow-wrap: anywhere;
+}
+.workspace-items-grid .workspace-item-name {
+    @apply line-clamp-3;
+}
+.workspace-item-meta {
+    @apply text-sm leading-5 text-slate-500 dark:text-slate-400;
+}
+.workspace-item-graphic {
+    @apply h-[64px] w-[80px] shrink-0;
+}
+.workspace-project-cover {
+    @apply relative block h-[64px] w-[80px] shrink-0;
+}
+.workspace-project-cover img {
+    @apply absolute bottom-1 right-1 h-12 w-8 rounded-sm border border-amber-700/40 bg-white object-contain shadow-sm;
+}
+.workspace-file-graphic {
+    @apply relative flex h-[64px] w-[80px] shrink-0 items-center justify-center;
+}
+.workspace-file-graphic svg {
+    @apply h-16 w-14;
+}
+.workspace-image-graphic {
+    @apply flex h-[64px] w-[80px] shrink-0 items-center justify-center;
+}
+.workspace-image-graphic img {
+    @apply max-h-full max-w-full rounded border border-slate-200 bg-white object-contain shadow-sm;
+}
+.workspace-file-type {
+    @apply absolute bottom-2 rounded bg-red-700 px-1.5 py-0.5 text-sm font-bold text-white;
+}
+.workspace-items-list {
+    @apply flex flex-col gap-1;
+}
+.workspace-items-list .workspace-item {
+    @apply grid min-h-[72px] items-center gap-x-3 px-3 py-2 text-left;
+    grid-template-columns: 44px minmax(0, 1fr);
+}
+.workspace-items-list .workspace-item-graphic,
+.workspace-items-list .workspace-project-cover,
+.workspace-items-list .workspace-image-graphic,
+.workspace-items-list .workspace-file-graphic {
+    @apply row-span-2 h-10 w-11;
+}
+.workspace-items-list .workspace-project-cover .workspace-item-graphic {
+    @apply h-10 w-11;
+}
+.workspace-items-list .workspace-project-cover img {
+    @apply bottom-0 right-0 h-8 w-5;
+}
+.workspace-items-list .workspace-file-graphic svg {
+    @apply h-10 w-8;
+}
+.workspace-items-list .workspace-file-type {
+    @apply bottom-0 px-1 text-sm;
+}
+.workspace-items-list .workspace-item-meta {
+    @apply col-start-2;
+}
+.workspace-selected {
+    @apply !border-brand !bg-brand-wash dark:!border-rose-400 dark:!bg-rose-950/30;
+}
+.workspace-drop-target {
+    @apply !bg-amber-50 outline outline-2 outline-offset-[-2px] outline-brand dark:!bg-amber-950/20 dark:outline-rose-400;
+}
+.workspace-status {
+    @apply inline-flex rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300;
+}
+.workspace-completed {
+    @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300;
+}
+.workspace-delayed {
+    @apply bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300;
+}
+.workspace-pending {
+    @apply bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300;
+}
+[data-project-records-page] [role="tab"]:focus-visible,
+[data-project-document-browser] :is(button, a, [role="button"]):focus-visible,
+[data-project-workspace] :is(button, a, [data-workspace-item]):focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-brand dark:outline-rose-400;
+}
+@media (max-width: 479px) {
+    .workspace-items-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+}

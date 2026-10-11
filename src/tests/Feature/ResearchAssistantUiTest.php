@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ResearchAssistantWorkflowContextService;
 use Carbon\CarbonImmutable;
 use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
@@ -68,8 +69,8 @@ function createAssistantTopicFor(User $user, array $overrides = []): TopicPropos
     return $topic;
 }
 
-/** @return list<int> */
-function assistantContextIds(TestResponse $response): array
+/** @return list<array{id: int, label: string, status: string, meta: string}> */
+function assistantContexts(TestResponse $response): array
 {
     $matched = preg_match(
         "/window\\.athenaResearchAssistantContexts = JSON\\.parse\\('([^']*)'\\);/",
@@ -80,9 +81,14 @@ function assistantContextIds(TestResponse $response): array
     expect($matched)->toBe(1);
 
     $serializedContexts = json_decode('"'.$matches[1].'"', flags: JSON_THROW_ON_ERROR);
-    $contexts = json_decode($serializedContexts, true, flags: JSON_THROW_ON_ERROR);
 
-    return collect($contexts)
+    return json_decode($serializedContexts, true, flags: JSON_THROW_ON_ERROR);
+}
+
+/** @return list<int> */
+function assistantContextIds(TestResponse $response): array
+{
+    return collect(assistantContexts($response))
         ->pluck('id')
         ->map(fn (mixed $id): int => (int) $id)
         ->values()
@@ -219,6 +225,8 @@ test('assistant does not invent a project delay when completion or schedule is u
 test('faculty and faculty researchers can open the research help facility', function (string $role) {
     $researcher = User::factory()->create();
     $researcher->assignRole($role);
+    createAssistantTopicFor($researcher, ['title' => 'Community water quality research']);
+    createAssistantTopicFor($researcher, ['title' => 'Student learning and digital access']);
 
     $response = $this->actingAs($researcher)
         ->get(route('research-support.index'))
@@ -244,19 +252,26 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertDontSee('Searching seven academic indexes')
         ->assertDontSee('Up to 50 deduplicated, evidence-ranked records')
         ->assertDontSee('<summary class="cursor-pointer text-xs', false)
-        ->assertSee('Abstract excerpt')
+        ->assertSee('>Abstract</p>', false)
         ->assertSee('Show full abstract')
         ->assertSee('Show less')
         ->assertSee('Paper details')
         ->assertSee('Add to a Detailed Proposal')
         ->assertDontSee('No scrolling required')
         ->assertDontSee('Evidence-ranked')
-        ->assertSee('Add research context for more precise results')
+        ->assertSee('data-literature-query-hint', false)
         ->assertSee('data-rrl-workspace', false)
         ->assertSee('data-rrl-results-table', false)
         ->assertSee('data-rrl-paper-details', false)
         ->assertSee('Analyze results')
         ->assertSee('Chats are saved to your account.')
+        ->assertSee('data-assistant-project-picker', false)
+        ->assertSee('Search your projects…')
+        ->assertSee('Remove project context')
+        ->assertSee('data-assistant-composer-shell', false)
+        ->assertDontSee('x-model="$store.researchAssistant.contextEnabled"', false)
+        ->assertDontSee('assistant-drawer-context', false)
+        ->assertDontSee('assistant-workspace-context', false)
         ->assertSee('Privacy details')
         ->assertSee('athena-chat-panel')
         ->assertDontSee('Context-aware assistance:')
@@ -285,6 +300,11 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('openWorkspace()', false)
         ->assertSee('collapseWorkspace()', false)
         ->assertSee('workspaceOpen', false);
+
+    if (getenv('ATHENA_EXPORT_ASSISTANT_LAYOUT') === '1' && $role === 'faculty') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/research-assistant.html'), $response->getContent());
+    }
 
     if ($role === 'faculty_researcher') {
         $response
@@ -315,22 +335,34 @@ test('faculty and faculty researchers can open the research help facility', func
     }
 })->with(['faculty', 'faculty_researcher']);
 
-test('research heads can open the assistant workspace without faculty researcher tools', function (string $role) {
+test('research support denies access outside faculty workspaces', function (array $roles, string $workspace) {
     $this->withoutVite();
 
+    foreach ($roles as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+
     $user = User::factory()->create();
-    $user->assignRole($role);
+    $user->assignRole($roles);
 
     $this->actingAs($user)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
         ->get(route('research-support.index'))
-        ->assertOk()
-        ->assertSee('Research Support')
+        ->assertForbidden()
+        ->assertSee('Access denied')
+        ->assertSee("This page isn't for your account.")
+        ->assertSee('Go to my dashboard')
         ->assertDontSee('Visit Turnitin')
         ->assertDontSee('href="https://www.turnitin.com/"', false)
         ->assertDontSee('Journal Finder')
-        ->assertSee('Ask ATHENA')
+        ->assertDontSee('Ask ATHENA')
         ->assertDontSee('Literature Search and Source Organizer');
-})->with(['research_head']);
+})->with([
+    'research head' => [['research_head'], User::WORKSPACE_RESEARCH_HEAD],
+    'research office with faculty access' => [['research_coordinator', 'faculty'], User::WORKSPACE_RESEARCH_OFFICE],
+    'research office only' => [['research_coordinator'], User::WORKSPACE_RESEARCH_OFFICE],
+    'research secretary only' => [['research_secretary'], User::WORKSPACE_RESEARCH_SECRETARY],
+]);
 
 test('proposal owners can launch athena with the current proposal selected', function () {
     $this->withoutVite();
@@ -353,6 +385,86 @@ test('proposal owners can launch athena with the current proposal selected', fun
         ->assertSee('Uses saved monitoring tools, progress reports, and remarks')
         ->assertSee('Context-aware freshwater research');
 });
+
+test('assistant project selection preserves complete titles and identifying details', function (string $role) {
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $title = '[Draft sample] Mental Health Chatbot for Stress Management Among College Students in Rural Communities';
+    $category = ResearchCategory::firstOrCreate(['name' => 'Health Sciences']);
+    $topic = createAssistantTopicFor($user, ['title' => $title]);
+    $topic->update(['research_category_id' => $category->id]);
+    $second = createAssistantTopicFor($user, [
+        'title' => 'Telehealth Triage Assistant for Rural Health Unit Queue Management and Patient Referral Coordination',
+        'status' => 'submitted',
+    ]);
+    $second->update(['research_category_id' => $category->id]);
+
+    $response = $this->actingAs($user)->get(route('profile.edit'))->assertOk();
+    $context = collect(assistantContexts($response))->firstWhere('id', $topic->id);
+
+    expect($context['label'])->toBe($title)
+        ->and($context['status'])->toBe('revision requested')
+        ->and($context['meta'])->toBe('Health Sciences · 2026-2027 · v1');
+    $response->assertSee('data-assistant-project-title', false)
+        ->assertSee('x-text="project.meta"', false)
+        ->assertSee('x-text="project.status"', false);
+
+    if (getenv('ATHENA_EXPORT_ASSISTANT_LAYOUT') === '1' && $role === 'faculty') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/research-assistant-projects.html'), $response->getContent());
+    }
+})->with(['faculty', 'research_head']);
+
+test('assistant project selection includes older accessible projects beyond eight and readable privacy details', function (string $role) {
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $status = $role === 'faculty_researcher' ? 'approved' : 'revision_requested';
+    $olderTopic = createAssistantTopicFor($user, ['title' => 'Older watershed research', 'status' => $status]);
+    $olderTopic->forceFill(['created_at' => now()->subYear()])->saveQuietly();
+
+    $topics = collect([$olderTopic]);
+    foreach (range(1, 11) as $number) {
+        $topics->push(createAssistantTopicFor($user, ['title' => "Recent project {$number}", 'status' => $status]));
+    }
+    $otherUser = User::factory()->create();
+    $otherUser->assignRole('faculty');
+    $otherTopic = createAssistantTopicFor($otherUser);
+    $unapprovedTopic = $role === 'faculty_researcher' ? createAssistantTopicFor($user) : null;
+
+    $response = $this->actingAs($user)->get(route('profile.edit'))->assertOk();
+    $contextIds = assistantContextIds($response);
+    foreach ($topics as $topic) {
+        expect($contextIds)->toContain($topic->id);
+    }
+    if ($role === 'research_head') {
+        expect($contextIds)->toContain($otherTopic->id);
+    } else {
+        expect($contextIds)->not->toContain($otherTopic->id);
+    }
+    if ($unapprovedTopic) {
+        expect($contextIds)->not->toContain($unapprovedTopic->id);
+    }
+    $response->assertSee('All accessible projects')
+        ->assertSee('Chat storage')
+        ->assertSee('Sensitive information')
+        ->assertSee('Contact details are redacted.')
+        ->assertSee('Avoid sharing confidential participant data.');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $privacySections = $xpath->query('//*[@data-assistant-privacy]');
+    expect($privacySections->length)->toBe(2);
+    foreach ($privacySections as $section) {
+        expect($xpath->query('ancestor::details', $section)->length)->toBe(0)
+            ->and($xpath->query('.//dt', $section)->length)->toBe(3);
+    }
+
+    if (getenv('ATHENA_EXPORT_ASSISTANT_LAYOUT') === '1' && $role === 'faculty') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/research-assistant-projects.html'), $response->getContent());
+    }
+})->with(['faculty', 'faculty_researcher', 'research_head']);
 
 test('proposal draft editors expose the current paper and proposal to athena', function () {
     $this->withoutVite();
@@ -415,7 +527,7 @@ test('research heads can launch athena with an authorized proposal selected', fu
         ->assertSee('Make a revision plan');
 });
 
-test('the current authorized record stays selected when it is older than the recent context limit', function (string $access) {
+test('the current authorized record stays selected while every accessible context remains available', function (string $access) {
     $this->withoutVite();
 
     $owner = User::factory()->create();
@@ -495,8 +607,8 @@ test('the current authorized record stays selected when it is older than the rec
 
     $contextIds = assistantContextIds($response);
 
-    expect($contextIds)
-        ->toHaveCount(8)
+    expect(count($contextIds))
+        ->toBeGreaterThanOrEqual(9)
         ->and($contextIds[0])->toBe($currentTopic->id)
         ->and($contextIds)->toContain($currentTopic->id);
 })->with([

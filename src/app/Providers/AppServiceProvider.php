@@ -10,6 +10,7 @@ use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\ResearchHeadReportQueue;
 use App\Services\SidebarAttentionService;
 use App\Support\ResearchCallDeadlineNotice;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -113,6 +114,13 @@ class AppServiceProvider extends ServiceProvider
                 default => null,
             };
 
+            $contextRelations = [
+                'category:id,name',
+                'researchCall:id,academic_year',
+                'latestVersion' => fn (HasOne $relation): HasOne => $relation->select(
+                    $relation->getRelated()->qualifyColumns(['id', 'topic_id', 'version_number']),
+                ),
+            ];
             $contextTopics = TopicProposal::query()
                 ->when(
                     ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD),
@@ -122,10 +130,9 @@ class AppServiceProvider extends ServiceProvider
                     $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER),
                     fn ($query) => $query->visibleInResearcherWorkspace(),
                 )
-                ->with(['category', 'researchCall', 'latestVersion'])
+                ->with($contextRelations)
                 ->latest()
-                ->limit(8)
-                ->get();
+                ->get(['id', 'title', 'status', 'research_category_id', 'research_call_id']);
 
             if ($activeContextTopic) {
                 $contextTopics->prepend($activeContextTopic);
@@ -133,14 +140,13 @@ class AppServiceProvider extends ServiceProvider
 
             $contextTopics = $contextTopics
                 ->unique(fn (TopicProposal $topic): int => $topic->getKey())
-                ->take(8)
                 ->values();
-            $contextTopics->loadMissing(['category', 'researchCall', 'latestVersion']);
+            $contextTopics->loadMissing($contextRelations);
 
             $contexts = $contextTopics
                 ->map(fn (TopicProposal $topic) => [
                     'id' => $topic->id,
-                    'label' => Str::limit($topic->title, 72),
+                    'label' => $topic->title,
                     'status' => str_replace('_', ' ', $topic->status),
                     'meta' => collect([
                         $topic->category?->name,

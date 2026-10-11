@@ -1,4 +1,4 @@
-[data-proposal-paper-workspace], [data-automatic-assessment-preview] {
+[data-proposal-paper-workspace], [data-editable-proposal-papers], [data-automatic-assessment-preview], [data-submitted-report-document] {
     --proposal-writing-surface: #fff;
     --proposal-writing-workspace: #f3f5f8;
     --proposal-writing-ink: #243044;
@@ -9,7 +9,7 @@
     --proposal-writing-sticky-top: 8rem;
 }
 [data-proposal-paper-workspace] { max-width: 88rem; }
-html.dark [data-proposal-paper-workspace], html.dark [data-automatic-assessment-preview] {
+html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-papers], html.dark [data-automatic-assessment-preview], html.dark [data-submitted-report-document] {
     --proposal-writing-surface: #0f172a;
     --proposal-writing-workspace: #1e293b;
     --proposal-writing-ink: #f1f5f9;
@@ -22,25 +22,24 @@ html.dark [data-proposal-paper-workspace], html.dark [data-automatic-assessment-
     position: sticky;
     top: var(--proposal-writing-sticky-top);
     z-index: 35;
-    padding: .75rem;
+    padding: .625rem;
     border: 1px solid var(--proposal-writing-border);
     border-radius: .75rem;
     background: var(--proposal-writing-surface);
     color: var(--proposal-writing-ink);
     box-shadow: 0 6px 20px rgb(15 23 42 / .12);
 }
-.proposal-writing-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.proposal-writing-toolbar-row { display: flex; flex-wrap: nowrap; align-items: center; gap: .5rem; min-width: 0; }
 .proposal-writing-toolbar-heading { display: flex; align-items: start; justify-content: space-between; gap: .75rem; }
 .proposal-writing-toolbar-context { flex: 1; min-width: 0; }
-.proposal-writing-toolbar [data-writing-toolbar-close] { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 2.5rem; height: 2.5rem; padding: .5rem; }
+.proposal-writing-toolbar [data-writing-toolbar-close] { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 2rem; height: 2rem; }
 .proposal-writing-toolbar [data-writing-toolbar-close] svg { width: 1.125rem; height: 1.125rem; }
-.proposal-writing-toolbar [data-writing-toolbar-open] { min-height: 2.5rem; }
-[data-writing-toolbar-controls] { margin-top: .625rem; }
+[data-writing-toolbar-controls] { margin-top: .375rem; }
 .proposal-writing-toolbar-closed { padding: .375rem; border-color: transparent; background: transparent; box-shadow: none; }
 .proposal-writing-target { flex: 1 0 100%; margin: 0; font-size: .8125rem; color: var(--proposal-writing-muted); overflow-wrap: anywhere; }
 .proposal-writing-target span { color: var(--proposal-writing-ink); font-weight: 600; }
-.proposal-writing-hint { margin: .5rem 0 0; color: var(--proposal-writing-muted); font-size: .75rem; }
-.proposal-writing-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem; min-width: 0; }
+.proposal-writing-hint { margin: .375rem 0 0; color: var(--proposal-writing-muted); font-size: .75rem; }
+.proposal-writing-buttons { display: flex; flex-wrap: nowrap; align-items: center; gap: .25rem; min-width: 0; width: 100%; overflow-x: auto; padding: .25rem; }
 .proposal-writing-buttons[hidden], .proposal-table-picker[hidden] { display: none; }
 .proposal-writing-buttons button, .proposal-table-picker button,
 .proposal-preview-dock button:not(.proposal-preview-paper-open), .proposal-preview-download,
@@ -55,24 +54,32 @@ html.dark [data-proposal-paper-workspace], html.dark [data-automatic-assessment-
     font-weight: 600;
     white-space: nowrap;
 }
+.proposal-writing-buttons :is(button, a),
+.proposal-writing-toolbar :is([data-writing-toolbar-close], [data-writing-toolbar-open]) { flex-shrink: 0; min-height: 2rem; padding: .25rem .375rem; }
 .proposal-writing-buttons button:hover, .proposal-table-picker button:hover,
 .proposal-preview-dock button:not(.proposal-preview-paper-open):hover, .proposal-preview-download:hover { background: var(--proposal-writing-wash); }
 .proposal-writing-buttons button[aria-pressed='true'] { background: var(--proposal-writing-accent); color: var(--proposal-writing-surface); border-color: var(--proposal-writing-accent); }
 .proposal-writing-buttons button:disabled, .proposal-preview-dock button:disabled { opacity: .45; cursor: not-allowed; }
 .proposal-writing-toolbar :is(button, input):focus-visible,
 .proposal-preview-dock :is(button, a):focus-visible, .proposal-writing-preview-launcher:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 3px; }
-.detailed-proposal-writing-toolbar .proposal-writing-toolbar-row { gap: .75rem; }
-.detailed-proposal-writing-toolbar .proposal-writing-target { font-size: .9375rem; line-height: 1.5; }
-.detailed-proposal-writing-toolbar .proposal-writing-buttons { gap: .75rem; }
-.proposal-writing-action-group { display: flex; align-items: center; gap: .375rem; flex-shrink: 0; }
-.proposal-writing-action-group + .proposal-writing-action-group { padding-left: .75rem; border-left: 1px solid var(--proposal-writing-border); }
-.detailed-proposal-writing-toolbar :is(.proposal-writing-buttons, .proposal-table-picker) button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.625rem; padding: .5rem .75rem; font-size: .9375rem; line-height: 1.25; }
-.proposal-writing-icon { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+.proposal-writing-action-group { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
+.proposal-writing-action-group + .proposal-writing-action-group { padding-left: .375rem; border-left: 1px solid var(--proposal-writing-border); }
+.detailed-proposal-writing-toolbar :is(.proposal-writing-buttons, .proposal-table-picker, .proposal-writing-menu) button { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; line-height: 1.25; }
+.proposal-writing-icon { width: 1rem; height: 1rem; flex-shrink: 0; }
 .detailed-proposal-writing-toolbar .proposal-writing-buttons button:disabled { opacity: .7; }
-.detailed-proposal-writing-toolbar .proposal-writing-hint { font-size: .875rem; line-height: 1.5; }
-[data-writing-expand] .proposal-writing-shrink-icon,
-[data-writing-expand][aria-pressed='true'] .proposal-writing-expand-icon { display: none; }
-[data-writing-expand][aria-pressed='true'] .proposal-writing-shrink-icon { display: block; }
+.detailed-proposal-writing-toolbar .proposal-writing-primary-action { width: auto; flex-shrink: 0; overflow: visible; }
+.detailed-proposal-writing-toolbar .proposal-writing-buttons .proposal-writing-cite { color: #fff; background: #7a0019; border-color: #7a0019; }
+.detailed-proposal-writing-toolbar .proposal-writing-buttons .proposal-writing-cite:hover { background: #600014; }
+.proposal-writing-menu-chevron { width: .75rem; height: .75rem; flex-shrink: 0; stroke-width: 1.5; }
+.proposal-writing-menu { position: fixed; z-index: 45; display: grid; gap: .25rem; width: min(14rem, calc(100vw - 1rem)); padding: .375rem; border: 1px solid var(--proposal-writing-border); border-radius: .5rem; background: var(--proposal-writing-surface); color: var(--proposal-writing-ink); box-shadow: 0 8px 24px rgb(15 23 42 / .18); }
+.proposal-writing-menu[hidden] { display: none; }
+.detailed-proposal-writing-toolbar .proposal-writing-menu button { min-height: 2.5rem; justify-content: start; padding: .5rem .625rem; border: 0; border-radius: .25rem; font-size: .8125rem; font-weight: 600; }
+.proposal-writing-menu button:hover { background: var(--proposal-writing-wash); }
+.proposal-writing-menu button:disabled { opacity: .7; cursor: not-allowed; }
+.proposal-editor-actions { display: flex; justify-content: end; padding: .25rem .5rem; border-bottom: 1px solid var(--proposal-writing-border); background: var(--proposal-writing-surface); }
+.proposal-editor-actions button { min-height: 2rem; padding: .25rem .375rem; border-radius: .25rem; color: var(--proposal-writing-muted); font-size: .75rem; font-weight: 600; }
+.proposal-editor-actions button:hover { color: var(--proposal-writing-accent); background: var(--proposal-writing-wash); }
+.proposal-editor-actions button:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 2px; }
 .proposal-table-picker { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-top: .75rem; }
 .proposal-table-picker label { display: grid; gap: .25rem; color: var(--proposal-writing-muted); font-size: .8125rem; }
 .proposal-table-picker input[type='number'] { width: 5rem; border: 1px solid var(--proposal-writing-border); border-radius: .375rem; color: var(--proposal-writing-ink); background: var(--proposal-writing-surface); }
@@ -90,6 +97,9 @@ html.dark [data-proposal-paper-workspace], html.dark [data-automatic-assessment-
 [data-proposal-paper-workspace] .proposal-semantic-field { border-radius: .375rem; box-shadow: none; border-color: var(--proposal-writing-border); }
 [data-proposal-paper-workspace] .proposal-writing-active { border-color: var(--proposal-writing-accent); }
 [data-proposal-paper-workspace] .semantic-rich-text-editor { height: clamp(8rem, calc(var(--proposal-editor-rows, 7) * 1rem + 1rem), 14rem); background: var(--proposal-writing-surface); color: var(--proposal-writing-ink); }
+[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button'] { cursor: pointer; }
+[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button']:hover { text-decoration: underline; text-underline-offset: .125rem; }
+[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button']:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 2px; }
 [data-proposal-paper-workspace] .proposal-writing-expanded .semantic-rich-text-editor { height: clamp(20rem, 60dvh, 42rem); }
 [data-proposal-paper-workspace] .semantic-rich-text-editor table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-block: .75rem; }
 [data-proposal-paper-workspace] .semantic-rich-text-editor :is(td, th) { min-width: 0; border: 1px solid var(--proposal-writing-border); padding: .5rem; vertical-align: top; overflow-wrap: anywhere; }
@@ -175,8 +185,26 @@ html.dark .proposal-preview-error { color: #fda4af; }
 .proposal-preview-zoom { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .5rem; }
 .proposal-preview-zoom button[aria-pressed='true'] { border-color: var(--proposal-writing-accent); color: var(--proposal-writing-accent); }
 .proposal-preview-zoom output { min-width: 3rem; text-align: center; font-size: .8125rem; }
+:is([data-editable-proposal-papers], [data-automatic-assessment-preview]) .proposal-preview-dock :is(h3, button:not(.proposal-preview-paper-open), .proposal-preview-download) { font-size: 1rem; }
+:is([data-editable-proposal-papers], [data-automatic-assessment-preview]) .proposal-preview-dock :is(button:not(.proposal-preview-paper-open), .proposal-preview-download) { min-height: 2.75rem; }
+:is([data-editable-proposal-papers], [data-automatic-assessment-preview]) .proposal-preview-dock :is(.proposal-preview-dock-heading p, .proposal-preview-zoom output) { font-size: .875rem; }
 .proposal-preview-dock-expanded { display: block; position: fixed; inset: 0; z-index: 85; height: auto; padding: 1rem; background: rgb(15 23 42 / .6); }
 .proposal-preview-dock-expanded > section { width: min(72rem, 100%); margin-inline: auto; }
+.submitted-report-preview.proposal-preview-dock-expanded { position: relative; inset: auto; z-index: auto; height: calc(100dvh - 3rem); padding: 0; background: transparent; }
+.submitted-report-preview .proposal-preview-dock-heading { flex-wrap: nowrap; }
+.submitted-report-preview .proposal-preview-paper { overflow: hidden; }
+.submitted-report-preview .revision-pdf-pages { align-items: safe center; }
+.submitted-report-preview .proposal-preview-zoom button { min-height: 2.75rem; }
+.submitted-report-preview .proposal-preview-dock-heading button, .submitted-report-preview .proposal-preview-download { min-height: 2.75rem; }
+.submitted-report-preview.proposal-preview-dock-expanded .proposal-preview-paper { min-height: 0; }
+.submitted-report-preview.proposal-preview-dock-expanded .proposal-preview-dock-footer { flex-direction: column; align-items: center; gap: .375rem; }
+.submitted-report-wheel-hint { margin: 0; color: var(--proposal-writing-muted); font-size: .75rem; }
+.submitted-report-preview-thumbnail { display: block; position: relative; width: min(100%, 12rem); }
+.submitted-report-preview-thumbnail > section { height: auto; border-radius: .5rem; }
+.submitted-report-preview-thumbnail .proposal-preview-paper { flex: none; aspect-ratio: var(--submitted-paper-ratio, .707); min-height: 0; max-height: 14.5rem; background: #dce2eb; }
+.submitted-report-preview-thumbnail .revision-pdf-pages { overflow: hidden; padding: .5rem; scrollbar-gutter: auto; pointer-events: none; }
+.submitted-report-preview-thumbnail .proposal-preview-paper-open:hover { background: rgb(127 29 29 / .04); }
+html.dark .submitted-report-preview-thumbnail .proposal-preview-paper { background: #080f1d; }
 .proposal-writing-preview-launcher { position: fixed; right: var(--athena-page-action-right, 5.75rem); bottom: calc(var(--athena-floating-control-edge, 1rem) + 3.5rem + env(safe-area-inset-bottom)); z-index: 40; padding: .75rem 1rem; border: 1px solid var(--proposal-writing-accent); border-radius: .625rem; background: var(--proposal-writing-surface); color: var(--proposal-writing-accent); box-shadow: 0 6px 20px rgb(15 23 42 / .16); font-size: .875rem; font-weight: 600; }
 .revision-embedded [data-paper-editor] { --proposal-writing-sticky-top: 0rem; }
 .revision-embedded .proposal-writing-toolbar { top: 0; margin-top: -.75rem !important; margin-inline: -.75rem; border-top: 0; border-inline: 0; border-radius: 0; }
@@ -187,13 +215,17 @@ html.dark .proposal-preview-error { color: #fda4af; }
 .revision-embedded .proposal-writing-columns { display: block !important; }
 @media (min-width: 1024px) {
     .proposal-writing-columns:not(.proposal-writing-preview-hidden) { display: grid; grid-template-columns: minmax(0, 1fr) clamp(15rem, 28%, 21rem); align-items: start; gap: 1.5rem; }
-    .proposal-preview-dock:not(.proposal-preview-dock-expanded) { display: block; position: sticky; top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 7rem) + .75rem); height: max(18rem, calc(100dvh - var(--proposal-writing-sticky-top) - var(--proposal-toolbar-height, 7rem) - 2rem)); max-height: 42rem; }
+    .proposal-preview-dock:not(.proposal-preview-dock-expanded):not(.submitted-report-preview) { display: block; position: sticky; top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 7rem) + .75rem); height: max(18rem, calc(100dvh - var(--proposal-writing-sticky-top) - var(--proposal-toolbar-height, 7rem) - 2rem)); max-height: 42rem; }
 }
 @media (max-width: 639px) {
     .cv-writing-member-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
     .proposal-writing-toolbar { padding: .5rem; }
-    .proposal-writing-toolbar-row .proposal-writing-buttons { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: .25rem; }
-    .proposal-writing-buttons button { flex-shrink: 0; min-height: 2.75rem; }
+    .proposal-writing-buttons :is(button, a),
+    .proposal-writing-toolbar :is([data-writing-toolbar-close], [data-writing-toolbar-open]) { min-height: 2.75rem; }
+    .proposal-writing-toolbar [data-writing-toolbar-close] { width: 2.75rem; height: 2.75rem; }
+    .detailed-proposal-writing-toolbar .proposal-writing-buttons > .proposal-writing-action-group > [data-writing-command] span { display: none; }
+    .detailed-proposal-writing-toolbar .proposal-writing-buttons > .proposal-writing-action-group > [data-writing-command] { min-width: 2.5rem; }
+    .proposal-writing-menu button, .proposal-editor-actions button { min-height: 2.75rem; }
     .proposal-preview-dock-expanded { padding: .5rem; }
     .proposal-preview-dock-heading { flex-wrap: wrap; }
     .proposal-writing-preview-launcher { right: 1rem; bottom: calc(8.5rem + env(safe-area-inset-bottom)); }

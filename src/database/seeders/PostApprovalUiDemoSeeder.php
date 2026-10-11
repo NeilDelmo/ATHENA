@@ -17,11 +17,141 @@ use App\Services\ProgressReportDocumentService;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\TerminalReportDocumentService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class PostApprovalUiDemoSeeder extends Seeder
 {
+    public function repairQuarterlyProgressSample(TopicProposal $topic): void
+    {
+        if (app()->isProduction() || ! str_starts_with((string) $topic->description, '[lifecycle-demo:delayed]')) {
+            throw new RuntimeException('Only the delayed UI demonstration may be repaired outside production.');
+        }
+        $narratives = $topic->narrativeReports()->where('report_type', 'progress')->get();
+        $legacy = $narratives->firstWhere('tracking_number', 'LIFE-'.$topic->id.'-NARRATIVE');
+        if (! $legacy || $narratives->contains(fn (ProjectNarrativeReport $report): bool => ! str_starts_with((string) $report->tracking_number, 'LIFE-'.$topic->id.'-'))) {
+            throw new RuntimeException('The quarterly sample repair requires demonstration reports only.');
+        }
+        $monitoring = $topic->progressReports()->submitted()->reorder('reporting_date')->get();
+        if ($monitoring->count() !== 3) {
+            throw new RuntimeException('The delayed sample requires three submitted Monitoring Tools.');
+        }
+        $disk = Storage::disk('local');
+        $backup = 'post-approval-ui-demo/'.$topic->id.'/before-quarterly-progress-repair.json';
+        if (! $disk->exists($backup) && ! $disk->put($backup, $narratives->toJson(JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR))) {
+            throw new RuntimeException('Unable to back up the original demonstration Progress Reports.');
+        }
+        $reports = $monitoring->map(function (ProjectProgressReport $tool) use ($topic, $legacy, $narratives, $disk): ProjectNarrativeReport {
+            $period = app(MonitoringQuarterService::class)->forDate($tool->reporting_date, $topic);
+            $report = $narratives->firstWhere('reporting_quarter', $period['quarter'])
+                ?? ($period['quarter'] === 1 ? $legacy : $legacy->replicate());
+            $rows = collect($tool->work_plan)->map(fn (array $row): array => [
+                'objective' => $row['objective'] ?? '', 'target' => $row['physical_target'], 'actual' => $row['actual_accomplishment'],
+            ]);
+            $report->fill([
+                'tracking_number' => $period['quarter'] === 1 ? $legacy->tracking_number : 'LIFE-'.$topic->id.'-PROGRESS-Q'.$period['quarter'],
+                'reporting_quarter' => $period['quarter'], 'reporting_date' => $period['end'],
+                'period_start' => $period['start'], 'period_end' => $period['end'], 'submission_date' => $period['opens_at'],
+                'version_number' => 1, 'accomplishments' => $rows->all(),
+                'accomplishment_summary' => 'UI DEMONSTRATION DATA: Q'.$period['quarter']."\n".$tool->accomplishments,
+                'introduction' => 'UI DEMONSTRATION ONLY. This quarterly paper documents the approved activities for '.$topic->title.' during '.$period['start']->format('M j, Y').' – '.$period['end']->format('M j, Y').'.',
+                'rationale' => 'The project examines student stress and develops guided coping conversations. Progress is assessed against the approved Work Plan.',
+                'objectives' => $rows->pluck('objective')->unique()->implode("\n"),
+                'methodology' => 'The team documented baseline wellness assessments, clinically reviewed conversation flows, and pilot validation as scheduled in the approved Work Plan. The accomplishments below record only the work completed by this reporting period.',
+                'results_discussion' => $tool->accomplishments."\n\n".$tool->issues,
+                'photos' => [], 'terminal_data' => null, 'prepared_by_date_signed' => $period['opens_at'],
+                'prepared_at' => $period['opens_at'], 'submitted_at' => $period['opens_at'],
+                'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+                'review_status' => $tool->review_status, 'reviewed_by' => $tool->reviewed_by, 'reviewed_at' => $tool->reviewed_at,
+                'research_head_remarks' => match ($tool->review_status) {
+                    'reviewed' => 'UI demo: Quarterly findings reviewed against the submitted Monitoring Tool. Continue the approved Work Plan and address any outstanding pilot activities.',
+                    'revision_requested' => 'UI demo: Document participant follow-up, revised pilot recovery dates, and supporting evidence.',
+                    default => null,
+                },
+            ]);
+            $pdf = app(DocumentPdfConverter::class)->convertDocx(app(ProgressReportDocumentService::class)->generate($report));
+            $checksum = hash('sha256', $pdf);
+            $path = 'post-approval-ui-demo/'.$topic->id.'/progress-q'.$period['quarter'].'-repaired-'.$checksum.'.pdf';
+            if (! $disk->put($path, $pdf)) {
+                throw new RuntimeException('Unable to store the quarterly demonstration Progress Report PDF.');
+            }
+            $report->fill(['official_pdf_path' => $path, 'official_pdf_filename' => 'ui-demo-progress-q'.$period['quarter'].'.pdf',
+                'official_pdf_checksum' => $checksum, 'official_pdf_size' => strlen($pdf)]);
+
+            return $report;
+        });
+        DB::transaction(function () use ($reports): void {
+            foreach ($reports as $report) {
+                $report->save();
+            }
+        });
+    }
+
+    public function repairDelayedMonitoringSample(TopicProposal $topic): void
+    {
+        if (app()->isProduction() || ! str_starts_with((string) $topic->description, '[lifecycle-demo:delayed]')) {
+            throw new RuntimeException('Only the delayed UI demonstration may be repaired outside production.');
+        }
+
+        $reports = $topic->progressReports()->submitted()->reorder('reporting_date')->get();
+        $periods = app(MonitoringQuarterService::class)->projectPeriods($topic);
+        $plan = app(ApprovedWorkPlanMonitoringService::class);
+        $activities = $periods->flatMap(fn (array $period): array => $plan->defaultsForDate($topic, $period['end']))
+            ->unique('source_work_plan_index')->values();
+        if ($activities->isEmpty() || $reports->count() !== 3) {
+            throw new RuntimeException('The delayed sample requires an approved Work Plan and three submitted quarters.');
+        }
+        $disk = Storage::disk('local');
+        $backup = 'post-approval-ui-demo/'.$topic->id.'/before-monitoring-repair.json';
+        if (! $disk->exists($backup) && ! $disk->put($backup, $reports->toJson(JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR))) {
+            throw new RuntimeException('Unable to back up the original demonstration reports.');
+        }
+
+        $updates = $reports->map(function (ProjectProgressReport $report) use ($topic, $periods, $activities, $disk): array {
+            $period = app(MonitoringQuarterService::class)->forDate($report->reporting_date, $topic);
+            $lastActivity = $activities->last()['source_work_plan_index'];
+            $rows = $periods->take($period['quarter'])
+                ->flatMap(fn (array $elapsed): array => app(ApprovedWorkPlanMonitoringService::class)->defaultsForDate($topic, $elapsed['end']))
+                ->unique('source_work_plan_index')->map(function (array $row) use ($period, $lastActivity): array {
+                    $due = $row['target_completion_date'] <= $period['end']->toDateString();
+                    $completion = ! $due ? 0 : ($row['source_work_plan_index'] === $lastActivity
+                        ? [1 => 0, 2 => 50, 3 => 65][$period['quarter']] : 100);
+
+                    return [...$row,
+                        'accomplished_percentage' => round((float) $row['percent_weight'] * $completion / 100, 2),
+                        'actual_accomplishment' => $completion === 100 ? 'UI demo: '.$row['physical_target'].' completed and validated.'
+                            : ($completion > 0 ? 'UI demo: Pilot validation is '.$completion.'% complete; participant follow-up remains outstanding.' : 'Scheduled work is in progress; the approved target is not yet due.'),
+                        'findings' => $due && $completion < 100 ? 'Participant recruitment delayed pilot validation. Record recovery dates and supporting evidence.' : 'Work follows the approved schedule.',
+                    ];
+                })->values()->all();
+            $report->fill(['work_plan' => $rows,
+                'progress_percentage' => (int) round(array_sum(array_column($rows, 'accomplished_percentage'))),
+                'accomplishments' => collect($rows)->pluck('actual_accomplishment')->implode("\n"),
+                'issues' => collect($rows)->contains(fn (array $row): bool => $row['target_completion_date'] <= $period['end']->toDateString()
+                    && (float) $row['accomplished_percentage'] < (float) $row['percent_weight'])
+                    ? 'Participant recruitment delayed pilot validation; follow-up and recovery dates are required.' : 'No unresolved issues for this period.',
+            ]);
+            $pdf = app(DocumentPdfConverter::class)->convertDocx(app(MonitoringToolDocumentService::class)->generate($report));
+            $checksum = hash('sha256', $pdf);
+            $path = 'post-approval-ui-demo/'.$topic->id.'/monitoring-'.$report->id.'-repaired-'.$checksum.'.pdf';
+            if (! $disk->put($path, $pdf)) {
+                throw new RuntimeException('Unable to store the repaired demonstration PDF.');
+            }
+
+            return ['report' => $report, 'attributes' => [...$report->only(array_keys($report->getDirty())),
+                'official_pdf_path' => $path, 'official_pdf_filename' => 'ui-demo-monitoring-'.$report->id.'.pdf',
+                'official_pdf_checksum' => $checksum, 'official_pdf_size' => strlen($pdf),
+            ]];
+        });
+
+        DB::transaction(function () use ($updates): void {
+            foreach ($updates as $update) {
+                $update['report']->update($update['attributes']);
+            }
+        });
+    }
+
     public function run(): void
     {
         if (app()->isProduction()) {

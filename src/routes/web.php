@@ -20,6 +20,7 @@ use App\Http\Controllers\ProjectDocumentController;
 use App\Http\Controllers\ProjectJournalSubmissionController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectNarrativeReportController;
+use App\Http\Controllers\ProjectWorkspaceController;
 use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
@@ -375,7 +376,9 @@ Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}/preview', [
     ->name('project-narrative-reports.photos.view');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/research-support', [ResearchSupportController::class, 'index'])->name('research-support.index');
+    Route::get('/research-support', [ResearchSupportController::class, 'index'])
+        ->middleware('workspace:faculty|faculty_researcher')
+        ->name('research-support.index');
     Route::get('/research-head/signatories', [ProposalSignatoryController::class, 'index'])->name('signatories.index');
     Route::post('/research-head/signatories', [ProposalSignatoryController::class, 'store'])->name('signatories.store');
     Route::patch('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'update'])->name('signatories.update');
@@ -480,11 +483,14 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::view('/research-head/calendar', 'research_head.calendar')->name('research_head.calendar');
     Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
+    Route::patch('/research-head/faculty-directory/{member}/secretary', [FacultyDirectoryController::class, 'updateSecretary'])->name('research_head.faculty-directory.secretary');
     Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');
     Route::get('/research-head/received-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.received-submissions.index');
     Route::get('/research-head/report-reviews', [ResearchHeadReportReviewController::class, 'index'])->name('research_head.report-reviews.index');
     Route::get('/research-head/completed-projects', [ProjectMonitoringController::class, 'index'])->name('research_head.completed-projects.index');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
+    Route::put('/research-head/project-workspace', [ProjectWorkspaceController::class, 'update'])->name('research_head.projects.workspace.update');
+    Route::get('/research-head/project-workspace/{topic}/documents', [ProjectWorkspaceController::class, 'documents'])->name('research_head.projects.workspace.documents');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
     Route::post('/research-head/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('research_head.topics.notice-to-proceed.preview');

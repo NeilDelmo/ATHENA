@@ -99,7 +99,7 @@
 
                             @if ($changes->isNotEmpty())
                                 <details class="mt-4 rounded-xl border border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/70">
-                                    <summary class="cursor-pointer px-4 py-3 text-xs font-black text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-slate-200">See {{ $changes->count() }} {{ Str::plural('change', $changes->count()) }}</summary>
+                                    <summary class="disclosure-summary cursor-pointer px-4 py-3 text-xs font-black text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-slate-200">See {{ $changes->count() }} {{ Str::plural('change', $changes->count()) }}</summary>
                                     <div class="overflow-x-auto border-t border-gray-200 dark:border-slate-700">
                                         <table class="min-w-full divide-y divide-gray-200 text-left text-xs dark:divide-slate-700">
                                             <thead class="bg-white text-[10px] font-black uppercase tracking-wider text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th class="px-4 py-3">Field</th><th class="px-4 py-3">Before</th><th class="px-4 py-3">After</th></tr></thead>

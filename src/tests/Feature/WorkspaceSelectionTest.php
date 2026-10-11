@@ -236,3 +236,28 @@ test('fast switching keeps the legacy role in sync and enforces workspace route 
     $this->get(route('research_coordinator.dashboard'))->assertForbidden();
     $this->get(route('faculty.dashboard'))->assertOk();
 });
+
+test('coordinator and secretary workspaces stay separate for an account with both roles', function () {
+    foreach (['research_coordinator', 'research_secretary'] as $role) {
+        Role::findOrCreate($role);
+    }
+    $user = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $user->assignRole(['faculty', 'research_coordinator', 'research_secretary']);
+
+    $this->actingAs($user)->get(route('role-selection.show'))
+        ->assertRedirect(route('workspace.select'));
+    $this->get(route('workspace.select'))->assertOk()
+        ->assertSee('Research Coordinator')->assertSee('Research Office / Secretary');
+
+    $this->post(route('workspace.store'), ['workspace' => 'research_secretary'])
+        ->assertRedirect(route('research_secretary.dashboard'));
+    $this->get(route('research_secretary.dashboard'))->assertOk();
+    $this->get(route('research_coordinator.dashboard'))->assertForbidden();
+
+    $this->post(route('workspace.store'), ['workspace' => 'research_office'])
+        ->assertRedirect(route('research_coordinator.dashboard'));
+    $this->get(route('research_coordinator.dashboard'))->assertOk();
+    $this->get(route('research_secretary.dashboard'))->assertForbidden();
+
+    expect($user->refresh()->hasAllRoles(['faculty', 'research_coordinator', 'research_secretary']))->toBeTrue();
+});

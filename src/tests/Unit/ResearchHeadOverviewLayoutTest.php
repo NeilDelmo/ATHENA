@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
-test('Research Head overview shows truthful activity and project-health summaries with working drilldowns', function (bool $hasData) {
+test('Research Head overview shows truthful priority counts and scoped reporting links', function (bool $hasData) {
     $emptyRows = fn () => new LengthAwarePaginator(collect(), 0, 4);
     $analytics = [
         'kpis' => ['review' => 0, 'delayed' => $hasData ? 1 : 0, 'active' => $hasData ? 3 : 0, 'completed' => $hasData ? 1 : 0, 'faculty' => 0],
@@ -20,24 +20,22 @@ test('Research Head overview shows truthful activity and project-health summarie
             ['key' => 'awaiting', 'label' => 'Awaiting required report / review', 'count' => 0],
             ['key' => 'completed', 'label' => 'Completed', 'count' => $hasData ? 1 : 0],
         ]),
-        'budget' => ['percentage' => null],
+        'budget' => ['percentage' => null, 'reported' => 0, 'total' => $hasData ? 3 : 0],
     ];
     $html = view('livewire.research-head-overview', [
         'academicYear' => '2026-2027', 'fromDate' => '', 'toDate' => '', 'pipeline' => 'awaiting_review',
         'errors' => new ViewErrorBag, 'academicYears' => collect(['2026-2027']), 'analytics' => $analytics, 'topics' => $emptyRows(),
         'attentionItems' => $emptyRows(), 'reportItems' => $emptyRows(), 'deadlines' => collect(),
     ])->render();
-    expect($html)->toContain('Submission activity', 'Project health', 'View analytics', 'View all proposals')
+    expect($html)->toContain('View analytics', 'View all proposals', 'Annual targets')
         ->toContain(e(route('research_head.analytics', ['academicYear' => '2026-2027', 'projectStatus' => 'delayed'])))
-        ->not->toContain('NAN', 'INF', 'packages');
-    if ($hasData) {
-        expect($html)->toContain('27 submissions.', 'Revision submissions', '4 issued projects.')
-            ->toContain(e(route('research_head.analytics', ['academicYear' => '2026-2027', 'submissionMonth' => '2026-09'])))
-            ->toContain('stroke-dasharray="50 50"');
-    } else {
-        expect($html)->toContain('No submission activity recorded', 'Projects appear here once')
-            ->not->toContain('data-dashboard-activity-chart');
-    }
+        ->toContain(e(route('research_head.analytics', ['academicYear' => '2026-2027'])).'#annual-targets')
+        ->not->toContain('NAN', 'INF', 'packages', 'data-dashboard-activity-chart', 'data-dashboard-pipeline-chart');
+    $document = new DOMDocument;
+    @$document->loadHTML($html);
+    $values = (new DOMXPath($document))->query('//*[@data-dashboard-priority-kpis]//strong');
+    expect(trim($values->item(2)->textContent))->toBe($hasData ? '1' : '0')
+        ->and(trim($values->item(3)->textContent))->toBe($hasData ? '3' : '0');
     if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
         File::put(storage_path('framework/testing/head-overview-'.($hasData ? 'populated' : 'empty').'.html'), $html);

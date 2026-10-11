@@ -24,7 +24,7 @@ test('dual role users are asked which workspace they want to use', function () {
         ->assertOk()
         ->assertSee('Choose your workspace')
         ->assertSee('Faculty')
-        ->assertSee('Research Office')
+        ->assertSee('Research Coordinator')
         ->assertSee('Enter workspace')
         ->assertDontSee('Continue as')
         ->assertSee('Back to current workspace')

@@ -3,7 +3,6 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>@yield('page_title') | {{ config('app.name', 'ATHENA') }}</title>
 
@@ -11,7 +10,7 @@
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" />
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite('resources/css/app.css')
     </head>
     <body class="font-sans antialiased">
         <main class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-6 py-12 text-slate-900 dark:bg-slate-950 dark:text-white">
@@ -47,15 +46,9 @@
                         <span>Back to previous page</span>
                     </button>
 
-                    @auth
-                        <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-                            Go to my dashboard
-                        </a>
-                    @else
-                        <a href="{{ url('/') }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-                            Return home
-                        </a>
-                    @endauth
+                    <a href="@yield('recovery_url', auth()->check() ? route('dashboard') : url('/'))" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                        @yield('recovery_label', auth()->check() ? 'Go to my dashboard' : 'Return home')
+                    </a>
                 </div>
 
                 <p class="mt-8 text-xs text-slate-400 dark:text-slate-500">If this keeps happening, contact the ATHENA system administrator.</p>

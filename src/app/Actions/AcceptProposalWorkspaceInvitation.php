@@ -36,8 +36,8 @@ class AcceptProposalWorkspaceInvitation
 
         try {
             $proposalDraft->owner->notify(new ProposalActivityNotification(
-                title: 'Team member accepted invitation',
-                message: $user->name.' accepted your invitation to join the project team for “'.$proposalDraft->project_title.'”.',
+                title: 'Project staff invitation accepted',
+                message: $user->name.' accepted the project staff invitation for “'.$proposalDraft->project_title.'”.',
                 url: route('faculty.proposal-drafts.show', $proposalDraft),
                 sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
             ));

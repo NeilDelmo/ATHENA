@@ -85,7 +85,7 @@
                 </form>
             @endif
             <details @if ($errors->has('authors') || $errors->has('year') || $errors->has('confirmed')) open @endif>
-                <summary class="cursor-pointer text-sm font-bold">Add a missing publication manually</summary>
+                <summary class="disclosure-summary cursor-pointer text-sm font-bold">Add a missing publication manually</summary>
                 <form method="POST" action="{{ route('research.dissemination.manual', $topic) }}" class="mt-4 grid gap-3 sm:grid-cols-2">
                     @csrf
                     @foreach (['title' => ['Paper title', 'text', true], 'authors' => ['Authors', 'text', true], 'venue' => ['Journal or proceedings', 'text', false], 'year' => ['Publication year', 'number', true], 'doi' => ['DOI (optional)', 'text', false], 'url' => ['Publication URL (optional)', 'url', false]] as $name => [$label, $type, $required])

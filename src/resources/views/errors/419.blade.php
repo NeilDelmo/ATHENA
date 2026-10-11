@@ -4,5 +4,5 @@
 @section('code', '419')
 @section('heading', 'Your session has expired.')
 @section('message')
-    This happens when a page has been open for a while. Return to ATHENA, refresh the page, and try your action again.
+    Your session expired before this action could be completed. Refresh the page, then sign in again if prompted and retry your action.
 @endsection

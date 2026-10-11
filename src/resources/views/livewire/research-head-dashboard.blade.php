@@ -25,7 +25,7 @@
         @if ($academicYear && ! $analytics['target'])<p class="mt-3 text-sm text-amber-800 dark:text-amber-300">Set this academic year's dates and targets below to complete the annual comparison.</p>@endif
     </section>
 
-    <section class="rh-panel rh-analytics-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" aria-label="Research analytics KPIs" data-dashboard-kpi-band>
+    <section class="rh-panel rh-analytics-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" aria-label="Research summary" data-dashboard-kpi-band>
         @foreach ([['review', 'Awaiting your review', 'awaiting_review'], ['active', 'Active projects', ''], ['delayed', 'Delayed / overdue', ''], ['completed', 'Completed projects', ''], ['faculty', 'Faculty in research', '']] as [$key, $label, $filter])
             @if ($filter)
                 <button type="button" wire:click="setPipeline('{{ $filter }}')" aria-pressed="{{ $pipeline === $filter ? 'true' : 'false' }}" class="rh-analytics-review flex flex-col justify-between gap-3 p-6 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800">
@@ -34,14 +34,9 @@
             @endif
                 <span class="text-sm font-semibold rh-muted">{{ $label }}</span>
                 <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $key === 'review' ? 'text-brand dark:text-rose-300' : ($key === 'delayed' && $analytics['kpis'][$key] ? 'text-red-700 dark:text-red-300' : '') }}">{{ $analytics['kpis'][$key] }}</strong>
-                <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $filter ? 'Filter review queue' : ($key === 'faculty' ? 'View faculty directory' : 'View projects') }} <span aria-hidden="true">&rarr;</span></span>
+                <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $filter ? 'Filter review queue' : ($key === 'faculty' ? 'View user directory' : 'View projects') }} <span aria-hidden="true">&rarr;</span></span>
             @if ($filter)</button>@else</a>@endif
         @endforeach
-        <a href="#reported-budget" class="flex flex-col justify-between gap-3 p-6 hover:bg-slate-50 dark:hover:bg-slate-800">
-            <span class="text-sm font-semibold rh-muted">Reported budget utilization</span>
-            <strong class="text-4xl font-bold tracking-tight tabular-nums">{{ $analytics['budget']['percentage'] !== null ? number_format($analytics['budget']['percentage'], 1).'%' : '—' }}</strong>
-            <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">View budget breakdown <span aria-hidden="true">&rarr;</span></span>
-        </a>
     </section>
 
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -168,15 +163,28 @@
         @if (session('targets_saved'))<p role="status" class="border-t border-slate-100 dark:border-slate-800 px-6 py-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">{{ session('targets_saved') }}</p>@endif
     </section>
 
-        <section id="reported-budget" class="rh-panel scroll-mt-40 flex flex-col gap-5 p-5">
-            <div><h3 class="rh-title">Reported budget utilization</h3><p class="mt-1 text-sm rh-muted">Latest submitted reports · not official accounting</p></div>
-            @if ($analytics['budget']['percentage'] !== null)
-                <strong class="text-4xl font-bold tracking-tight tabular-nums text-brand dark:text-rose-300">{{ number_format($analytics['budget']['percentage'], 1) }}%</strong>
-                <div class="h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label="Reported budget utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ min(100, max(0, $analytics['budget']['percentage'])) }}" aria-valuetext="{{ $analytics['budget']['percentage'] }} percent reported utilization"><div class="h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ min(100, max(0, $analytics['budget']['percentage'])) }}%"></div></div>
-                <div class="grid grid-cols-2 gap-4 text-sm"><div><p class="rh-muted">Reported spending</p><p class="mt-1 text-lg font-semibold tabular-nums">₱{{ number_format($analytics['budget']['utilized'], 2) }}</p></div><div><p class="rh-muted">Recorded budget</p><p class="mt-1 text-lg font-semibold tabular-nums">₱{{ number_format($analytics['budget']['budget'], 2) }}</p></div></div>
-            @else
-                <p class="py-6 text-base rh-muted">No data yet — usable budget reports are needed.</p>
-            @endif
+        <section id="reported-budget" class="rh-panel min-w-0 scroll-mt-40 flex flex-col gap-5 p-5">
+            <div><h3 class="rh-title">Reported budget utilization</h3><p class="mt-1 text-sm rh-muted">Per project · latest submitted Monitoring Tool</p></div>
+            <div class="max-h-96 space-y-4 overflow-y-auto pr-1" role="region" aria-label="Project budget reports" tabindex="0">
+                @forelse ($analytics['projects'] as $project)
+                    <article class="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800" data-project-budget="{{ $project['id'] }}" wire:key="project-budget-{{ $project['id'] }}">
+                        <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="block break-words font-semibold hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:text-rose-300">{{ $project['title'] }}</a>
+                        <p class="break-words text-sm rh-muted">{{ $project['lead'] }}</p>
+                        @if ($project['percentage'] !== null)
+                            <strong class="block text-2xl font-bold tabular-nums text-brand dark:text-rose-300">{{ number_format($project['percentage'], 1) }}%</strong>
+                            <div class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label="{{ $project['title'] }} budget utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ min(100, max(0, $project['percentage'])) }}" aria-valuetext="{{ $project['percentage'] }} percent reported utilization"><div class="h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ min(100, max(0, $project['percentage'])) }}%"></div></div>
+                        @else
+                            <p class="text-sm rh-muted">No utilization reported</p>
+                        @endif
+                        <dl class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="min-w-0"><dt class="rh-muted">Reported disbursements</dt><dd class="mt-1 break-words font-semibold tabular-nums">{{ $project['utilized'] !== null ? '₱'.number_format($project['utilized'], 2) : '—' }}</dd></div>
+                            <div class="min-w-0"><dt class="rh-muted">Recorded budget</dt><dd class="mt-1 break-words font-semibold tabular-nums">{{ $project['budget'] !== null ? '₱'.number_format($project['budget'], 2) : '—' }}</dd></div>
+                        </dl>
+                    </article>
+                @empty
+                    <p class="py-6 text-base rh-muted">No issued projects in this selection.</p>
+                @endforelse
+            </div>
         </section>
     </div>
 
@@ -340,8 +348,8 @@
         <div class="mt-4 grid gap-5 md:grid-cols-2">
             <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Filters and submissions</h4><p>KPIs and the pipeline show current status of the first-submission cohort. Revisions do not start a new cohort. Academic year uses the research call or saved year dates for independent submissions. Monthly charts count recorded events, including revisions of older proposals; missing legacy events are not invented. Calendar deadlines remain institution-wide.</p></div>
             <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Workflow and completion</h4><p>Submitted means unopened pending proposals. Approval without an issued Notice to Proceed stays in final signing. Rejected proposals are excluded from the pipeline. Completed projects stay completed; reported 100% awaits a completion decision. Other projects are checked for recorded delays or incomplete weighted milestones, missing reports/review, then ongoing status.</p></div>
-            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Annual achievement</h4><p>Projects count Notices to Proceed issued in the period. Publications count dated published journal outputs, deduplicated by normalized title; acceptance is not publication. Participation uses currently recorded faculty leads and accepted collaborators on projects issued or scheduled to overlap the period. Historical departures and completion dates are not logged, so this is recorded participation, not historical attendance.</p></div>
-            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Reported budgets</h4><p>{{ $analytics['budget']['reported'] }} of {{ $analytics['budget']['total'] }} projects have usable reported figures. Only each project's latest submitted monitoring snapshot is included. Reports do not distinguish period-only from cumulative spending, so quarters are not summed. Missing reports are excluded, not counted as zero spending. Remaining-budget alerts are snapshot checks for ended/completed projects, not verified unspent funds.</p></div>
+            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Annual achievement</h4><p>Projects count Notices to Proceed issued in the period. Publications count dated published journal outputs, deduplicated by normalized title; acceptance is not publication. Participation uses currently recorded faculty leads and confirmed project staff on projects issued or scheduled to overlap the period. Historical departures and completion dates are not logged, so this is recorded participation, not historical attendance.</p></div>
+            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Reported budgets</h4><p>{{ $analytics['budget']['reported'] }} of {{ $analytics['budget']['total'] }} projects have usable reported figures. Each project's utilization is its reported disbursements divided by its recorded budget. Only that project's latest submitted monitoring snapshot is included. Reports do not distinguish period-only from cumulative spending, so quarters are not summed. Missing reports show unavailable values. Remaining-budget alerts are snapshot checks for ended/completed projects, not verified unspent funds.</p></div>
         </div>
         @if ($analytics['undatedPublications'])<p class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">{{ $analytics['undatedPublications'] }} publication records have no exact publication date and are excluded from annual achievements.</p>@endif
     </details>

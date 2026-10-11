@@ -1047,10 +1047,10 @@ class LiteratureSearchService
             'is_broad' => $isBroad,
             'term_count' => count($terms),
             'message' => $isBroad
-                ? '“'.Str::limit(Str::squish($query), 60).'” is too broad to establish research relevance by itself. Results may use the same word in unrelated fields.'
+                ? '“'.Str::limit(Str::squish($query), 60).'” is too broad.'
                 : null,
             'suggestion' => $isBroad
-                ? 'Add a variable, population, method, or setting—for example: community participation in mangrove monitoring Philippines.'
+                ? 'Add a subject, place, or time period.'
                 : null,
         ];
     }

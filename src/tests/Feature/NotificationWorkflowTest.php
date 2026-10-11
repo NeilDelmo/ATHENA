@@ -216,6 +216,8 @@ test('the notification inbox segregates activity and marks an opened item as rea
     $notifications = [
         ['Proposal workspace invitation', 'A project leader invited you to join a project team.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, route('notifications.proposal-invitations.accept', 1)],
         ['Team member accepted invitation', 'A faculty member joined your proposal workspace.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
+        ['Project staff invitation', 'A project leader invited you to serve as project staff.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, route('notifications.proposal-invitations.accept', 2)],
+        ['Project staff invitation accepted', 'A faculty member confirmed their place on the project team.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
         ['Revision requested', 'The Research Head requested changes to your proposal.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
         ['Proposal submitted for review', 'A collaborative proposal is ready for review.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS, null],
         ['Research call updated', 'The call schedule and requirements changed.', null, null],
@@ -259,6 +261,9 @@ test('the notification inbox segregates activity and marks an opened item as rea
         ->and($notificationItems
             ->first(fn (array $item): bool => $item['data']['title'] === 'Team member accepted invitation')['category'])
         ->toBe('collaboration');
+
+    expect($notificationItems->first(fn (array $item): bool => $item['data']['title'] === 'Project staff invitation')['category'])->toBe('invitations')
+        ->and($notificationItems->first(fn (array $item): bool => $item['data']['title'] === 'Project staff invitation accepted')['category'])->toBe('collaboration');
 
     $reviewNotification = $faculty->notifications()->firstWhere('data->title', 'Proposal submitted for review');
 

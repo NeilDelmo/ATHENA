@@ -5,6 +5,10 @@ import vm from 'node:vm';
 import { chromium } from '@playwright/test';
 import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 import { proposalCitationField } from '../../resources/js/proposal-semantic-editor.js';
+import { proposalSourceWorkspace } from '../../resources/js/proposal-source-workspace.js';
+
+const sourceWorkspace = readFileSync(new URL('../../resources/js/proposal-source-workspace.js', import.meta.url), 'utf8').replaceAll('export ', '');
+const semanticHelpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
 
 function editor(overrides = {}, { keepAutoSave = false } = {}) {
     const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
@@ -15,6 +19,7 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
         Alpine: { data: (_, callback) => { factory = callback; } },
         proposalPreviewWorkspace: () => ({}),
         detailedProposalPreviewWorkspace: () => ({}),
+        proposalSourceWorkspace,
         window: { crypto: { randomUUID: () => 'client-id' } },
         document: { body: { classList: { add() {} } }, getElementById: () => null },
         HTMLElement: class {},
@@ -270,6 +275,7 @@ test('the objective editor shows and focuses the required field when only a gene
             page.on('pageerror', (error) => errors.push(error.message));
             await page.setContent(`<div x-data="objectiveTest"><button id="missing-objective" @click="focusProposalRequirement('specific_objectives')">Missing Specific Objective</button><form x-ref="form">${section}</form></div>`);
             await page.addScriptTag({ content: `
+                ${sourceWorkspace}
                 const proposalPreviewWorkspace = () => ({});
                 const detailedProposalPreviewWorkspace = () => ({});
                 const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
@@ -330,6 +336,7 @@ test('an abstract-based generated draft enables insertion and adds its matching 
         page.on('pageerror', (error) => errors.push(error.message));
         await page.setContent(`<div x-data="rrlTest">${generateButton}${insertButton}</div>`);
         await page.addScriptTag({ content: `${helpers}
+            ${sourceWorkspace}
             const proposalPreviewWorkspace = () => ({});
             const detailedProposalPreviewWorkspace = () => ({});
             const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
@@ -455,10 +462,12 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                     </div></body></html>`);
                 await page.addScriptTag({ content: `
                     ${helpers}
+                    ${sourceWorkspace}
                     const proposalPreviewWorkspace = () => ({});
                 const detailedProposalPreviewWorkspace = () => ({});
                     const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
                     ${app.slice(start, end)}
+                    ${semanticHelpers}
                     const missing = { 'responsibilities.0.percentage': ['The member responsibility percentage field is required.'] };
                     window.savedRequests = [];
                     window.fetch = async (_, options) => {

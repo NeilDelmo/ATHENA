@@ -200,6 +200,76 @@ test('citation insertion uses the linked source and stays available without an A
     assert.equal(state.sourceWorkspaceDraft.paragraph, '');
 });
 
+test('citation picker filters proposal sources and clears its selection when switching collections', async () => {
+    const state = workspace();
+    await state.openSourceWorkspace('paper', true);
+    state.sourceWorkspaceQuery = 'researcher';
+    assert.deepEqual(state.sourceWorkspaceSources(), [linkedSource]);
+    state.sourceWorkspaceQuery = 'missing';
+    assert.deepEqual(state.sourceWorkspaceSources(), []);
+    state.sourceWorkspaceCitationSource = linkedSource;
+    await state.setSourceWorkspaceTab('search');
+    assert.equal(state.sourceWorkspaceCitationSource, null);
+});
+
+test('reviewed manual metadata can save and cite in one action without an AI or reader step', async () => {
+    const state = workspace(async (url) => response({ source: url === '/library'
+        ? { id: 21, title: 'Reviewed manual source' }
+        : { id: 52, literature_source_id: 21, title: 'Reviewed manual source' } }));
+    await state.openSourceWorkspace('add', true);
+    state.sourceWorkspaceSourceForm.title = 'Reviewed manual source';
+    state.citeSelectedText = async (source) => { assert.equal(source.id, 52); return true; };
+    assert.equal((await state.saveSourceWorkspaceMetadata()).id, 52);
+    assert.equal(state.sourceWorkspaceOpen, false);
+    assert.equal(state.sourceWorkspaceDraft.paragraph, '');
+});
+
+test('closing citation picker clears the writing target and does not reuse it in research mode', async () => {
+    const state = workspace();
+    state.citationPickerSelection = { fieldId: 'related-literature', selectedText: 'Claim' };
+    await state.openSourceWorkspace('paper', true);
+    state.sourceWorkspaceCitationSource = linkedSource;
+    assert.equal(state.closeSourceWorkspace(), true);
+    assert.equal(state.citationPickerSelection, null);
+    assert.equal(state.sourceWorkspaceCitationSource, null);
+    await state.openSourceWorkspace('paper');
+    assert.equal(state.sourceWorkspaceCitationMode, false);
+});
+
+test('changing the citation source clears an unrelated page and library tabs refresh the current query', async () => {
+    const calls = [];
+    const state = workspace(async (url) => { calls.push(url); return response({ sources: [] }); });
+    await state.openSourceWorkspace('paper', true);
+    state.sourceWorkspaceCitationSource = linkedSource;
+    state.citationPickerLocator = 'p. 6';
+    state.selectSourceWorkspaceCitation(linkedSource);
+    assert.equal(state.citationPickerLocator, 'p. 6');
+    state.selectSourceWorkspaceCitation({ id: 15, title: 'Different source' });
+    assert.equal(state.citationPickerLocator, '');
+    state.sourceWorkspaceQuery = 'learning';
+    await state.setSourceWorkspaceTab('library');
+    state.sourceWorkspaceQuery = 'monitoring';
+    await state.setSourceWorkspaceTab('paper');
+    await state.setSourceWorkspaceTab('library');
+    assert.deepEqual(calls, ['/library?query=learning', '/library?query=monitoring']);
+});
+
+test('a failed Save and cite retains the saved source for retry without a second metadata save', async () => {
+    const calls = [];
+    const state = workspace(async (url) => { calls.push(url); return response({ source: url === '/library'
+        ? { id: 21, title: 'Reviewed manual source' }
+        : { id: 52, literature_source_id: 21, title: 'Reviewed manual source' } }); });
+    await state.openSourceWorkspace('add', true);
+    state.sourceWorkspaceSourceForm.title = 'Reviewed manual source';
+    state.citeSelectedText = async () => false;
+    assert.equal(await state.saveSourceWorkspaceMetadata(), false);
+    assert.equal(state.sourceWorkspaceOpen, true);
+    assert.equal(state.sourceWorkspaceCitationSource.id, 52);
+    state.citeSelectedText = async () => true;
+    assert.equal(await state.citeSourceWorkspaceSource(state.sourceWorkspaceCitationSource), true);
+    assert.deepEqual(calls, ['/library', '/proposal/sources/21']);
+});
+
 test('PDF selection enforces the server upload size of 8 MB', () => {
     const state = workspace();
     assert.equal(state.chooseSourceWorkspacePdf({ target: { files: [{ name: 'big.pdf', size: 8 * 1024 * 1024 + 1 }] } }), false);
@@ -264,11 +334,11 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 await expect(page.getByRole('dialog', { name: 'Sources', exact: true })).toBeVisible();
                 assert.equal(await page.evaluate(() => document.body.style.overflow), 'hidden');
                 await expect(page.getByRole('button', { name: 'Close Sources', exact: true })).toBeFocused();
-                await page.getByLabel('Page or section (optional)', { exact: true }).fill('p. 2');
-                assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).citationPickerLocator), 'p. 2');
+                await expect(page.getByLabel('Page or section (optional)', { exact: true })).toBeHidden();
+                await expect(page.getByRole('complementary', { name: 'Selected evidence and AI help' })).toBeHidden();
                 await page.getByRole('button', { name: 'Close Sources', exact: true }).focus();
                 await page.keyboard.press('Shift+Tab');
-                await expect(page.getByLabel('What should Athena focus on?', { exact: true })).toBeFocused();
+                await expect(page.getByRole('link', { name: 'Publication', exact: true })).toBeFocused();
                 await page.getByRole('button', { name: 'Add source', exact: true }).click();
                 await page.locator('summary').filter({ hasText: 'Reference details' }).click();
                 await page.getByLabel('Publication type', { exact: true }).selectOption('report');
@@ -277,8 +347,8 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 await page.getByLabel('Pages', { exact: true }).fill('14–28');
                 await page.getByLabel('Publisher', { exact: true }).fill('Research Press');
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).sourceWorkspaceSourceForm.publisher), 'Research Press');
-                await page.getByRole('button', { name: 'This paper', exact: true }).click();
-                await page.getByRole('button', { name: 'Read & take notes', exact: true }).click();
+                await page.getByRole('button', { name: 'This proposal', exact: true }).click();
+                await page.getByRole('button', { name: 'Read', exact: true }).click();
                 await expect(page.locator('[data-source-page-text]')).toHaveText(quote);
                 await expect(page.getByText('Only part of the PDF was extracted.', { exact: true })).toBeVisible();
                 await page.locator('[data-source-page-text]').evaluate((element) => { const range = document.createRange(); range.selectNodeContents(element); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); });
@@ -288,8 +358,7 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 assert.deepEqual(passageRequest.body, { quote, note: '', page: 2, kind: 'quote' });
                 const checkbox = page.getByRole('checkbox', { name: `Use excerpt ${firstId} for AI help`, exact: true });
                 await checkbox.check();
-                await page.getByLabel('AI help', { exact: true }).selectOption('synthesize');
-                await page.getByRole('button', { name: 'Draft synthesis', exact: true }).click();
+                await page.getByRole('button', { name: 'Draft from selected evidence', exact: true }).click();
                 const review = page.getByLabel('AI response', { exact: true });
                 await expect(review).toBeVisible();
                 assert.equal(await page.evaluate(() => window.sourceInsertions), 0);

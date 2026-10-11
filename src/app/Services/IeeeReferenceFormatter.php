@@ -43,7 +43,8 @@ class IeeeReferenceFormatter
 
     private static function authors(string $authors): string
     {
-        $names = collect(preg_split('/\s*,\s*/u', Str::squish($authors)) ?: [])
+        $separator = Str::contains($authors, ';') ? '/\s*;\s*/u' : '/\s*,\s*/u';
+        $names = collect(preg_split($separator, Str::squish($authors)) ?: [])
             ->filter(fn (string $name): bool => $name !== '')
             ->map(fn (string $name): string => self::author($name))
             ->values();
@@ -65,17 +66,23 @@ class IeeeReferenceFormatter
 
     private static function author(string $name): string
     {
+        if (Str::lower($name) === 'authors not listed') {
+            return 'Author not listed';
+        }
+
         if (Str::contains(Str::lower($name), 'et al')) {
             return 'et al.';
         }
 
+        $surname = Str::contains($name, ',') ? trim(Str::before($name, ',')) : null;
+        $name = $surname !== null ? Str::after($name, ',') : $name;
         $parts = collect(preg_split('/\s+/u', trim($name)) ?: [])->filter()->values();
 
-        if ($parts->count() < 2) {
+        if ($parts->count() < 2 && $surname === null) {
             return $parts->first() ?: 'Author not listed';
         }
 
-        $surname = $parts->pop();
+        $surname ??= $parts->pop();
         $initials = $parts
             ->map(fn (string $part): string => Str::upper(Str::substr($part, 0, 1)).'.')
             ->join(' ');

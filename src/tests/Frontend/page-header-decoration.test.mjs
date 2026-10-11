@@ -79,6 +79,8 @@ test('page header decoration stays behind readable clickable content at desktop 
                         return {
                             width: bounds.width,
                             height: bounds.height,
+                            headingBorderWidths: [...header.querySelectorAll('[data-workspace-header-banner]')]
+                                .map(element => getComputedStyle(element).borderLeftWidth),
                             transparentTextContainers: text.every((element) => {
                                 for (let parent = element; parent && parent !== header; parent = parent.parentElement) {
                                     if (getComputedStyle(parent).backgroundColor !== 'rgba(0, 0, 0, 0)') return false;
@@ -132,6 +134,7 @@ test('page header decoration stays behind readable clickable content at desktop 
                     assert.ok(result.transparentTextContainers, `${workspace} text containers must leave the grid and glow visible`);
                     assert.ok(result.noOverflow, `Titles, subtitles, and actions must fit inside the header (workspace=${workspace}, width=${width}, dark=${dark})`);
                     assert.ok(result.buttonsReachable, 'Decorations must not intercept action clicks');
+                    assert.ok(result.headingBorderWidths.every(width => width === '0px'), 'Workspace headings must not have a decorative vertical bar');
 
                     if (workspace === 'simple') await page.locator('button').first().click();
 

@@ -8,7 +8,7 @@ import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
 const viewRoot = resolve('resources/views');
-const readView = (path) => readFileSync(resolve(viewRoot, path), 'utf8');
+const readView = (path) => readFileSync(resolve(viewRoot, path), 'utf8').replaceAll('\r\n', '\n');
 
 function component(source, tag, slot, fixed = true) {
     const declarations = source.match(/->class\(\[([\s\S]*?)\]\)/)[1];
@@ -56,18 +56,14 @@ function statusFixture() {
         .replace(/@foreach[\s\S]*?@endforeach/g, '<option value="ongoing">Ongoing</option><option value="delayed">Delayed</option><option value="completed">Completed</option>')
         .replace(/@csrf|@method\([^)]*\)/g, '')
         .replace('{{ $projectStatusLabel }}', 'Completion pending')
-        .replace('{{ $floatingStatusClasses }}', 'bg-blue-50 text-blue-700')
         .replace(/\{\{[\s\S]*?\}\}/g, 'test-project');
 }
 
 function topicActionsFixture() {
-    const source = readView('topics/show.blade.php');
-    const observerInit = source.match(/this\.\$nextTick\(\(\) => \{\s*this\.floatingBackLinkObserver[\s\S]*?(?=\s*this\.scrollToTopicHash\(\);)/)[0];
-    const destroy = source.match(/destroy\(\) \{[\s\S]*?\n            \},/)[0];
     const back = component(readView('components/back-link.blade.php'), 'a', 'Back to submitted proposals')
         .replace('<a', '<a x-ref="workspaceBackLink" data-topic-workspace-back-link x-show="!$store.researchAssistant.drawerOpen && !$store.researchAssistant.workspaceOpen"');
-    return `<div data-topic-workspace x-data="{ activeTopicTab: 'monitoring', floatingBackLinkObserver: null, init() { ${observerInit} }, ${destroy} }">
-        <nav style="padding-left:var(--athena-page-action-left)"><button data-switch-review @click="activeTopicTab = 'review'">Review</button><button data-switch-monitoring @click="activeTopicTab = 'monitoring'">Monitoring</button></nav>
+    return `<div data-topic-workspace x-data="{ activeTopicTab: 'monitoring' }">
+        <nav><button data-switch-review @click="activeTopicTab = 'review'">Review</button><button data-switch-monitoring @click="activeTopicTab = 'monitoring'">Monitoring</button></nav>
         ${back}<div x-show="activeTopicTab === 'monitoring'">${statusFixture()}</div>
     </div>`;
 }
@@ -98,9 +94,9 @@ test('every fixed page action clears the chatbot across mobile tablet desktop an
                 await page.setContent(`<html data-sidebar-collapsed="true" class="${dark ? 'dark' : ''}" style="font-size:${width === 390 ? 20 : 16}px"><style>${styles.css}</style>
                     <body data-app-shell x-data class="bg-white dark:bg-slate-950"><aside id="app-sidebar" class="fixed inset-y-0 left-0 z-40 w-[76px] bg-white sm:w-[280px]"><button>Profile</button></aside><div data-app-content-shell class="pl-[76px] sm:pl-[280px]"><main class="px-4 py-6">
                     <div style="height:2200px">Page contents</div><div class="flex justify-end"><button id="last-control">Save changes</button></div>
-                    <div id="inline">${fixtures.inline}</div></main></div>
+                    <div id="inline">${fixtures.inline}</div><div id="topic-actions-fixture" style="display:none">${topicActionsFixture()}${filesTriggerFixture()}</div></main></div>
                     ${fixtures.pages.map((fixture, index) => `<div data-page-fixture="${index}" style="display:none">${fixture.html}</div>`).join('')}
-                    <div id="status-fixture" style="display:none">${statusFixture()}</div><div id="topic-actions-fixture" style="display:none">${topicActionsFixture()}${filesTriggerFixture()}</div><div id="dock-fixture" style="display:none">${fixtures.dock}</div>${fixtures.launcher}</body></html>`);
+                    <div id="dock-fixture" style="display:none">${fixtures.dock}</div>${fixtures.launcher}</body></html>`);
                 await page.addScriptTag({ content: `${readFileSync(resolve('resources/js/project-status-manager.js'), 'utf8').replace('export function', 'function')}
                     document.addEventListener('alpine:init', () => { Alpine.data('projectStatusManager', projectStatusManager); Alpine.store('researchAssistant', {workspaceOpen:false, drawerOpen:false, toggleDrawer(){this.drawerOpen = !this.drawerOpen}}) });
                     window.exitClicks = 0; document.addEventListener('click', (event) => {if (event.target.closest('[data-back-link]')) {event.preventDefault(); window.exitClicks++}});
@@ -142,87 +138,41 @@ test('every fixed page action clears the chatbot across mobile tablet desktop an
                 assert.equal(await page.locator('#research-assistant-launcher').getAttribute('aria-expanded'), 'true');
                 await page.locator('#research-assistant-launcher').click();
                 await page.locator('[data-page-fixture="0"]').evaluate((element) => { element.style.display = 'none'; });
-                await page.locator('#status-fixture').evaluate((element) => { element.style.display = 'block'; });
-                const status = page.locator('#status-fixture [data-project-status-manager]');
-                await status.waitFor({ state: 'visible' });
-                for (const collapsed of [true, false]) {
-                    await page.evaluate((value) => { document.documentElement.dataset.sidebarCollapsed = String(value); }, collapsed);
-                    const statusBounds = await status.evaluate((element) => {
-                        const rect = element.getBoundingClientRect();
-                        const trigger = element.querySelector('[x-ref="statusTrigger"]');
-                        const button = trigger.getBoundingClientRect();
-                        const range = document.createRange(); range.selectNodeContents(trigger.lastElementChild);
-                        const label = range.getBoundingClientRect();
-                        return { gap: document.getElementById('research-assistant-launcher').getBoundingClientRect().left - rect.right,
-                            sidebarGap: rect.left - document.getElementById('app-sidebar').getBoundingClientRect().right,
-                            fits: button.left >= rect.left && button.right <= rect.right && label.left >= button.left && label.right <= button.right };
-                    });
-                    assert.ok(statusBounds.gap >= 11, `${width}px monitoring status: chatbot clearance`);
-                    assert.ok(statusBounds.sidebarGap >= 15, `${width}px monitoring status: sidebar clearance ${JSON.stringify(statusBounds)}`);
-                    assert.equal(statusBounds.fits, true, `${width}px monitoring status: readable trigger`);
-                    await status.locator('[x-ref="statusTrigger"]').click();
-                    const popup = status.locator('[role="dialog"]');
-                    await popup.waitFor({ state: 'visible' });
-                    assert.equal(await popup.evaluate((element) => {
-                        const rect = element.getBoundingClientRect();
-                        return rect.top >= 0 && rect.left >= document.getElementById('app-sidebar').getBoundingClientRect().right && rect.right <= innerWidth;
-                    }), true, `${width}px monitoring status: popup inside available viewport`);
-                    for (const control of await popup.locator('select:visible, button:visible').all()) {
-                        await control.scrollIntoViewIfNeeded();
-                        assert.equal(await control.evaluate((element) => {
-                            const rect = element.getBoundingClientRect();
-                            return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
-                        }), true, `${width}px monitoring status: reachable popup controls`);
-                    }
-                    await popup.locator('[aria-label="Close status manager"]').click();
-                    await popup.waitFor({ state: 'hidden' });
-                }
-                await page.locator('#research-assistant-launcher').click();
-                await status.waitFor({ state: 'hidden' });
-                assert.equal(await status.isVisible(), false);
-                await page.locator('#research-assistant-launcher').click();
-                await status.waitFor({ state: 'visible' });
-                assert.equal(await status.isVisible(), true);
-                await page.locator('#status-fixture').evaluate((element) => { element.style.display = 'none'; });
                 const topicActions = page.locator('#topic-actions-fixture');
                 await topicActions.evaluate((element) => { element.style.display = 'block'; });
+                assert.equal(await topicActions.locator('[data-project-documents-floating-trigger]').count(), 1);
+                assert.equal(await topicActions.locator('[data-topic-workspace-back-link]').count(), 1);
+                assert.equal(await topicActions.locator('[data-project-status-manager]').count(), 1);
                 const topicBack = topicActions.locator('[data-topic-workspace-back-link]');
                 const topicStatus = topicActions.locator('[data-project-status-manager]');
                 for (const collapsed of [true, false]) {
                     await page.evaluate((value) => { document.documentElement.dataset.sidebarCollapsed = String(value); }, collapsed);
-                    await page.waitForFunction(() => {
-                        const root = document.querySelector('#topic-actions-fixture [data-topic-workspace]');
-                        return Math.abs(parseFloat(root.style.getPropertyValue('--athena-topic-back-link-height')) - root.querySelector('[data-topic-workspace-back-link]').getBoundingClientRect().height) < 1;
-                    });
                     const bounds = await topicActions.evaluate((element) => {
                         const back = element.querySelector('[data-topic-workspace-back-link]');
-                        const status = element.querySelector('[data-project-status-manager]');
                         const backRect = back.getBoundingClientRect();
-                        const statusRect = status.getBoundingClientRect();
                         const filesRect = element.querySelector('[data-project-documents-floating-trigger]').getBoundingClientRect();
                         const launcher = document.getElementById('research-assistant-launcher').getBoundingClientRect();
                         const overlapsFiles = (rect) => rect.left < filesRect.right && rect.right > filesRect.left && rect.top < filesRect.bottom && rect.bottom > filesRect.top;
-                        return { verticalGap: backRect.top - statusRect.bottom, chatbotGap: launcher.left - backRect.right,
-                            statusTop: statusRect.top, overlapsFiles: overlapsFiles(backRect) || overlapsFiles(statusRect),
+                        return { chatbotGap: launcher.left - backRect.right,
+                            overlapsFiles: overlapsFiles(backRect),
                             backReachable: back.contains(document.elementFromPoint(backRect.x + backRect.width / 2, backRect.y + backRect.height / 2)) };
                     });
-                    assert.ok(bounds.verticalGap >= 11, `${width}x${height} topic: back and status clearance`);
+                    assert.equal(await topicStatus.evaluate(element => getComputedStyle(element).position), 'static');
                     assert.ok(bounds.chatbotGap >= 11, `${width}x${height} topic: back and chatbot clearance`);
-                    assert.ok(bounds.statusTop >= 0, `${width}x${height} topic: status inside viewport`);
                     assert.equal(bounds.overlapsFiles, false, `${width}x${height} topic: project files clearance`);
                     assert.equal(bounds.backReachable, true);
                     await topicStatus.locator('[x-ref="statusTrigger"]').click();
-                    const popup = topicStatus.locator('[role="dialog"]');
+                    const popup = topicStatus.locator('[role="region"]');
                     await popup.waitFor({ state: 'visible' });
                     const popupBounds = await popup.evaluate((element) => {
                         const rect = element.getBoundingClientRect();
                         return { top: rect.top, left: rect.left, right: rect.right, sidebarRight: document.getElementById('app-sidebar').getBoundingClientRect().right,
                             maxHeight: getComputedStyle(element).maxHeight, height: rect.height };
                     });
-                    assert.ok(popupBounds.top >= 0 && popupBounds.left >= popupBounds.sidebarRight && popupBounds.right <= width,
-                        `${width}x${height} topic: stacked popup inside viewport ${JSON.stringify(popupBounds)}`);
+                    assert.ok(popupBounds.left >= popupBounds.sidebarRight && popupBounds.right <= width,
+                        `${width}x${height} topic: inline status form fits available width ${JSON.stringify(popupBounds)}`);
                     for (const control of await popup.locator('select:visible, button:visible').all()) {
-                        await control.scrollIntoViewIfNeeded();
+                        await control.evaluate(element => element.scrollIntoView({ block: 'center' }));
                         assert.equal(await control.evaluate((element) => {
                             const rect = element.getBoundingClientRect();
                             return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
@@ -240,14 +190,14 @@ test('every fixed page action clears the chatbot across mobile tablet desktop an
                 assert.equal(await page.evaluate(() => window.exitClicks), 2);
                 await page.locator('#research-assistant-launcher').click();
                 await topicBack.waitFor({ state: 'hidden' });
-                await topicStatus.waitFor({ state: 'hidden' });
+                assert.equal(await topicStatus.isVisible(), true);
                 await page.locator('#research-assistant-launcher').click();
                 await topicBack.waitFor({ state: 'visible' });
                 await topicStatus.waitFor({ state: 'visible' });
                 await page.locator('#research-assistant-launcher').hover();
                 const hintClear = await page.locator('#research-assistant-launcher > span[aria-hidden="true"]').evaluate((element) => {
                     const hint = element.getBoundingClientRect();
-                    return [...document.querySelectorAll('#topic-actions-fixture [data-topic-workspace-back-link], #topic-actions-fixture [data-project-status-manager], #topic-actions-fixture [data-project-documents-floating-trigger]')]
+                    return [...document.querySelectorAll('#topic-actions-fixture [data-topic-workspace-back-link], #topic-actions-fixture [data-project-documents-floating-trigger]')]
                         .every((control) => {
                             const rect = control.getBoundingClientRect();
                             return hint.right <= rect.left || hint.left >= rect.right || hint.bottom <= rect.top || hint.top >= rect.bottom;

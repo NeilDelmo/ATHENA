@@ -82,7 +82,7 @@ test('actual editor integration preserves unsaved prose, guards citation targets
                 methodology: { research_design: '<p>Old saved method.</p>' }, saves: 0, previewChanges: 0,
                 sourceWorkspaceError: '', sourceWorkspaceNotice: '', citationPickerSaving: false,
                 citationPickerLocator: '', citationPickerSelection: null, references: '',
-                openSourceWorkspace(tab, mode = false) { this.opened = { tab, mode }; },
+                openSourceWorkspace(tab, mode = false) { this.opened = { tab, mode }; this.sourceWorkspaceCitationMode = mode; },
                 closeSourceWorkspace() { this.closed = true; },
                 markProposalPreviewStale() { this.previewChanges++; },
                 triggerDetailedProposalAutoSave() { this.saves++; },
@@ -142,7 +142,7 @@ test('actual editor integration preserves unsaved prose, guards citation targets
             const rollbackException = JSON.stringify(beforeFailure) === JSON.stringify(state.literatureCitations);
             window.insertProposalCitationMarker = originalMarker;
             setCaret();
-            state.openSourceWorkspaceFromToolbar({ fieldId: 'rationale' });
+            state.openCitationPicker({ fieldId: 'rationale' });
             state.citationPickerLocator = ' p. 12\n ';
             const cited = await state.citeSelectedText(sources[1]);
             const locatorMarker = editor.querySelector('[data-proposal-citation="8"]');

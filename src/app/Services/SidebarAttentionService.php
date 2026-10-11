@@ -165,6 +165,8 @@ class SidebarAttentionService
         }
 
         if (in_array($title, [
+            'Project staff invitation',
+            'Project staff invitation accepted',
             'Proposal workspace invitation',
             'Team member accepted invitation',
             'Collaborator accepted invitation',

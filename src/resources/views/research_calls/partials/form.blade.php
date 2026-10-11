@@ -158,7 +158,7 @@
                 </section>
 
                 <details data-research-call-transcription-section class="hidden overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-950/60">
-                    <summary class="cursor-pointer px-3 py-2.5 text-xs font-black text-gray-700 dark:text-slate-200">Review extracted poster text</summary>
+                    <summary class="disclosure-summary cursor-pointer px-3 py-2.5 text-xs font-black text-gray-700 dark:text-slate-200">Review extracted poster text</summary>
                     <pre data-research-call-transcription class="max-h-72 overflow-auto whitespace-pre-wrap border-t border-gray-200 px-3 py-3 font-sans text-xs leading-5 text-gray-600 dark:border-slate-700 dark:text-slate-300"></pre>
                 </details>
             </div>

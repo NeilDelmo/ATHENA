@@ -69,7 +69,7 @@ class StoreProposalDraftMemberRequest extends FormRequest
             $draft = $this->route('proposalDraft');
 
             if (Str::lower($draft->owner()->value('email')) === $this->input('email')) {
-                $validator->errors()->add('email', 'The proposal owner is already part of this workspace.');
+                $validator->errors()->add('email', 'The project leader is already part of this project team.');
             }
 
             if (! InstitutionalEmail::isAllowed(
@@ -80,7 +80,7 @@ class StoreProposalDraftMemberRequest extends FormRequest
             }
 
             if ($draft->members()->count() >= 50) {
-                $validator->errors()->add('email', 'This proposal workspace already has the maximum of 50 team members.');
+                $validator->errors()->add('email', 'This proposal workspace already has the maximum of 50 project staff members.');
             }
 
             $linkedUser = $this->linkedUser();

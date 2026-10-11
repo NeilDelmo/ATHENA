@@ -1,4 +1,4 @@
-@props(['topic', 'library', 'floating' => true])
+@props(['topic', 'library', 'floating' => true, 'inline' => false])
 
 @php
     $projectDocumentErrors = $errors->getBag('projectDocuments');
@@ -9,10 +9,11 @@
 @endphp
 
 <div
-    x-data="projectDocumentDrawer({ initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()) })"
+    x-data="projectDocumentDrawer({ inline: @js($inline), initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()) })"
     @open-project-documents.window="openDrawer($event.detail?.category || 'all')"
     @keydown.escape.window="if (open && !document.querySelector('[data-project-document-preview-content]')) closeDrawer()"
 >
+    @unless ($inline)
     <button
         x-ref="trigger"
         type="button"
@@ -26,10 +27,12 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" />
         </svg>
         <span class="{{ $floating ? 'hidden sm:inline' : '' }}">{{ $floating ? 'Files' : 'Open project folder' }}</span>
-        <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] tabular-nums">{{ $library['total'] }}</span>
+        <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-sm tabular-nums">{{ $library['total'] }}</span>
     </button>
+    @endunless
 
-    <div x-cloak x-show="open" class="fixed inset-0 z-[70]" role="presentation" data-project-document-drawer>
+    <div x-cloak x-show="open" class="{{ $inline ? 'overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900' : 'fixed inset-0 z-[70]' }}" @unless ($inline) role="presentation" @endunless data-project-document-drawer data-project-document-browser>
+        @unless ($inline)
         <div
             x-show="open"
             x-transition:enter="transition-opacity duration-200 ease-out motion-reduce:transition-none"
@@ -42,18 +45,23 @@
             @click="closeDrawer()"
             aria-hidden="true"
         ></div>
+        @endunless
 
         <aside
             x-show="open"
+            @unless ($inline)
             x-transition:enter="transition-transform duration-200 ease-out motion-reduce:transition-none"
             x-transition:enter-start="translate-x-full"
             x-transition:enter-end="translate-x-0"
             x-transition:leave="transition-transform duration-150 ease-in motion-reduce:transition-none"
             x-transition:leave-start="translate-x-0"
             x-transition:leave-end="translate-x-full"
-            class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-gray-200 bg-gray-50 shadow-2xl dark:border-gray-800 dark:bg-gray-950"
+            @endunless
+            class="{{ $inline ? 'flex w-full flex-col' : 'absolute inset-y-0 right-0 flex w-full max-w-4xl flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-slate-900' }}"
+            @unless ($inline)
             role="dialog"
             aria-modal="true"
+            @endunless
             aria-labelledby="project-files-heading"
         >
             <header class="shrink-0 border-b border-gray-200 bg-white px-5 py-5 dark:border-gray-800 dark:bg-gray-950 sm:px-6">
@@ -63,24 +71,22 @@
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" /></svg>
                         </span>
                         <div class="min-w-0">
-                            <p class="text-[11px] font-black uppercase tracking-[0.16em] text-red-600 dark:text-red-400">Project document folder</p>
-                            <h2 id="project-files-heading" class="mt-1 truncate text-xl font-black tracking-tight text-gray-950 dark:text-white">Project files</h2>
-                            <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400">{{ $library['total'] }} {{ \Illuminate\Support\Str::plural('file', $library['total']) }} collected across this project.</p>
+                            <h2 id="project-files-heading" class="text-xl font-bold text-slate-950 dark:text-white">Project files</h2>
+                            <p class="mt-1 text-base leading-6 text-slate-500 dark:text-slate-400">{{ $library['total'] }} {{ \Illuminate\Support\Str::plural('file', $library['total']) }} · Open a category folder to browse its documents.</p>
                         </div>
                     </div>
+                    @unless ($inline)
                     <button x-ref="closeButton" type="button" @click="closeDrawer()" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="Close project files">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
                     </button>
+                    @endunless
                 </div>
 
-                @if ($categories->isNotEmpty())
-                    <div class="mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Project file categories">
-                        <button type="button" @click="activeCategory = 'all'" :class="activeCategory === 'all' ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'" class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">All <span class="tabular-nums opacity-70">{{ $library['total'] }}</span></button>
-                        @foreach ($categories as $category)
-                            <button type="button" @click="activeCategory = '{{ $category['key'] }}'" :class="activeCategory === '{{ $category['key'] }}' ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'" class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">{{ $category['label'] }} <span class="tabular-nums opacity-70">{{ $category['count'] }}</span></button>
-                        @endforeach
-                    </div>
-                @endif
+                <nav class="mt-4 flex min-w-0 flex-wrap items-center gap-2" aria-label="Project file location">
+                    <button type="button" class="workspace-secondary" :disabled="activeCategory === 'all'" @click="openCategory()" aria-label="Up to project files">↑ Up</button>
+                    <button type="button" class="workspace-secondary" @click="openCategory()">Project files</button>
+                    <span x-show="activeCategory !== 'all'" class="min-w-0 text-base text-slate-600 dark:text-slate-300" x-text="' / ' + ((@js($categories->pluck('label', 'key')))[activeCategory] || '')"></span>
+                </nav>
             </header>
 
             <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
@@ -88,8 +94,8 @@
                     <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900" aria-labelledby="add-project-files-heading">
                         <button type="button" @click="uploadOpen = !uploadOpen" :aria-expanded="uploadOpen" aria-controls="project-file-upload" class="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-800 sm:px-5">
                             <span>
-                                <span id="add-project-files-heading" class="block text-sm font-black text-gray-950 dark:text-white">Add PDF files</span>
-                                <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">For corrected forms, supporting papers, and project records.</span>
+                                <span id="add-project-files-heading" class="block text-base font-semibold text-gray-950 dark:text-white">Add PDF files</span>
+                                <span class="mt-0.5 block text-sm text-gray-500 dark:text-gray-400">For corrected forms, supporting papers, and project records.</span>
                             </span>
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" aria-hidden="true">
                                 <svg :class="uploadOpen ? 'rotate-45' : ''" class="h-4 w-4 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
@@ -99,13 +105,13 @@
                         <form id="project-file-upload" x-show="uploadOpen" x-cloak action="{{ route('topics.documents.store', $topic) }}" method="POST" enctype="multipart/form-data" class="space-y-4 border-t border-gray-100 p-4 dark:border-gray-800 sm:p-5">
                             @csrf
                             <div>
-                                <label for="project_document_category" class="text-xs font-bold text-gray-700 dark:text-gray-200">Category</label>
-                                <select id="project_document_category" name="category" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                                <label for="project_document_category" class="text-base font-semibold text-gray-700 dark:text-gray-200">Category</label>
+                                <select id="project_document_category" name="category" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-base shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
                                     @foreach ($library['uploadCategories'] as $value => $label)
                                         <option value="{{ $value }}" @selected(old('category', \App\Models\ProjectDocument::CATEGORY_SUPPORTING_FILES) === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
-                                @error('category', 'projectDocuments')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
+                                @error('category', 'projectDocuments')<p class="mt-1 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                             </div>
 
                             <label
@@ -120,20 +126,20 @@
                                 <span class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-red-700 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-red-300 dark:ring-gray-700" aria-hidden="true">
                                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V6.75m0 0-3.75 3.75M12 6.75l3.75 3.75M6.75 18.75h10.5A2.25 2.25 0 0 0 19.5 16.5v-9a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                                 </span>
-                                <span class="mt-3 block text-sm font-black text-gray-900 dark:text-white">Drop PDFs here or browse</span>
-                                <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">Up to 10 PDFs, 25 MB each</span>
+                                <span class="mt-3 block text-base font-semibold text-gray-900 dark:text-white">Drop PDFs here or browse</span>
+                                <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400">Up to 10 PDFs, 25 MB each</span>
                             </label>
-                            @error('documents', 'projectDocuments')<p class="text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
-                            @error('documents.*', 'projectDocuments')<p class="text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
-                            <p x-show="fileError" x-text="fileError" class="text-xs font-semibold text-red-600" role="alert"></p>
+                            @error('documents', 'projectDocuments')<p class="text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
+                            @error('documents.*', 'projectDocuments')<p class="text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
+                            <p x-show="fileError" x-text="fileError" class="text-sm font-semibold text-red-600" role="alert"></p>
 
                             <div x-show="selectedFiles.length > 0" x-cloak class="space-y-2">
                                 <template x-for="(file, index) in selectedFiles" :key="`${file.name}-${file.size}-${index}`">
                                     <div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-950">
-                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[10px] font-black text-red-700 dark:bg-red-950/50 dark:text-red-300">PDF</span>
+                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-sm font-black text-red-700 dark:bg-red-950/50 dark:text-red-300">PDF</span>
                                         <span class="min-w-0 flex-1">
-                                            <span class="block truncate text-xs font-bold text-gray-900 dark:text-white" x-text="file.name"></span>
-                                            <span class="block text-[11px] text-gray-500" x-text="formatSize(file.size)"></span>
+                                            <span class="block truncate text-base font-semibold text-gray-900 dark:text-white" x-text="file.name"></span>
+                                            <span class="block text-sm text-gray-500" x-text="formatSize(file.size)"></span>
                                         </span>
                                         <button type="button" @click="removeFile(index)" class="rounded-lg p-2 text-gray-400 transition hover:bg-white hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:hover:bg-gray-800" :aria-label="`Remove ${file.name}`">
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
@@ -143,12 +149,12 @@
                             </div>
 
                             <div>
-                                <label for="project_document_note" class="text-xs font-bold text-gray-700 dark:text-gray-200">Note <span class="font-normal text-gray-400">(optional)</span></label>
-                                <textarea id="project_document_note" name="note" rows="2" maxlength="1000" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="Why these files are being kept with the project">{{ old('note') }}</textarea>
-                                @error('note', 'projectDocuments')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
+                                <label for="project_document_note" class="text-base font-semibold text-gray-700 dark:text-gray-200">Note <span class="font-normal text-gray-400">(optional)</span></label>
+                                <textarea id="project_document_note" name="note" rows="2" maxlength="1000" class="mt-1.5 block w-full rounded-xl border-gray-300 text-base shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="Why these files are being kept with the project">{{ old('note') }}</textarea>
+                                @error('note', 'projectDocuments')<p class="mt-1 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                             </div>
 
-                            <button type="submit" :disabled="selectedFiles.length === 0" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700" x-text="uploadButtonLabel()"></button>
+                            <button type="submit" :disabled="selectedFiles.length === 0" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-base font-semibold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700" x-text="uploadButtonLabel()"></button>
                         </form>
                     </section>
                 @endif
@@ -158,66 +164,90 @@
                         <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300" aria-hidden="true">
                             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" /></svg>
                         </span>
-                        <p class="mt-4 text-sm font-black text-gray-900 dark:text-white">No project PDFs yet</p>
-                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Generated and released PDFs will appear here automatically.</p>
+                        <p class="mt-4 text-sm font-black text-gray-900 dark:text-white">No project files yet</p>
+                        <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400">Generated and released documents and terminal report posters will appear here automatically.</p>
                     </div>
                 @else
-                    <div class="space-y-6">
+                    <svg class="hidden" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <symbol id="project-files-folder-{{ $topic->id }}" viewBox="0 0 80 64">
+                                <path d="M5 13a5 5 0 0 1 5-5h20l7 7h33a5 5 0 0 1 5 5v32a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5Z" fill="#D99417" />
+                                <path d="M9 23h62v28H9Z" fill="#FFF4C7" />
+                                <path d="M4 25a4 4 0 0 1 4-4h64a4 4 0 0 1 4 4l-4 29a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4Z" fill="#F5C451" stroke="#D99417" stroke-width="1.5" />
+                                <path d="M9 27h61" stroke="#FFE8A0" stroke-width="2" />
+                            </symbol>
+                            <symbol id="project-files-file-{{ $topic->id }}" viewBox="0 0 56 64">
+                                <path d="M8 2h27l13 13v45a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="#FFF" stroke="#94A3B8" stroke-width="1.5" />
+                                <path d="M35 2v13h13M15 24h25M15 30h25M15 36h18" fill="none" stroke="#CBD5E1" stroke-width="2" />
+                            </symbol>
+                        </defs>
+                    </svg>
+                    <div x-ref="browserHeading" tabindex="-1" class="outline-none">
+                        <div x-show="activeCategory === 'all'" class="workspace-items-grid" aria-label="Project file categories">
+                            @foreach ($categories as $category)
+                                <button type="button" data-project-file-category="{{ $category['key'] }}" aria-label="Select folder {{ $category['label'] }}" :aria-pressed="selectedItem === 'category:{{ $category['key'] }}'" class="workspace-item" :class="selectedItem === 'category:{{ $category['key'] }}' && 'workspace-selected'" @click="selectItem('category:{{ $category['key'] }}')" @dblclick="openCategory('{{ $category['key'] }}')" @keydown.enter.prevent="openCategory('{{ $category['key'] }}')">
+                                    <svg class="workspace-item-graphic" aria-hidden="true"><use href="#project-files-folder-{{ $topic->id }}" /></svg>
+                                    <span class="workspace-item-name">{{ $category['label'] }}</span>
+                                    <span class="workspace-item-meta">{{ $category['count'] }} {{ \Illuminate\Support\Str::plural('file', $category['count']) }}</span>
+                                </button>
+                            @endforeach
+                        </div>
                         @foreach ($categories as $category)
-                            <section x-show="activeCategory === 'all' || activeCategory === '{{ $category['key'] }}'" aria-labelledby="project-file-category-{{ $category['key'] }}">
-                                <div class="mb-2 flex items-end justify-between gap-3 px-1">
-                                    <div>
-                                        <h3 id="project-file-category-{{ $category['key'] }}" class="text-sm font-black text-gray-950 dark:text-white">{{ $category['label'] }}</h3>
-                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ $category['description'] }}</p>
-                                    </div>
-                                    <span class="shrink-0 text-xs font-bold tabular-nums text-gray-400">{{ $category['count'] }}</span>
-                                </div>
-
-                                <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                                    <div class="divide-y divide-gray-100 dark:divide-gray-800">
-                                        @foreach ($documents->where('category', $category['key']) as $document)
-                                            <article class="p-4 sm:p-5" data-project-document-key="{{ $document['key'] }}">
-                                                <div class="flex items-start gap-3">
-                                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-[10px] font-black text-red-700 dark:bg-red-950/50 dark:text-red-300">PDF</span>
-                                                    <div class="min-w-0 flex-1">
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <h4 class="min-w-0 break-words text-sm font-black leading-5 text-gray-950 dark:text-white">{{ $document['title'] }}</h4>
-                                                            @if ($document['generated_comment_response'] ?? false)
-                                                                <span class="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{{ $document['draft'] ? 'Draft · Research Head only' : 'Generated' }}</span>
-                                                            @endif
-                                                            @if ($document['category'] === \App\Models\ProjectDocument::CATEGORY_SIGNED_PAPERS)
-                                                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>Signed</span>
-                                                            @elseif ($document['official'])
-                                                                <span class="rounded-full bg-gray-950 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white dark:bg-white dark:text-gray-950">Official</span>
-                                                            @endif
-                                                        </div>
-                                                        <p class="mt-1 truncate text-xs font-semibold text-gray-500 dark:text-gray-400" title="{{ $document['filename'] }}">{{ $document['filename'] }}</p>
-                                                        <p class="mt-1 text-[11px] leading-4 text-gray-400">
-                                                            {{ $document['source'] }}
-                                                            @if ($document['uploaded_by']) &middot; {{ $document['uploaded_by'] }} @endif
-                                                            @if ($document['uploaded_at']) &middot; {{ $document['uploaded_at']->format(($document['generated_comment_response'] ?? false) ? 'M j, Y g:i A' : 'M j, Y') }} @endif
-                                                            @if ($document['file_size']) &middot; {{ \Illuminate\Support\Number::fileSize($document['file_size']) }} @endif
-                                                        </p>
-                                                        @if ($document['note'])
-                                                            <p class="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600 dark:bg-gray-950 dark:text-gray-300">{{ $document['note'] }}</p>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                                <div class="mt-3 flex flex-wrap justify-end gap-2">
-                                                    @if ($document['view_url'])
-                                                        <button type="button" data-project-document-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">View</button>
-                                                    @endif
-                                                    @if ($document['editable_docx_url'] ?? null)
-                                                        <a href="{{ $document['editable_docx_url'] }}" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70">Editable DOCX</a>
-                                                    @endif
-                                                    <a href="{{ $document['download_url'] }}" @if ($document['generated_comment_response'] ?? false) download="{{ $document['filename'] }}" @endif class="inline-flex min-h-10 items-center justify-center rounded-xl bg-gray-950 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download</a>
-                                                </div>
-                                            </article>
-                                        @endforeach
-                                    </div>
+                            <section x-show="activeCategory === '{{ $category['key'] }}'" aria-labelledby="project-file-category-{{ $category['key'] }}">
+                                <h3 id="project-file-category-{{ $category['key'] }}" class="text-lg font-semibold text-slate-950 dark:text-white">{{ $category['label'] }}</h3>
+                                <p class="mb-4 mt-1 text-base text-slate-500 dark:text-slate-400">{{ $category['description'] }}</p>
+                                <div class="workspace-items-grid">
+                                    @foreach ($documents->where('category', $category['key']) as $document)
+                                        @php($isDocx = strtolower(pathinfo($document['filename'], PATHINFO_EXTENSION)) === 'docx')
+                                        <article x-data="{ thumbnailFailed: false }" data-project-document-key="{{ $document['key'] }}" role="button" tabindex="0" aria-label="Select file {{ $document['title'] }}" :aria-pressed="selectedItem === '{{ $document['key'] }}'" class="workspace-item" :class="selectedItem === '{{ $document['key'] }}' && 'workspace-selected'" @click="selectItem('{{ $document['key'] }}')" @keydown.space.self.prevent="selectItem('{{ $document['key'] }}')"
+                                            @if ($document['view_url'])
+                                                @dblclick="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" @keydown.enter.self.prevent="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')"
+                                            @else
+                                                @dblclick="window.location.assign(@js($document['download_url']))" @keydown.enter.self.prevent="window.location.assign(@js($document['download_url']))"
+                                            @endif
+                                        >
+                                            @if (($document['preview_kind'] ?? null) === 'image')
+                                                <span x-show="!thumbnailFailed" class="workspace-image-graphic"><img src="{{ $document['thumbnail_url'] }}" alt="" loading="lazy" draggable="false" x-on:error="thumbnailFailed = true"></span>
+                                                <span x-show="thumbnailFailed" class="workspace-file-graphic"><svg aria-hidden="true"><use href="#project-files-file-{{ $topic->id }}" /></svg><span class="workspace-file-type">IMG</span></span>
+                                            @else
+                                                <span class="workspace-file-graphic"><svg aria-hidden="true"><use href="#project-files-file-{{ $topic->id }}" /></svg><span class="workspace-file-type {{ $isDocx ? '!bg-blue-700' : '' }}">{{ $isDocx ? 'DOCX' : 'PDF' }}</span></span>
+                                            @endif
+                                            <h4 class="workspace-item-name" title="{{ $document['filename'] }}">{{ $document['filename'] }}</h4>
+                                            <span class="workspace-item-meta">{{ $document['title'] }}</span>
+                                            <span class="workspace-item-meta">{{ $document['category'] === \App\Models\ProjectDocument::CATEGORY_SIGNED_PAPERS ? 'Signed' : ($document['official'] ? 'Official' : 'Project file') }}</span>
+                                            @if ($document['generated_comment_response'] ?? false)
+                                                <span class="text-sm font-medium text-red-700 dark:text-red-300">{{ $document['draft'] ? 'Draft · Research Head only' : 'Generated' }}</span>
+                                            @endif
+                                        </article>
+                                    @endforeach
                                 </div>
                             </section>
                         @endforeach
+                        @foreach ($categories as $category)
+                            <section x-show="selectedItem === 'category:{{ $category['key'] }}'" class="mt-5 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+                                <h3 class="text-base font-semibold text-slate-950 dark:text-white">{{ $category['label'] }}</h3>
+                                <p class="text-base text-slate-600 dark:text-slate-300">{{ $category['description'] }}</p>
+                                <button type="button" class="workspace-primary" @click="openCategory('{{ $category['key'] }}')">Open folder</button>
+                            </section>
+                        @endforeach
+                        @foreach ($documents as $document)
+                            <section x-show="selectedItem === '{{ $document['key'] }}'" data-project-file-selection="{{ $document['key'] }}" class="mt-5 min-w-0 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-700 dark:bg-slate-950">
+                                <h3 class="break-words text-base font-semibold text-slate-950 dark:text-white">{{ $document['filename'] }}</h3>
+                                <p class="text-base text-slate-700 dark:text-slate-200">{{ $document['title'] }}</p>
+                                <p class="text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $document['source'] }} @if ($document['uploaded_by']) · {{ $document['uploaded_by'] }} @endif @if ($document['uploaded_at']) · {{ $document['uploaded_at']->format(($document['generated_comment_response'] ?? false) ? 'M j, Y g:i A' : 'M j, Y') }} @endif @if ($document['file_size']) · {{ \Illuminate\Support\Number::fileSize($document['file_size']) }} @endif</p>
+                                @if ($document['note']) <p class="text-base leading-6 text-slate-600 dark:text-slate-300">{{ $document['note'] }}</p> @endif
+                                <div class="flex flex-wrap gap-2">
+                                    @if ($document['view_url'])
+                                        <button type="button" data-project-document-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" class="workspace-secondary">View</button>
+                                    @endif
+                                    @if ($document['editable_docx_url'] ?? null)
+                                        <a href="{{ $document['editable_docx_url'] }}" class="workspace-secondary">Editable DOCX</a>
+                                    @endif
+                                    <a href="{{ $document['download_url'] }}" @if ($document['generated_comment_response'] ?? false) download="{{ $document['filename'] }}" @endif class="workspace-primary">Download</a>
+                                </div>
+                            </section>
+                        @endforeach
+                        <p class="mt-5 text-sm leading-6 text-slate-500 dark:text-slate-400">Click to select. Double-click or press Enter to open a folder or file.</p>
                     </div>
                 @endif
             </div>
@@ -229,12 +259,21 @@
                 <section data-project-document-preview-content role="dialog" aria-modal="true" aria-labelledby="project-{{ $topic->id }}-{{ $document['key'] }}-heading">
                     <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                         <div>
-                            <h3 id="project-{{ $topic->id }}-{{ $document['key'] }}-heading" class="text-base font-bold text-gray-950 dark:text-white">{{ $document['title'] }}</h3>
-                            <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ $document['source'] }}</p>
+                            <h3 id="project-{{ $topic->id }}-{{ $document['key'] }}-heading" class="break-words text-lg font-bold text-gray-950 dark:text-white">{{ $document['title'] }}</h3>
+                            <p class="mt-1 break-words text-base text-gray-700 dark:text-gray-200">{{ $document['filename'] }}</p>
+                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $document['source'] }}</p>
                         </div>
-                        <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close</button>
+                        <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-base font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close</button>
                     </header>
-                    <x-proposal-revision-pdf :configuration="['pdfUrl' => $document['view_url'], 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading PDF…" :viewer-label="$document['title']" class="!h-[75dvh]" />
+                    @if (($document['preview_kind'] ?? null) === 'image')
+                        <div x-data="{ imageFailed: false }" class="flex min-h-64 items-center justify-center bg-gray-100 p-4 dark:bg-gray-950">
+                            <img x-show="!imageFailed" x-on:error="imageFailed = true" src="{{ $document['view_url'] }}" alt="{{ $document['note'] ?: $document['title'] }}" class="max-h-[75dvh] max-w-full object-contain" data-project-document-image-preview>
+                            <p x-show="imageFailed" role="alert" class="text-base text-slate-600 dark:text-slate-300">The image could not be loaded. Close the preview and use Download to open the original file.</p>
+                        </div>
+                        @if ($document['note']) <p class="border-t border-slate-200 px-4 py-3 text-base text-slate-600 dark:border-slate-700 dark:text-slate-300">{{ $document['note'] }}</p> @endif
+                    @else
+                        <x-proposal-revision-pdf :configuration="['pdfUrl' => $document['view_url'], 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading PDF…" :viewer-label="$document['title']" class="!h-[75dvh]" />
+                    @endif
                 </section>
             </template>
         </x-modal>

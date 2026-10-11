@@ -24,7 +24,8 @@ class ProjectBudgetUtilizationController extends Controller
             ->accessibleForDocumentRelease($request->user())
             ->awaitingDocumentRelease()
             ->with('user:id,name,college')
-            ->latest('updated_at')
+            ->orderByRaw('COALESCE(status_started_at, created_at)')
+            ->orderBy('id')
             ->paginate(10, ['*'], 'signing_page');
         $projects = TopicProposal::query()
             ->whereBelongsTo($request->user(), 'researchSecretary')

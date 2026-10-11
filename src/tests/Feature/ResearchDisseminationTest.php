@@ -157,7 +157,7 @@ test('journal finder is hidden and forbidden in office workspaces even for the p
         $this->get(route('topics.show', $this->topic))->assertOk()->assertDontSee('Find journals');
     }
 
-    $this->get(route('research-support.index'))->assertOk()->assertDontSee('Journal Finder');
+    $this->get(route('research-support.index'))->assertForbidden()->assertDontSee('Journal Finder');
     $this->get(route('research.dissemination.show', $this->topic))->assertForbidden();
     $this->postJson(route('research.dissemination.journals.search', $this->topic), ['query' => 'coastal monitoring'])->assertForbidden();
     $this->postJson(route('research-support.journal-search'), ['query' => 'coastal monitoring'])->assertForbidden();

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Notifications\ProposalWorkspaceInvitation;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
 
@@ -72,14 +73,84 @@ beforeEach(function () {
     Notification::fake();
 });
 
+test('project team roster keeps member states and management controls visible', function (string $view) {
+    $this->owner->update(['avatar' => 'https://example.com/team-owner.jpg']);
+    $availableFaculty = User::factory()->create([
+        'name' => 'Dr. Sofia Mendoza',
+        'email' => 'sofia.mendoza@g.batstate-u.edu.ph',
+    ]);
+    $availableFaculty->assignRole('faculty');
+    $accepted = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => now(),
+        'project_role' => in_array($view, ['owner-assigned', 'collaborator'], true) ? 'secretary' : null,
+    ]);
+    $this->draft->members()->create([
+        'user_id' => $this->outsider->id,
+        'name' => $this->outsider->name,
+        'email' => $this->outsider->email,
+        'accepted_at' => null,
+    ]);
+    $this->draft->members()->create([
+        'name' => 'Professor Maria Alexandra Del Rosario',
+        'email' => 'maria.alexandra.del.rosario@g.batstate-u.edu.ph',
+        'accepted_at' => null,
+    ]);
+    if ($view === 'locked') {
+        $this->draft->update(['status' => ProposalDraft::STATUS_SUBMITTING]);
+    }
+    $canManage = str_starts_with($view, 'owner-');
+    $response = $this->actingAs($view === 'collaborator' ? $this->collaborator : $this->owner)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))->assertOk();
+
+    if (getenv('ATHENA_EXPORT_PROPOSAL_TEAM') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/proposal-team-'.$view.'.html'), $response->getContent());
+    }
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $team = '//*[@id="proposal-collaborators-tab"]';
+    expect($xpath->query($team.'//*[@data-project-team-roster]//article[@data-project-team-member]')->length)->toBe(4)
+        ->and($xpath->query($team.'//*[@data-team-member-status]')->length)->toBe(4)
+        ->and($xpath->query($team.'//*[@data-team-section-icon and @aria-hidden="true"]')->length)->toBe(1)
+        ->and($xpath->query($team.'//*[@data-secretary-section-icon and @aria-hidden="true"]')->length)->toBe(1)
+        ->and($xpath->query($team.'//*[@data-user-avatar]')->length)->toBe($accepted->project_role ? 4 : 3)
+        ->and($xpath->query($team.'//*[@data-user-avatar-image and @src="https://example.com/team-owner.jpg"]')->length)->toBe(1)
+        ->and($xpath->query($team.'//*[@data-open-collaborator-modal]')->length)->toBe($canManage ? 1 : 0)
+        ->and($xpath->query($team.'//*[@data-project-role-picker]')->length)->toBe($canManage ? 1 : 0)
+        ->and($xpath->query('//*[@data-collaborator-invitation-modal]')->length)->toBe($canManage ? 1 : 0)
+        ->and($xpath->query($team.'//button[normalize-space(.)="Resend invitation"]')->length)->toBe($canManage ? 2 : 0)
+        ->and($xpath->query($team.'//button[normalize-space(.)="Remove"]')->length)->toBe($canManage ? 2 : 0);
+    expect(trim($xpath->query($team.'//*[@data-project-team-member="owner"]//*[@data-team-member-status]')->item(0)->textContent))->toBe('Project leader')
+        ->and(trim($xpath->query($team.'//*[@data-project-team-member="'.$accepted->id.'"]//*[@data-team-member-status]')->item(0)->textContent))->toBe('Confirmed')
+        ->and($xpath->query($team.'//*[@data-project-team-member="'.$accepted->id.'"]')->item(0)->textContent)->toContain($accepted->isProjectSecretary() ? 'Project Secretary' : 'Project staff');
+    $review = $this->get(route('faculty.proposal-drafts.review', $this->draft))->assertOk();
+    $reviewDocument = new DOMDocument;
+    @$reviewDocument->loadHTML($review->getContent());
+    $reviewXpath = new DOMXPath($reviewDocument);
+    $reviewTeam = '//*[@aria-labelledby="review-collaborators-heading"]';
+    expect($reviewXpath->query($reviewTeam.'//span[normalize-space(.)="Confirmed"]')->length)->toBe(1)
+        ->and($reviewXpath->query($reviewTeam.'//span[normalize-space(.)="Invitation pending"]')->length)->toBe(1)
+        ->and($reviewXpath->query($reviewTeam.'//span[normalize-space(.)="Pending sign-in"]')->length)->toBe(1);
+    $response->assertSee('Confirmed')->assertSee('Invitation pending')->assertSee('Pending sign-in')
+        ->assertDontSee('More project roles can be added here later');
+    if ($canManage) {
+        $response->assertSee('aria-controls="draft-project-secretary-options-'.$this->draft->id.'"', false);
+    }
+})->with(['owner-unassigned', 'owner-assigned', 'collaborator', 'locked']);
+
 test('an owner can tag an existing account and the collaborator can edit but not control the workspace', function () {
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Project team')
+        ->assertSee("You're the project leader")
         ->assertSee($this->collaborator->email)
         ->assertSee('linked-collaborator.jpg')
-        ->assertSee('Add team member')
+        ->assertSee('Add project staff')
         ->assertSee('proposal-collaborator-invitation')
         ->assertSee('data-collaborator-account-picker', false)
         ->assertSee('role="combobox"', false)
@@ -115,7 +186,7 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Invitation pending')
-        ->assertSee('Waiting for the team member to accept the invitation.')
+        ->assertSee('Waiting for the invited staff member to accept the invitation.')
         ->assertSee('Resend invitation');
 
     $this->actingAs($this->collaborator)
@@ -138,8 +209,8 @@ test('an owner can tag an existing account and the collaborator can edit but not
         $this->owner,
         ProposalActivityNotification::class,
         function (ProposalActivityNotification $notification): bool {
-            return $notification->title === 'Team member accepted invitation'
-                && str_contains($notification->message, 'Linked Collaborator accepted your invitation to join the project team')
+            return $notification->title === 'Project staff invitation accepted'
+                && str_contains($notification->message, 'Linked Collaborator accepted the project staff invitation')
                 && $notification->url === route('faculty.proposal-drafts.show', $this->draft);
         },
     );
@@ -147,14 +218,19 @@ test('an owner can tag an existing account and the collaborator can edit but not
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Joined')
-        ->assertSee('Shares this workspace through project completion. Only the project leader can submit.');
+        ->assertSee('Confirmed')
+        ->assertSee('Project staff for this research project through completion. Only the project leader can submit.');
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
         ->assertSee('Shared Coastal Research')
-        ->assertSee('Team member');
+        ->assertSee('Project staff');
+    $this->actingAs($this->collaborator)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Project staff · Project leader: Workspace Owner')
+        ->assertDontSee('Shared with you by');
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.details.edit', $this->draft))
         ->assertOk();
@@ -208,7 +284,7 @@ test('the project leader assigns an accepted team member as secretary for the fu
         ->assertSee('Project roles')
         ->assertSee('Project Secretary')
         ->assertSee('data-project-role-picker', false)
-        ->assertSee('Search accepted team members')
+        ->assertSee('Search confirmed project staff')
         ->assertSee('linked-collaborator.jpg');
 
     $this->actingAs($this->owner)
@@ -263,7 +339,7 @@ test('a research head can review and accept a collaboration invitation from thei
         ->withSession(['active_workspace' => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('notifications.proposal-invitations.show', $membership))
         ->assertOk()
-        ->assertSee('Join the project team')
+        ->assertSee('Project staff invitation')
         ->assertSee('Shared Coastal Research')
         ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
 
@@ -311,7 +387,7 @@ test('accepted team members and their project roles are restored when a revision
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $revisionDraft))
         ->assertOk()
-        ->assertSee('Shared with you by Workspace Owner');
+        ->assertSee('Project staff · Project leader: Workspace Owner');
 });
 
 test('accepted collaborators survive stale revision team lists and retain access through project completion', function () {
@@ -399,7 +475,7 @@ test('an unregistered person remains external and is linked after verified Googl
     $this->actingAs($futureAccount)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Shared with you by Workspace Owner');
+        ->assertSee('Project staff · Project leader: Workspace Owner');
 });
 
 test('an owner can resend a collaborator invitation email', function () {
@@ -447,11 +523,11 @@ test('the invitation email explains linked access and owner-only actions', funct
 
     $mail = $notification->toMail(new AnonymousNotifiable);
 
-    expect($mail->subject)->toBe('ATHENA proposal invitation: Shared Coastal Research')
+    expect($mail->subject)->toBe('ATHENA project staff invitation: Shared Coastal Research')
         ->and($mail->actionText)->toBe('Open ATHENA')
-        ->and(implode(' ', $mail->introLines))->toContain('Your verified ATHENA account is already linked')
+        ->and(implode(' ', $mail->introLines))->toContain('Your verified ATHENA account is already linked', 'invited you to serve as project staff')
         ->and(implode(' ', $mail->outroLines))
-        ->toContain('Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
+        ->toContain('Project staff may edit draft papers.', 'Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
 });
 
 test('workspace account details autofill member fields in project papers', function () {

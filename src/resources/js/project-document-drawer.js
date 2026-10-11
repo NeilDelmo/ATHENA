@@ -20,13 +20,16 @@ export function acceptedProjectPdfFiles(files, limit = 10) {
 
 export function projectDocumentDrawer(config = {}) {
     return {
-        open: Boolean(config.initialOpen),
+        inline: Boolean(config.inline),
+        open: Boolean(config.inline || config.initialOpen),
         uploadOpen: Boolean(config.uploadOpen),
         activeCategory: 'all',
+        selectedItem: null,
         isDragging: false,
         selectedFiles: [],
         fileError: '',
         init() {
+            if (this.inline) return;
             this.$watch('open', (isOpen) => {
                 document.body.classList.toggle('overflow-hidden', isOpen);
 
@@ -42,15 +45,25 @@ export function projectDocumentDrawer(config = {}) {
             }
         },
         destroy() {
+            if (this.inline) return;
             document.body.classList.remove('overflow-hidden');
         },
         openDrawer(category = 'all') {
-            this.activeCategory = category;
+            this.openCategory(category);
             this.open = true;
         },
         closeDrawer() {
+            if (this.inline) return;
             this.open = false;
             this.$nextTick(() => this.$refs.trigger?.focus());
+        },
+        selectItem(key) {
+            this.selectedItem = key;
+        },
+        openCategory(category = 'all') {
+            this.activeCategory = category;
+            this.selectedItem = null;
+            this.$nextTick?.(() => this.$refs?.browserHeading?.focus());
         },
         chooseFiles(event) {
             this.setFiles(event.target.files);

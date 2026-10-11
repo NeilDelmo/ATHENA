@@ -195,6 +195,27 @@
 
             <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
                 <div class="athena-page-content w-full">
+                    @auth
+                        @if (blank(Auth::user()->college))
+                            @php($collegeIsLocked = Auth::user()->hasRole('research_coordinator'))
+                            <aside role="status" data-missing-college-reminder class="mb-6 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900 dark:bg-amber-950/40">
+                                <div>
+                                    <p class="text-sm font-bold text-amber-900 dark:text-amber-100">Your college is missing</p>
+                                    <p class="mt-1 text-sm leading-5 text-amber-800 dark:text-amber-200">
+                                        @if ($collegeIsLocked)
+                                            Contact the Research Head to remove your Research Coordinator assignment before setting your college.
+                                        @else
+                                            Add your college to your profile so it can be used in your research documents.
+                                        @endif
+                                    </p>
+                                </div>
+                                <a wire:navigate href="{{ route('profile.edit').($collegeIsLocked ? '#college-locked' : '#college') }}" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg bg-amber-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-700 focus:ring-offset-2 dark:focus:ring-amber-400 dark:focus:ring-offset-slate-950">
+                                    {{ $collegeIsLocked ? 'View profile' : 'Set your college' }}
+                                </a>
+                            </aside>
+                        @endif
+                    @endauth
+
                     {{ $slot }}
                 </div>
             </main>

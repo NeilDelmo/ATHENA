@@ -143,6 +143,14 @@ class ProposalRichText
                 : $content;
         }
 
+        if ($tag === 'p') {
+            $referenceSourceId = trim($node->getAttribute('data-proposal-managed-reference'));
+
+            if (ctype_digit($referenceSourceId) && (int) $referenceSourceId > 0) {
+                return '<p data-proposal-managed-reference="'.$referenceSourceId.'">'.$content.'</p>';
+            }
+        }
+
         return '<'.$tag.'>'.$content.'</'.$tag.'>';
     }
 

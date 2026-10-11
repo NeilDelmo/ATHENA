@@ -20,6 +20,35 @@ class ApprovedWorkPlanMonitoringService
         return $this->approvedEntries($topic) !== [];
     }
 
+    public function quarterCompletionPercentage(TopicProposal $topic, ProjectProgressReport $report): ?int
+    {
+        if (! $report->isSubmitted()) {
+            return null;
+        }
+
+        $period = $report->period_start && $report->period_end
+            ? $this->monitoringQuarterService->forReport($report)
+            : $this->monitoringQuarterService->forDate($report->reporting_date, $topic);
+        $due = collect($this->plannedActivities($topic))->filter(fn (array $entry): bool => $entry['target_completion_date'] >= $period['start']->toDateString()
+            && $entry['target_completion_date'] <= $period['end']->toDateString());
+        $weight = $due->sum(fn (array $entry): float => (float) $entry['percent_weight']);
+
+        if ($weight <= 0) {
+            return null;
+        }
+
+        $accomplished = $due->sum(function (array $entry) use ($report): float {
+            $row = collect($report->work_plan ?? [])->first(fn (mixed $row): bool => is_array($row)
+                && (isset($row['source_work_plan_index'])
+                    ? (int) $row['source_work_plan_index'] === $entry['source_work_plan_index']
+                    : trim((string) ($row['activity'] ?? '')) === $entry['activity']));
+
+            return min((float) $entry['percent_weight'], max(0, (float) ($row['accomplished_percentage'] ?? 0)));
+        });
+
+        return $accomplished < $weight ? min(99, (int) round($accomplished / $weight * 100)) : 100;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

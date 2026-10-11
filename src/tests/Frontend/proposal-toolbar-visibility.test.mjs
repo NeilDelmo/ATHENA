@@ -11,16 +11,29 @@ import loadConfig from 'tailwindcss/loadConfig.js';
 const read = (path) => readFileSync(resolve(path), 'utf8').replaceAll('\r\n', '\n');
 const previewHelpers = read('resources/js/proposal-preview-workspace.js').replaceAll('export ', '')
     + read('resources/js/proposal-paper-workspace.js').replace(/^import .+;\n/gm, '').replaceAll('export ', '');
-const papers = ['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae'];
+const papers = ['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae', 'monitoring', 'progress-report', 'terminal-report'];
 
-test('all proposal toolbars close and reopen without losing fields and stay above focused fields in both workspaces', async () => {
+test('all writing toolbars keep compact actions on one line and close without losing fields in both workspaces', async () => {
     const toolbars = JSON.parse(execFileSync('php', ['-r', String.raw`
         require 'vendor/autoload.php';
         $app = require 'bootstrap/app.php';
         $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
         $toolbars = [];
         foreach (json_decode(stream_get_contents(STDIN), true) as $paper) {
-            $toolbars[$paper] = view('components.'.$paper.'-writing-toolbar')->render();
+            if (in_array($paper, ['monitoring', 'progress-report', 'terminal-report'], true)) {
+                $topic = new App\Models\TopicProposal;
+                $topic->id = 1;
+                $toolbars[$paper] = view('components.monitoring-writing-toolbar', [
+                    'topic' => $topic,
+                    'reportLabel' => ['monitoring' => 'Monitoring Tool', 'progress-report' => 'Progress Report', 'terminal-report' => 'Terminal Report'][$paper],
+                    'panelId' => $paper.'-preview-panel',
+                    'formId' => $paper.'-form',
+                    'saveMethod' => 'saveDraft',
+                    'standalone' => true,
+                ])->render();
+            } else {
+                $toolbars[$paper] = view('components.'.$paper.'-writing-toolbar')->render();
+            }
         }
         echo json_encode($toolbars, JSON_THROW_ON_ERROR);
     `], { input: JSON.stringify(papers), encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } }));
@@ -30,7 +43,7 @@ test('all proposal toolbars close and reopen without losing fields and stay abov
     try {
         for (const paper of papers) {
             for (const embedded of [false, true]) {
-                for (const width of [1440, 390]) {
+                for (const width of [1440, 1024, 768, 390]) {
                     for (const dark of [false, true]) {
                         const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
                         const errors = [];
@@ -51,6 +64,7 @@ test('all proposal toolbars close and reopen without losing fields and stay abov
                             document.addEventListener('alpine:init',()=>Alpine.data('toolbarFixture',()=>({
                                 ...proposalPaperPreviewWorkspace(), previewHtml:'', previewLoading:false,
                                 answer:'Saved research notes.', savedValue:'', activeWorkPlanEntry:null, entries:[],
+                                autoSaveInFlight:false, autoSaveBlocked:false, submitting:false, submissionOpen:true,
                                 activeCvPersonId:1, activeCvPersonIndex:0, activeCvSection:'personal', cvMemberManagerOpen:false,
                                 people:[{id:1,name:'Project leader'}], budgetCeiling:0,
                                 projectTotal:()=>1234, grandTotal:()=>1234, formatMoney:value=>Number(value).toFixed(2),
@@ -60,13 +74,41 @@ test('all proposal toolbars close and reopen without losing fields and stay abov
                             })));` });
                         await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
                         const toolbar = page.locator('[data-proposal-workspace-toolbar]');
+                        await toolbar.waitFor();
+                        await page.waitForFunction(() => {
+                            const workspace = document.querySelector('[data-proposal-paper-workspace]');
+                            const toolbar = workspace.querySelector('[data-proposal-workspace-toolbar]');
+                            return Math.abs(parseFloat(workspace.style.getPropertyValue('--proposal-toolbar-height')) - toolbar.getBoundingClientRect().height) < 1;
+                        });
+                        for (const row of await toolbar.locator('.proposal-writing-buttons:visible').all()) {
+                            const bounds = await row.locator('button:visible, a:visible').evaluateAll((controls) => controls.map((control) => {
+                                const rect = control.getBoundingClientRect();
+                                return { center: rect.top + rect.height / 2, height: rect.height };
+                            }));
+                            if (!bounds.length) continue;
+                            assert.ok(Math.max(...bounds.map((bound) => bound.center)) - Math.min(...bounds.map((bound) => bound.center)) <= 1,
+                                `${paper}/${width}: all actions must stay on one line`);
+                            assert.ok(bounds.every((bound) => width < 640 ? bound.height >= 44 : bound.height <= 36),
+                                `${paper}/${width}: compact desktop actions must keep mobile touch targets`);
+                            const last = row.locator('button:visible, a:visible').last();
+                            await last.evaluate((control) => control.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }));
+                            const rowBounds = await row.boundingBox();
+                            const lastBounds = await last.boundingBox();
+                            assert.ok(lastBounds.x >= rowBounds.x - 1 && lastBounds.x + lastBounds.width <= rowBounds.x + rowBounds.width + 1,
+                                `${paper}/${width}: the final action must be reachable inside the toolbar`);
+                            if (width === 1440) {
+                                assert.equal(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true,
+                                    `${paper}: desktop actions must fit without scrolling`);
+                            }
+                            await row.evaluate((element) => { element.scrollLeft = 0; });
+                        }
                         const field = page.getByRole('textbox', { name: 'Research notes', exact: true });
                         await field.fill('Keep my updated research notes.');
-                        await field.evaluate((element) => { window.originalField = element; element.scrollIntoView({ block: 'start' }); });
+                        await field.evaluate((element) => { window.originalField = element; element.scrollIntoView({ block: 'start', behavior: 'instant' }); });
                         const expectedTop = embedded ? 0 : 128;
                         await page.waitForFunction((top) => Math.abs(document.querySelector('[data-proposal-workspace-toolbar]').getBoundingClientRect().top - top) < 1, expectedTop);
                         const expandedBounds = await toolbar.boundingBox();
-                        assert.ok((await field.boundingBox()).y >= expandedBounds.y + expandedBounds.height + 8, `${paper}: focused field must remain below the toolbar`);
+                        assert.ok((await field.boundingBox()).y >= expandedBounds.y + expandedBounds.height + 8, `${paper}/${embedded}/${width}/${dark}: focused field must remain below the toolbar`);
                         assert.ok((await page.locator('label[for="answer"]').boundingBox()).y >= expandedBounds.y + expandedBounds.height + 8, `${paper}: the focused field label must remain visible`);
                         const close = toolbar.getByRole('button', { name: 'Hide tools', exact: true });
                         assert.ok(await close.evaluate((element) => parseFloat(getComputedStyle(element).borderTopWidth) >= 1), 'Close is a visible bordered button');
@@ -91,7 +133,7 @@ test('all proposal toolbars close and reopen without losing fields and stay abov
                         assert.notEqual(await toolbar.locator('[data-writing-toolbar-controls]').evaluate((element) => getComputedStyle(element).display), 'none');
                         assert.equal(await field.inputValue(), 'I can keep writing with the tools closed.');
                         assert.equal(await field.evaluate((element) => element === window.originalField), true);
-                        await field.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+                        await field.evaluate((element) => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
                         const restoredBounds = await toolbar.boundingBox();
                         assert.ok((await field.boundingBox()).y >= restoredBounds.y + restoredBounds.height + 8, `${paper}/${embedded ? 'revision' : 'submission'}/${width}/${dark ? 'dark' : 'light'}: reopened toolbar must keep the focused field visible`);
                         assert.ok((await page.locator('label[for="answer"]').boundingBox()).y >= restoredBounds.y + restoredBounds.height + 8, `${paper}: reopening tools must keep the focused field label visible`);

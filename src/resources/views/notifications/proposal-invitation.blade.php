@@ -2,18 +2,18 @@
     <div class="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <div class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div class="border-b border-gray-100 bg-red-50 px-6 py-5 dark:border-slate-800 dark:bg-red-950/30 sm:px-8">
-                <p class="text-xs font-black uppercase tracking-[0.2em] text-red-700 dark:text-red-300">Proposal workspace invitation</p>
-                <h1 class="mt-2 text-2xl font-black text-gray-900 dark:text-white">Join the project team</h1>
+                <p class="text-xs font-black uppercase tracking-[0.2em] text-red-700 dark:text-red-300">Research project team</p>
+                <h1 class="mt-2 text-2xl font-black text-gray-900 dark:text-white">Project staff invitation</h1>
             </div>
 
             <div class="px-6 py-7 sm:px-8">
                 <p class="text-sm leading-6 text-gray-600 dark:text-slate-300">
                     <span class="font-bold text-gray-900 dark:text-white">{{ $proposalDraftMember->draft->owner->name }}</span>
-                    invited you to join the project team for
+                    invited you to serve as project staff for
                     <span class="font-bold text-gray-900 dark:text-white">“{{ $proposalDraftMember->draft->project_title }}”</span>.
                 </p>
                 <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-slate-300">
-                    Team members can edit proposal papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.
+                    Project staff can edit proposal papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.
                 </p>
 
                 @if ($workloadWarning)

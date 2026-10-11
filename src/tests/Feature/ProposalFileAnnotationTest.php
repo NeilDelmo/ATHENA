@@ -80,6 +80,22 @@ beforeEach(function () {
     ]);
 });
 
+test('research head document viewer offers fitting zoom and collapsible comments', function () {
+    $this->mock(ProposalRevisionSectionMap::class)->shouldReceive('forFile')->andReturn([]);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()
+        ->assertSee('Zoom out')
+        ->assertSee('Zoom in')
+        ->assertSee('Fit page')
+        ->assertSee('Fit width')
+        ->assertSee('data-review-document-zoom', false)
+        ->assertSee('data-review-comments-toggle', false)
+        ->assertSee('Hide comments')
+        ->assertSee('id="review-document-comments" x-show="commentsOpen"', false);
+});
+
 test('research head can annotate an exact turned-in PDF while draft comments stay private', function () {
     $this->actingAs($this->head)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]).'?decision=revision_requested')
@@ -117,13 +133,6 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertSee('Expand paper')
         ->assertSee('Focused PDF review workspace')
         ->assertSee('Zoom out')
-        ->assertSee('Zoom in')
-        ->assertSee('Fit page')
-        ->assertSee('Fit width')
-        ->assertSee('data-review-document-zoom', false)
-        ->assertSee('data-review-comments-toggle', false)
-        ->assertSee('Hide comments')
-        ->assertSee('id="review-document-comments" x-show="commentsOpen"', false)
         ->assertDontSee('Edit in proposal workspace');
 
     $response = $this->actingAs($this->head)->postJson(

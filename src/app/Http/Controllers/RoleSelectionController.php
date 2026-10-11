@@ -14,6 +14,10 @@ class RoleSelectionController extends Controller
     {
         $user = $request->user();
 
+        if ($user->hasRole('research_secretary')) {
+            return redirect()->route('workspace.select');
+        }
+
         if (! $user->hasRole('research_coordinator') || ! $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
             return redirect()->route('dashboard');
         }

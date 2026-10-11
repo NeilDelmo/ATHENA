@@ -210,10 +210,13 @@ class ResearchHeadDashboard extends Component
         if ($property === 'status') {
             $this->reset('pipeline');
         }
+        if ($property === 'pipeline') {
+            $this->reset('status', 'attention');
+        }
         if ($property === 'submissionMonth') {
             $this->reset('pipeline', 'status', 'attention', 'search');
         }
-        if (in_array($property, ['search', 'status', 'attention', 'academicYear', 'fromDate', 'toDate', 'submissionMonth'], true)) {
+        if (in_array($property, ['search', 'status', 'pipeline', 'attention', 'academicYear', 'fromDate', 'toDate', 'submissionMonth'], true)) {
             $this->resetPage();
             $this->resetPage('attentionPage');
             $this->resetPage('projectPage');

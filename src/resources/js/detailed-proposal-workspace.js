@@ -30,12 +30,39 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
     const status = toolbar.querySelector('[data-writing-status]');
     const tablePicker = toolbar.querySelector('[data-writing-table-picker]');
     const tableTools = toolbar.querySelector('[data-writing-table-tools]');
+    let openMenu = null;
     let active = null;
     let activeImageSection = null;
     const imageSections = {
         'executive-brief': 'executive_brief', rationale: 'rationale', introduction: 'introduction',
         'related-literature': 'related_literature', 'methodology-research_design': 'research_design',
         'methodology-specific_methods': 'specific_methods', 'methodology-data_analysis': 'data_analysis',
+    };
+
+    const closeMenu = (restoreFocus = false) => {
+        if (!openMenu) return;
+        const trigger = toolbar.querySelector(`[data-writing-menu-toggle="${openMenu.dataset.writingMenu}"]`);
+        openMenu.hidden = true;
+        openMenu = null;
+        trigger.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) trigger.focus();
+    };
+    const positionMenu = () => {
+        if (!openMenu) return;
+        const trigger = toolbar.querySelector(`[data-writing-menu-toggle="${openMenu.dataset.writingMenu}"]`);
+        const anchor = trigger.getBoundingClientRect();
+        const bounds = openMenu.getBoundingClientRect();
+        openMenu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
+        openMenu.style.top = `${Math.max(8, anchor.bottom + bounds.height + 8 <= window.innerHeight ? anchor.bottom + 4 : anchor.top - bounds.height - 4)}px`;
+    };
+    const showMenu = (trigger, last = false) => {
+        closeMenu();
+        openMenu = toolbar.querySelector(`[data-writing-menu="${trigger.dataset.writingMenuToggle}"]`);
+        openMenu.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+        positionMenu();
+        const items = [...openMenu.querySelectorAll('button:not([disabled])')];
+        items[last ? items.length - 1 : 0]?.focus();
     };
 
     const selectedTable = () => {
@@ -53,17 +80,16 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         const canInsertTable = available && active.id !== 'references';
         toolbar.querySelectorAll('[data-writing-command]').forEach((button) => {
             button.disabled = !available;
-            if (!['undo', 'redo'].includes(button.dataset.writingCommand)) {
+            if (button.getAttribute('role') !== 'menuitem' && !['undo', 'redo', 'removeFormat'].includes(button.dataset.writingCommand)) {
                 button.setAttribute('aria-pressed', String(available && document.queryCommandState(button.dataset.writingCommand)));
             }
         });
         toolbar.querySelector('[data-writing-image]').disabled = !activeImageSection;
         toolbar.querySelector('[data-writing-table]').disabled = !canInsertTable;
         toolbar.querySelector('[data-writing-cite]').disabled = !canCite;
-        toolbar.querySelector('[data-writing-expand]').disabled = !available;
-        const expanded = available && active._semanticEditor.parentElement.classList.contains('proposal-writing-expanded');
-        toolbar.querySelector('[data-writing-expand-label]').textContent = expanded ? 'Shrink field' : 'Expand field';
-        toolbar.querySelector('[data-writing-expand]').setAttribute('aria-pressed', String(expanded));
+        toolbar.querySelectorAll('[data-writing-menu-toggle]').forEach((button) => {
+            button.disabled = button.dataset.writingMenuToggle === 'insert' ? !available && !activeImageSection : !available;
+        });
         tableTools.hidden = !selectedTable();
     };
 
@@ -88,6 +114,7 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         .find((field) => field._semanticEditor?.contains(element));
     const onFocus = (event) => {
         if (toolbar.contains(event.target)) return;
+        closeMenu();
         const field = fieldAt(event.target);
         if (field) activate(field);
         else if (event.target.closest('#methodology-specific-methods')) activate(null, 'specific_methods');
@@ -149,13 +176,12 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
     const onClick = (event) => {
         const button = event.target.closest('button');
         if (!button || button.disabled) return;
-        if (button.hasAttribute('data-writing-sources')) {
-            const selection = active?._semanticApi?.selection();
-            const detail = proposalCitationSelection(active?.id, active?._semanticEditor, selection);
-            if (detail) active._semanticCitationRange = selection.cloneRange();
-            window.dispatchEvent(new CustomEvent('proposal-open-sources', { detail }));
+        if (button.hasAttribute('data-writing-menu-toggle')) {
+            if (button.getAttribute('aria-expanded') === 'true') closeMenu(true);
+            else showMenu(button);
             return;
         }
+        closeMenu();
         if (button.hasAttribute('data-writing-image')) {
             openImagePicker(activeImageSection);
             return;
@@ -163,11 +189,6 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         if (!active?._semanticApi) return;
         if (button.dataset.writingCommand) active._semanticApi.execute(button.dataset.writingCommand);
         if (button.hasAttribute('data-writing-cite')) active._semanticApi.cite();
-        if (button.hasAttribute('data-writing-expand')) {
-            active._semanticEditor.parentElement.classList.toggle('proposal-writing-expanded');
-            active._semanticApi.restoreSelection();
-            active._semanticEditor.focus();
-        }
         if (button.hasAttribute('data-writing-table')) {
             tablePicker.hidden = !tablePicker.hidden;
             button.setAttribute('aria-expanded', String(!tablePicker.hidden));
@@ -186,13 +207,71 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         update();
     };
     const onKeydown = (event) => {
+        const trigger = event.target.closest('[data-writing-menu-toggle]');
+        if (trigger && !trigger.disabled && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+            event.preventDefault();
+            showMenu(trigger, event.key === 'ArrowUp');
+            return;
+        }
+        if (openMenu && event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            closeMenu(true);
+            return;
+        }
+        if (openMenu?.contains(event.target)) {
+            const items = [...openMenu.querySelectorAll('button:not([disabled])')];
+            const index = items.indexOf(document.activeElement);
+            if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+                event.preventDefault();
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+                items[next]?.focus();
+            } else if (event.key === 'Tab') closeMenu(true);
+        }
         if (event.key === 'Escape' && !tablePicker.hidden) {
             event.preventDefault();
             tablePicker.hidden = true;
             toolbar.querySelector('[data-writing-table]').setAttribute('aria-expanded', 'false');
-            toolbar.querySelector('[data-writing-table]').focus();
+            toolbar.querySelector('[data-writing-menu-toggle="insert"]').focus();
         }
     };
+
+    const expansionControls = [];
+    const addExpansionControls = () => workspace.querySelectorAll('[data-semantic-editor]').forEach((field) => {
+        if (!field._semanticEditor || field._semanticEditor.parentElement.querySelector('[data-writing-editor-expand]')) return;
+        const controls = document.createElement('div');
+        controls.className = 'proposal-editor-actions';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.writingEditorExpand = field.id;
+        button.textContent = 'Expand editor';
+        button.setAttribute('aria-expanded', 'false');
+        field._semanticEditor.id ||= `${field.id}-editor`;
+        button.setAttribute('aria-controls', field._semanticEditor.id);
+        const label = field.labels?.[0]?.textContent?.trim() || field.name || 'writing';
+        button.setAttribute('aria-label', `Expand ${label} editor`);
+        button.addEventListener('mousedown', (event) => { field._semanticApi.saveSelection(); event.preventDefault(); });
+        button.addEventListener('click', () => {
+            const expanded = field._semanticEditor.parentElement.classList.toggle('proposal-writing-expanded');
+            button.textContent = expanded ? 'Shrink editor' : 'Expand editor';
+            button.setAttribute('aria-expanded', String(expanded));
+            button.setAttribute('aria-label', `${expanded ? 'Shrink' : 'Expand'} ${label} editor`);
+            field._semanticApi.restoreSelection();
+            field._semanticEditor.focus();
+        });
+        controls.appendChild(button);
+        field._semanticEditor.before(controls);
+        expansionControls.push(controls);
+    });
+    addExpansionControls();
+    const expansionObserver = new MutationObserver((mutations) => {
+        if (mutations.some(({ addedNodes }) => [...addedNodes].some((node) => node instanceof HTMLElement
+            && (node.matches('[data-semantic-editor], .semantic-rich-text-editor') || node.querySelector('[data-semantic-editor], .semantic-rich-text-editor'))))) {
+            addExpansionControls();
+        }
+    });
+    expansionObserver.observe(workspace, { childList: true, subtree: true });
+    const onOutsidePointerDown = (event) => { if (!toolbar.contains(event.target)) closeMenu(); };
     const onTableKeydown = (event) => {
         if (event.key !== 'Tab' || !fieldAt(event.target)) return;
         const cell = selectedTable();
@@ -231,10 +310,17 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
     toolbar.addEventListener('pointerdown', onPointerDown);
     toolbar.addEventListener('click', onClick);
     toolbar.addEventListener('keydown', onKeydown);
+    toolbar.querySelector('.proposal-writing-toolbar-row .proposal-writing-buttons').addEventListener('scroll', positionMenu);
+    document.addEventListener('pointerdown', onOutsidePointerDown);
+    window.addEventListener('resize', positionMenu);
+    window.addEventListener('scroll', positionMenu);
     document.addEventListener('selectionchange', onSelection);
     activate(null);
 
     return () => {
+        closeMenu();
+        expansionObserver.disconnect();
+        expansionControls.forEach((controls) => controls.remove());
         workspace.removeEventListener('focusin', onFocus);
         workspace.removeEventListener('input', update);
         workspace.removeEventListener('dragover', onDragover);
@@ -243,6 +329,10 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         toolbar.removeEventListener('pointerdown', onPointerDown);
         toolbar.removeEventListener('click', onClick);
         toolbar.removeEventListener('keydown', onKeydown);
+        toolbar.querySelector('.proposal-writing-toolbar-row .proposal-writing-buttons').removeEventListener('scroll', positionMenu);
+        document.removeEventListener('pointerdown', onOutsidePointerDown);
+        window.removeEventListener('resize', positionMenu);
+        window.removeEventListener('scroll', positionMenu);
         document.removeEventListener('selectionchange', onSelection);
     };
 }

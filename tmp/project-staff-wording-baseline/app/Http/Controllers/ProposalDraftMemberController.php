@@ -1,0 +1,152 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Actions\SendProposalWorkspaceInvitation;
+use App\Http\Requests\StoreProposalDraftMemberRequest;
+use App\Http\Requests\UpdateProposalDraftMemberRoleRequest;
+use App\Models\ProposalDraft;
+use App\Models\ProposalDraftMember;
+use App\Services\FacultyProjectCapacityService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
+use Throwable;
+
+class ProposalDraftMemberController extends Controller
+{
+    public function store(
+        StoreProposalDraftMemberRequest $request,
+        ProposalDraft $proposalDraft,
+        SendProposalWorkspaceInvitation $sendInvitation,
+        FacultyProjectCapacityService $capacityService,
+    ): RedirectResponse {
+        $validated = $request->validated();
+        $linkedUser = $request->linkedUser();
+
+        $membership = DB::transaction(function () use ($proposalDraft, $validated, $linkedUser): ProposalDraftMember {
+            $lockedDraft = ProposalDraft::query()
+                ->whereKey($proposalDraft->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedDraft->ensureEditable();
+
+            if ($lockedDraft->members()->count() >= 50) {
+                throw ValidationException::withMessages([
+                    'email' => 'This proposal workspace already has the maximum of 50 team members.',
+                ]);
+            }
+
+            return $lockedDraft->members()->create([
+                'user_id' => $linkedUser?->getKey(),
+                'name' => $linkedUser?->name ?? $validated['name'],
+                'email' => $linkedUser?->email ?? $validated['email'],
+                'accepted_at' => null,
+            ]);
+        }, 3);
+
+        $workloadWarning = $linkedUser
+            ? $capacityService->warningForAdditionalParticipation($linkedUser, $proposalDraft->researchCall)
+            : null;
+
+        try {
+            $sendInvitation->handle($proposalDraft, $membership);
+            $invitationQueued = true;
+        } catch (Throwable $exception) {
+            report($exception);
+            $invitationQueued = false;
+        }
+
+        if (! $invitationQueued) {
+            return redirect()
+                ->route('faculty.proposal-drafts.show', $proposalDraft)
+                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the team member card.')
+                ->with('workload_warning', $workloadWarning);
+        }
+
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', $linkedUser
+                ? 'Invitation sent to '.$linkedUser->name.'. They can contribute after accepting it in ATHENA.'
+                : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.')
+            ->with('workload_warning', $workloadWarning);
+    }
+
+    public function resend(
+        ProposalDraft $proposalDraft,
+        int $member,
+        SendProposalWorkspaceInvitation $sendInvitation,
+    ): RedirectResponse {
+        Gate::authorize('manageMembers', $proposalDraft);
+
+        $proposalDraftMember = $proposalDraft->members()->findOrFail($member);
+
+        try {
+            $sendInvitation->handle($proposalDraft, $proposalDraftMember);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return redirect()
+                ->route('faculty.proposal-drafts.show', $proposalDraft)
+                ->withErrors(['invitation' => 'ATHENA could not queue the invitation email. Please try again.']);
+        }
+
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', 'Invitation email queued for '.$proposalDraftMember->name.'.');
+    }
+
+    public function updateRole(
+        UpdateProposalDraftMemberRoleRequest $request,
+        ProposalDraft $proposalDraft,
+    ): RedirectResponse {
+        $validated = $request->validated();
+        $selectedMemberId = $validated['member_id'] ?? null;
+
+        DB::transaction(function () use ($proposalDraft, $validated, $selectedMemberId): void {
+            $lockedDraft = ProposalDraft::query()
+                ->whereKey($proposalDraft->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedDraft->ensureEditable();
+
+            $lockedDraft->members()
+                ->where('project_role', $validated['project_role'])
+                ->update(['project_role' => null]);
+
+            if ($selectedMemberId !== null) {
+                $lockedDraft->members()
+                    ->whereKey($selectedMemberId)
+                    ->whereNotNull('accepted_at')
+                    ->whereNotNull('user_id')
+                    ->firstOrFail()
+                    ->update(['project_role' => $validated['project_role']]);
+            }
+        }, 3);
+
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', $selectedMemberId === null
+                ? 'Project Secretary assignment removed.'
+                : 'Project Secretary assigned for the full research project.');
+    }
+
+    public function destroy(
+        ProposalDraft $proposalDraft,
+        int $member,
+    ): RedirectResponse {
+        Gate::authorize('manageMembers', $proposalDraft);
+
+        $proposalDraftMember = $proposalDraft->members()->findOrFail($member);
+        $name = $proposalDraftMember->name;
+        abort_if($proposalDraftMember->isAccepted(), 403, 'Accepted collaborators remain part of the project through completion.');
+        abort_unless($proposalDraft->members()->whereKey($proposalDraftMember->id)->whereNull('accepted_at')->delete() === 1, 403);
+
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', $name.' was removed from this proposal workspace.');
+    }
+}

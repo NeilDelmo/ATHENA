@@ -46,9 +46,9 @@
                 @endforeach
             </select>
             <div class="flex gap-2">
-                <button type="submit" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:bg-red-800 dark:hover:bg-red-700 dark:focus:ring-red-400 dark:focus:ring-offset-slate-900">Filter</button>
+                <button type="submit" class="min-h-11 rounded-xl bg-red-600 px-4 py-2 text-base font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:bg-red-800 dark:hover:bg-red-700 dark:focus:ring-red-400 dark:focus:ring-offset-slate-900">Filter</button>
                 @if ($search !== '' || $submissionType !== '' || $status !== '')
-                    <a href="{{ route($submissionRoute) }}" class="inline-flex min-h-11 items-center rounded-lg border border-gray-200 px-3 text-sm font-semibold text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Clear</a>
+                    <a href="{{ route($submissionRoute) }}" class="inline-flex min-h-11 items-center rounded-lg border border-gray-200 px-3 text-base font-semibold text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Clear</a>
                 @endif
             </div>
         </form>
@@ -94,9 +94,12 @@
                                 'border-l-red-600 dark:border-l-red-400' => $isNewlyReceivedVersion,
                                 'border-l-transparent' => ! $isNewlyReceivedVersion,
                             ])>
-                            <div class="col-span-2 min-w-0 xl:col-span-1">
-                                <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ $proposal->title }}</h4>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $proposal->user->name }}</p>
+                            <div class="col-span-2 flex min-w-0 items-start gap-3 xl:col-span-1">
+                                <x-document-file-icon class="!h-12 !w-10" />
+                                <div class="min-w-0">
+                                    <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ $proposal->title }}</h4>
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $proposal->user->name }}</p>
+                                </div>
                             </div>
                             <div class="col-span-2 min-w-0 xl:col-span-1">
                                 <span class="sr-only">Review stage:</span>
@@ -137,7 +140,7 @@
         @endif
         <{{ $receivedOnly ? 'section' : 'details' }} id="submission-history" data-submission-history @if ($search !== '' || $submissionType !== '' || $status !== '' || request()->has('page')) open @endif class="group/history">
             <{{ $receivedOnly ? 'div' : 'summary' }} class="mb-3 flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-red-400 sm:flex-nowrap [&::-webkit-details-marker]:hidden">
-                <div class="border-l-4 border-brand pl-3 dark:border-red-400">
+                <div>
                     <h3 id="proposal-submission-records-heading" class="text-xl font-bold text-gray-900 dark:text-white">{{ $receivedOnly ? 'Received submissions' : 'Submission history' }}</h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">All submitted versions, newest first.</p>
                 </div>
@@ -158,20 +161,23 @@
                             $historyStatusLabel = $submission->topic->researchHeadQueueStatusLabel($submission->topic->latestVersion);
                         @endphp
                         <article data-submission-id="{{ $submission->id }}" class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 border-l-2 border-l-transparent bg-white px-4 py-3 hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/50 xl:grid-cols-[minmax(0,1fr)_200px_170px_130px_196px] xl:items-center xl:gap-4">
-                            <div class="col-span-2 min-w-0 xl:col-span-1">
-                                <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ $submission->title }}</h4>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $submission->topic->user->name }}</p>
-                                <details class="group/package mt-1 text-sm text-gray-500 dark:text-slate-400">
-                                    <summary class="inline-flex min-h-8 cursor-pointer list-none items-center gap-2 rounded font-medium hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-500 dark:hover:text-white [&::-webkit-details-marker]:hidden"><span class="group-open/package:hidden" aria-hidden="true">+</span><span class="hidden group-open/package:inline" aria-hidden="true">&minus;</span>Submission details</summary>
-                                    <div class="space-y-1 py-2 leading-6">
-                                        <p class="break-all">{{ $submission->topic->user->email }}</p>
-                                        <p>{{ $submission->topic->researchCall?->title ?? 'Research call unavailable' }}@if ($submission->topic->researchCall?->academic_year) · AY {{ $submission->topic->researchCall->academic_year }}@endif</p>
-                                        <p>Submitted by {{ $submission->submitter?->name ?? 'Former user' }}</p>
-                                        @if ($submission->change_summary)
-                                            <p><span class="font-semibold">Changes:</span> {{ $submission->change_summary }}</p>
-                                        @endif
-                                    </div>
-                                </details>
+                            <div class="col-span-2 flex min-w-0 items-start gap-3 xl:col-span-1">
+                                <x-document-file-icon class="!h-12 !w-10" />
+                                <div class="min-w-0">
+                                    <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ $submission->title }}</h4>
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $submission->topic->user->name }}</p>
+                                    <details class="group/package mt-1 text-sm text-gray-500 dark:text-slate-400">
+                                        <summary class="inline-flex min-h-8 cursor-pointer list-none items-center gap-2 rounded font-medium hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-500 dark:hover:text-white [&::-webkit-details-marker]:hidden"><span class="group-open/package:hidden" aria-hidden="true">+</span><span class="hidden group-open/package:inline" aria-hidden="true">&minus;</span>Submission details</summary>
+                                        <div class="space-y-1 py-2 leading-6">
+                                            <p class="break-all">{{ $submission->topic->user->email }}</p>
+                                            <p>{{ $submission->topic->researchCall?->title ?? 'Research call unavailable' }}@if ($submission->topic->researchCall?->academic_year) · AY {{ $submission->topic->researchCall->academic_year }}@endif</p>
+                                            <p>Submitted by {{ $submission->submitter?->name ?? 'Former user' }}</p>
+                                            @if ($submission->change_summary)
+                                                <p><span class="font-semibold">Changes:</span> {{ $submission->change_summary }}</p>
+                                            @endif
+                                        </div>
+                                    </details>
+                                </div>
                             </div>
                             <div class="col-span-2 min-w-0 xl:col-span-1">
                                 <span class="sr-only">Current review stage:</span>

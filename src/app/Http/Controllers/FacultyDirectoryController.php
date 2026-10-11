@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Actions\UpdateResearchCoordinatorAction;
 use App\Http\Requests\UpdateResearchCoordinatorRequest;
+use App\Http\Requests\UpdateResearchSecretaryRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Spatie\Permission\Models\Role;
 
 class FacultyDirectoryController extends Controller
 {
@@ -62,9 +64,24 @@ class FacultyDirectoryController extends Controller
         $updateCoordinator->handle($member, $action);
 
         if ($action === 'assign') {
-            $message = "{$member->name} is now part of the Research Office.";
+            $message = "{$member->name} is now a Research Coordinator.";
         } else {
-            $message = "{$member->name} is no longer part of the Research Office.";
+            $message = "{$member->name} is no longer a Research Coordinator.";
+        }
+
+        return back()->with('status', $message);
+    }
+
+    public function updateSecretary(UpdateResearchSecretaryRequest $request, User $member): RedirectResponse
+    {
+        $role = Role::findOrCreate('research_secretary');
+
+        if ($request->validated('action') === 'assign') {
+            $member->assignRole($role);
+            $message = "{$member->name} is now a Research Office / Secretary member.";
+        } else {
+            $member->removeRole($role);
+            $message = "{$member->name} is no longer a Research Office / Secretary member.";
         }
 
         return back()->with('status', $message);

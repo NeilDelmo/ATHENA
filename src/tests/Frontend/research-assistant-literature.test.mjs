@@ -319,8 +319,10 @@ test('both assistant surfaces render the shared literature flow and pass starter
     for (const surface of ['workspace', 'drawer']) {
         const view = await readFile(new URL(`../../resources/views/components/research-assistant-${surface}.blade.php`, import.meta.url), 'utf8');
         assert.match(view, /<x-research-assistant-literature\s*\/>/);
-        assert.match(view, /sendPrompt\(item\.prompt, item\.action \|\| null\)/);
+        assert.match(view, /<x-research-assistant-welcome(?: compact)?\s*\/>/);
     }
+    const welcome = await readFile(new URL('../../resources/views/components/research-assistant-welcome.blade.php', import.meta.url), 'utf8');
+    assert.match(welcome, /sendPrompt\(item\.prompt, item\.action \|\| null\)/);
 });
 
 test('compiled literature cards support selection, edited confirmation, and both themes at mobile and desktop widths', async () => {

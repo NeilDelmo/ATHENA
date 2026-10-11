@@ -124,7 +124,7 @@
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Relevant history</p>
                     <h3 id="archived-research-calls-heading" class="mt-1 text-xl font-black text-slate-950 dark:text-white">Your research-call archive</h3>
-                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Only previous calls connected to a proposal you own or collaborate on appear here.</p>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Only previous calls connected to a proposal you lead or participate in as project staff appear here.</p>
                 </div>
                 <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div class="divide-y divide-slate-100 dark:divide-slate-800">

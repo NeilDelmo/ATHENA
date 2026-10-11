@@ -39,7 +39,7 @@
 
         <section class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="announcement-upload-heading">
             <div class="border-b border-gray-100 px-5 py-5 dark:border-slate-800 sm:px-6">
-                <div class="border-l-4 border-red-700 pl-3">
+                <div>
                     <h3 id="announcement-upload-heading" class="text-base font-black text-gray-950 dark:text-white">Publish an announcement</h3>
                     <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">JPG, PNG, or WebP up to 10 MB.</p>
                 </div>

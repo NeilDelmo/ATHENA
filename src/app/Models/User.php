@@ -17,7 +17,7 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'contact_number', 'email_verified_at'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'project_workspace'])]
 /**
  * A single `User` row represents one person regardless of how many roles they
  * hold. The `college` and `contact_number` columns are GLOBAL to the account:
@@ -66,6 +66,22 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'project_workspace' => 'array',
+        ];
+    }
+
+    /**
+     * @return array{revision: int, folders: list<array{id: string, name: string, parent_id: ?string}>, assignments: list<array{project_id: int, folder_id: string}>, view: string, grouping: string, sort: string}
+     */
+    public function projectWorkspacePreferences(): array
+    {
+        return $this->project_workspace ?? [
+            'revision' => 0,
+            'folders' => [],
+            'assignments' => [],
+            'view' => 'grid',
+            'grouping' => 'year',
+            'sort' => 'attention',
         ];
     }
 
@@ -93,12 +109,12 @@ class User extends Authenticatable
                 'route' => 'research_head.dashboard',
             ],
             self::WORKSPACE_RESEARCH_OFFICE => [
-                'label' => 'Research Office',
+                'label' => 'Research Coordinator',
                 'description' => 'Record LREC feedback and prepare Notices to Proceed for your college.',
                 'route' => 'research_coordinator.dashboard',
             ],
             self::WORKSPACE_RESEARCH_SECRETARY => [
-                'label' => 'Research Secretary',
+                'label' => 'Research Office / Secretary',
                 'description' => 'Prepare Notices to Proceed, upload signed documents, and complete assigned project budgets.',
                 'route' => 'research_secretary.dashboard',
             ],

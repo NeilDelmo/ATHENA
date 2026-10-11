@@ -147,7 +147,7 @@ class ProposalDraftController extends Controller
         $proposalDraft->load([
             'researchCall',
             'documents',
-            'owner:id,name,email,college',
+            'owner:id,name,email,avatar,college',
             'members.user:id,name,email,avatar,college',
         ]);
         $checklist = $readiness->checklist($proposalDraft);

@@ -4,36 +4,42 @@
 
         <div class="proposal-writing-buttons">
             <div class="proposal-writing-action-group" role="group" aria-label="Text style">
-                @foreach (['bold' => 'Bold', 'italic' => 'Italic', 'underline' => 'Underline'] as $command => $label)
-                    <button type="button" data-writing-command="{{ $command }}" aria-pressed="false" disabled><x-proposal-writing-icon :name="$command" /><span>{{ $label }}</span></button>
+                @foreach (['bold' => 'Bold', 'italic' => 'Italic'] as $command => $label)
+                    <button type="button" data-writing-command="{{ $command }}" aria-label="{{ $label }}" title="{{ $label }}" aria-pressed="false" disabled><x-proposal-writing-icon :name="$command" /><span>{{ $label }}</span></button>
                 @endforeach
-            </div>
-            <div class="proposal-writing-action-group" role="group" aria-label="Lists">
-                <button type="button" data-writing-command="insertUnorderedList" aria-pressed="false" disabled><x-proposal-writing-icon name="bullets" /><span>Bullets</span></button>
-                <button type="button" data-writing-command="insertOrderedList" aria-pressed="false" disabled><x-proposal-writing-icon name="numbered-list" /><span>Numbered list</span></button>
             </div>
             <div class="proposal-writing-action-group" role="group" aria-label="History">
                 @foreach (['undo' => 'Undo', 'redo' => 'Redo'] as $command => $label)
-                    <button type="button" data-writing-command="{{ $command }}" disabled><x-proposal-writing-icon :name="$command" /><span>{{ $label }}</span></button>
+                    <button type="button" data-writing-command="{{ $command }}" aria-label="{{ $label }}" title="{{ $label }}" disabled><x-proposal-writing-icon :name="$command" /><span>{{ $label }}</span></button>
                 @endforeach
             </div>
-            <div class="proposal-writing-action-group" role="group" aria-label="Insert">
-                <button type="button" data-writing-image disabled title="Select a narrative section that supports figures"><x-proposal-writing-icon name="image" /><span>Image</span></button>
-                <button type="button" data-writing-table aria-expanded="false" aria-controls="proposal-table-picker" disabled><x-proposal-writing-icon name="table" /><span>Table</span></button>
-                <button type="button" data-writing-cite disabled title="Place the cursor or select text in a narrative section"><x-proposal-writing-icon name="source" /><span>Insert citation</span></button>
-                <button type="button" data-writing-sources title="Search, import, and manage sources for this paper"><x-proposal-writing-icon name="source" /><span>Sources</span></button>
-            </div>
-            <div class="proposal-writing-action-group" role="group" aria-label="Field view">
-                <button type="button" data-writing-expand aria-pressed="false" disabled><x-proposal-writing-icon name="expand" class="proposal-writing-expand-icon" /><x-proposal-writing-icon name="shrink" class="proposal-writing-shrink-icon" /><span data-writing-expand-label>Expand field</span></button>
+            <div class="proposal-writing-action-group" role="group" aria-label="Additional tools">
+                @foreach (['lists' => 'Lists', 'insert' => 'Insert', 'more' => 'More'] as $menu => $label)
+                    <button type="button" data-writing-menu-toggle="{{ $menu }}" aria-haspopup="menu" aria-expanded="false" aria-controls="proposal-writing-{{ $menu }}-menu" disabled><span>{{ $label }}</span><svg class="proposal-writing-menu-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button>
+                @endforeach
             </div>
         </div>
+        <div class="proposal-writing-buttons proposal-writing-primary-action" role="group" aria-label="Insert">
+            <button type="button" data-writing-cite class="proposal-writing-cite" disabled title="Insert an IEEE citation and add its reference automatically"><x-proposal-writing-icon name="source" /><span>Insert citation</span></button>
+        </div>
+    </div>
+    <div id="proposal-writing-lists-menu" data-writing-menu="lists" hidden class="proposal-writing-menu" role="menu" aria-label="Lists">
+        <button type="button" role="menuitem" tabindex="-1" data-writing-command="insertUnorderedList" disabled><x-proposal-writing-icon name="bullets" /><span>Bullets</span></button>
+        <button type="button" role="menuitem" tabindex="-1" data-writing-command="insertOrderedList" disabled><x-proposal-writing-icon name="numbered-list" /><span>Numbered list</span></button>
+    </div>
+    <div id="proposal-writing-insert-menu" data-writing-menu="insert" hidden class="proposal-writing-menu" role="menu" aria-label="Insert">
+        <button type="button" role="menuitem" tabindex="-1" data-writing-image disabled title="Select a narrative section that supports figures"><x-proposal-writing-icon name="image" /><span>Image</span></button>
+        <button type="button" role="menuitem" tabindex="-1" data-writing-table aria-expanded="false" aria-controls="proposal-table-picker" disabled><x-proposal-writing-icon name="table" /><span>Table</span></button>
+    </div>
+    <div id="proposal-writing-more-menu" data-writing-menu="more" hidden class="proposal-writing-menu" role="menu" aria-label="More formatting">
+        <button type="button" role="menuitem" tabindex="-1" data-writing-command="underline" disabled><x-proposal-writing-icon name="underline" /><span>Underline</span></button>
+        <button type="button" role="menuitem" tabindex="-1" data-writing-command="removeFormat" disabled><span>Clear formatting</span></button>
     </div>
     <div data-writing-table-tools hidden class="proposal-writing-buttons" role="toolbar" aria-label="Selected table tools">
         @foreach (['add-row' => 'Add row', 'add-column' => 'Add column', 'remove-row' => 'Remove row', 'remove-column' => 'Remove column', 'remove-table' => 'Remove table'] as $action => $label)
             <button type="button" data-writing-table-action="{{ $action }}"><x-proposal-writing-icon :name="$action" /><span>{{ $label }}</span></button>
         @endforeach
     </div>
-    <p class="proposal-writing-hint">Place the cursor or select text in a narrative field to insert a citation. Open Sources to find or import a paper. Add images with Image or drop them into a supported section.</p>
     <div id="proposal-table-picker" data-writing-table-picker hidden class="proposal-table-picker" role="group" aria-label="Insert a table">
         <label>Rows <input type="number" min="1" max="100" step="1" value="3" data-table-rows></label>
         <label>Columns <input type="number" min="1" max="12" step="1" value="2" data-table-columns></label>

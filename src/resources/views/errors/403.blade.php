@@ -4,5 +4,5 @@
 @section('code', '403')
 @section('heading', "This page isn't for your account.")
 @section('message')
-    You're signed in, but your current role does not have access to this page. Nothing is wrong with your account.
+    Your account or current workspace does not have access to this page. Return to your dashboard to choose an available workspace. If you believe you should have access, contact the system administrator.
 @endsection

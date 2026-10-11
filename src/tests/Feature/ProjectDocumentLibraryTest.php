@@ -45,7 +45,7 @@ beforeEach(function () {
     };
 });
 
-test('the floating folder lists generated review papers with their source version and existing preview viewer', function () {
+test('the project folder lists generated review papers with their source version and existing preview viewer', function () {
     [$version, $paper] = ($this->makeResponseVersion)();
     $head = User::factory()->create();
     $head->assignRole('research_head');
@@ -87,9 +87,9 @@ test('the floating folder lists generated review papers with their source versio
         $xpath = new DOMXPath($dom);
         expect($xpath->query('//*[@data-project-document-drawer]//button[@data-project-document-preview-button]')->length)->toBe(5)
             ->and($xpath->query('//*[@data-project-document-drawer]//*[@data-project-document-review]')->length)->toBe(0)
-            ->and($xpath->query('//*[@data-project-document-drawer]//article[@data-project-document-key="proposal-version-file-'.$paper->id.'"]//button[@data-project-document-preview-button]')->length)->toBe(1)
-            ->and($xpath->query('//article[contains(@data-project-document-key, "comment-response-")]//a[@target="_blank"]')->length)->toBe(0)
-            ->and($xpath->query('//article[contains(@data-project-document-key, "comment-response-")]//a[@download]')->length)->toBe(2)
+            ->and($xpath->query('//*[@data-project-document-drawer]//*[@data-project-file-selection="proposal-version-file-'.$paper->id.'"]//button[@data-project-document-preview-button]')->length)->toBe(1)
+            ->and($xpath->query('//*[@data-project-file-selection and contains(@data-project-file-selection, "comment-response-")]//a[@target="_blank"]')->length)->toBe(0)
+            ->and($xpath->query('//*[@data-project-file-selection and contains(@data-project-file-selection, "comment-response-")]//a[@download]')->length)->toBe(2)
             ->and($xpath->query('//*[@data-project-document-preview-modal]//template[@x-if="show"]//*[@data-pdf-annotation-config]')->length)->toBe(5);
         $previewUrls = collect();
         foreach ($xpath->query('//*[@data-project-document-preview-modal]//*[@data-pdf-annotation-config]') as $viewerElement) {
@@ -177,7 +177,8 @@ test('generated GAD and screening templates have their own folder category, apar
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Assessment forms <span class="tabular-nums opacity-70">2</span>', false);
+        ->assertSee('data-project-file-category="assessment_forms"', false)
+        ->assertSee('2 files');
 });
 
 test('legacy review comments remain accessible even when no proposal version was recorded', function () {
@@ -258,13 +259,90 @@ test('the faculty project leader can drag multiple PDFs into a categorized proje
     ])->actingAs($this->faculty)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('data-project-documents-floating-trigger', false)
-        ->assertSee('fixed top-[7.625rem] right-4', false)
+        ->assertSee('id="project-files-tab-button"', false)
+        ->assertSee('data-project-document-browser', false)
+        ->assertDontSee('data-project-documents-floating-trigger', false)
         ->assertSee('Reviews &amp; responses', false)
         ->assertSee('corrected-checklist.pdf')
         ->assertSee('comment-response.pdf')
         ->assertSee('Corrected after the generated form used an outdated logo.');
 });
+
+test('faculty researcher files use an inline folder browser with the shared poster and report records', function () {
+    [$version, $paper] = ($this->makeResponseVersion)();
+    $this->faculty->assignRole('faculty_researcher');
+    $this->topic->update([
+        'status' => 'approved', 'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now(),
+    ]);
+    $posterPath = 'narrative-progress-reports/poster.png';
+    Storage::disk('local')->put($posterPath, file_get_contents(public_path('images/sample-maintenance-poster.png')));
+    Storage::disk('local')->put('narrative-progress-reports/terminal.pdf', "%PDF-1.7\nterminal report");
+    $report = $this->topic->narrativeReports()->create([
+        'submitted_by' => $this->faculty->id, 'report_type' => 'terminal', 'submission_date' => '2026-06-30',
+        'submitted_at' => now(), 'researchers' => $this->faculty->name,
+        'implementation_start' => '2025-06-01', 'implementation_end' => '2026-06-30',
+        'budget' => 25000, 'funding_agency' => 'University', 'accomplishment_summary' => 'Demonstration completed.',
+        'introduction' => 'Demonstration research.', 'objectives' => 'Demonstrate project files.',
+        'methodology' => 'Illustrative sample.', 'results_discussion' => 'Demonstration only.',
+        'official_pdf_path' => 'narrative-progress-reports/terminal.pdf', 'official_pdf_filename' => 'terminal-report.pdf',
+        'photos' => [['path' => $posterPath, 'original_name' => 'SAMPLE-poster.png', 'mime_type' => 'image/png', 'section' => 'cover', 'caption' => 'SAMPLE POSTER — not actual research findings.']],
+    ]);
+    $response = $this->actingAs($this->faculty)->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->get(route('research.show', $this->topic))->assertSuccessful()
+        ->assertSee('id="project-files-tab-button"', false)
+        ->assertSee('data-project-document-browser', false)
+        ->assertDontSee('data-project-documents-floating-trigger', false)
+        ->assertSee('Add PDF files');
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    $files = '//*[@id="project-files-tab"]';
+    expect($xpath->query($files.'//*[@data-project-file-category]')->length)->toBe(2)
+        ->and($xpath->query($files.'//*[@data-project-document-key="proposal-version-file-'.$paper->id.'"]')->length)->toBe(1)
+        ->and($xpath->query($files.'//*[@data-project-document-key="terminal-report-poster-'.$report->id.'-0"]//img')->length)->toBe(1)
+        ->and($xpath->query($files.'//form[@id="project-file-upload"]')->length)->toBe(1)
+        ->and($xpath->query($files.'//*[@data-pdf-annotation-config]')->length)->toBe(1);
+    if (getenv('ATHENA_EXPORT_PROJECT_FILES') === '1') {
+        $directory = storage_path('framework/testing');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.'/project-files-faculty.html', $response->getContent());
+    }
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $reader = $this->actingAs($head)->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->get(route('topics.show', $this->topic))->assertSuccessful()->assertDontSee('Add PDF files');
+    if (getenv('ATHENA_EXPORT_PROJECT_FILES') === '1') {
+        file_put_contents(storage_path('framework/testing/project-files-reader.html'), $reader->getContent());
+    }
+});
+
+test('project PDF upload feedback reopens the inline Files tab', function (bool $hasErrors) {
+    $session = [
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+        'project_documents_open' => ! $hasErrors,
+    ];
+    $this->actingAs($this->faculty)->withSession($session);
+    if ($hasErrors) {
+        $this->from(route('topics.show', $this->topic))
+            ->post(route('topics.documents.store', $this->topic), [
+                'category' => ProjectDocument::CATEGORY_SUPPORTING_FILES,
+                'documents' => [UploadedFile::fake()->create('notes.docx', 20, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
+            ])->assertSessionHasErrors(['documents.0'], null, 'projectDocuments');
+        $this->withCookie(config('session.cookie'), $this->app['session']->getId());
+    }
+    $response = $this->get(route('topics.show', $this->topic))->assertSuccessful();
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//*[@data-topic-workspace]')->item(0)->getAttribute('x-data'))->toContain("activeTopicTab: 'files'");
+    if ($hasErrors) {
+        $response->assertSee('Every project file must be a PDF.');
+    }
+})->with(['successful upload' => false, 'invalid upload' => true]);
 
 test('project document uploads accept only PDFs and no more than ten files', function () {
     $response = $this->withSession([

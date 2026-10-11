@@ -52,7 +52,7 @@ class UpdateProposalDraftMemberRoleRequest extends FormRequest
             $member = $draft->members()->find($this->integer('member_id'));
 
             if (! $member?->isAccepted() || $member->user_id === null) {
-                $validator->errors()->add('member_id', 'Choose a team member who has accepted the project invitation.');
+                $validator->errors()->add('member_id', 'Choose confirmed project staff who have accepted the project invitation.');
             }
         }];
     }

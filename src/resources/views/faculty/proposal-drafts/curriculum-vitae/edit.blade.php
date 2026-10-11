@@ -74,7 +74,7 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Research team CVs</h3>
-                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Add an account from this proposal workspace to fill in their name and institutional email automatically, or create a blank CV for an unlisted person.</p>
+                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Choose someone from the project team to fill in their name and institutional email, or create a blank CV for external project staff.</p>
                 </div>
                 @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">View sample</a>@endif
             </div>
@@ -83,18 +83,18 @@
                 <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:p-5">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-red-700">Proposal workspace</p>
-                            <h4 class="mt-1 text-sm font-black text-gray-900">Add a workspace member</h4>
-                            <p class="mt-1 text-xs leading-5 text-gray-500">Search the project leader and team members. Members with an existing CV are hidden.</p>
+                            <p class="text-xs font-black uppercase tracking-wider text-red-700">Project team</p>
+                            <h4 class="mt-1 text-sm font-black text-gray-900">Add from the project team</h4>
+                            <p class="mt-1 text-xs leading-5 text-gray-500">Search the project leader and project staff. Members with an existing CV are hidden.</p>
                         </div>
                         <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200" x-text="`${availableWorkspacePeople().length} available`"></span>
                     </div>
 
                     <div class="relative mt-4" x-on:click.outside="workspacePickerOpen = false">
-                        <label for="workspace-cv-person-search" class="sr-only">Search proposal workspace members</label>
+                        <label for="workspace-cv-person-search" class="sr-only">Search project team</label>
                         <div class="relative">
                             <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.474 9.765l3.63 3.63a.75.75 0 0 0 1.06-1.06l-3.629-3.63A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
-                            <input id="workspace-cv-person-search" type="search" autocomplete="off" placeholder="Search workspace members" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-cv-person-options" class="block w-full rounded-xl border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                            <input id="workspace-cv-person-search" type="search" autocomplete="off" placeholder="Search project team" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-cv-person-options" class="block w-full rounded-xl border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                         </div>
                         <div id="workspace-cv-person-options" x-show="workspacePickerOpen" x-transition.origin.top x-cloak role="listbox" class="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-xl shadow-gray-900/10">
                             <template x-for="person in filteredWorkspacePeople()" :key="person.key">
@@ -111,7 +111,7 @@
                                 </button>
                             </template>
                             <div x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center">
-                                <p class="text-sm font-bold text-gray-700">No available workspace member matches your search.</p>
+                                <p class="text-sm font-bold text-gray-700">No available project team member matches your search.</p>
                                 <p class="mt-1 text-xs leading-5 text-gray-500">Members whose CVs are already included do not appear here.</p>
                             </div>
                         </div>
@@ -120,9 +120,9 @@
 
                 <div class="flex flex-col justify-between rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 sm:p-5">
                     <div>
-                        <p class="text-xs font-black uppercase tracking-wider text-gray-600">External team member</p>
+                        <p class="text-xs font-black uppercase tracking-wider text-gray-600">External project staff</p>
                         <h4 class="mt-1 text-sm font-black text-gray-900">Create a blank CV</h4>
-                        <p class="mt-1 text-xs leading-5 text-gray-500">Use this for a person who is not yet in the proposal workspace.</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-500">Use this for project staff who are not listed on the team.</p>
                     </div>
                     <button type="button" x-on:click="addPerson" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -155,7 +155,7 @@
                     </div>
 
                     <details data-cv-section="personal" :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
-                        <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
+                        <summary class="disclosure-summary cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
                         <div class="cv-writing-fields grid gap-4 border-t border-gray-100 p-4">
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
                                 @php($isContactNumber = in_array($key, ['landline', 'cellphone'], true))
@@ -177,7 +177,7 @@
 
                     @foreach ($sections as $sectionKey => $section)
                         <details data-cv-section="{{ $sectionKey }}" :data-revision-section="`section-cv-${personIndex + 1}-{{ $sectionKey }}`" :id="`cv-${person.id}-{{ $sectionKey }}`" class="rounded-xl border border-gray-200">
-                            <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">{{ $section['label'] }} <span class="font-semibold text-gray-400" x-text="`(${person.{{ $sectionKey }}.length})`"></span></summary>
+                            <summary class="disclosure-summary cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">{{ $section['label'] }} <span class="font-semibold text-gray-400" x-text="`(${person.{{ $sectionKey }}.length})`"></span></summary>
                             <div class="space-y-4 border-t border-gray-100 p-4">
                                 <div class="flex justify-end"><button type="button" x-on:click="addSectionRow(personIndex, '{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 sm:w-auto">Add {{ Str::singular(strtolower($section['label'])) }} entry</button></div>
                                 <p x-show="person.{{ $sectionKey }}.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">No entries. Preview and Word output will retain {{ $section['default_rows'] }} blank rows for this section.</p>

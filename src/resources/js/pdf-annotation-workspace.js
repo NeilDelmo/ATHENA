@@ -210,6 +210,11 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
         let resizeTimer = null;
         let viewerWidth = 0;
         let viewportChange = null;
+        let wheelViewer = null;
+        let wheelHandler = null;
+        let wheelDelta = 0;
+        let wheelTimer = null;
+        let wheelAnchor = null;
 
         return {
             config: {},
@@ -228,6 +233,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             scale: 1.15,
             previewZoom: 100,
             previewFit: 'width',
+            previewPageRatio: 0.707,
             paperFocusOpen: false,
             commentsOpen: true,
             loading: true,
@@ -242,6 +248,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             selectedAnnotationId: null,
             saving: false,
             saveError: '',
+
+            get maxPaperZoom() {
+                return Math.max(150, Math.min(400, Number(this.config.maxZoom) || 150));
+            },
 
             get reviewerCommentCount() {
                 return this.annotations.length;
@@ -287,7 +297,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     window.athenaRevisionPdf = {
                         onSelect: null,
                         setZoom: (zoom, fit = 'width') => {
-                            const nextZoom = Math.max(50, Math.min(150, Number(zoom) || 100));
+                            const nextZoom = Math.max(50, Math.min(this.maxPaperZoom, Number(zoom) || 100));
                             if (this.previewZoom === nextZoom && this.previewFit === fit) return;
                             this.previewZoom = nextZoom;
                             this.previewFit = fit;
@@ -349,6 +359,13 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 viewportChange = () => this.positionCommentComposer();
                 window.visualViewport?.addEventListener('resize', viewportChange);
                 window.visualViewport?.addEventListener('scroll', viewportChange);
+                if (this.config.wheelZoom) {
+                    this.$nextTick(() => {
+                        wheelViewer = this.$refs.viewer;
+                        wheelHandler = (event) => this.zoomPaperWithWheel(event);
+                        wheelViewer?.addEventListener('wheel', wheelHandler, { passive: false });
+                    });
+                }
                 if (this.config.loadWhenVisible && typeof IntersectionObserver !== 'undefined') {
                     visibilityObserver = new IntersectionObserver((entries) => {
                         if (!entries.some((entry) => entry.isIntersecting)) return;
@@ -368,6 +385,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 window.visualViewport?.removeEventListener('resize', viewportChange);
                 window.visualViewport?.removeEventListener('scroll', viewportChange);
                 window.clearTimeout(resizeTimer);
+                window.clearTimeout(wheelTimer);
+                wheelViewer?.removeEventListener('wheel', wheelHandler);
                 renderToken += 1;
             },
 
@@ -393,20 +412,89 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 });
             },
 
+            capturePaperViewAnchor(clientX = null, clientY = null) {
+                const viewer = this.$refs.viewer;
+                if (!viewer || pageElements.size === 0) return null;
+                const viewerBounds = viewer.getBoundingClientRect();
+                const pointX = clientX ?? viewerBounds.left + viewer.clientWidth / 2;
+                const pointY = clientY ?? viewerBounds.top + viewer.clientHeight / 2;
+                let nearest = null;
+                let nearestDistance = Infinity;
+                for (const [pageNumber, element] of pageElements) {
+                    const bounds = element.getBoundingClientRect();
+                    const distance = Math.max(bounds.top - pointY, pointY - bounds.bottom, 0);
+                    if (bounds.width <= 0 || bounds.height <= 0 || distance >= nearestDistance) continue;
+                    nearestDistance = distance;
+                    const paperX = clamp(pointX, bounds.left, bounds.right);
+                    const paperY = clamp(pointY, bounds.top, bounds.bottom);
+                    nearest = {
+                        pageNumber,
+                        x: (paperX - bounds.left) / bounds.width,
+                        y: (paperY - bounds.top) / bounds.height,
+                        offsetX: paperX - viewerBounds.left,
+                        offsetY: paperY - viewerBounds.top,
+                    };
+                }
+                return nearest;
+            },
+
+            restorePaperViewAnchor(anchor) {
+                const element = pageElements.get(anchor?.pageNumber);
+                if (!element) return;
+                const viewer = this.$refs.viewer;
+                const viewerBounds = viewer.getBoundingClientRect();
+                const bounds = element.getBoundingClientRect();
+                viewer.scrollLeft += bounds.left + bounds.width * anchor.x - viewerBounds.left - anchor.offsetX;
+                viewer.scrollTop += bounds.top + bounds.height * anchor.y - viewerBounds.top - anchor.offsetY;
+            },
+
+            zoomPaperWithWheel(event) {
+                if (!this.config.wheelZoom || !event.ctrlKey || event.shiftKey || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+                    wheelDelta = 0;
+                    return;
+                }
+                event.preventDefault();
+                if (this.loading || this.loadError) {
+                    wheelDelta = 0;
+                    return;
+                }
+                const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.$refs.viewer.clientHeight || 800 : 1;
+                if (Math.sign(wheelDelta) !== Math.sign(event.deltaY)) wheelDelta = 0;
+                wheelDelta += event.deltaY * units;
+                if (Math.abs(wheelDelta) < 40) return;
+                const nextZoom = Math.max(50, Math.min(this.maxPaperZoom, this.previewZoom + (wheelDelta < 0 ? 10 : -10)));
+                wheelDelta = 0;
+                if (nextZoom === this.previewZoom) return;
+                wheelAnchor ??= this.capturePaperViewAnchor(event.clientX, event.clientY);
+                this.previewZoom = nextZoom;
+                window.clearTimeout(wheelTimer);
+                wheelTimer = window.setTimeout(() => {
+                    const anchor = wheelAnchor;
+                    wheelAnchor = null;
+                    this.refreshPaperView(anchor);
+                }, 80);
+            },
+
             async setPaperZoom(zoom) {
-                this.previewZoom = Math.max(50, Math.min(150, Number(zoom) || 100));
-                await this.refreshPaperView();
+                const anchor = this.capturePaperViewAnchor();
+                window.clearTimeout(wheelTimer);
+                wheelAnchor = null;
+                this.previewZoom = Math.max(50, Math.min(this.maxPaperZoom, Number(zoom) || 100));
+                await this.refreshPaperView(anchor);
             },
 
             async fitPaper(fit) {
+                const anchor = this.capturePaperViewAnchor();
+                window.clearTimeout(wheelTimer);
+                wheelAnchor = null;
                 this.previewFit = fit === 'page' ? 'page' : 'width';
                 this.previewZoom = 100;
-                await this.refreshPaperView();
+                await this.refreshPaperView(anchor);
             },
 
-            async refreshPaperView() {
+            async refreshPaperView(anchor = null) {
                 try {
-                    await this.renderDocument();
+                    await this.renderDocument(null, anchor);
                     const selected = this.annotations.find((annotation) => Number(annotation.id) === Number(this.selectedAnnotationId));
                     if (selected) this.jumpToAnnotation(selected, false);
                 } catch (error) {
@@ -457,6 +545,12 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         url: this.config.pdfUrl,
                         withCredentials: true,
                     }).promise;
+                    if (this.config.firstPageOnly) {
+                        const page = await pdfDocument.getPage(1);
+                        const viewport = page.getViewport({ scale: 1 });
+                        this.previewPageRatio = viewport.width / viewport.height;
+                        await this.$nextTick();
+                    }
                     await this.renderDocument(pdfJs);
                     this.focusRequestedAnnotation();
                 } catch (error) {
@@ -488,7 +582,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.focusAnnotationId = null;
             },
 
-            async renderDocument(pdfJs = null) {
+            async renderDocument(pdfJs = null, anchor = null) {
                 if (!pdfDocument || !this.$refs.viewer || this.$refs.viewer.clientWidth === 0) return;
 
                 const activeRender = ++renderToken;
@@ -505,8 +599,9 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 const firstDisplay = viewer.childElementCount === 0;
                 const nextPages = document.createDocumentFragment();
                 const nextPageElements = new Map();
+                const pageCount = this.config.firstPageOnly ? 1 : pdfDocument.numPages;
 
-                for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+                for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
                     if (activeRender !== renderToken) return;
 
                     const page = await pdfDocument.getPage(pageNumber);
@@ -530,7 +625,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     pageElement.style.setProperty('--scale-round-y', '1px');
 
                     const canvas = document.createElement('canvas');
-                    const pixelRatio = window.devicePixelRatio || 1;
+                    // Keep large zoom levels within a safe canvas size; page and text geometry stay at full scale.
+                    const pixelRatio = Math.min(window.devicePixelRatio || 1, 4096 / Math.max(viewport.width, viewport.height));
                     canvas.width = Math.floor(viewport.width * pixelRatio);
                     canvas.height = Math.floor(viewport.height * pixelRatio);
                     canvas.style.width = `${viewport.width}px`;
@@ -579,7 +675,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     if (firstDisplay && this.annotations.some((annotation) => Number(annotation.id) === this.focusAnnotationId && Number(annotation.pageNumber) === pageNumber)) {
                         this.focusRequestedAnnotation();
                     }
-                    if (firstDisplay && pageNumber === 1 && pdfDocument.numPages > 1) {
+                    if (firstDisplay && pageNumber === 1 && pageCount > 1) {
                         await new Promise((resolve) => window.requestAnimationFrame(resolve));
                     }
                 }
@@ -591,6 +687,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     viewer.scrollLeft = scrollLeft;
                     pageElements.forEach((_page, number) => this.renderAnnotationsForPage(number));
                 }
+                this.restorePaperViewAnchor(anchor);
                 if (this.draftSelection) {
                     this.renderSelectionPreview(this.draftSelection);
                     this.$nextTick(() => this.positionCommentComposer());

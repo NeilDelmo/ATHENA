@@ -1,6 +1,6 @@
-@props(['configuration', 'loadingLabel' => 'Loading submitted PDF…', 'viewerLabel' => 'Submitted document'])
+@props(['configuration', 'configurationExpression' => null, 'loadingLabel' => 'Loading submitted PDF…', 'viewerLabel' => 'Submitted document'])
 
-<div x-data="pdfAnnotationWorkspace" data-pdf-annotation-config='@json(array_merge($configuration, ["fitWidth" => true]))' {{ $attributes->merge(['class' => 'revision-pdf-viewer']) }}>
+<div x-data="{{ $configurationExpression ? 'pdfAnnotationWorkspace('.$configurationExpression.')' : 'pdfAnnotationWorkspace' }}" data-pdf-annotation-config='@json(array_merge($configuration, ["fitWidth" => true]))' {{ $attributes->merge(['class' => 'revision-pdf-viewer']) }}>
     <p x-show="loading" role="status" class="absolute inset-x-0 top-5 z-10 text-center text-sm text-gray-700">{{ $loadingLabel }}</p>
     <div x-show="loadError" x-cloak role="alert" class="m-4 rounded-lg bg-red-50 p-4 text-base text-red-800">
         <p x-text="loadError"></p>

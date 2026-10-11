@@ -17,7 +17,7 @@ class AssignProjectResearchSecretaryRequest extends FormRequest
         $topic = $this->route('topic');
 
         return $topic instanceof TopicProposal
-            && $topic->hasIssuedNoticeToProceed()
+            && $topic->isMonitoringAvailable()
             && $topic->user_id === $this->user()?->id;
     }
 
@@ -49,7 +49,7 @@ class AssignProjectResearchSecretaryRequest extends FormRequest
                         ->exists();
 
                 if (! $isAcceptedProjectMember) {
-                    $validator->errors()->add('research_secretary_id', 'Choose an accepted member of this project team.');
+                    $validator->errors()->add('research_secretary_id', 'Choose confirmed project staff from this project team.');
                 }
             },
         ];

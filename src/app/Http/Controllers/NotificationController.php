@@ -19,7 +19,7 @@ class NotificationController extends Controller
     private const INBOX_CATEGORIES = [
         'invitations' => [
             'label' => 'Invitations',
-            'description' => 'Requests to join a proposal workspace.',
+            'description' => 'Invitations to serve as project staff.',
         ],
         'collaboration' => [
             'label' => 'Project team',
