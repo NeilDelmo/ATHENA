@@ -121,16 +121,22 @@ class ProjectMonitoringHealth
         }
 
         $delayIssue = $attention->firstWhere('type', 'delayed');
+        $status = $completed ? 'completed' : ($delayed ? 'delayed' : ($awaiting ? 'awaiting' : 'ongoing'));
+        $statusLabel = match ($status) {
+            'delayed' => 'Delayed / overdue',
+            'awaiting' => 'Awaiting required report / review',
+            default => Str::headline($status),
+        };
 
         return [
-            'status' => $completed ? 'completed' : ($delayed ? 'delayed' : ($awaiting ? 'awaiting' : 'ongoing')),
+            'status' => $status,
             'delayed' => $delayed, 'has_schedule' => $hasSchedule,
             'progress' => $latest?->progress_percentage, 'deadline' => $window ? $window['end']->toDateString() : null,
             'delay_reason' => $delayIssue['issue'] ?? null, 'delay_days' => $delayIssue['days'] ?? null,
             'report_id' => $latest?->id, 'report_date' => $latest?->reporting_date?->toDateString(),
             'budget' => $budget, 'utilized' => $entries->isNotEmpty() ? $utilized : null,
             'budget_source' => $budgetSource, 'budget_availability' => $budget === null ? 'missing' : ($budget > 0 ? 'available' : 'zero'),
-            'percentage' => $percentage, 'issues' => $attention,
+            'percentage' => $percentage, 'issues' => $attention->map(fn (array $issue): array => [...$issue, 'status' => $statusLabel]),
         ];
     }
 

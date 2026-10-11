@@ -173,6 +173,7 @@ test('project drill down retains its delay evidence and latest report date', fun
 
     expect($row['status'])->toBe('delayed')
         ->and($row['issues']->pluck('type'))->toContain('delayed')
+        ->and($row['issues']->firstWhere('type', 'delayed')['status'])->toBe('Delayed / overdue')
         ->and($row['delay_reason'])->toBe('Project deadline / reported milestone passed')
         ->and($row['delay_days'])->toBe(9)
         ->and($row['report_id'])->toBe($report->id)

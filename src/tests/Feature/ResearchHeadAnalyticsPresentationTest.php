@@ -102,3 +102,52 @@ test('budget display distinguishes a missing denominator from an absent report',
         ->assertSee('Budget not recorded; utilization unavailable')
         ->assertSee('Report date: 2026-09-20');
 });
+
+test('analytics drilldowns return matching records and accessible result targets for browser interactions', function () {
+    $proposal = TopicProposal::create(['user_id' => $this->faculty->id, 'research_call_id' => $this->call->id, 'title' => 'Mangrove restoration proposal', 'status' => 'pending']);
+    $version = $proposal->versions()->make(['submitted_by' => $this->faculty->id, 'version_number' => 1, 'submission_type' => 'initial', 'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf', 'title' => $proposal->title]);
+    $version->created_at = '2026-09-05';
+    $version->save();
+    ($this->project)(['title' => 'Coastal water quality', 'notice_to_proceed_data' => ['approved_start_date' => '2026-08-01', 'approved_end_date' => '2026-09-15']]);
+    ($this->project)(['title' => 'Campus biodiversity survey']);
+    ($this->project)(['title' => 'Archived completed study', 'project_status' => 'completed']);
+
+    $cases = [
+        ['label' => 'review', 'method' => 'showReviewQueue', 'params' => [], 'target' => 'received-proposals', 'heading' => 'Proposals awaiting your review', 'records' => ['Mangrove restoration proposal']],
+        ['label' => 'active', 'method' => 'showProjects', 'params' => ['active'], 'target' => 'active-projects', 'heading' => 'Active projects', 'records' => ['Coastal water quality', 'Campus biodiversity survey']],
+        ['label' => 'delayed', 'method' => 'showProjects', 'params' => ['delayed'], 'target' => 'active-projects', 'heading' => 'Delayed / overdue projects', 'records' => ['Coastal water quality']],
+        ['label' => 'completed', 'method' => 'showProjects', 'params' => ['completed'], 'target' => 'active-projects', 'heading' => 'Completed projects', 'records' => ['Archived completed study']],
+        ['label' => 'faculty', 'method' => 'showFacultyResearchers', 'params' => [], 'target' => 'faculty-researchers', 'heading' => 'Faculty in active research', 'records' => ['Elena Santos', 'Coastal water quality', 'Campus biodiversity survey']],
+        ['label' => 'month', 'method' => 'showSubmissionMonth', 'params' => ['2026-09'], 'target' => 'received-proposals', 'heading' => 'Proposals with submissions in Sep 2026', 'records' => ['Mangrove restoration proposal']],
+        ['label' => 'pipeline', 'method' => 'setPipeline', 'params' => ['submitted'], 'target' => 'received-proposals', 'heading' => 'Submitted proposals', 'records' => ['Mangrove restoration proposal']],
+        ['label' => 'distribution', 'method' => 'showProjects', 'params' => ['ongoing'], 'target' => 'active-projects', 'heading' => 'Ongoing projects', 'records' => ['Campus biodiversity survey']],
+    ];
+    $fixtures = [];
+    foreach ($cases as $case) {
+        $component = Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027', 'fromDate' => '2026-08-01', 'toDate' => '2026-09-30'])->test(ResearchHeadDashboard::class);
+        $initial = $component->html();
+        $component->call($case['method'], ...$case['params'])->assertDispatched('analytics-drilldown', target: $case['target']);
+        $document = new DOMDocument;
+        @$document->loadHTML($component->html());
+        $xpath = new DOMXPath($document);
+        $target = $xpath->query('//*[@id="'.$case['target'].'"]')->item(0);
+        expect($target)->not->toBeNull();
+        expect($target->getAttribute('tabindex'))->toBe('-1');
+        foreach ([$case['heading'], ...$case['records']] as $text) {
+            expect($target->textContent)->toContain($text);
+        }
+        $fixtures[] = [...$case, 'initial' => $initial, 'response' => ['components' => [[
+            'snapshot' => json_encode($component->snapshot), 'effects' => $component->effects,
+        ]]]];
+        if ($case['label'] === 'faculty') {
+            $component->set('showFaculty', false)->assertDontSeeHtml('id="faculty-researchers"');
+            $fixtures[array_key_last($fixtures)]['close_response'] = ['components' => [[
+                'snapshot' => json_encode($component->snapshot), 'effects' => $component->effects,
+            ]]];
+        }
+    }
+    if (getenv('ATHENA_EXPORT_ANALYTICS') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/analytics-interactions.json'), json_encode($fixtures, JSON_UNESCAPED_UNICODE));
+    }
+});

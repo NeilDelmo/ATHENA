@@ -82,7 +82,7 @@ test('the decision inbox excludes monitoring projects and closed proposals', fun
         ->test(ResearchHeadDashboard::class)
         ->assertViewHas('topics', fn ($topics): bool => $topics->total() === 1 && $topics->first()->title === 'Proposal Requiring Review')
         ->assertSee('All active review stages')
-        ->assertSeeHtml('href="#active-projects"')
+        ->assertSeeHtml('wire:click="showProjects(&#039;active&#039;)"')
         ->assertDontSeeHtml('value="approved"')
         ->assertDontSeeHtml('value="rejected"');
 });
@@ -140,13 +140,13 @@ test('dashboard shows completion percentages for every active project', function
             'Reported Active Project',
             'Unreported Active Project',
         ])
-        ->assertSee('Project completion')
+        ->assertSee('Active projects')
         ->assertSee('Reported Active Project')
         ->assertSee('64%')
         ->assertSeeHtml('aria-valuenow="64"')
         ->assertSee('Unreported Active Project')
         ->assertSee('No monitoring tool submitted')
-        ->assertSeeHtml('aria-valuenow="0"');
+        ->assertSee('Not reported');
 });
 
 test('proposal dashboard shows received files and opens the submitted package', function () {
@@ -399,7 +399,7 @@ test('dashboard shows the proposal status overview and budget utilization analyt
         ->assertSee('₱100,000.00')
         ->assertSee('Budgeted Approved Project')
         ->assertSee('30.0%')
-        ->assertSee('Latest report');
+        ->assertSee('Report date:');
 });
 test('the dashboard distinguishes proposal and report review priorities from research totals', function () {
     $this->actingAs($this->head)

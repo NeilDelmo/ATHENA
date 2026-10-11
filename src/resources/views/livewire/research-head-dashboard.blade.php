@@ -33,7 +33,7 @@
             @php
                 $selected = $key === 'review' ? $pipeline === 'awaiting_review' && $projectStatus === '' && ! $showFaculty : ($key === 'faculty' ? $showFaculty : $projectStatus === $key);
             @endphp
-            <button type="button" wire:click="{{ $action }}" wire:loading.attr="disabled" aria-pressed="{{ $selected ? 'true' : 'false' }}" class="flex flex-col justify-between gap-3 p-5 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800 {{ $key === 'review' ? 'rh-analytics-review' : '' }} {{ $selected ? 'bg-brand-wash dark:bg-rose-950/40' : '' }}">
+            <button type="button" x-ref="metric_{{ $key }}" wire:click="{{ $action }}" wire:loading.attr="disabled" aria-pressed="{{ $selected ? 'true' : 'false' }}" class="flex flex-col justify-between gap-3 p-5 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800 {{ $key === 'review' ? 'rh-analytics-review' : '' }} {{ $selected ? 'bg-brand-wash dark:bg-rose-950/40' : '' }}">
                 <span class="text-sm font-semibold rh-muted">{{ $label }}</span>
                 <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $key === 'review' ? 'text-brand dark:text-rose-300' : ($key === 'delayed' && $analytics['kpis'][$key] ? 'text-red-700 dark:text-red-300' : '') }}">{{ $analytics['kpis'][$key] }}</strong>
                 <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $actionLabel }} <span aria-hidden="true">&rarr;</span></span>
@@ -48,7 +48,7 @@
         <section id="faculty-researchers" tabindex="-1" class="rh-panel scroll-mt-40 p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-labelledby="faculty-heading" wire:key="analytics-faculty-results">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div><h3 id="faculty-heading" class="rh-title">Faculty in active research</h3><p role="status" class="mt-1 text-sm rh-muted">{{ $facultyItems->total() }} matching {{ str('researcher')->plural($facultyItems->total()) }} · {{ $cohortScope }}</p></div>
-                <button type="button" wire:click="$set('showFaculty', false)" class="rh-button-secondary">Close researcher list</button>
+                <button type="button" wire:click="$set('showFaculty', false)" x-on:click="$refs.metric_faculty.focus()" class="rh-button-secondary">Close researcher list</button>
             </div>
             <p class="mt-3 text-sm rh-muted">Registered faculty leads and accepted research staff on active issued projects. Each person is counted once; completed projects and secretary roles are excluded.</p>
             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -199,7 +199,7 @@
             <div class="max-h-96 space-y-4 overflow-y-auto pr-1" role="region" aria-label="Project budget reports" tabindex="0">
                 @forelse ($analytics['projects'] as $project)
                     <article class="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800" data-project-budget="{{ $project['id'] }}" wire:key="project-budget-{{ $project['id'] }}">
-                        <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="block break-words font-semibold hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:text-rose-300">{{ $project['title'] }}</a>
+                        <a href="{{ route('topics.show', $project['id']) }}#{{ $project['report_id'] ? 'monitoring-tool-'.$project['report_id'] : 'project-monitoring' }}" class="block break-words font-semibold hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:text-rose-300">{{ $project['title'] }}</a>
                         <p class="break-words text-sm rh-muted">{{ $project['lead'] }}</p>
                         @if ($project['percentage'] !== null)
                             <strong class="block text-2xl font-bold tabular-nums text-brand dark:text-rose-300">{{ number_format($project['percentage'], 1) }}%</strong>

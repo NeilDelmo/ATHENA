@@ -7,21 +7,29 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
-test('the ATHENA browser icon points to a PNG logo with an opaque white background', function () {
+test('the ATHENA browser icon points to a circular PNG logo with transparent corners', function () {
     $this->blade('<x-favicon />')
         ->assertSee('rel="icon"', false)
         ->assertSee('type="image/png"', false)
-        ->assertSee(asset('images/athenalogo.png'), false);
+        ->assertSee(asset('images/athena-favicon-circle.png'), false);
 
-    expect(getimagesize(public_path('images/athenalogo.png'))['mime'])->toBe('image/png');
+    expect(getimagesize(public_path('images/athena-favicon-circle.png'))['mime'])->toBe('image/png');
 
-    $logo = imagecreatefrompng(public_path('images/athenalogo.png'));
+    $logo = imagecreatefrompng(public_path('images/athena-favicon-circle.png'));
 
-    expect(imagecolorsforindex($logo, imagecolorat($logo, 0, intdiv(imagesy($logo), 2))))
-        ->toBe(['red' => 255, 'green' => 255, 'blue' => 255, 'alpha' => 0]);
+    foreach ([[0, 0], [127, 0], [0, 127], [127, 127]] as [$x, $y]) {
+        expect(imagecolorsforindex($logo, imagecolorat($logo, $x, $y))['alpha'])->toBe(127);
+    }
+
+    $background = imagecolorsforindex($logo, imagecolorat($logo, 10, 64));
+
+    expect($background['alpha'])->toBe(0)
+        ->and($background['red'])->toBeGreaterThanOrEqual(250)
+        ->and($background['green'])->toBeGreaterThanOrEqual(250)
+        ->and($background['blue'])->toBeGreaterThanOrEqual(250);
 });
 
-test('the fallback browser icon contains the ATHENA logo with an opaque white background', function () {
+test('the fallback browser icon contains the circular ATHENA logo with transparent corners', function () {
     $icon = File::get(public_path('favicon.ico'));
 
     expect(substr($icon, 0, 6))->toBe(pack('vvv', 0, 1, 1));
@@ -30,8 +38,8 @@ test('the fallback browser icon contains the ATHENA logo with an opaque white ba
 
     expect(imagesx($logo))->toBe(32)
         ->and(imagesy($logo))->toBe(32)
-        ->and(imagecolorsforindex($logo, imagecolorat($logo, 0, 16)))
-        ->toBe(['red' => 255, 'green' => 255, 'blue' => 255, 'alpha' => 0]);
+        ->and(imagecolorsforindex($logo, imagecolorat($logo, 0, 0))['alpha'])
+        ->toBe(127);
 });
 
 test('every HTML page head renders the ATHENA icon with the application base path', function () {
@@ -57,6 +65,6 @@ test('every HTML page head renders the ATHENA icon with the application base pat
 
         $this->assertCount(1, $icons, $view);
         $this->assertSame('image/png', $icons[0]->getAttribute('type'), $view);
-        $this->assertSame('https://athena.example.test/athena-app/images/athenalogo.png', $icons[0]->getAttribute('href'), $view);
+        $this->assertSame('https://athena.example.test/athena-app/images/athena-favicon-circle.png', $icons[0]->getAttribute('href'), $view);
     }
 });

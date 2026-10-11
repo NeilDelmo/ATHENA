@@ -352,6 +352,7 @@ test('dashboard suggestion buttons preserve quoted titles and launch the exact p
             page.on('pageerror', (error) => errors.push(error.message));
             await page.setContent(`<html><style>${styles.css}[x-cloak]{display:none!important}</style><body x-data class="p-4"><section data-dashboard-assistant-suggestions>${button}</section><section id="athena-assistant-workspace" x-show="$store.researchAssistant.workspaceOpen" x-cloak>${targetChip}</section></body></html>`);
             await page.addScriptTag({ content: `${helpers}
+                const researchAssistantMessageLimit = 8000;
                 window.dashboardCalls = [];
                 window.dashboardSaves = [];
                 document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {

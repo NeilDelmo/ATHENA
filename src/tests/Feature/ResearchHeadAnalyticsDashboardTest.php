@@ -431,7 +431,7 @@ test('analytics presents readable project titles and accessible icon actions', f
     $title = 'Community-based monitoring of coastal habitats and long-term environmental recovery';
     ($this->project)(['title' => $title]);
     $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
-        ->assertSee('Apply filters')->assertSee($title)->assertSee('Open monitoring')
+        ->assertSee('Apply filters')->assertSee($title)->assertSee('Inspect monitoring')
         ->assertSeeHtml('rh-analytics-kpis')->assertSeeHtml('rh-analytics-review');
 
     $document = new DOMDocument;
@@ -440,7 +440,7 @@ test('analytics presents readable project titles and accessible icon actions', f
     expect($xpath->query('//*[@data-dashboard-kpi-band]/*[self::a or self::button]'))->toHaveCount(5)
         ->and($xpath->query('//form[@*[name()="wire:submit"]="applyFilters"]/button[1]/svg[@aria-hidden="true"]'))->toHaveCount(1)
         ->and($xpath->query('//button[@*[name()="wire:click"]="resetAnalyticsFilters"]/svg'))->toHaveCount(1)
-        ->and($xpath->query('//*[@id="active-projects"]//strong[@title="'.$title.'" and contains(@class,"line-clamp-2")]'))->toHaveCount(1)
+        ->and($xpath->query('//*[@id="active-projects"]//a[text()="'.$title.'"]'))->toHaveCount(1)
         ->and($xpath->query('//details[@data-analytics-methodology]/summary/svg'))->toHaveCount(1);
 
 });
@@ -622,7 +622,7 @@ test('analytics charts distinguish actionable filters from static summaries', fu
     $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
         ->assertDontSeeHtml('data-dashboard-section-navigation')
         ->assertSeeInOrder(['Monthly submission trend', 'Proposal pipeline', 'Annual research targets'])
-        ->assertSee('View user directory')->assertDontSee('Projects reporting budget utilization')->assertDontSee('View budget breakdown')
+        ->assertSee('See researchers and projects')->assertDontSee('Projects reporting budget utilization')->assertDontSee('View budget breakdown')
         ->assertSeeHtml('data-project-distribution-chart')
         ->assertSeeHtml('style="width: 50%"')
         ->call('showProjects', 'completed')
@@ -632,11 +632,10 @@ test('analytics charts distinguish actionable filters from static summaries', fu
     $document = new DOMDocument;
     @$document->loadHTML($component->html());
     $xpath = new DOMXPath($document);
-    $facultyLink = $xpath->query('//*[@data-dashboard-kpi-band]//a[@href="'.route('research_head.faculty-directory.index').'"]')->item(0);
+    $facultyControl = $xpath->query('//*[@data-dashboard-kpi-band]//button[@*[name()="wire:click"]="showFacultyResearchers"]')->item(0);
     $selected = $xpath->query('//*[@data-project-distribution-chart]//button[@aria-pressed="true"]');
 
-    expect($facultyLink)->not->toBeNull()
-        ->and($facultyLink->hasAttribute('wire:click'))->toBeFalse()
+    expect($facultyControl)->not->toBeNull()
         ->and($selected)->toHaveCount(1)
         ->and($selected->item(0)->getAttribute('aria-label'))->toContain('Completed', '1 of 2')
         ->and($xpath->query('//*[@data-project-distribution-chart]//button'))->toHaveCount(4);
