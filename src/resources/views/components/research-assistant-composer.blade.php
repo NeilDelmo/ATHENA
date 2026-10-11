@@ -1,6 +1,10 @@
 @props(['id', 'inputId'])
 
 <div class="relative rounded-[1.75rem] border border-gray-200 bg-white p-2 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.12)] transition focus-within:border-gray-400 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-slate-500" data-assistant-composer-shell>
+    <div data-assistant-review-target x-show="$store.researchAssistant.reviewContext" x-cloak class="mx-2 mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs leading-5 text-red-900 dark:bg-red-950/40 dark:text-red-200">
+        <p class="font-semibold break-words" x-text="$store.researchAssistant.reviewTargetLabel()"></p>
+        <p x-text="$store.researchAssistant.reviewFocusLabel()"></p>
+    </div>
     <form id="assistant-send-{{ $id }}" @submit.prevent="$store.researchAssistant.send()">
         <label for="{{ $inputId }}" class="sr-only">Message Athena Research Assistant</label>
         <textarea id="{{ $inputId }}" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="2" maxlength="8000" placeholder="Ask Athena anything about your research…" class="block max-h-44 min-h-[4.5rem] w-full resize-none border-0 bg-transparent px-3 py-3 text-base leading-6 text-gray-900 shadow-none placeholder:text-gray-500 focus:border-0 focus:ring-0 dark:text-white dark:placeholder:text-slate-400"></textarea>

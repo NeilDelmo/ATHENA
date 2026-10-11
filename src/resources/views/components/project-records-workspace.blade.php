@@ -66,7 +66,7 @@
         </nav>
         <label class="relative w-full shrink-0 sm:w-60">
             <svg class="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
-            <input type="search" x-model="query" @input="page = 1" aria-label="Search this location" placeholder="Search this folder" class="workspace-input w-full pl-10">
+            <input type="search" x-model="query" @input="page = 1" aria-label="Search this location" :placeholder="activeProject ? 'Search project documents' : 'Project title or leader'" class="workspace-input w-full pl-10">
         </label>
     </div>
 
@@ -137,7 +137,7 @@
                                 </div>
                             </template>
                         </div>
-                        <div x-show="!childFolders.length && !filteredProjects.length && !(location === 'all' && years.length)" class="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center"><svg class="h-16 w-20 opacity-60" aria-hidden="true"><use href="#workspace-folder-art" /></svg><p class="text-lg font-semibold text-slate-700 dark:text-slate-200" x-text="query ? 'No matching projects' : 'This folder is empty'"></p><p class="max-w-sm text-base leading-6 text-slate-500 dark:text-slate-400">Drag a project folder here, or select a project and use Move to.</p></div>
+                        <div x-show="!filteredProjects.length && (query || (!childFolders.length && !(location === 'all' && grouping === 'year' && years.length)))" class="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center"><svg class="h-16 w-20 opacity-60" aria-hidden="true"><use href="#workspace-folder-art" /></svg><p class="text-lg font-semibold text-slate-700 dark:text-slate-200" x-text="query ? 'No matching projects' : 'This folder is empty'"></p><p class="max-w-sm text-base leading-6 text-slate-500 dark:text-slate-400" x-text="query ? 'Try another project title or leader name, or search from Project library.' : 'Drag a project folder here, or select a project and use Move to.'"></p></div>
                         <div x-show="pageCount > 1 && (location !== 'all' || grouping !== 'year' || query)" class="mt-5 flex items-center justify-end gap-3"><button type="button" class="workspace-secondary" :disabled="page <= 1" @click="setPage(page - 1)">Previous</button><span class="text-base text-slate-500" x-text="page + ' / ' + pageCount"></span><button type="button" class="workspace-secondary" :disabled="page >= pageCount" @click="setPage(page + 1)">Next</button></div>
                     </div>
                 </template>

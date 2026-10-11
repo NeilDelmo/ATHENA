@@ -71,7 +71,7 @@ class ProposalDraftDetailedProposalController extends Controller
         ProposalWorkspacePeople $proposalWorkspacePeople,
     ): View {
         Gate::authorize('update', $proposalDraft);
-        $proposalDraft->load(['researchCall', 'owner:id,name,email,college,contact_number']);
+        $proposalDraft->load(['researchCall', 'owner:id,name,email,college,contact_number,professional_title,department,avatar']);
         $paper = $catalog->get('detailed-proposal');
         $detailedProposalDocument = $this->document($proposalDraft);
         $detailedProposalComplete = $readiness->detailedProposalIsComplete(
@@ -82,18 +82,11 @@ class ProposalDraftDetailedProposalController extends Controller
         $sourceData = $detailedProposalDocument?->source_data ?? $this->defaults(
             $proposalDraft,
             $workspacePeople,
-            (string) ($request->user()?->college ?? ''),
         );
         $sourceData = [
             ...$sourceData,
             ...$proposalDraft->signatoryFields('detailed_proposal'),
         ];
-        if (blank($sourceData['proponent_college'] ?? null)) {
-            $sourceData['proponent_college'] = (string) ($proposalDraft->owner?->college ?? $request->user()?->college ?? '');
-        }
-        if (blank($sourceData['leader_contact'] ?? null)) {
-            $sourceData['leader_contact'] = (string) ($proposalDraft->owner?->contact_number ?? $request->user()?->contact_number ?? '');
-        }
         $budgetTotals = $this->budgetTotals($proposalDraft);
         $literatureSources = $proposalDraft->literatureSources()
             ->reorder()
@@ -306,31 +299,24 @@ class ProposalDraftDetailedProposalController extends Controller
     /**
      * Seed the initial detailed-proposal values when no saved document exists.
      *
-     * The leader's contact number is always read from the proposal owner — the
-     * faculty who created the draft — and never from the currently signed-in
-     * user. This guarantees that a research head who is also a faculty member
-     * and who opens someone else's draft still sees the OWNER's contact number
-     * in the form, not their own. The college uses the same single-identity
-     * rule: the owner's `college` first, falling back to the current user's
-     * `college` so a draft created by a user with no college set still has
-     * something to pre-fill.
-     *
-     * @param  list<array{key: string, name: string, email: string, contact: string, avatar: string, college: string, linked: bool, owner: bool}>  $people
+     * @param  list<array<string, mixed>>  $people
      */
-    private function defaults(ProposalDraft $draft, array $people, string $currentUserCollege): array
+    private function defaults(ProposalDraft $draft, array $people): array
     {
         $leaderName = Str::of((string) $draft->project_leader)->squish()->lower()->toString();
-        $leader = collect($people)->first(
-            fn (array $person): bool => Str::of($person['name'])->squish()->lower()->toString() === $leaderName,
-        ) ?? collect($people)->firstWhere('owner', true);
+        $leader = $leaderName === ''
+            ? collect($people)->firstWhere('owner', true)
+            : (collect($people)->first(
+                fn (array $person): bool => Str::of($person['name'])->squish()->lower()->toString() === $leaderName,
+            ) ?? []);
 
         return [
-            'leader_title' => '',
-            'leader_email' => $leader['email'] ?? $draft->owner->email,
-            'leader_contact' => (string) ($draft->owner->contact_number ?? ''),
+            'leader_title' => $leader['title'] ?? '',
+            'leader_email' => $leader['email'] ?? '',
+            'leader_contact' => $leader['contact'] ?? '',
             'staff' => [],
-            'proponent_department' => '',
-            'proponent_college' => $currentUserCollege,
+            'proponent_department' => $leader['department'] ?? '',
+            'proponent_college' => $leader['college'] ?? '',
             'proponent_campus' => config('detailed_proposal.default_campus'),
             'sdgs' => [],
             'expected_outputs' => [],

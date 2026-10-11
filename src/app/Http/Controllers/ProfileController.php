@@ -18,26 +18,10 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        $user->loadCount([
-            'proposals',
-            'proposals as approved_proposals_count' => fn ($query) => $query->where('status', 'approved'),
-            'proposals as active_proposals_count' => fn ($query) => $query->whereNotIn('status', ['approved', 'rejected']),
-            'topicReviews',
-        ]);
-
-        $recentProposals = $user->proposals()
-            ->when(
-                $user->isUsingWorkspace('faculty_researcher'),
-                fn ($query) => $query->approved(),
-            )
-            ->with(['researchCall', 'category'])
-            ->latest()
-            ->limit(3)
-            ->get();
+        $user->load('researcherProfile');
 
         return view('profile.edit', [
             'user' => $user,
-            'recentProposals' => $recentProposals,
         ]);
     }
 

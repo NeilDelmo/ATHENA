@@ -2,6 +2,7 @@
 import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Swal from './proposal-dialog';
 import { researchAssistantHistory } from './research-assistant-history';
+import { researchAssistantReview } from './research-assistant-review';
 import { normalizeAssistantLiterature, researchAssistantLiterature, serializeAssistantLiterature } from './research-assistant-literature';
 import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from './research-assistant-paper-insertion';
 import { createManilaClock } from './manila-clock';
@@ -1806,6 +1807,7 @@ Alpine.store('researchAssistant', {
     pageScope: assistantPageScope(),
     ...researchAssistantHistory(assistantHistory),
     ...researchAssistantLiterature(),
+    ...researchAssistantReview(),
     currentConversationId: null,
     historySearchOpen: false,
     historySearchQuery: '',
@@ -1864,6 +1866,7 @@ Alpine.store('researchAssistant', {
         this.activePaperField = null;
         this.pageActions = Array.isArray(window.athenaResearchAssistantPageActions) ? window.athenaResearchAssistantPageActions : [];
         this.pageScope = assistantPageScope();
+        this.restoreReviewContext(this.reviewContext);
         this.documentRequestSequence++;
         this.documentPickerOpen = false;
         this.documentOptions = [];
@@ -1926,8 +1929,7 @@ Alpine.store('researchAssistant', {
         const normalizedId = Number(contextId);
 
         if (this.contextOptions.some((context) => Number(context.id) === normalizedId)) {
-            this.selectedContextId = normalizedId;
-            this.contextEnabled = true;
+            this.selectProjectContext(normalizedId);
         }
 
         this.openDrawer();
@@ -1949,6 +1951,7 @@ Alpine.store('researchAssistant', {
             : [];
 
         return [
+            ...this.reviewStarterPrompts(),
             ...focusedFieldAction,
             ...(document.body.hasAttribute('data-faculty-shell') && (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)) ? [{
                 label: 'Find related studies',
@@ -2109,6 +2112,7 @@ Alpine.store('researchAssistant', {
     },
 
     hasPaperContext() {
+        if (this.reviewContext) return false;
         return Boolean(this.paperContext);
     },
 
@@ -2156,10 +2160,12 @@ Alpine.store('researchAssistant', {
     },
 
     selectedContext() {
-        return this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId)) || null;
+        return this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId))
+            || (this.reviewContext?.topic_id ? { id: this.reviewContext.topic_id, label: this.reviewTargetLabel(), status: 'review' } : null);
     },
 
     selectProjectContext(contextId) {
+        this.reviewContext = null;
         const context = this.contextOptions.find((option) => Number(option.id) === Number(contextId));
         this.selectedContextId = context?.id || 0;
         this.contextEnabled = Boolean(context);
@@ -2171,6 +2177,7 @@ Alpine.store('researchAssistant', {
     },
 
     contextPayload(includeForm = true) {
+        if (this.reviewContext) return { ...this.reviewContext };
         const context = {};
 
         if (this.contextEnabled && this.selectedContextId) {
@@ -2493,6 +2500,7 @@ Alpine.store('researchAssistant', {
             const contextId = Number(conversation.context?.topic_id || 0);
             this.contextEnabled = Boolean(contextId && this.contextOptions.some((context) => Number(context.id) === contextId));
             if (this.contextEnabled) this.selectedContextId = contextId;
+            this.restoreReviewContext(conversation.context);
             this.error = '';
             this.errorTitle = '';
             this.historySearchOpen = false;
@@ -2556,7 +2564,11 @@ Alpine.store('researchAssistant', {
     async send(action = null, contextOverride = null) {
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
         if (!content || this.isLoading || this.sendInProgress || this.retryAfter > 0) return;
+        if (this.reviewLaunchPending && action?.type !== 'review_proposal') return;
 
+        if (!action && this.reviewContext?.review_focus) {
+            action = { type: 'review_proposal', review_focus: this.reviewContext.review_focus };
+        }
         this.sendInProgress = true;
         const sendSequence = this.requestSequence;
         this.retryAction = action;
@@ -2580,6 +2592,7 @@ Alpine.store('researchAssistant', {
     replyContext(contextOverride, action) {
         if (!contextOverride) return this.contextPayload();
         const context = { ...contextOverride };
+        if (context.workflow_scope === 'review') return context;
         if (Number(context.proposal_draft_id) === Number(this.proposalDraftId)) {
             const form = this.formContext();
             if (form) context.form = form;
@@ -2827,6 +2840,7 @@ Alpine.store('researchAssistant', {
 
     clearConversation() {
         this.stop();
+        this.reviewContext = null;
         this.messages = [];
         this.currentConversationId = null;
         this.draft = '';
@@ -10690,9 +10704,13 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     newStaff(values = {}) {
         this.nextId += 1;
 
+        const workspacePerson = this.workspacePeople.find(
+            (person) => String(person.name || '').trim().toLowerCase() === String(values.name || '').trim().toLowerCase(),
+        );
+
         return {
             id: this.nextId,
-            key: String(values.key ?? ''),
+            key: String(values.key ?? workspacePerson?.key ?? ''),
             title: String(values.title ?? ''),
             name: formatPersonName(values.name),
             email: String(values.email ?? ''),
@@ -10939,11 +10957,18 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             (candidate) => String(candidate.name || '').trim().toLowerCase() === normalizedName,
         );
 
-        if (!person) return;
+        if (!person) {
+            if (member.key) {
+                for (const field of ['key', 'email', 'title', 'contact']) member[field] = '';
+            }
+            return;
+        }
 
         member.key = String(person.key || '');
         member.name = formatPersonName(person.name || member.name);
         member.email = String(person.email || member.email);
+        member.title = String(person.title || '');
+        member.contact = this.normalizeContactNumber(person.contact);
     },
 
     syncProjectLeader() {
@@ -10955,7 +10980,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         if (person) {
             this.leaderEmail = String(person.email || this.leaderEmail);
-            this.leaderContact = this.normalizeContactNumber(person.contact || this.leaderContact);
+            this.leaderContact = this.normalizeContactNumber(person.contact);
+            this.leaderTitle = String(person.title || '');
+            this.proponentDepartment = String(person.department || '');
+            this.proponentCollege = String(person.college || '');
+        } else if (this.projectLeader.trim().toLowerCase() !== previousProjectLeader) {
+            for (const field of ['leaderTitle', 'leaderEmail', 'leaderContact', 'proponentDepartment', 'proponentCollege']) this[field] = '';
         }
 
         const leaderResponsibility = this.responsibilities.find(

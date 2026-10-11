@@ -32,6 +32,7 @@ use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
+use App\Support\DashboardAssistantSuggestions;
 use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
@@ -64,7 +65,7 @@ class TopicController extends Controller
         private ProjectMonitoringHealth $projectMonitoringHealth,
     ) {}
 
-    public function index(ProposalDraftReadiness $readiness): View
+    public function index(ProposalDraftReadiness $readiness, DashboardAssistantSuggestions $suggestions): View
     {
         $user = Auth::user();
         $isFacultyResearcher = $user->isUsingWorkspace('faculty_researcher');
@@ -152,6 +153,8 @@ class TopicController extends Controller
             });
         }
 
+        $assistantReviewSuggestions = $suggestions->forFaculty($topics, $recentProposalDrafts, $proposalDraftProgress);
+
         return view('faculty.dashboard', compact(
             'topics',
             'researchCallCarouselItems',
@@ -159,6 +162,7 @@ class TopicController extends Controller
             'recentProposalDrafts',
             'proposalDraftProgress',
             'isFacultyResearcher',
+            'assistantReviewSuggestions',
         ));
     }
 
@@ -217,6 +221,11 @@ class TopicController extends Controller
         }
 
         $monitoringReports = $topic->progressReports->values();
+        $projectHealth = null;
+        if ($topic->hasIssuedNoticeToProceed()) {
+            $topic->loadMissing('latestProgressReport');
+            $projectHealth = $this->projectMonitoringHealth->assess($topic);
+        }
         $approvedWorkPlan = app(ApprovedWorkPlanMonitoringService::class);
         $overdueWorkPlanActivities = $approvedWorkPlan->overdueActivities($topic);
         $hasApprovedWorkPlan = $approvedWorkPlan->hasApprovedWorkPlan($topic);
@@ -386,6 +395,7 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'monitoringQuarterRows',
+            'projectHealth',
             'overdueWorkPlanActivities',
             'progressQuarterRows',
             'projectDocumentLibrary',

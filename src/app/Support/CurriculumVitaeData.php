@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -26,20 +27,22 @@ class CurriculumVitaeData
         );
     }
 
-    /** @param array<int, array{name: string, email?: string}> $people @return array<int, array<string, mixed>> */
+    /** @param array<int, array<string, mixed>> $people @return array<int, array<string, mixed>> */
     public static function seedPeopleWithContacts(array $people): array
     {
         return collect($people)
             ->map(fn (array $person): array => [
                 'name' => Str::squish($person['name']),
                 'email' => Str::lower(trim((string) ($person['email'] ?? ''))),
+                'cellphone' => (string) ($person['cellphone'] ?? $person['contact'] ?? ''),
+                ...Arr::only($person, ['agency', 'academic_background', 'specializations']),
             ])
             ->filter(fn (array $person): bool => filled($person['name']))
             ->unique(fn (array $person): string => $person['email'] ?: Str::lower($person['name']))
             ->map(function (array $person): array {
                 return [
                     ...self::seedPerson($person['name']),
-                    'email' => $person['email'],
+                    ...Arr::except($person, ['name']),
                 ];
             })
             ->values()

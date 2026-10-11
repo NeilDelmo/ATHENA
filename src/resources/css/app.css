@@ -517,18 +517,27 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
             border-right: 1px solid var(--analytics-line);
         }
         .rh-analytics-kpis > :nth-last-child(-n+2) {
+            border-bottom: 1px solid var(--analytics-line);
+        }
+        .rh-analytics-kpis > :last-child {
+            grid-column: span 2;
+            border-right: 0;
             border-bottom: 0;
         }
     }
 
-    @screen lg {
+    @screen xl {
+        .rh-analytics-kpis > :last-child {
+            grid-column: auto;
+        }
         .rh-analytics-kpis > :nth-child(odd) {
             border-right: 0;
         }
-        .rh-analytics-kpis > :not(:nth-child(3n)) {
+        .rh-analytics-kpis > :not(:last-child) {
             border-right: 1px solid var(--analytics-line);
         }
-        .rh-analytics-kpis > :nth-last-child(-n+3) {
+        .rh-analytics-kpis > :nth-last-child(-n+2),
+        .rh-analytics-kpis > * {
             border-bottom: 0;
         }
     }

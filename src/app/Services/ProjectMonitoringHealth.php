@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use Carbon\CarbonImmutable;
 use Carbon\Exceptions\InvalidFormatException;
@@ -13,7 +14,7 @@ class ProjectMonitoringHealth
     public function __construct(private readonly MonitoringQuarterService $quarters) {}
 
     /**
-     * @return array{status: string, delayed: bool, has_schedule: bool, progress: ?int, deadline: ?string, budget: ?float, utilized: ?float, percentage: ?float, issues: Collection}
+     * @return array{status: string, delayed: bool, has_schedule: bool, progress: ?int, deadline: ?string, delay_reason: ?string, delay_days: ?int, report_id: ?int, report_date: ?string, budget: ?float, budget_source: ?string, budget_availability: string, utilized: ?float, percentage: ?float, issues: Collection}
      */
     public function assess(TopicProposal $topic): array
     {
@@ -85,7 +86,14 @@ class ProjectMonitoringHealth
                     'review_status' => $terminal->review_status, 'report_id' => $terminal->id,
                     'url' => route('topics.show', $topic).'#narrative-report-'.$terminal->id]);
             }
-            foreach ($topic->narrativeReports->where('report_type', 'progress')->where('review_status', '!=', 'reviewed') as $narrative) {
+            $progressNarratives = $topic->narrativeReports->where('report_type', 'progress')
+                ->sortByDesc(fn (ProjectNarrativeReport $report): string => sprintf('%010d-%010d', $report->version_number, $report->id))
+                ->unique(fn (ProjectNarrativeReport $report): string => $report->reporting_quarter > 0
+                    ? 'quarter-'.$report->reporting_quarter
+                    : ($report->period_start && $report->period_end
+                        ? $report->period_start->toDateString().'/'.$report->period_end->toDateString()
+                        : 'legacy-'.$report->id));
+            foreach ($progressNarratives->where('review_status', '!=', 'reviewed') as $narrative) {
                 $awaiting = true;
                 $attention->push([...$this->issue($topic, 'narrative_review', 'Progress report '.($narrative->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $narrative->submitted_at ?? $narrative->created_at, 'waiting', 'project-monitoring'),
                     'review_status' => $narrative->review_status, 'report_id' => $narrative->id,
@@ -98,17 +106,30 @@ class ProjectMonitoringHealth
         $entries = collect($latest?->budget_utilization ?? [])->filter(fn ($entry): bool => is_array($entry)
             && (is_numeric($entry['actual_amount'] ?? null) || is_numeric($entry['utilized'] ?? null)));
         $utilized = (float) $entries->sum(fn (array $entry): float => (float) (is_numeric($entry['actual_amount'] ?? null) ? $entry['actual_amount'] : $entry['utilized']));
-        $budget = $topic->estimated_budget === null ? null : (float) $topic->estimated_budget;
+        $approvedBudget = data_get($topic->notice_to_proceed_data, 'approved_budget');
+        $budgetSource = is_numeric($approvedBudget) && (float) $approvedBudget >= 0 && is_finite((float) $approvedBudget)
+            ? 'approved'
+            : (is_numeric($topic->estimated_budget) && (float) $topic->estimated_budget >= 0 ? 'estimated' : null);
+        $budget = match ($budgetSource) {
+            'approved' => (float) $approvedBudget,
+            'estimated' => (float) $topic->estimated_budget,
+            default => null,
+        };
         $percentage = $entries->isNotEmpty() && $budget > 0 ? round(100 * $utilized / $budget, 1) : null;
         if (($ended || $completed) && $percentage !== null && $percentage <= 50) {
             $attention->push($this->issue($topic, 'budget', 'At least 50% remaining in latest reported budget snapshot', $latest->submitted_at ?? $latest->created_at, 'since report', 'project-monitoring'));
         }
 
+        $delayIssue = $attention->firstWhere('type', 'delayed');
+
         return [
             'status' => $completed ? 'completed' : ($delayed ? 'delayed' : ($awaiting ? 'awaiting' : 'ongoing')),
             'delayed' => $delayed, 'has_schedule' => $hasSchedule,
             'progress' => $latest?->progress_percentage, 'deadline' => $window ? $window['end']->toDateString() : null,
+            'delay_reason' => $delayIssue['issue'] ?? null, 'delay_days' => $delayIssue['days'] ?? null,
+            'report_id' => $latest?->id, 'report_date' => $latest?->reporting_date?->toDateString(),
             'budget' => $budget, 'utilized' => $entries->isNotEmpty() ? $utilized : null,
+            'budget_source' => $budgetSource, 'budget_availability' => $budget === null ? 'missing' : ($budget > 0 ? 'available' : 'zero'),
             'percentage' => $percentage, 'issues' => $attention,
         ];
     }

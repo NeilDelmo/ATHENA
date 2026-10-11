@@ -1,9 +1,15 @@
 <section id="project-monitoring" class="space-y-5">
     @php
         $storedProjectStatus = $topic->project_status ?: 'ongoing';
-        $latestProgressPercentage = $topic->progressReports->first()?->progress_percentage;
-        $projectStatus = $topic->monitoringStatusForProgress($latestProgressPercentage);
-        $projectStatusLabel = $topic->monitoringStatusLabelForProgress($latestProgressPercentage);
+        $latestProgressPercentage = $projectHealth ? $projectHealth['progress'] : $topic->progressReports->first()?->progress_percentage;
+        $projectStatus = $projectHealth['status'] ?? $topic->monitoringStatusForProgress($latestProgressPercentage);
+        $projectStatusLabel = match ($projectStatus) {
+            'delayed' => 'Delayed / overdue',
+            'awaiting' => 'Awaiting required report / review',
+            'completed' => 'Completed',
+            'ongoing' => 'Ongoing',
+            default => $topic->monitoringStatusLabelForProgress($latestProgressPercentage),
+        };
         $schedule = app(\App\Services\MonitoringQuarterService::class);
         $window = $schedule->reportingWindow($topic);
         $terminalDate = $schedule->terminalOpensAt($topic);
@@ -17,6 +23,12 @@
                 || $progressReport->isPrepared()
                 || $progressReport->review_status === 'revision_requested';
         });
+        $nextSubmission = match (true) {
+            $topic->isCompletedProject() => 'Reporting closed',
+            $projectHealth && ! $projectHealth['has_schedule'] => 'Schedule not recorded',
+            $nextPeriod !== null => $nextPeriod['label'].' · '.($nextPeriod['reporting_date'] ? 'Open now' : $nextPeriod['opens_at']->format('M j, Y')),
+            default => 'Terminal Report',
+        };
         $canReport = ! Auth::user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(Auth::user());
         $canAssignProjectSecretary = Auth::id() === $topic->user_id
             && ! Auth::user()->isUsingWorkspace('research_head')
@@ -59,10 +71,20 @@
         </div>
         <dl data-project-monitoring-details class="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-4">
             <div><dt class="text-xs text-slate-500 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $window['end']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $topic->isCompletedProject() ? 'Reporting closed' : ($nextPeriod ? $nextPeriod['label'].' · '.($nextPeriod['reporting_date'] ? 'Open now' : $nextPeriod['opens_at']->format('M j, Y')) : 'Terminal Report') }}</dd></div>
+            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
             <div><dt class="text-xs text-slate-500 dark:text-slate-400">Overall project progress</dt><dd class="mt-1 text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
         </dl>
+        @if ($projectHealth && ! $projectHealth['has_schedule'])
+            <p class="mt-4 text-sm text-amber-800 dark:text-amber-300">No project schedule recorded. Project deadline checks are unavailable.</p>
+        @endif
+        @if ($projectHealth && $projectHealth['issues']->isNotEmpty())
+            <ul class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300" aria-label="Project monitoring issues">
+                @foreach ($projectHealth['issues'] as $issue)
+                    <li><a href="{{ $issue['url'] }}" class="font-semibold hover:text-brand">{{ $issue['issue'] }}</a> <span class="text-slate-500 dark:text-slate-400">· {{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></li>
+                @endforeach
+            </ul>
+        @endif
         @if ($topic->hasIssuedNoticeToProceed())
             <a data-monitoring-notice-link href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="monitoring-secondary-action mt-4">
                 <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 15l2 2 5-5" /></svg>

@@ -59,6 +59,8 @@
         @endforeach
     </section>
 
+    <x-dashboard-assistant-suggestions :items="$assistantReviewSuggestions" />
+
     <div class="grid items-start gap-5 xl:grid-cols-2" data-dashboard-compact-queues>
         <div class="min-w-0" data-dashboard-review-workspace>
 <section id="received-proposals" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="inbox-heading">

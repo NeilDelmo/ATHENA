@@ -1,8 +1,10 @@
-<div class="rh-analytics flex flex-col gap-6 text-base text-slate-900 dark:text-slate-100" wire:key="research-head-dashboard" data-analytics-layout="workbench">
+<div class="rh-analytics flex flex-col gap-6 text-base text-slate-900 dark:text-slate-100" wire:key="research-head-dashboard" data-analytics-layout="workbench" x-data x-on:analytics-drilldown.window="$nextTick(() => { const target = document.getElementById($event.detail.target); if (!target || !$el.contains(target)) return; target.focus({ preventScroll: true }); target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); })">
     @php
         $chartAxisMax = max(4, (int) ceil($analytics['trendMax'] / 4) * 4);
         $pipelineMax = max(1, (int) $analytics['pipeline']->max('count'));
         $projectTotal = $analytics['projects']->count();
+        $cohortScope = ($academicYear ?: 'All academic years').($fromDate || $toDate ? ' · first submitted '.($fromDate ?: 'any date').' through '.($toDate ?: 'any date') : ' · all submission dates');
+        $proposalHeading = $submissionMonth ? 'Proposals with submissions in '.($analytics['trend']->firstWhere('key', $submissionMonth)['label'] ?? $submissionMonth) : ($pipeline === 'awaiting_review' ? 'Proposals awaiting your review' : ($pipeline ? (\App\Services\ResearchHeadAnalytics::PIPELINE[$pipeline] ?? 'Selected stage').' proposals' : ($attention === 'repeat' ? 'Proposals with repeated revisions' : 'Received proposal inbox')));
     @endphp
 
     <section class="rh-panel rh-analytics-filters p-5 sm:p-6" aria-label="Analytics filters">
@@ -23,27 +25,56 @@
             @error($field)<p role="alert" class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
         @endforeach
         @if ($academicYear && ! $analytics['target'])<p class="mt-3 text-sm text-amber-800 dark:text-amber-300">Set this academic year's dates and targets below to complete the annual comparison.</p>@endif
+        <p class="mt-3 text-sm rh-muted">Current status of the selected submission cohort · {{ $cohortScope }}</p>
     </section>
 
-    <section class="rh-panel rh-analytics-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" aria-label="Research summary" data-dashboard-kpi-band>
-        @foreach ([['review', 'Awaiting your review', 'awaiting_review'], ['active', 'Active projects', ''], ['delayed', 'Delayed / overdue', ''], ['completed', 'Completed projects', ''], ['faculty', 'Faculty in research', '']] as [$key, $label, $filter])
-            @if ($filter)
-                <button type="button" wire:click="setPipeline('{{ $filter }}')" aria-pressed="{{ $pipeline === $filter ? 'true' : 'false' }}" class="rh-analytics-review flex flex-col justify-between gap-3 p-6 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800">
-            @else
-                <a href="{{ $key === 'faculty' ? route('research_head.faculty-directory.index') : '#active-projects' }}" @if ($key !== 'faculty') wire:click="showProjects('{{ in_array($key, ['active', 'faculty'], true) ? 'active' : $key }}')" @endif class="flex flex-col justify-between gap-3 p-6 hover:bg-slate-50 dark:hover:bg-slate-800">
-            @endif
+    <section class="rh-panel rh-analytics-kpis grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5" aria-label="Research summary" data-dashboard-kpi-band>
+        @foreach ([['review', 'Awaiting your review', 'showReviewQueue', 'Review proposals'], ['active', 'Active projects', "showProjects('active')", 'Inspect active projects'], ['delayed', 'Delayed / overdue', "showProjects('delayed')", 'Inspect delays'], ['completed', 'Completed projects', "showProjects('completed')", 'Open completed projects'], ['faculty', 'Faculty in research', 'showFacultyResearchers', 'See researchers and projects']] as [$key, $label, $action, $actionLabel])
+            @php
+                $selected = $key === 'review' ? $pipeline === 'awaiting_review' && $projectStatus === '' && ! $showFaculty : ($key === 'faculty' ? $showFaculty : $projectStatus === $key);
+            @endphp
+            <button type="button" wire:click="{{ $action }}" wire:loading.attr="disabled" aria-pressed="{{ $selected ? 'true' : 'false' }}" class="flex flex-col justify-between gap-3 p-5 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800 {{ $key === 'review' ? 'rh-analytics-review' : '' }} {{ $selected ? 'bg-brand-wash dark:bg-rose-950/40' : '' }}">
                 <span class="text-sm font-semibold rh-muted">{{ $label }}</span>
                 <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $key === 'review' ? 'text-brand dark:text-rose-300' : ($key === 'delayed' && $analytics['kpis'][$key] ? 'text-red-700 dark:text-red-300' : '') }}">{{ $analytics['kpis'][$key] }}</strong>
-                <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $filter ? 'Filter review queue' : ($key === 'faculty' ? 'View user directory' : 'View projects') }} <span aria-hidden="true">&rarr;</span></span>
-            @if ($filter)</button>@else</a>@endif
+                <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $actionLabel }} <span aria-hidden="true">&rarr;</span></span>
+            </button>
         @endforeach
     </section>
+
+    @if ($projectStatus !== '')
+        <x-research-head-project-results :items="$projectItems" :statuses="$analytics['projectStatuses']" :filter="$projectStatus" :scope="$cohortScope" />
+    @endif
+    @if ($showFaculty)
+        <section id="faculty-researchers" tabindex="-1" class="rh-panel scroll-mt-40 p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-labelledby="faculty-heading" wire:key="analytics-faculty-results">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div><h3 id="faculty-heading" class="rh-title">Faculty in active research</h3><p role="status" class="mt-1 text-sm rh-muted">{{ $facultyItems->total() }} matching {{ str('researcher')->plural($facultyItems->total()) }} · {{ $cohortScope }}</p></div>
+                <button type="button" wire:click="$set('showFaculty', false)" class="rh-button-secondary">Close researcher list</button>
+            </div>
+            <p class="mt-3 text-sm rh-muted">Registered faculty leads and accepted research staff on active issued projects. Each person is counted once; completed projects and secretary roles are excluded.</p>
+            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                @forelse ($facultyItems as $person)
+                    <article class="min-w-0 rounded-xl border border-slate-200 p-4 dark:border-slate-800" wire:key="analytics-faculty-{{ $person['id'] }}">
+                        <h4 class="break-words font-semibold">{{ $person['name'] }}</h4><p class="mt-1 text-sm rh-muted">{{ $person['college'] ?: 'College not recorded' }}</p>
+                        <ul class="mt-3 flex flex-col gap-3">
+                            @foreach ($person['projects'] as $project)
+                                <li><a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="break-words text-sm font-medium text-brand hover:underline dark:text-rose-300">{{ $project['title'] }}</a><span class="block text-xs rh-muted">{{ $project['role'] === 'lead' ? 'Project lead' : 'Research staff' }}</span></li>
+                            @endforeach
+                        </ul>
+                    </article>
+                @empty
+                    <p class="py-6 text-sm rh-muted">No registered faculty participate in active issued projects in this cohort.</p>
+                @endforelse
+            </div>
+            @if ($facultyItems->hasPages())<div class="mt-4">{{ $facultyItems->links('livewire::simple-tailwind', ['scrollTo' => '#faculty-researchers']) }}</div>@endif
+        </section>
+    @endif
 
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <section class="rh-panel p-5" aria-labelledby="monthly-trend-heading">
             <h3 id="monthly-trend-heading" class="rh-title">Monthly submission trend</h3>
-            <p class="mt-1 text-xs font-medium text-brand dark:text-rose-300">Click a month to filter proposals below.</p>
+            <p class="mt-1 text-xs font-medium text-brand dark:text-rose-300">Click a month to inspect submitted proposals and revisions.</p>
             <p class="mt-1 text-sm rh-muted">{{ $analytics['trendStart'] }} — {{ $analytics['trendEnd'] }}</p>
+            <p class="mt-1 text-xs rh-muted">Recorded submission activity for {{ $academicYear ?: 'all academic years' }}; older proposals may have revisions in this period.</p>
             <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-base">
                 <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-sm bg-brand" aria-hidden="true"></span> New proposals <strong class="tabular-nums">{{ $analytics['trend']->sum('new') }}</strong></span>
                 <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-sm bg-slate-400" aria-hidden="true"></span> Revisions <strong class="tabular-nums">{{ $analytics['trend']->sum('revision') }}</strong></span>
@@ -60,7 +91,7 @@
                             </div>
                             <div class="relative flex gap-2">
                                 @foreach ($analytics['trend'] as $month)
-                                    <button type="button" wire:click="$set('submissionMonth', '{{ $submissionMonth === $month['key'] ? '' : $month['key'] }}')" class="min-w-12 flex-1 rounded-md px-1 text-center hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $submissionMonth === $month['key'] ? 'bg-brand-wash dark:bg-rose-950/40 ring-1 ring-brand' : '' }}" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revisions. Filter inbox." aria-pressed="{{ $submissionMonth === $month['key'] ? 'true' : 'false' }}" title="{{ $month['label'] }}: {{ $month['new'] }} new · {{ $month['revision'] }} revisions">
+                                    <button type="button" wire:click="showSubmissionMonth('{{ $month['key'] }}')" class="min-w-12 flex-1 rounded-md px-1 text-center hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $submissionMonth === $month['key'] ? 'bg-brand-wash dark:bg-rose-950/40 ring-1 ring-brand' : '' }}" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revisions. Filter inbox." aria-pressed="{{ $submissionMonth === $month['key'] ? 'true' : 'false' }}" title="{{ $month['label'] }}: {{ $month['new'] }} new · {{ $month['revision'] }} revisions">
                                         <span class="flex h-52 items-end justify-center gap-1.5" aria-hidden="true">
                                             <span class="w-4 rounded-t-md bg-brand dark:bg-rose-400 sm:w-5" style="height: {{ 100 * $month['new'] / $chartAxisMax }}%"></span>
                                             <span class="w-4 rounded-t-md bg-slate-400 sm:w-5" style="height: {{ 100 * $month['revision'] / $chartAxisMax }}%"></span>
@@ -86,7 +117,7 @@
         </section>
         <section class="rh-panel p-5" aria-labelledby="pipeline-heading">
             <div class="flex items-center justify-between gap-3"><h3 id="pipeline-heading" class="rh-title">Proposal pipeline</h3><span class="rh-badge">{{ $analytics['pipeline']->sum('count') }} total</span></div>
-            <p class="mt-2 text-xs rh-muted">Compare stage counts. Click a stage to filter proposals below.</p>
+            <p class="mt-2 text-xs rh-muted">Current stages in the selected cohort. Click a stage to inspect its proposals.</p>
             <div class="mt-4 flex flex-col gap-1">
                 @foreach ($analytics['pipeline'] as $stage)
                     <button type="button" wire:click="setPipeline('{{ $stage['key'] }}')" aria-pressed="{{ $pipeline === $stage['key'] ? 'true' : 'false' }}" class="rounded-xl px-2 py-1.5 text-left hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $pipeline === $stage['key'] ? 'bg-brand-wash dark:bg-rose-950/40' : '' }}">
@@ -103,14 +134,14 @@
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-dashboard-performance-grid>
     <section id="annual-targets" class="rh-panel scroll-mt-40" aria-labelledby="targets-heading">
         <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-            <div><h3 id="targets-heading" class="rh-title">Annual research targets</h3><p class="mt-1 text-sm rh-muted">{{ $academicYear ?: 'Select an academic year to compare achievement with its targets.' }}</p></div>
+            <div><h3 id="targets-heading" class="rh-title">Annual research targets</h3><p class="mt-1 text-sm rh-muted">{{ $academicYear ?: 'Select an academic year to compare achievement with its targets.' }}</p><p class="mt-1 text-xs rh-muted">Institution-wide achievements dated {{ $analytics['trendStart'] }} — {{ $analytics['trendEnd'] }}, including projects from earlier calls.</p></div>
             <button type="button" wire:click="editTargets" aria-expanded="{{ $editingTargets ? 'true' : 'false' }}" aria-controls="annual-target-editor" class="rh-button-secondary"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/></svg>{{ $editingTargets ? 'Close target settings' : ($analytics['target'] ? 'Edit annual targets' : 'Set annual targets') }}</button>
         </div>
         <div class="grid divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0" data-annual-achievements>
             @foreach ($analytics['targets'] as $metric)
                 @php
                     $achievementPercent = $metric['target'] > 0 && $metric['actual'] !== null ? round(100 * $metric['actual'] / $metric['target'], 1) : null;
-                    $targetLabel = ['Research projects', 'Publications', 'Faculty participation'][$loop->index];
+                    $targetLabel = $metric['label'];
                 @endphp
                 <div class="flex flex-col gap-3 p-5">
                     <h4 class="text-base font-semibold">{{ $targetLabel }}</h4>
@@ -174,12 +205,13 @@
                             <strong class="block text-2xl font-bold tabular-nums text-brand dark:text-rose-300">{{ number_format($project['percentage'], 1) }}%</strong>
                             <div class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label="{{ $project['title'] }} budget utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ min(100, max(0, $project['percentage'])) }}" aria-valuetext="{{ $project['percentage'] }} percent reported utilization"><div class="h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ min(100, max(0, $project['percentage'])) }}%"></div></div>
                         @else
-                            <p class="text-sm rh-muted">No utilization reported</p>
+                            <p class="text-sm rh-muted">{{ $project['utilized'] !== null ? ($project['budget_availability'] === 'zero' ? 'Zero budget recorded; utilization unavailable' : 'Budget not recorded; utilization unavailable') : 'No utilization reported' }}</p>
                         @endif
                         <dl class="grid grid-cols-2 gap-3 text-sm">
                             <div class="min-w-0"><dt class="rh-muted">Reported disbursements</dt><dd class="mt-1 break-words font-semibold tabular-nums">{{ $project['utilized'] !== null ? '₱'.number_format($project['utilized'], 2) : '—' }}</dd></div>
-                            <div class="min-w-0"><dt class="rh-muted">Recorded budget</dt><dd class="mt-1 break-words font-semibold tabular-nums">{{ $project['budget'] !== null ? '₱'.number_format($project['budget'], 2) : '—' }}</dd></div>
+                            <div class="min-w-0"><dt class="rh-muted">{{ $project['budget_source'] === 'approved' ? 'Approved budget' : ($project['budget_source'] === 'estimated' ? 'Estimated budget (fallback)' : 'Budget not recorded') }}</dt><dd class="mt-1 break-words font-semibold tabular-nums">{{ $project['budget'] !== null ? '₱'.number_format($project['budget'], 2) : '—' }}</dd></div>
                         </dl>
+                        <p class="text-xs rh-muted">{{ $project['report_date'] ? 'Report date: '.$project['report_date'] : 'No submitted Monitoring Tool' }}</p>
                     </article>
                 @empty
                     <p class="py-6 text-base rh-muted">No issued projects in this selection.</p>
@@ -251,12 +283,13 @@
             @endif
         </section>
 
-        <section id="received-proposals" class="rh-panel scroll-mt-40" aria-labelledby="inbox-heading">
+        <section id="received-proposals" tabindex="-1" class="rh-panel scroll-mt-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-labelledby="inbox-heading">
             <div class="rh-panel-heading">
-                <h3 id="inbox-heading" class="rh-title">Received proposal inbox</h3>
+                <h3 id="inbox-heading" class="rh-title">{{ $proposalHeading }}</h3>
                 <span class="rh-badge">{{ $topics->total() }} proposals</span>
             </div>
             <div class="flex flex-col gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800" aria-label="Inbox controls">
+                <p class="text-sm rh-muted">{{ $submissionMonth ? 'Recorded submission activity for '.($academicYear ?: 'all academic years').' within the selected period.' : $cohortScope }}</p>
                 <div class="grid gap-2 sm:grid-cols-2">
                     <label for="proposal-search" class="sr-only">Search proposals</label>
                     <input id="proposal-search" type="search" wire:model.live.debounce.300ms="search" placeholder="Search proposal or faculty" class="rh-control w-full">
@@ -266,10 +299,13 @@
                         @foreach ($stageLabels as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach
                     </select>
                 </div>
-                @if ($pipeline || $status || $submissionMonth)
+                @if ($pipeline || $status || $submissionMonth || $attention || $search)
                     <div class="flex flex-wrap items-center gap-2">
+                        @if ($pipeline)<span class="text-sm font-medium text-brand dark:text-rose-300">{{ $pipeline === 'awaiting_review' ? 'Awaiting your review' : (\App\Services\ResearchHeadAnalytics::PIPELINE[$pipeline] ?? 'Selected stage') }}</span>@endif
+                        @if ($attention === 'repeat')<span class="text-sm font-medium text-brand dark:text-rose-300">Repeated revisions</span>@endif
                         @if ($pipeline || $status)<button type="button" wire:click="clearPipeline" class="rh-button-secondary">Clear stage</button>@endif
-                        @if ($submissionMonth)<button type="button" wire:click="$set('submissionMonth', '')" class="rh-button-secondary">Clear month: {{ $submissionMonth }}</button>@endif
+                        @if ($submissionMonth)<button type="button" wire:click="showSubmissionMonth('')" class="rh-button-secondary">Clear month: {{ $submissionMonth }}</button>@endif
+                        <button type="button" wire:click="clearProposalFilters" class="rh-button-secondary">Clear inbox filters</button>
                     </div>
                 @endif
             </div>
@@ -308,48 +344,17 @@
         </section>
     </div>
 
-    <section id="active-projects" class="rh-panel scroll-mt-40 p-5" aria-labelledby="projects-heading">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <h3 id="projects-heading" class="rh-title">Project completion</h3>
-            <div class="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto">
-                <label for="project-status" class="sr-only">Project status filter</label>
-                <select id="project-status" wire:model.live="projectStatus" class="rh-control w-full sm:w-auto sm:max-w-xs">
-                    <option value="">All issued projects</option><option value="active">Active projects</option>
-                    @foreach ($analytics['projectStatuses'] as $stage)<option value="{{ $stage['key'] }}">{{ $stage['label'] }}</option>@endforeach
-                </select>
-                <a href="{{ route('research_head.projects.index') }}" class="rh-button-secondary"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h6l2 2h10v11H3V7Zm0 0V4h6l2 3h10v2"/></svg>Open monitoring</a>
-            </div>
-        </div>
-        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            @forelse ($projectItems as $project)
-                <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 hover:border-brand dark:border-slate-800 dark:hover:border-brand-soft">
-                    <div class="flex items-start justify-between gap-2">
-                        <strong class="min-w-0 line-clamp-2 break-words text-base" title="{{ $project['title'] }}">{{ $project['title'] }}</strong>
-                        <span class="shrink-0 text-sm font-semibold text-brand dark:text-rose-300">{{ $project['progress'] !== null ? $project['progress'].'%' : '—' }}</span>
-                    </div>
-                    <span class="rh-muted truncate text-sm">{{ $project['lead'] }}</span>
-                    <span class="rh-muted text-sm">{{ $project['progress'] === null ? 'No monitoring tool submitted' : str($project['status'])->headline().' · reported completion' }}</span>
-                    <div class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label="{{ $project['title'] }} completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ min(100, max(0, $project['progress'] ?? 0)) }}"><div class="h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ min(100, max(0, $project['progress'] ?? 0)) }}%"></div></div>
-                    <div class="mt-1 flex flex-wrap justify-between gap-2 text-sm rh-muted">
-                        <span>End: {{ $project['deadline'] ?? 'Not recorded' }}</span>
-                        <span>{{ $project['percentage'] !== null ? number_format($project['percentage'], 1).'% · Latest report' : 'No utilization reported' }}</span>
-                    </div>
-                    <span class="rh-muted text-sm">Budget: {{ $project['budget'] !== null ? '₱'.number_format($project['budget'], 2) : 'not recorded' }}</span>
-                </a>
-            @empty
-                <p class="rh-muted py-6 text-center md:col-span-2">No data yet for this project filter.</p>
-            @endforelse
-        </div>
-        @if ($projectItems->hasPages())<div class="mt-4">{{ $projectItems->links('livewire::simple-tailwind', ['scrollTo' => '#active-projects']) }}</div>@endif
-    </section>
+    @if ($projectStatus === '')
+        <x-research-head-project-results :items="$projectItems" :statuses="$analytics['projectStatuses']" :scope="$cohortScope" />
+    @endif
 
     <details data-analytics-methodology class="rh-panel p-5 text-sm leading-6 rh-muted">
         <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">How these numbers are calculated<svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 11v6m0-10h.01"/></svg></summary>
         <div class="mt-4 grid gap-5 md:grid-cols-2">
             <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Filters and submissions</h4><p>KPIs and the pipeline show current status of the first-submission cohort. Revisions do not start a new cohort. Academic year uses the research call or saved year dates for independent submissions. Monthly charts count recorded events, including revisions of older proposals; missing legacy events are not invented. Calendar deadlines remain institution-wide.</p></div>
             <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Workflow and completion</h4><p>Submitted means unopened pending proposals. Approval without an issued Notice to Proceed stays in final signing. Rejected proposals are excluded from the pipeline. Completed projects stay completed; reported 100% awaits a completion decision. Other projects are checked for recorded delays or incomplete weighted milestones, missing reports/review, then ongoing status.</p></div>
-            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Annual achievement</h4><p>Projects count Notices to Proceed issued in the period. Publications count dated published journal outputs, deduplicated by normalized title; acceptance is not publication. Participation uses currently recorded faculty leads and confirmed project staff on projects issued or scheduled to overlap the period. Historical departures and completion dates are not logged, so this is recorded participation, not historical attendance.</p></div>
-            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Reported budgets</h4><p>{{ $analytics['budget']['reported'] }} of {{ $analytics['budget']['total'] }} projects have usable reported figures. Each project's utilization is its reported disbursements divided by its recorded budget. Only that project's latest submitted monitoring snapshot is included. Reports do not distinguish period-only from cumulative spending, so quarters are not summed. Missing reports show unavailable values. Remaining-budget alerts are snapshot checks for ended/completed projects, not verified unspent funds.</p></div>
+            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Annual achievement</h4><p>Institution-wide achievements include projects from earlier research calls. Projects count Notices to Proceed issued in the period. Publications count dated published journal outputs, deduplicated by normalized title; acceptance is not publication. Participation uses currently recorded faculty leads and confirmed project staff on projects issued or scheduled to overlap the period. Historical departures and completion dates are not logged, so this is recorded participation, not historical attendance.</p></div>
+            <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Reported budgets</h4><p>{{ $analytics['budget']['reported'] }} of {{ $analytics['budget']['total'] }} projects have usable reported figures. Utilization divides reported disbursements by the approved Notice to Proceed budget, falling back to the proposal estimate when approval has no usable budget. Only that project's latest submitted monitoring snapshot is included. Reports do not distinguish period-only from cumulative spending, so quarters are not summed. Missing or zero budgets cannot produce a percentage. Remaining-budget alerts are snapshot checks for ended/completed projects, not verified unspent funds.</p></div>
         </div>
         @if ($analytics['undatedPublications'])<p class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">{{ $analytics['undatedPublications'] }} publication records have no exact publication date and are excluded from annual achievements.</p>@endif
     </details>

@@ -11,13 +11,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'contact_number', 'email_verified_at'])]
-#[Hidden(['password', 'remember_token', 'project_workspace'])]
+#[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'contact_number', 'department', 'professional_title', 'cv_defaults', 'email_verified_at'])]
+#[Hidden(['password', 'remember_token', 'project_workspace', 'cv_defaults'])]
 /**
  * A single `User` row represents one person regardless of how many roles they
  * hold. The `college` and `contact_number` columns are GLOBAL to the account:
@@ -67,6 +68,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'project_workspace' => 'array',
+            'cv_defaults' => 'array',
         ];
     }
 
@@ -294,6 +296,11 @@ class User extends Authenticatable
     public function proposals(): HasMany
     {
         return $this->hasMany(TopicProposal::class);
+    }
+
+    public function researcherProfile(): HasOne
+    {
+        return $this->hasOne(ResearcherProfile::class);
     }
 
     public function proposalDrafts(): HasMany

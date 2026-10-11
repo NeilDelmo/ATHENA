@@ -113,29 +113,31 @@ class ResearchHeadAnalytics
                 continue;
             }
 
-            $participants = collect([$topic->user_id])->merge($topic->collaborators
+            $participants = collect([['id' => $topic->user_id, 'role' => 'lead']])->merge($topic->collaborators
                 ->filter(fn ($member): bool => $member->accepted_at !== null && ! $member->isProjectSecretary())
-                ->map(fn ($member): array => ['id' => $member->user_id, 'email' => $member->email])->all());
+                ->map(fn ($member): array => ['id' => $member->user_id, 'email' => $member->email, 'role' => 'member'])->all());
             $completed = $topic->project_status === TopicProposal::PROJECT_STATUS_COMPLETED;
             $counts[$completed ? 'completed' : 'active']++;
             if (! $completed) {
-                $currentParticipants = $currentParticipants->merge($participants);
+                $currentParticipants = $currentParticipants->merge($participants->map(fn (array $participant): array => [
+                    ...$participant, 'project' => ['id' => $topic->id, 'title' => $topic->title, 'role' => $participant['role']],
+                ]));
             }
             $health = $this->projectHealth->assess($topic);
             $unknownSchedules += ! $completed && ! $health['has_schedule'] ? 1 : 0;
             $counts['delayed'] += $health['delayed'] ? 1 : 0;
             $attention = $attention->merge($health['issues']);
             $projectRows->push(['id' => $topic->id, 'title' => $topic->title, 'lead' => $topic->user?->name,
-                ...Arr::except($health, ['issues', 'delayed', 'has_schedule']),
+                ...Arr::except($health, ['delayed', 'has_schedule']),
                 'has_schedule' => $health['has_schedule']]);
         }
         $reported = $projectRows->filter(fn (array $row): bool => $row['percentage'] !== null);
         $facultyUsers = User::whereHas('roles', fn (Builder $roles) => $roles->whereIn('name', ['faculty', 'faculty_researcher']))
-            ->get(['id', 'email', 'email_verified_at']);
-        $currentFaculty = $this->facultyCount($currentParticipants, $facultyUsers);
-        $eventTopics = $this->topics($academicYear);
+            ->get(['id', 'name', 'college', 'email', 'email_verified_at']);
+        $currentFaculty = $this->facultyRows($currentParticipants, $facultyUsers);
+        $eventTopics = $this->topics();
         $achievements = $periodAvailable ? $this->periodAchievements($eventTopics, $periodStart, $periodEnd, $facultyUsers) : ['projects' => null, 'faculty' => null];
-        $trend = $this->monthlyTrend($eventTopics, $periodStart, $periodEnd, $periodAvailable);
+        $trend = $this->monthlyTrend($this->topics($academicYear), $periodStart, $periodEnd, $periodAvailable);
         $published = ProjectJournalSubmission::whereIn('topic_id', (clone $eventTopics)->withIssuedNotice()->select('id'))->where('status', 'published');
         $undated = (clone $published)->whereNull('published_on')->count()
             + ResearchPublication::whereNotNull('confirmed_at')->whereHas('topics', fn (Builder $topics) => $topics->whereIn((new TopicProposal)->qualifyColumn('id'), (clone $eventTopics)->select('id')))->distinct()->count('fingerprint');
@@ -143,7 +145,7 @@ class ResearchHeadAnalytics
             ->get(['manuscript_title', 'publication_url'])->unique(fn ($publication): string => Str::lower(Str::squish($publication->manuscript_title)))->count() : null;
         $targetMatches = $target && $periodStart->isSameDay($target->starts_on) && $periodEnd->isSameDay($target->ends_on);
 
-        return ['kpis' => [...$counts, 'faculty' => $currentFaculty], 'pipeline' => collect($pipeline)->values(),
+        return ['kpis' => [...$counts, 'faculty' => $currentFaculty->count()], 'faculty' => $currentFaculty, 'pipeline' => collect($pipeline)->values(),
             'trend' => $trend, 'trendMax' => max(1, (int) $trend->max(fn (array $month): int => max($month['new'], $month['revision']))),
             'trendStart' => $periodStart->toDateString(), 'trendEnd' => $periodEnd->toDateString(), 'periodAvailable' => $periodAvailable,
             'projects' => $projectRows->sortBy('title')->values(),
@@ -168,27 +170,42 @@ class ResearchHeadAnalytics
         foreach ($issued->where('notice_to_proceed_issued_at', '<=', $end)->with('collaborators')->lazyById(100) as $topic) {
             $hasSchedule = $this->projectHealth->hasSchedule($topic);
             $issuedInPeriod = $topic->notice_to_proceed_issued_at->gte($start);
-            if (! $issuedInPeriod && (! $hasSchedule || $this->quarters->reportingWindow($topic)['end']->lt($start))) {
-                continue;
+            if (! $issuedInPeriod) {
+                $window = $hasSchedule ? $this->quarters->reportingWindow($topic) : null;
+                if (! $window || $window['end']->lt($start) || $window['start']->gt($end)) {
+                    continue;
+                }
             }
-            $participants->push($topic->user_id);
+            $participants->push(['id' => $topic->user_id]);
             $participants = $participants->merge($topic->collaborators
                 ->filter(fn ($member): bool => $member->accepted_at !== null && $member->accepted_at->lte($end) && ! $member->isProjectSecretary())
                 ->map(fn ($member): array => ['id' => $member->user_id, 'email' => $member->email]));
         }
 
-        return ['projects' => $projects, 'faculty' => $this->facultyCount($participants, $facultyUsers)];
+        return ['projects' => $projects, 'faculty' => $this->facultyRows($participants, $facultyUsers)->count()];
     }
 
-    private function facultyCount(Collection $participants, Collection $users): int
+    /** @return Collection<int, array{id: int, name: string, college: ?string, projects: array<int, array{id: int, title: string, role: string}>}> */
+    private function facultyRows(Collection $participants, Collection $users): Collection
     {
-        $ids = $participants->filter(fn ($member): bool => is_numeric($member))->map(fn ($id): int => (int) $id)
-            ->merge($participants->filter(fn ($member): bool => is_array($member))->pluck('id')->filter());
-        $emails = $participants->filter(fn ($member): bool => is_array($member))->filter(fn (array $member): bool => empty($member['id']))->pluck('email')
-            ->filter()->map(fn (string $email): string => Str::lower(trim($email)));
+        $usersById = $users->keyBy('id');
+        $usersByEmail = $users->filter(fn (User $user): bool => $user->email_verified_at !== null)
+            ->keyBy(fn (User $user): string => Str::lower(trim($user->email)));
+        $rows = collect();
+        foreach ($participants as $participant) {
+            $user = ! empty($participant['id']) ? $usersById->get($participant['id'])
+                : $usersByEmail->get(Str::lower(trim($participant['email'] ?? '')));
+            if (! $user) {
+                continue;
+            }
+            $row = $rows->get($user->id, ['id' => $user->id, 'name' => $user->name, 'college' => $user->college, 'projects' => []]);
+            if (isset($participant['project'])) {
+                $row['projects'][$participant['project']['id']] ??= $participant['project'];
+            }
+            $rows->put($user->id, $row);
+        }
 
-        return $users->filter(fn (User $user): bool => $ids->contains($user->id)
-            || ($user->email_verified_at && $emails->contains(Str::lower($user->email))))->count();
+        return $rows->sortBy('name')->map(fn (array $row): array => [...$row, 'projects' => array_values($row['projects'])])->values();
     }
 
     private function issue(TopicProposal $topic, string $type, string $label, mixed $since, string $basis, string $anchor): array

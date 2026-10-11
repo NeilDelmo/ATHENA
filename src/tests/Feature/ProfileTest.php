@@ -22,9 +22,10 @@ test('authenticated users can view their Google managed profile', function () {
         ->assertSee('faculty@g.batstate-u.edu.ph')
         ->assertSee('BatStateU Google Workspace')
         ->assertSee('managed by Batangas State University')
-        ->assertSee('Account activity')
+        ->assertSee('Proposal defaults')
+        ->assertSee('Curriculum vitae defaults')
         ->assertSee('Access and permissions')
-        ->assertSee('Recent proposals')
+        ->assertDontSee('Recent proposals')
         ->assertSee('Sign out securely')
         ->assertSee('data-confirm-title="Log out of ATHENA?"', false)
         ->assertSee('Profile')
@@ -283,7 +284,7 @@ test('long account identities and unavailable avatars remain visible', function 
         ->assertSee('max-w-[calc(100vw-6rem)]', false);
 });
 
-test('account profiles render recent proposals across workspaces with optional research calls', function (string $role, string $workspace, bool $hasResearchCall) {
+test('account profiles focus on reusable details across workspaces', function (string $role, string $workspace, bool $hasResearchCall) {
     $this->withoutVite();
     Role::firstOrCreate(['name' => $role]);
     $user = User::factory()->create();
@@ -295,7 +296,7 @@ test('account profiles render recent proposals across workspaces with optional r
         'academic_year' => '2026-2027',
         'status' => 'open',
     ]) : null;
-    $proposal = TopicProposal::create([
+    TopicProposal::create([
         'user_id' => $user->id,
         'research_call_id' => $call?->id,
         'category_id' => null,
@@ -309,12 +310,18 @@ test('account profiles render recent proposals across workspaces with optional r
         'status' => 'approved',
     ]);
 
-    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
+    $response = $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
         ->actingAs($user)->get(route('profile.edit'))->assertOk()
         ->assertSee('Account Profile')
-        ->assertSee($proposal->title)
-        ->assertSee($hasResearchCall ? 'Profile research call' : 'Independent submission')
-        ->assertViewHas('recentProposals', fn ($items): bool => $items->count() === 1 && $items->first()->id === $proposal->id);
+        ->assertSee('Proposal defaults')
+        ->assertViewMissing('recentProposals')
+        ->assertDontSee('Recent proposals');
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $profile = (new DOMXPath($dom))->query('//*[@data-account-profile]')->item(0);
+
+    expect($profile->textContent)->not->toContain('My profile proposal', 'Another account private proposal');
 })->with([
     'faculty independent' => ['faculty', User::WORKSPACE_FACULTY, false],
     'faculty call' => ['faculty', User::WORKSPACE_FACULTY, true],
@@ -327,3 +334,107 @@ test('account profiles render recent proposals across workspaces with optional r
     'secretary independent' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, false],
     'secretary call' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, true],
 ]);
+
+test('users can save reusable proposal and curriculum vitae details', function () {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'faculty']);
+    $user = User::factory()->create(['name' => 'Faculty Profile Example', 'email' => 'profile.example@g.batstate-u.edu.ph']);
+    $user->assignRole('faculty');
+    $cvDefaults = [
+        'agency' => 'Batangas State University',
+        'academic_background' => [[
+            'degree' => 'Master of Science',
+            'major_field' => 'Computer Science',
+            'learning_institution' => 'Batangas State University',
+            'status' => 'Graduated',
+            'year_start' => '2020',
+            'year_end' => '2022',
+        ]],
+        'specializations' => [['field' => 'Information Systems', 'primary_field' => 'yes']],
+    ];
+
+    $this->actingAs($user)
+        ->patch(route('profile.details.update'), [
+            'college' => User::COLLEGES['CICS'],
+            'contact_number' => '09171234567',
+            'department' => 'Computer Science Department',
+            'professional_title' => 'Asst Prof.',
+            'cv_defaults' => $cvDefaults,
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($user->refresh()->department)->toBe('Computer Science Department')
+        ->and($user->professional_title)->toBe('Asst Prof.')
+        ->and($user->cv_defaults)->toEqual($cvDefaults);
+
+    $response = $this->get(route('profile.edit'))->assertOk()
+        ->assertSee('Computer Science Department')
+        ->assertSee('Information Systems');
+
+    if (getenv('ATHENA_EXPORT_PROFILE_DEFAULTS') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/profile-defaults.html'), $response->getContent());
+    }
+});
+
+test('profile paper defaults validate structured curriculum vitae data', function (array $fields, string $error) {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->patch(route('profile.details.update'), [
+            'college' => User::COLLEGES['CICS'],
+            ...$fields,
+        ])
+        ->assertSessionHasErrors($error);
+})->with([
+    'long department' => [['department' => str_repeat('a', 256)], 'department'],
+    'long title' => [['professional_title' => str_repeat('a', 51)], 'professional_title'],
+    'unknown CV field' => [['cv_defaults' => ['user_id' => 2]], 'cv_defaults'],
+    'invalid academic status' => [['cv_defaults' => ['academic_background' => [['status' => 'Invented']]]], 'cv_defaults.academic_background.0.status'],
+    'invalid academic year' => [['cv_defaults' => ['academic_background' => [['year_end' => 'last year']]]], 'cv_defaults.academic_background.0.year_end'],
+    'invalid specialization flag' => [['cv_defaults' => ['specializations' => [['primary_field' => 'maybe']]]], 'cv_defaults.specializations.0.primary_field'],
+]);
+
+test('saving paper defaults cannot change institutional identity or roles', function () {
+    $user = User::factory()->create();
+    $name = $user->name;
+    $email = $user->email;
+
+    $this->actingAs($user)
+        ->patch(route('profile.details.update'), [
+            'college' => User::COLLEGES['CICS'],
+            'department' => 'Computing',
+            'name' => 'Changed identity',
+            'email' => 'changed@example.test',
+            'roles' => ['research_head'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->refresh()->name)->toBe($name)
+        ->and($user->email)->toBe($email)
+        ->and($user->getRoleNames())->toBeEmpty();
+});
+
+test('optional paper defaults can be cleared without erasing other account details', function () {
+    $user = User::factory()->create();
+    $college = User::COLLEGES['CICS'];
+    $this->actingAs($user)->patch(route('profile.details.update'), [
+        'college' => $college,
+        'department' => 'Computing',
+        'professional_title' => 'Dr.',
+        'cv_defaults' => ['agency' => 'Batangas State University'],
+    ])->assertSessionHasNoErrors();
+
+    $this->patch(route('profile.details.update'), [
+        'college' => $college,
+        'department' => null,
+        'professional_title' => null,
+        'cv_defaults' => ['agency' => null, 'academic_background' => null, 'specializations' => null],
+    ])->assertSessionHasNoErrors();
+
+    expect($user->refresh()->department)->toBeNull()
+        ->and($user->professional_title)->toBeNull()
+        ->and($user->cv_defaults)->toEqual(['agency' => null, 'academic_background' => null, 'specializations' => null])
+        ->and($user->college)->toBe($college);
+});

@@ -19,7 +19,7 @@ class ProposalDraftDetailsController extends Controller
     ): View {
         Gate::authorize('update', $proposalDraft);
 
-        $proposalDraft->load(['researchCall', 'owner:id,name,email,college']);
+        $proposalDraft->load(['researchCall', 'owner:id,name,email,college,contact_number,professional_title,department,avatar']);
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
 
         return view('faculty.proposal-drafts.details.edit', compact('proposalDraft', 'workspacePeople'));

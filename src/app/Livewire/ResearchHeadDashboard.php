@@ -12,11 +12,13 @@ use App\Services\DashboardCalendar;
 use App\Services\ResearchDashboardAnalytics;
 use App\Services\ResearchHeadAnalytics;
 use App\Services\ResearchHeadReportQueue;
+use App\Support\DashboardAssistantSuggestions;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -57,6 +59,9 @@ class ResearchHeadDashboard extends Component
     #[Url]
     public string $submissionMonth = '';
 
+    #[Url]
+    public bool $showFaculty = false;
+
     public array $targetForm = ['academic_year' => '', 'starts_on' => '', 'ends_on' => '', 'projects_target' => '', 'publications_target' => '', 'faculty_target' => ''];
 
     public bool $editingTargets = false;
@@ -76,6 +81,9 @@ class ResearchHeadDashboard extends Component
             $target = ResearchAnnualTarget::where('academic_year', $this->academicYear)->first();
             $this->fromDate = $target?->starts_on?->toDateString() ?? '';
             $this->toDate = $target?->ends_on?->toDateString() ?? '';
+        }
+        if (! $this->overview && $this->showFaculty) {
+            $this->reset('projectStatus');
         }
     }
 
@@ -114,7 +122,7 @@ class ResearchHeadDashboard extends Component
 
     public function resetAnalyticsFilters(): void
     {
-        $this->reset('academicYear', 'fromDate', 'toDate', 'projectStatus', 'submissionMonth', 'pipeline', 'status', 'attention', 'search');
+        $this->reset('academicYear', 'fromDate', 'toDate', 'projectStatus', 'submissionMonth', 'pipeline', 'status', 'attention', 'search', 'showFaculty', 'editingTargets', 'targetForm');
         $this->resetErrorBag();
         $this->resetDashboardPages();
     }
@@ -154,6 +162,7 @@ class ResearchHeadDashboard extends Component
         $this->academicYear = trim($validated['academic_year']);
         $this->fromDate = $validated['starts_on'];
         $this->toDate = $validated['ends_on'];
+        $this->reset('submissionMonth', 'projectStatus', 'showFaculty');
         $this->resetDashboardPages();
         session()->flash('targets_saved', 'Academic-year targets saved.');
     }
@@ -161,7 +170,17 @@ class ResearchHeadDashboard extends Component
     public function showProjects(string $status): void
     {
         $this->projectStatus = in_array($status, ['active', 'ongoing', 'delayed', 'awaiting', 'completed'], true) ? $status : '';
+        $this->reset('showFaculty');
         $this->resetPage('projectPage');
+        $this->dispatch('analytics-drilldown', target: 'active-projects');
+    }
+
+    public function showFacultyResearchers(): void
+    {
+        $this->showFaculty = true;
+        $this->reset('projectStatus');
+        $this->resetPage('facultyPage');
+        $this->dispatch('analytics-drilldown', target: 'faculty-researchers');
     }
 
     private function resetDashboardPages(): void
@@ -170,19 +189,51 @@ class ResearchHeadDashboard extends Component
         $this->resetPage('attentionPage');
         $this->resetPage('projectPage');
         $this->resetPage('reportPage');
+        $this->resetPage('facultyPage');
     }
 
     public function setPipeline(string $pipeline): void
     {
-        $this->pipeline = $pipeline === $this->pipeline ? '' : $pipeline;
-        $this->reset('status', 'attention');
-        $this->resetPage();
+        $selected = $pipeline !== $this->pipeline && in_array($pipeline, [...array_keys(ResearchHeadAnalytics::PIPELINE), 'awaiting_review', 'ready_for_signature'], true) ? $pipeline : '';
+        $this->clearProposalFilters();
+        $this->pipeline = $selected;
+        if (! $this->overview) {
+            $this->reset('projectStatus', 'showFaculty');
+        }
+        $this->dispatch('analytics-drilldown', target: 'received-proposals');
     }
 
     public function showReviewQueue(): void
     {
+        $this->clearProposalFilters();
         $this->pipeline = 'awaiting_review';
-        $this->reset('status', 'attention');
+        if (! $this->overview) {
+            $this->reset('projectStatus', 'showFaculty');
+        }
+        $this->dispatch('analytics-drilldown', target: 'received-proposals');
+    }
+
+    public function showSubmissionMonth(string $month, ResearchHeadAnalytics $analytics): void
+    {
+        if ($month !== '') {
+            Validator::make(['submissionMonth' => $month], ['submissionMonth' => ['required', 'date_format:Y-m']])->validate();
+            $this->validateFilters();
+            $data = $analytics->summarize($this->academicYear, $this->fromDate, $this->toDate);
+            Validator::make(['submissionMonth' => $month], ['submissionMonth' => [Rule::in($data['trend']->pluck('key')->all())]])->validate();
+        }
+        $selected = $month === $this->submissionMonth ? '' : $month;
+        $this->clearProposalFilters();
+        $this->submissionMonth = $selected;
+        if (! $this->overview) {
+            $this->reset('projectStatus', 'showFaculty');
+        }
+        $this->dispatch('analytics-drilldown', target: 'received-proposals');
+    }
+
+    public function clearProposalFilters(): void
+    {
+        $this->reset('pipeline', 'status', 'attention', 'search', 'submissionMonth');
+        $this->resetErrorBag('submissionMonth');
         $this->resetPage();
     }
 
@@ -205,7 +256,6 @@ class ResearchHeadDashboard extends Component
             $target = ResearchAnnualTarget::where('academic_year', $this->academicYear)->first();
             $this->fromDate = $target?->starts_on?->toDateString() ?? '';
             $this->toDate = $target?->ends_on?->toDateString() ?? '';
-            $this->reset('submissionMonth', 'projectStatus');
         }
         if ($property === 'status') {
             $this->reset('pipeline');
@@ -215,6 +265,7 @@ class ResearchHeadDashboard extends Component
         }
         if ($property === 'submissionMonth') {
             $this->reset('pipeline', 'status', 'attention', 'search');
+            $this->resetErrorBag('submissionMonth');
         }
         if (in_array($property, ['search', 'status', 'pipeline', 'attention', 'academicYear', 'fromDate', 'toDate', 'submissionMonth'], true)) {
             $this->resetPage();
@@ -222,14 +273,23 @@ class ResearchHeadDashboard extends Component
             $this->resetPage('projectPage');
         }
         if (in_array($property, ['academicYear', 'fromDate', 'toDate'], true)) {
-            $this->resetPage('reportPage');
+            $this->reset('submissionMonth', 'projectStatus', 'showFaculty', 'editingTargets', 'targetForm');
+            $this->resetErrorBag();
+            $this->resetDashboardPages();
         }
         if ($property === 'projectStatus') {
+            $this->reset('showFaculty');
             $this->resetPage('projectPage');
+        }
+        if ($property === 'showFaculty') {
+            if ($this->showFaculty) {
+                $this->reset('projectStatus');
+            }
+            $this->resetPage('facultyPage');
         }
     }
 
-    public function render(ResearchHeadAnalytics $analytics, DashboardCalendar $calendar, ResearchHeadReportQueue $reportQueue): View
+    public function render(ResearchHeadAnalytics $analytics, DashboardCalendar $calendar, ResearchHeadReportQueue $reportQueue, DashboardAssistantSuggestions $suggestions): View
     {
         abort_unless(auth()->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
         $callId = null;
@@ -239,7 +299,7 @@ class ResearchHeadDashboard extends Component
         if (! $validFilters) {
             $this->setErrorBag($filterValidation->errors());
         } else {
-            $this->resetErrorBag(['academicYear', 'fromDate', 'toDate', 'submissionMonth']);
+            $this->resetErrorBag(['academicYear', 'fromDate', 'toDate']);
         }
         $year = $validFilters ? $this->academicYear : '__invalid_filters__';
         $from = $validFilters ? $this->fromDate : '';
@@ -289,10 +349,12 @@ class ResearchHeadDashboard extends Component
 
         return view($this->overview ? 'livewire.research-head-overview' : 'livewire.research-head-dashboard', [
             'topics' => $topics, 'deadlines' => $deadlines,
+            'assistantReviewSuggestions' => $this->overview ? $suggestions->forResearchHead($topics->getCollection()) : collect(),
             'reportItems' => $reportItems,
             'analytics' => $data, 'stageLabels' => ResearchDashboardAnalytics::STAGES,
             'attentionItems' => $this->paginateRows($attentionRows, 'attentionPage', $this->overview ? 4 : 5),
             'projectItems' => $this->paginateRows($projectRows, 'projectPage', 6),
+            'facultyItems' => $this->paginateRows($data['faculty'], 'facultyPage', 6),
             'academicYears' => ResearchCall::whereNotNull('academic_year')->pluck('academic_year')->merge(ResearchAnnualTarget::pluck('academic_year'))->unique()->sortDesc()->values(),
         ]);
     }

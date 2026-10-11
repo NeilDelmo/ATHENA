@@ -49,7 +49,7 @@ class ProposalDraftLineItemBudgetController extends Controller
         ProposalBudgetConsistency $proposalBudgetConsistency,
     ): View {
         Gate::authorize('update', $proposalDraft);
-        $proposalDraft->load(['researchCall', 'owner:id,college']);
+        $proposalDraft->load(['researchCall', 'owner:id,name,email,college,contact_number,professional_title,department,avatar']);
         $paper = $catalog->get('line-item-budget');
         $lineItemBudgetDocument = $this->document($proposalDraft);
         $expenseBreakdownDocument = $proposalDraft->documents()

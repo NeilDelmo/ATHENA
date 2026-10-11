@@ -7,6 +7,8 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftCurriculumVitaeRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalDraftMember;
+use App\Models\User;
 use App\Services\CurriculumVitaeDocumentService;
 use App\Support\CurriculumVitaeData;
 use App\Support\ProposalPaperCatalog;
@@ -31,19 +33,25 @@ class ProposalDraftCurriculumVitaeController extends Controller
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('curriculum-vitae');
         $curriculumVitaeDocument = $this->document($proposalDraft);
-        $workspacePeople = collect($proposalWorkspacePeople->forDraft($proposalDraft))
+        $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
+        $cvDefaults = User::query()
+            ->whereKey($proposalDraft->members
+                ->filter(fn (ProposalDraftMember $member): bool => $member->isAccepted())
+                ->pluck('user_id')->filter()->push($proposalDraft->user_id))
+            ->get(['id', 'email', 'cv_defaults'])
+            ->mapWithKeys(fn (User $user): array => [mb_strtolower(trim($user->email)) => $user->cv_defaults ?? []]);
+        $workspacePeople = collect($workspacePeople)
             ->map(fn (array $person): array => [
                 ...$person,
-                'cv' => CurriculumVitaeData::seedPeopleWithContacts([$person])[0],
+                'cv' => CurriculumVitaeData::seedPeopleWithContacts([[
+                    ...$person,
+                    ...($cvDefaults[$person['email']] ?? []),
+                ]])[0],
             ])
             ->all();
         $sourceData = $curriculumVitaeDocument?->source_data ?? [
-            'people' => $this->seedPeople($proposalDraft, $workspacePeople, (string) ($request->user()?->contact_number ?? '')),
+            'people' => $this->seedPeople($proposalDraft, $workspacePeople),
         ];
-        $sourceData['people'] = $this->applyOwnerContactNumber(
-            $sourceData['people'] ?? [],
-            (string) ($proposalDraft->owner?->contact_number ?? $request->user()?->contact_number ?? ''),
-        );
 
         return view('faculty.proposal-drafts.curriculum-vitae.edit', compact(
             'proposalDraft',
@@ -152,7 +160,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function seedPeople(ProposalDraft $proposalDraft, array $workspacePeople, string $ownerContactNumber = ''): array
+    private function seedPeople(ProposalDraft $proposalDraft, array $workspacePeople): array
     {
         $lineItemBudgetSource = $proposalDraft->documents()
             ->where('document_type', config('proposal_papers.line-item-budget.document_type'))
@@ -168,51 +176,14 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ->filter(fn (mixed $name): bool => is_string($name) && filled($name))
             ->map(fn (string $name): array => ['name' => $name, 'email' => '']);
 
-        $people = CurriculumVitaeData::seedPeopleWithContacts(
+        return CurriculumVitaeData::seedPeopleWithContacts(
             collect($workspacePeople)
-                ->map(fn (array $person): array => ['name' => $person['name'], 'email' => $person['email']])
+                ->map(fn (array $person): array => ['name' => $person['name'], ...$person['cv']])
                 ->concat($additionalPeople)
                 ->unique(fn (array $person): string => Str::lower(Str::squish($person['name'])))
                 ->values()
                 ->all(),
         );
-
-        return $this->applyOwnerContactNumber($people, $ownerContactNumber);
-    }
-
-    /**
-     * Stamp the saved contact number onto the project leader's CV record when
-     * the CV workspace first opens, so faculty don't have to retype it.
-     *
-     * The contact number that wins the auto-fill is the proposal owner's
-     * `contact_number` (the same single source of truth used by the detailed
-     * proposal and the profile page), with the currently signed-in user's
-     * `contact_number` as a fallback. This keeps the project leader's CV
-     * consistent regardless of whether the editor is a research head, a
-     * faculty researcher, or the owner themselves.
-     *
-     * @param  array<int, array<string, mixed>>  $people
-     * @return array<int, array<string, mixed>>
-     */
-    private function applyOwnerContactNumber(array $people, string $contactNumber): array
-    {
-        if ($contactNumber === '') {
-            return $people;
-        }
-
-        foreach ($people as $index => $person) {
-            if (! is_array($person)) {
-                continue;
-            }
-
-            if (! blank($person['cellphone'] ?? null)) {
-                continue;
-            }
-
-            $people[$index]['cellphone'] = $contactNumber;
-        }
-
-        return $people;
     }
 
     private function document(ProposalDraft $proposalDraft): ?ProposalDraftDocument

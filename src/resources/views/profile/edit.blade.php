@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Account Profile" subtitle="Your institutional identity, ATHENA access, and account activity.">
+        <x-page-header title="Account Profile" subtitle="Your institutional identity and reusable details for research proposals.">
             <x-slot name="actions">
                 <x-back-link href="{{ route('dashboard') }}">Back to workspace</x-back-link>
             </x-slot>
@@ -8,183 +8,227 @@
     </x-slot>
 
     @php
-        $roleDescriptions = [
-            'faculty' => 'Submit proposals, review feedback, and browse research calls.',
-            'faculty_researcher' => 'Access the research catalog and Research Support workspace.',
-            'research_head' => 'Manage research calls, evaluate proposals, and issue final decisions.',
-            'research_coordinator' => 'Record LREC committee comments for proposals from the assigned college.',
-            'research_secretary' => 'Prepare Notices to Proceed, upload signed documents, and complete assigned project budgets.',
-        ];
-
-        $statusClass = fn (string $status) => match ($status) {
-            'approved' => 'bg-green-50 text-green-700',
-            'ready_for_signature' => 'bg-red-50 text-red-800',
-            'rejected' => 'bg-red-50 text-red-700',
-            'revision_requested' => 'bg-blue-50 text-blue-700',
-            'resubmitted', 'expert_review' => 'bg-purple-50 text-purple-700',
-            default => 'bg-amber-50 text-amber-700',
-        };
+        $workspaceDefinitions = \App\Models\User::workspaceDefinitions();
+        $cvDefaults = old('cv_defaults', $user->cv_defaults ?? []);
+        $cvDefaults = is_array($cvDefaults) ? $cvDefaults : [];
+        $inputClass = 'mt-1.5 block min-h-11 w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-red-400 dark:focus:ring-red-400';
+        $researcherProfile = $user->researcherProfile;
+        $orcid = $researcherProfile?->orcid;
+        $orcidUrl = is_string($orcid) && preg_match('~^(?:https://orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX])$~i', $orcid, $orcidMatches) ? 'https://orcid.org/'.$orcidMatches[1] : null;
+        $scholarUrl = $researcherProfile?->scholar_url;
+        $scholarUrl = is_string($scholarUrl) && preg_match('~^https://scholar\.google\.com/citations\?[^#]*\buser=[A-Za-z0-9_-]+(?:&[^#]*)?$~', $scholarUrl) ? $scholarUrl : null;
+        $openalexId = $researcherProfile?->openalex_id;
+        $openalexUrl = is_string($openalexId) && preg_match('~^(?:https://openalex\.org/)?(A\d+)$~', $openalexId, $openalexMatches) ? 'https://openalex.org/'.$openalexMatches[1] : null;
     @endphp
 
-    <div class="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+    <div class="grid items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]" data-account-profile>
         <aside class="min-w-0 space-y-6">
-            <section class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-                <div class="relative h-28 bg-gradient-to-br from-red-700 via-red-600 to-red-900">
-                    <div class="absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:20px_20px]"></div>
-                </div>
+            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div class="h-16 bg-red-700 dark:bg-red-900" aria-hidden="true"></div>
                 <div class="relative px-6 pb-6">
-                    <div class="-mt-10 flex items-end justify-between gap-3">
-                        <x-user-avatar :user="$user" class="h-20 w-20 rounded-2xl border-4 border-white bg-slate-900 text-2xl shadow-md dark:border-slate-900" />
-                        <span class="mb-1 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">
-                            <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Active
-                        </span>
-                    </div>
+                    <x-user-avatar :user="$user" class="-mt-8 h-16 w-16 rounded-2xl border-4 border-white bg-red-700 text-xl dark:border-slate-900" />
+                    <p class="mt-5 text-xs font-semibold text-gray-500 dark:text-slate-400">Institutional identity</p>
+                    <h2 class="mt-1 break-words text-xl font-bold tracking-tight text-gray-900 dark:text-white">{{ $user->name }}</h2>
+                    <p class="mt-2 break-all text-sm text-gray-600 dark:text-slate-300">{{ $user->email }}</p>
+                    <p class="mt-4 text-xs leading-5 text-gray-500 dark:text-slate-400">Your photo, name, and university email synchronize from Google when you sign in.</p>
 
-                    <h3 class="mt-4 break-words text-xl font-black text-gray-900">{{ $user->name }}</h3>
-                    <p class="mt-1 break-all text-sm text-gray-500">{{ $user->email }}</p>
-
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        @forelse ($user->getRoleNames() as $role)
-                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-700">{{ $role === 'research_secretary' ? 'Research Office / Secretary' : str_replace('_', ' ', $role) }}</span>
-                        @empty
-                            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-500">No role assigned</span>
-                        @endforelse
-                    </div>
-
-                    <form method="POST" action="{{ route('profile.details.update') }}" class="mt-4" data-profile-details>
-                        @csrf
-                        @method('PATCH')
-
-                    @if ($user->hasRole('research_coordinator'))
-                        <input type="hidden" name="college" value="{{ $user->college }}">
-                        <div class="mt-4" data-college-locked>
-                            <label for="college-locked" class="sr-only">College</label>
-                            <div class="flex items-center gap-2">
-                                <select id="college-locked" disabled class="min-w-0 flex-1 scroll-mt-36 cursor-not-allowed rounded-xl border-amber-200 bg-amber-50 py-2 pl-3 pr-8 text-xs font-semibold text-amber-900 shadow-sm disabled:opacity-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                                    <option selected>{{ $user->college ?: 'No college set' }}</option>
-                                </select>
-                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" title="College locked" aria-label="College locked">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 0h10.5A2.25 2.25 0 0 1 19.5 12.75v6A2.25 2.25 0 0 1 17.25 21H6.75A2.25 2.25 0 0 1 4.25 18.75v-6A2.25 2.25 0 0 1 6.75 12.75ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-                                </span>
-                            </div>
-                            <p class="mt-2 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-300">College is locked while you are a Research Coordinator. Ask the Research Head to remove your Research Coordinator assignment before changing it.</p>
-                            @error('college')
-                                <p class="mt-2 text-xs font-semibold text-red-600 dark:text-red-300">{{ $message }}</p>
-                            @enderror
-                        </div>
-                    @else
-                            <label for="college" class="sr-only">College</label>
-                            <div class="flex items-center gap-2">
-                                <select id="college" name="college" required x-init="if (window.location.hash === '#college') $nextTick(() => $el.focus())" @hashchange.window="if (window.location.hash === '#college') $el.focus()" class="min-w-0 flex-1 scroll-mt-36 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500">
-                                    <option value="" disabled @selected(! old('college', $user->college))>Set your college</option>
-                                    @foreach (\App\Models\User::COLLEGES as $college)
-                                        <option value="{{ $college }}" @selected(old('college', $user->college) === $college)>{{ $college }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            @error('college')
-                                <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
-                            @enderror
-                    @endif
-
-                    <div class="mt-4" data-profile-contact-number>
-                        <label for="contact_number" class="sr-only">Contact number</label>
-                        <div class="flex items-center gap-2">
-                            <input id="contact_number" name="contact_number" type="tel" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" value="{{ old('contact_number', $user->contact_number) }}" placeholder="09171234567" class="min-w-0 flex-1 rounded-xl border-gray-200 py-2 px-3 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500" autocomplete="tel">
-                        </div>
-                        <p class="mt-2 text-[11px] font-semibold leading-5 text-gray-500">Used as the default contact number on the detailed research proposal and curriculum vitae. Leave blank to type one per proposal.</p>
-                        @error('contact_number')
-                            <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div class="mt-5 space-y-3 border-t border-gray-100 pt-4">
-                        <p class="text-[11px] font-semibold leading-5 text-gray-500">Save your college and contact number together.</p>
-                        <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">Save profile details</button>
-                    </div>
-                    @if (session('status') === 'profile-details-updated')
-                        <p class="mt-2 text-xs font-semibold text-green-700">Profile details saved.</p>
-                    @endif
-                    </form>
-
-                    <dl class="mt-6 space-y-4 border-t border-gray-100 pt-5">
+                    <dl class="mt-5 space-y-4 border-t border-gray-100 pt-5 dark:border-slate-800">
                         <div>
-                            <dt class="text-[10px] font-black uppercase tracking-wider text-gray-400">Authentication</dt>
-                            <dd class="mt-1 flex items-center gap-2 text-sm font-bold text-gray-700">
-                                <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                BatStateU Google Workspace
-                            </dd>
+                            <dt class="text-xs text-gray-500 dark:text-slate-400">Authentication</dt>
+                            <dd class="mt-1 text-sm font-semibold text-gray-800 dark:text-slate-200">BatStateU Google Workspace</dd>
                         </div>
                         <div>
-                            <dt class="text-[10px] font-black uppercase tracking-wider text-gray-400">Google connection</dt>
-                            <dd class="mt-1 text-sm font-bold {{ $user->google_id ? 'text-green-700' : 'text-amber-700' }}">{{ $user->google_id ? 'Connected' : 'Pending first Google sign-in' }}</dd>
+                            <dt class="text-xs text-gray-500 dark:text-slate-400">Google connection</dt>
+                            <dd class="mt-1 text-sm font-semibold {{ $user->google_id ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-300' }}">{{ $user->google_id ? 'Connected' : 'Pending first Google sign-in' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-[10px] font-black uppercase tracking-wider text-gray-400">ATHENA member since</dt>
-                            <dd class="mt-1 text-sm font-bold text-gray-700">{{ $user->created_at->format('F Y') }}</dd>
+                            <dt class="text-xs text-gray-500 dark:text-slate-400">ATHENA member since</dt>
+                            <dd class="mt-1 text-sm font-semibold text-gray-800 dark:text-slate-200">{{ $user->created_at->format('F Y') }}</dd>
                         </div>
                     </dl>
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 class="text-xs font-black uppercase tracking-wider text-gray-400">Institutional account</h3>
-                <p class="mt-3 text-xs leading-5 text-gray-600">Your name, email, password, and account recovery are managed by Batangas State University. Google profile changes synchronize the next time you sign in.</p>
+            @if ($researcherProfile)
+                <section class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+                    <h2 class="text-sm font-bold text-gray-900 dark:text-white">Publication matching</h2>
+                    <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">Your existing researcher connection helps identify publications in project dissemination. Edit reusable curriculum vitae details in the profile form.</p>
+                    <p class="mt-4 break-words text-sm font-semibold text-gray-800 dark:text-slate-200">{{ $researcherProfile->display_name ?: $user->name }}</p>
+                    <div class="mt-2 flex flex-col items-start gap-2 text-sm">
+                        @if ($orcidUrl)<a href="{{ $orcidUrl }}" target="_blank" rel="noopener noreferrer" class="break-all rounded text-red-700 underline decoration-red-200 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:decoration-red-900">ORCID {{ $orcidMatches[1] }}<span class="sr-only"> (opens in a new tab)</span></a>@endif
+                        @if ($scholarUrl)<a href="{{ $scholarUrl }}" target="_blank" rel="noopener noreferrer" class="rounded text-red-700 underline decoration-red-200 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:decoration-red-900">Google Scholar<span class="sr-only"> (opens in a new tab)</span></a>@endif
+                        @if ($openalexUrl)<a href="{{ $openalexUrl }}" target="_blank" rel="noopener noreferrer" class="rounded text-red-700 underline decoration-red-200 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:decoration-red-900">OpenAlex author<span class="sr-only"> (opens in a new tab)</span></a>@endif
+                    </div>
+                </section>
+            @endif
+
+            <section class="px-1">
+                <h2 class="text-sm font-semibold text-gray-800 dark:text-slate-200">Institutional account</h2>
+                <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">Your name, email, password, and account recovery are managed by Batangas State University. Google profile changes synchronize the next time you sign in.</p>
                 <form method="POST" action="{{ route('logout') }}" class="mt-4" data-proposal-confirm data-confirm-title="Log out of ATHENA?" data-confirm-text="You will need to sign in again to continue working in ATHENA." data-confirm-button="Log out" data-cancel-button="Stay signed in" data-confirm-icon="warning">
                     @csrf
-                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50">Sign out securely</button>
+                    <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40 dark:focus:ring-offset-slate-950">Sign out securely</button>
                 </form>
             </section>
         </aside>
 
-        <div class="space-y-6">
-            <section>
-                <div class="mb-3">
-                    <h3 class="text-sm font-black text-gray-900">Account activity</h3>
-                    <p class="mt-0.5 text-xs text-gray-500">Records associated with your current ATHENA roles.</p>
-                </div>
-                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Proposals</p><p class="mt-2 text-3xl font-black text-gray-900">{{ $user->proposals_count }}</p></div>
-                    <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Approved</p><p class="mt-2 text-3xl font-black text-green-700">{{ $user->approved_proposals_count }}</p></div>
-                    <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">In progress</p><p class="mt-2 text-3xl font-black text-blue-700">{{ $user->active_proposals_count }}</p></div>
-                    <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Decisions</p><p class="mt-2 text-3xl font-black text-purple-700">{{ $user->topic_reviews_count }}</p></div>
-                </div>
-            </section>
+        <div class="min-w-0 space-y-6">
+            <form method="POST" action="{{ route('profile.details.update') }}" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" data-profile-details>
+                @csrf
+                @method('PATCH')
 
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div class="border-b border-gray-100 px-5 py-4">
-                    <h3 class="text-sm font-black text-gray-900">Access and permissions</h3>
-                    <p class="mt-0.5 text-xs text-gray-500">What your assigned roles allow you to do.</p>
+                <div class="border-b border-gray-100 p-5 sm:p-6 dark:border-slate-800">
+                    <h2 class="text-lg font-bold tracking-tight text-gray-900 dark:text-white">Proposal defaults</h2>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">Save the information you often repeat. New proposal forms and curriculum vitae can start with these details, and you can edit them for each proposal.</p>
                 </div>
-                <div class="divide-y divide-gray-100">
-                    @forelse ($user->getRoleNames() as $role)
-                        <div class="flex gap-3 p-5">
-                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            </div>
-                            <div><p class="text-sm font-black capitalize text-gray-800">{{ $role === 'research_secretary' ? 'Research Office / Secretary' : str_replace('_', ' ', $role) }}</p><p class="mt-1 text-xs leading-5 text-gray-500">{{ $roleDescriptions[$role] ?? 'Role-specific ATHENA access.' }}</p></div>
-                        </div>
-                    @empty
-                        <div class="p-6 text-center text-xs text-gray-500">No role has been assigned. Contact the Research Office for access.</div>
-                    @endforelse
-                </div>
-            </section>
 
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-                    <div><h3 class="text-sm font-black text-gray-900">Recent proposals</h3><p class="mt-0.5 text-xs text-gray-500">Your latest research submissions.</p></div>
-                    @if ($user->isUsingWorkspace('faculty_researcher'))<a href="{{ route('research.index') }}" class="text-xs font-bold text-red-600 hover:text-red-700">View all</a>@endif
-                </div>
-                <div class="divide-y divide-gray-100">
-                    @forelse ($recentProposals as $topic)
-                        <div class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-                            <div class="min-w-0"><p class="truncate text-sm font-black text-gray-800">{{ $topic->title }}</p><p class="mt-1 text-xs text-gray-500">{{ $topic->researchCall?->title ?? 'Independent submission' }}@if ($topic->category) · {{ $topic->category->name }}@endif</p></div>
-                            <span class="self-start whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusClass($topic->status) }}">{{ str_replace('_', ' ', $topic->status) }}</span>
+                <div class="space-y-6 p-5 sm:p-6">
+                    @if ($errors->any())
+                        <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                            <p class="font-semibold">Please correct the following:</p>
+                            <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
                         </div>
-                    @empty
-                        <div class="p-8 text-center"><p class="text-sm font-bold text-gray-700">No proposals yet</p><p class="mt-1 text-xs text-gray-500">Research submissions associated with your account will appear here.</p></div>
-                    @endforelse
+                    @endif
+
+                    <div class="grid gap-5 md:grid-cols-2">
+                        <div @if ($user->hasRole('research_coordinator')) data-college-locked @endif>
+                            @if ($user->hasRole('research_coordinator'))
+                                <input type="hidden" name="college" value="{{ $user->college }}">
+                                <x-input-label for="college-locked" value="College" />
+                                <select id="college-locked" disabled class="mt-1.5 block min-h-11 w-full scroll-mt-36 cursor-not-allowed rounded-xl border-amber-200 bg-amber-50 text-sm text-amber-900 shadow-sm disabled:opacity-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" aria-describedby="college-help">
+                                    <option selected>{{ $user->college ?: 'No college set' }}</option>
+                                </select>
+                                <p id="college-help" class="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300">College is locked while you are a Research Coordinator. Ask the Research Head to remove your Research Coordinator assignment before changing it.</p>
+                            @else
+                                <x-input-label for="college" value="College" />
+                                <select id="college" name="college" required x-init="if (window.location.hash === '#college') $nextTick(() => $el.focus())" @hashchange.window="if (window.location.hash === '#college') $el.focus()" class="{{ $inputClass }} scroll-mt-36" @if ($errors->has('college')) aria-invalid="true" aria-describedby="college-error" @endif>
+                                    <option value="" disabled @selected(! old('college', $user->college))>Set your college</option>
+                                    @foreach (\App\Models\User::COLLEGES as $college)
+                                        <option value="{{ $college }}" @selected(old('college', $user->college) === $college)>{{ $college }}</option>
+                                    @endforeach
+                                </select>
+                            @endif
+                            <x-input-error id="college-error" :messages="$errors->get('college')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="department">Department <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></x-input-label>
+                            <input id="department" name="department" type="text" maxlength="255" value="{{ old('department', $user->department) }}" class="{{ $inputClass }}" @if ($errors->has('department')) aria-invalid="true" aria-describedby="department-error" @endif>
+                            <x-input-error id="department-error" :messages="$errors->get('department')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="professional_title">Professional title <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></x-input-label>
+                            <input id="professional_title" name="professional_title" type="text" list="profile-professional-titles" maxlength="50" value="{{ old('professional_title', $user->professional_title) }}" class="{{ $inputClass }}" aria-describedby="professional-title-help" @if ($errors->has('professional_title')) aria-invalid="true" @endif>
+                            <datalist id="profile-professional-titles">@foreach (config('detailed_proposal.professional_titles') as $title)<option value="{{ $title }}"></option>@endforeach</datalist>
+                            <p id="professional-title-help" class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">Choose a suggested title or type your own, such as Dr. or Asst Prof.</p>
+                            <x-input-error id="professional-title-error" :messages="$errors->get('professional_title')" class="mt-2" />
+                        </div>
+                        <div data-profile-contact-number>
+                            <x-input-label for="contact_number">Contact number <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></x-input-label>
+                            <input id="contact_number" name="contact_number" type="tel" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" value="{{ old('contact_number', $user->contact_number) }}" placeholder="09171234567" autocomplete="tel" class="{{ $inputClass }}" aria-describedby="contact-number-help" @if ($errors->has('contact_number')) aria-invalid="true" @endif>
+                            <p id="contact-number-help" class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">Use 11 digits. Included in proposal documents when saved; this is not a public profile.</p>
+                            <x-input-error id="contact-number-error" :messages="$errors->get('contact_number')" class="mt-2" />
+                        </div>
+                    </div>
+
+                    <section class="space-y-5 border-t border-gray-100 pt-6 dark:border-slate-800" aria-labelledby="cv-defaults-heading">
+                        <div>
+                            <h2 id="cv-defaults-heading" class="text-base font-bold text-gray-900 dark:text-white">Curriculum vitae defaults</h2>
+                            <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">Keep your agency, education, and areas of specialization ready for your next proposal.</p>
+                        </div>
+                        <div>
+                            <x-input-label for="cv_agency">Agency / institution <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></x-input-label>
+                            <input id="cv_agency" name="cv_defaults[agency]" type="text" maxlength="255" value="{{ $cvDefaults['agency'] ?? '' }}" class="{{ $inputClass }}" @if ($errors->has('cv_defaults.agency')) aria-invalid="true" aria-describedby="cv-agency-error" @endif>
+                            <x-input-error id="cv-agency-error" :messages="$errors->get('cv_defaults.agency')" class="mt-2" />
+                        </div>
+
+                        @foreach (['academic_background', 'specializations'] as $sectionKey)
+                            @php
+                                $section = config('curriculum_vitae.sections.'.$sectionKey);
+                                $emptyRow = array_fill_keys(array_column($section['fields'], 'key'), '');
+                                $sectionRows = $cvDefaults[$sectionKey] ?? [];
+                                $sectionRows = is_array($sectionRows) ? array_values($sectionRows) : [];
+                                $sectionRows = array_map(static fn (mixed $row): array => array_replace($emptyRow, is_array($row) ? $row : []), $sectionRows);
+                                $sectionHasErrors = $errors->has('cv_defaults.'.$sectionKey) || $errors->has('cv_defaults.'.$sectionKey.'.*');
+                            @endphp
+                            <details @if (count($sectionRows) || $sectionHasErrors) open @endif class="rounded-xl border border-gray-200 dark:border-slate-700" data-profile-cv-section="{{ $sectionKey }}" x-data="{
+                                rows: @js($sectionRows).map((row, index) => ({ ...row, _key: index + 1, _errorIndex: index })),
+                                nextId: {{ count($sectionRows) }},
+                                errors: @js($errors->getMessages()),
+                            }">
+                                <summary class="disclosure-summary cursor-pointer select-none rounded-xl px-4 py-4 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-500 dark:text-slate-100">{{ $section['label'] }} <span class="ml-1 font-normal text-gray-500 dark:text-slate-400" x-text="`(${rows.length})`"></span></summary>
+                                <div class="space-y-4 border-t border-gray-100 p-4 dark:border-slate-800">
+                                    <input type="hidden" name="cv_defaults[{{ $sectionKey }}]" value="">
+                                    <x-input-error :messages="$errors->get('cv_defaults.'.$sectionKey)" />
+                                    <p x-show="rows.length === 0" class="text-sm leading-6 text-gray-500 dark:text-slate-400">No entries yet. Add the information you want to reuse in new curriculum vitae.</p>
+                                    <div x-ref="entries" class="space-y-4">
+                                        <template x-for="(row, rowIndex) in rows" :key="row._key">
+                                            <fieldset class="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+                                                <legend class="px-1 text-xs font-semibold text-gray-700 dark:text-slate-300" x-text="`Entry ${rowIndex + 1}`"></legend>
+                                                <div class="grid gap-4 md:grid-cols-2">
+                                                    @foreach ($section['fields'] as $field)
+                                                        @php($errorExpression = "errors['cv_defaults.{$sectionKey}.' + row._errorIndex + '.{$field['key']}']?.[0] || ''")
+                                                        <div class="{{ ($field['wide'] ?? false) ? 'md:col-span-2' : '' }}">
+                                                            <label :for="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}`" class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ $field['label'] }}</label>
+                                                            @if ($field['type'] === 'select' || $field['type'] === 'yes_no')
+                                                                <select :id="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}`" :name="`cv_defaults[{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" x-model="row.{{ $field['key'] }}" @if ($field['key'] === 'status') @change="if (row.status === 'Ongoing') row.year_end = ''" @endif class="{{ $inputClass }}" :aria-invalid="Boolean({{ $errorExpression }})" :aria-describedby="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}-error`">
+                                                                    <option value="">Leave blank</option>
+                                                                    @if ($field['type'] === 'yes_no')<option value="yes">Yes</option><option value="no">No</option>@else @foreach ($field['options'] as $option)<option value="{{ $option }}">{{ $option }}</option>@endforeach @endif
+                                                                </select>
+                                                            @elseif ($field['type'] === 'text' && ($field['wide'] ?? false))
+                                                                <textarea :id="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}`" :name="`cv_defaults[{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" x-model="row.{{ $field['key'] }}" rows="2" maxlength="500" class="{{ $inputClass }}" :aria-invalid="Boolean({{ $errorExpression }})" :aria-describedby="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}-error`"></textarea>
+                                                            @else
+                                                                <input :id="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}`" :name="`cv_defaults[{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" type="{{ $field['type'] === 'year' ? 'number' : 'text' }}" @if ($field['type'] === 'year') min="1900" max="2100" step="1" @else maxlength="500" @endif x-model="row.{{ $field['key'] }}" @if ($field['key'] === 'year_end') :disabled="row.status === 'Ongoing'" @endif class="{{ $inputClass }} disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-slate-800" :aria-invalid="Boolean({{ $errorExpression }})" :aria-describedby="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}-error`">
+                                                                @if ($field['key'] === 'year_end')<p x-show="row.status === 'Ongoing'" class="mt-2 text-xs text-gray-500 dark:text-slate-400">Ongoing studies appear as Present in the curriculum vitae.</p>@endif
+                                                            @endif
+                                                            <p :id="`profile-{{ $sectionKey }}-${row._key}-{{ $field['key'] }}-error`" x-show="{{ $errorExpression }}" x-text="{{ $errorExpression }}" class="mt-2 text-sm text-red-600 dark:text-red-400"></p>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                                <div class="mt-4 flex justify-end">
+                                                    <button type="button" @click="const addButton = $refs.add; rows.splice(rowIndex, 1); $nextTick(() => addButton.focus())" :aria-label="`Remove {{ strtolower($section['label']) }} entry ${rowIndex + 1}`" class="min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:hover:bg-red-950/50">Remove entry</button>
+                                                </div>
+                                            </fieldset>
+                                        </template>
+                                    </div>
+                                    <button x-ref="add" type="button" @click="rows.push({ ...@js($emptyRow), _key: ++nextId, _errorIndex: null }); $nextTick(() => $refs.entries.lastElementChild.querySelector('input, select, textarea')?.focus())" :disabled="rows.length >= {{ config('curriculum_vitae.max_rows_per_section') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40">{{ $sectionKey === 'academic_background' ? 'Add academic background' : 'Add specialization' }}</button>
+                                </div>
+                            </details>
+                        @endforeach
+                    </section>
                 </div>
+
+                <div class="flex flex-col gap-4 border-t border-gray-100 bg-gray-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-slate-800 dark:bg-slate-950/40">
+                    <div>
+                        <p class="max-w-lg text-xs leading-5 text-gray-500 dark:text-slate-400">Changes apply to new proposal papers. Saved papers remain unchanged.</p>
+                        <noscript><p class="mt-2 text-sm text-amber-700 dark:text-amber-300">Enable JavaScript to save your profile and curriculum vitae details.</p></noscript>
+                        @if (in_array(session('status'), ['profile-details-updated', 'college-updated', 'contact-number-updated'], true))
+                            <p role="status" class="mt-2 text-sm font-semibold text-green-700 dark:text-green-400">Profile details saved.</p>
+                        @endif
+                    </div>
+                    <button type="submit" disabled x-init="$el.disabled = false" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-950">Save profile details</button>
+                </div>
+            </form>
+
+            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-labelledby="profile-access-heading">
+                <div class="border-b border-gray-100 px-5 py-5 sm:px-6 dark:border-slate-800">
+                    <h2 id="profile-access-heading" class="text-base font-bold text-gray-900 dark:text-white">Access and permissions</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Your assigned roles and available ATHENA workspaces.</p>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        @forelse ($user->getRoleNames() as $role)
+                            <span class="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold capitalize text-red-700 dark:bg-red-950/40 dark:text-red-300">{{ $workspaceDefinitions[$role]['label'] ?? str_replace('_', ' ', $role) }}</span>
+                        @empty
+                            <p class="text-sm text-gray-500 dark:text-slate-400">No role has been assigned. Contact the Research Office for access.</p>
+                        @endforelse
+                    </div>
+                </div>
+                <dl class="divide-y divide-gray-100 dark:divide-slate-800">
+                    @foreach ($user->availableWorkspaces() as $workspace)
+                        <div class="px-5 py-4 sm:px-6">
+                            <dt class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ $workspace['label'] }}</dt>
+                            <dd class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">{{ $workspace['description'] }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
             </section>
         </div>
     </div>

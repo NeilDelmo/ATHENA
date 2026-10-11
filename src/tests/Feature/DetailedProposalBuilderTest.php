@@ -97,6 +97,148 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+test('new detailed proposals reuse the leader profile while another team member edits', function () {
+    $this->faculty->forceFill([
+        'professional_title' => 'Asst Prof.',
+        'department' => 'Department of Computing Sciences',
+        'contact_number' => '09170000011',
+    ])->save();
+    $collaborator = User::factory()->create([
+        'name' => 'Collaborating Faculty',
+        'email' => 'collaborator@g.batstate-u.edu.ph',
+        'college' => User::COLLEGES['CTE'],
+        'contact_number' => '09170000022',
+    ]);
+    $collaborator->forceFill([
+        'professional_title' => 'Dr.',
+        'department' => 'Department of Education',
+    ])->save();
+    $collaborator->assignRole('faculty');
+    $this->draft->members()->create([
+        'user_id' => $collaborator->id,
+        'name' => $collaborator->name,
+        'email' => $collaborator->email,
+        'accepted_at' => now(),
+    ]);
+
+    $response = $this->actingAs($collaborator)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk();
+    $source = $response->viewData('sourceData');
+    $member = collect($response->viewData('workspacePeople'))->firstWhere('email', $collaborator->email);
+
+    expect($source['leader_title'])->toBe('Asst Prof.')
+        ->and($source['proponent_department'])->toBe('Department of Computing Sciences')
+        ->and($source['proponent_college'])->toBe(User::COLLEGES['CICS'])
+        ->and($source['leader_contact'])->toBe('09170000011')
+        ->and($member['title'])->toBe('Dr.')
+        ->and($member['department'])->toBe('Department of Education')
+        ->and($member['contact'])->toBe('09170000022')
+        ->and($member)->not->toHaveKey('cv_defaults');
+
+    $payload = ($this->payload)([
+        'leader_email' => '',
+        'leader_contact' => '',
+        'proponent_college' => '',
+    ]);
+    unset($payload['leader_title'], $payload['proponent_department']);
+    $this->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertSessionHasNoErrors();
+    $saved = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole()->source_data;
+
+    expect($saved['leader_title'])->toBe('Asst Prof.')
+        ->and($saved['leader_email'])->toBe($this->faculty->email)
+        ->and($saved['leader_contact'])->toBe('09170000011')
+        ->and($saved['proponent_department'])->toBe('Department of Computing Sciences')
+        ->and($saved['proponent_college'])->toBe(User::COLLEGES['CICS']);
+});
+
+test('profile title and department can be cleared before the first detailed proposal save', function () {
+    $this->faculty->forceFill([
+        'professional_title' => 'Dr.',
+        'department' => 'Department of Computing Sciences',
+    ])->save();
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'leader_title' => '',
+            'proponent_department' => '',
+        ]))->assertSessionHasNoErrors();
+    $source = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole()->source_data;
+
+    expect($source['leader_title'])->toBeEmpty()
+        ->and($source['proponent_department'])->toBeEmpty();
+});
+
+test('external project leaders never inherit the owner personal profile defaults', function () {
+    $this->faculty->forceFill([
+        'professional_title' => 'Dr.',
+        'department' => 'Owner Department',
+        'contact_number' => '09170000011',
+    ])->save();
+    $this->draft->update(['project_leader' => 'External Project Leader']);
+
+    $source = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->viewData('sourceData');
+
+    expect($source['leader_title'])->toBe('')
+        ->and($source['leader_email'])->toBe('')
+        ->and($source['leader_contact'])->toBe('')
+        ->and($source['proponent_department'])->toBe('')
+        ->and($source['proponent_college'])->toBe('');
+
+    $this->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+        'project_leader' => 'External Project Leader',
+        'leader_title' => '',
+        'leader_email' => '',
+        'leader_contact' => '',
+        'proponent_department' => '',
+        'proponent_college' => '',
+        'save_as_draft' => true,
+    ]))->assertSessionHasNoErrors();
+    $saved = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole()->source_data;
+
+    expect($saved['leader_email'])->toBeEmpty()
+        ->and($saved['leader_contact'])->toBeEmpty()
+        ->and($saved['proponent_college'])->toBeEmpty();
+});
+
+test('saved detailed proposals preserve their own profile values and deliberately blank fields', function () {
+    $this->faculty->forceFill([
+        'professional_title' => 'Dr.',
+        'department' => 'Updated Profile Department',
+        'contact_number' => '09170000011',
+    ])->save();
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => [
+            'leader_title' => '',
+            'proponent_department' => 'Saved Proposal Department',
+            'proponent_college' => 'Saved Proposal College',
+            'leader_contact' => '',
+        ],
+    ]);
+
+    $source = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->viewData('sourceData');
+
+    expect($source['leader_title'])->toBe('')
+        ->and($source['proponent_department'])->toBe('Saved Proposal Department')
+        ->and($source['proponent_college'])->toBe('Saved Proposal College')
+        ->and($source['leader_contact'])->toBe('');
+});
+
 test('the detailed proposal editor uses the official sections and account defaults', function () {
     $response = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))

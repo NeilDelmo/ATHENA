@@ -92,6 +92,123 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+test('new team CVs reuse each linked member profile without filling external people from the editor', function () {
+    $this->faculty->forceFill([
+        'contact_number' => '09170000011',
+        'cv_defaults' => [
+            'agency' => 'Batangas State University',
+            'academic_background' => [['degree' => 'MS Computer Science', 'learning_institution' => 'BatStateU']],
+            'specializations' => [['field' => 'Coastal Computing', 'primary_field' => 'yes']],
+        ],
+    ])->save();
+    $collaborator = User::factory()->create([
+        'name' => 'Collaborating Faculty',
+        'email' => 'collaborator@g.batstate-u.edu.ph',
+        'contact_number' => '09170000022',
+    ]);
+    $collaborator->forceFill([
+        'cv_defaults' => [
+            'agency' => 'Partner University',
+            'academic_background' => [['degree' => 'PhD Education']],
+            'specializations' => [['field' => 'Community Education', 'primary_field' => 'yes']],
+        ],
+    ])->save();
+    $collaborator->assignRole('faculty');
+    $this->draft->members()->create([
+        'user_id' => $collaborator->id,
+        'name' => $collaborator->name,
+        'email' => $collaborator->email,
+        'accepted_at' => now(),
+    ]);
+    $this->draft->members()->create([
+        'name' => 'External Researcher',
+        'email' => 'external@example.test',
+        'accepted_at' => now(),
+    ]);
+
+    $response = $this->actingAs($collaborator)
+        ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
+        ->assertOk();
+    $people = collect($response->viewData('sourceData')['people'])->keyBy('email');
+    $memberChoice = collect($response->viewData('workspacePeople'))->firstWhere('email', $collaborator->email)['cv'];
+
+    expect($people[$this->faculty->email]['cellphone'])->toBe('09170000011')
+        ->and($people[$this->faculty->email]['agency'])->toBe('Batangas State University')
+        ->and($people[$this->faculty->email]['academic_background'][0]['degree'])->toBe('MS Computer Science')
+        ->and($people[$this->faculty->email]['specializations'][0]['field'])->toBe('Coastal Computing')
+        ->and($people[$collaborator->email]['cellphone'])->toBe('09170000022')
+        ->and($people[$collaborator->email]['agency'])->toBe('Partner University')
+        ->and($people[$collaborator->email]['academic_background'][0]['degree'])->toBe('PhD Education')
+        ->and($people['external@example.test']['cellphone'])->toBe('')
+        ->and($people['external@example.test']['agency'])->toBe('')
+        ->and($people['external@example.test']['academic_background'])->toBe([])
+        ->and($memberChoice['cellphone'])->toBe('09170000022')
+        ->and($memberChoice['specializations'][0]['field'])->toBe('Community Education');
+});
+
+test('pending invitations do not expose the invited faculty CV defaults', function () {
+    $invited = User::factory()->create(['name' => 'Invited Faculty']);
+    $invited->forceFill([
+        'cv_defaults' => [
+            'agency' => 'Private Agency',
+            'academic_background' => [['degree' => 'Private Degree']],
+            'specializations' => [['field' => 'Private Specialization']],
+        ],
+    ])->save();
+    $this->draft->members()->create([
+        'user_id' => $invited->id,
+        'name' => $invited->name,
+        'email' => $invited->email,
+        'accepted_at' => null,
+    ]);
+
+    $response = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
+        ->assertOk();
+    $person = collect($response->viewData('sourceData')['people'])->firstWhere('email', $invited->email);
+    $choice = collect($response->viewData('workspacePeople'))->firstWhere('email', $invited->email)['cv'];
+
+    expect($person['agency'])->toBe('')
+        ->and($person['academic_background'])->toBe([])
+        ->and($person['specializations'])->toBe([])
+        ->and($choice['agency'])->toBe('')
+        ->and($choice['academic_background'])->toBe([])
+        ->and($choice['specializations'])->toBe([])
+        ->and($response->getContent())->not->toContain('Private Degree');
+});
+
+test('saved CV records keep their own values and empty sections after profile updates', function () {
+    $this->faculty->forceFill([
+        'contact_number' => '09170000011',
+        'cv_defaults' => [
+            'agency' => 'Updated Profile Agency',
+            'academic_background' => [['degree' => 'Updated Profile Degree']],
+        ],
+    ])->save();
+    $person = [
+        'first_name' => 'Faculty',
+        'middle_name' => 'Project',
+        'last_name' => 'Leader',
+        'email' => $this->faculty->email,
+        'cellphone' => '',
+        'agency' => 'Saved CV Agency',
+        'academic_background' => [],
+        'specializations' => [],
+    ];
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+        'position' => 0,
+        'source_data' => ['people' => [$person]],
+    ]);
+
+    $source = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
+        ->assertOk()
+        ->viewData('sourceData');
+
+    expect($source['people'])->toEqual([$person]);
+});
+
 test('the first CV draft is seeded from the project leader and Attachment B project staff', function () {
     $this->draft->documents()->create([
         'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,

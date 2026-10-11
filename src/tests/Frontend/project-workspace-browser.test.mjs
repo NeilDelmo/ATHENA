@@ -176,6 +176,15 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 assert.equal(documentRequests, 0);
                 await readableName(item('year', '2025'));
                 await screenshot('root');
+                const projectSearch = page.getByLabel('Search this location');
+                await projectSearch.fill('  sAnToS  ');
+                await expect(projects).toHaveCount(18);
+                await projectSearch.fill('Neil');
+                await expect(projects).toHaveCount(0);
+                await expect(workspace.getByText('No matching projects', { exact: true })).toBeVisible();
+                await projectSearch.fill('');
+                await expect(workspace.getByText('No matching projects', { exact: true })).toBeHidden();
+                await expect(workspace.locator('[data-workspace-year]:visible')).toHaveCount(2);
                 await item('year', '2025').press('Control+a');
                 await expect(action('Move to…')).toBeHidden();
                 await page.getByLabel('Browse projects').selectOption('none');

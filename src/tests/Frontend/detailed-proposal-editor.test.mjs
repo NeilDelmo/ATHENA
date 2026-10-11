@@ -6,6 +6,7 @@ import { chromium } from '@playwright/test';
 import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 import { proposalCitationField } from '../../resources/js/proposal-semantic-editor.js';
 import { proposalSourceWorkspace } from '../../resources/js/proposal-source-workspace.js';
+import { formatPersonName } from '../../resources/js/proposal-people.js';
 
 const sourceWorkspace = readFileSync(new URL('../../resources/js/proposal-source-workspace.js', import.meta.url), 'utf8').replaceAll('export ', '');
 const semanticHelpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
@@ -34,12 +35,90 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
     return instance;
 }
 
+test('choosing a project team member reuses their title and contact without keeping another person details', () => {
+    const state = editor({ formatPersonName });
+    state.workspacePeople = [{
+        key: 'member-1', name: 'Collaborating Faculty', email: 'colleague@example.edu',
+        title: 'Dr.', contact: '09170000022', department: 'Education', college: 'College of Teacher Education',
+    }, {
+        key: 'member-2', name: 'New Faculty', email: 'new@example.edu',
+        title: '', contact: '', department: '', college: '',
+    }];
+    const member = { name: 'Collaborating Faculty', title: 'Old title', contact: '09170000011' };
+    state.syncStaff(member);
+    assert.equal(member.title, 'Dr.');
+    assert.equal(member.contact, '09170000022');
+
+    state.projectLeader = 'Collaborating Faculty';
+    state.syncProjectLeader();
+    assert.equal(state.leaderTitle, 'Dr.');
+    assert.equal(state.leaderContact, '09170000022');
+    assert.equal(state.proponentDepartment, 'Education');
+    assert.equal(state.proponentCollege, 'College of Teacher Education');
+
+    state.projectLeader = 'New Faculty';
+    state.syncProjectLeader();
+    assert.equal(state.leaderTitle, '');
+    assert.equal(state.leaderContact, '');
+});
+
 test('new and reopened figures keep the selected narrative section', () => {
     const state = editor();
     assert.equal(state.newMethodologyImage({ section: 'rationale' }).section, 'rationale');
     state.handleMethodologyDrop({ dataTransfer: { files: [{ type: 'image/png', name: 'chart.png', size: 100 }] } }, 'data_analysis');
     assert.equal(state.methodologyImages[0].section, 'data_analysis');
     assert.equal(state.methodologyImages[0].currentFile.name, 'chart.png');
+});
+
+test('changing a linked project leader to an external person clears the linked profile defaults', () => {
+    const state = editor({ formatPersonName });
+    state.workspacePeople = [{ name: 'Linked Faculty', email: 'linked@example.edu', title: 'Dr.', contact: '09170000022', department: 'Computing', college: 'CICS' }];
+    state.projectLeader = 'Linked Faculty';
+    state.syncProjectLeader();
+    state.projectLeader = 'External Leader';
+    state.syncProjectLeader();
+
+    for (const field of ['leaderTitle', 'leaderEmail', 'leaderContact', 'proponentDepartment', 'proponentCollege']) {
+        assert.equal(state[field], '');
+    }
+
+    state.leaderTitle = 'External title';
+    state.leaderEmail = 'external@example.test';
+    state.syncProjectLeader();
+    assert.equal(state.leaderTitle, 'External title');
+    assert.equal(state.leaderEmail, 'external@example.test');
+});
+
+test('changing linked staff to an external name clears linked fields while manual external details survive', () => {
+    const state = editor({ formatPersonName });
+    state.workspacePeople = [{ key: 'member-1', name: 'Linked Faculty', email: 'linked@example.edu', title: 'Dr.', contact: '09170000022' }];
+    const member = { name: 'Linked Faculty' };
+    state.syncStaff(member);
+    member.name = 'External Researcher';
+    state.syncStaff(member);
+
+    for (const field of ['key', 'email', 'title', 'contact']) assert.equal(member[field], '');
+
+    member.title = 'External title';
+    member.email = 'external@example.test';
+    member.contact = '09170000044';
+    state.syncStaff(member);
+    assert.equal(member.title, 'External title');
+    assert.equal(member.email, 'external@example.test');
+    assert.equal(member.contact, '09170000044');
+});
+
+test('reopened staff recover their linked identity without overwriting saved paper values', () => {
+    const state = editor({ formatPersonName });
+    state.workspacePeople = [{ key: 'member-1', name: 'Linked Faculty', email: 'linked@example.edu', title: 'Dr.', contact: '09170000022' }];
+    const member = state.newStaff({ name: 'Linked Faculty', email: 'linked@example.edu', title: 'Saved title', contact: '09170000033' });
+    assert.equal(member.key, 'member-1');
+    assert.equal(member.title, 'Saved title');
+    assert.equal(member.contact, '09170000033');
+
+    member.name = 'External Researcher';
+    state.syncStaff(member);
+    for (const field of ['key', 'email', 'title', 'contact']) assert.equal(member[field], '');
 });
 
 test('preview validation and server failures retain the last rendered paper and allow retry', async () => {

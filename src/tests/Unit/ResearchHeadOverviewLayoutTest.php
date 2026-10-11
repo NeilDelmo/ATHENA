@@ -26,6 +26,7 @@ test('Research Head overview shows truthful priority counts and scoped reporting
         'academicYear' => '2026-2027', 'fromDate' => '', 'toDate' => '', 'pipeline' => 'awaiting_review',
         'errors' => new ViewErrorBag, 'academicYears' => collect(['2026-2027']), 'analytics' => $analytics, 'topics' => $emptyRows(),
         'attentionItems' => $emptyRows(), 'reportItems' => $emptyRows(), 'deadlines' => collect(),
+        'assistantReviewSuggestions' => collect(),
     ])->render();
     expect($html)->toContain('View analytics', 'View all proposals', 'Annual targets')
         ->toContain(e(route('research_head.analytics', ['academicYear' => '2026-2027', 'projectStatus' => 'delayed'])))

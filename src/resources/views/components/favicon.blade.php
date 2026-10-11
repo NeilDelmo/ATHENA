@@ -1,1 +1,1 @@
-<link rel="icon" type="image/png" href="{{ asset('images/athenalogo-transparent.png') }}">
+<link rel="icon" type="image/png" href="{{ asset('images/athenalogo.png') }}">

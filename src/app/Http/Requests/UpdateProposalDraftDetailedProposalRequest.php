@@ -6,6 +6,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftLiteratureSource;
 use App\Support\DetailedProposalData;
 use App\Support\DetailedProposalRules;
+use App\Support\ProposalWorkspacePeople;
 use DOMDocument;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -80,26 +81,24 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
             ->values()
             ->all();
 
-        if (blank($merged['leader_email'] ?? null)) {
-            $merged['leader_email'] = $this->matchingLeaderEmail($draft);
+        if (! is_array($savedSource)) {
+            $leader = $this->matchingLeader($draft);
+
+            foreach ([
+                'leader_title' => 'title',
+                'leader_email' => 'email',
+                'leader_contact' => 'contact',
+                'proponent_department' => 'department',
+                'proponent_college' => 'college',
+            ] as $field => $profileField) {
+                if (! array_key_exists($field, $merged)
+                    || (! in_array($field, ['leader_title', 'proponent_department'], true) && blank($merged[$field]))) {
+                    $merged[$field] = $leader[$profileField] ?? '';
+                }
+            }
         }
 
         $merged['proponent_department'] ??= '';
-
-        if (blank($merged['proponent_college'] ?? null)) {
-            $merged['proponent_college'] = (string) ($this->user()?->college ?? '');
-        }
-
-        if (blank($merged['leader_contact'] ?? null)) {
-            $merged['leader_contact'] = (string) ($this->user()?->contact_number ?? '');
-        }
-
-        // `leader_contact` is the same single source of truth that lives on
-        // the User row — the auto-detected contact number from the profile.
-        // A user with multiple roles (faculty + research head, faculty +
-        // faculty researcher, faculty + research coordinator) has exactly one
-        // `contact_number`, so this single assignment keeps the leader contact
-        // in sync across every workspace that user can act in.
 
         $merged['project_leader'] = Str::of((string) ($merged['project_leader'] ?? $draft->project_leader))
             ->squish()
@@ -150,22 +149,17 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         return DetailedProposalRules::messages();
     }
 
-    private function matchingLeaderEmail(ProposalDraft $draft): string
+    /** @return array<string, mixed> */
+    private function matchingLeader(ProposalDraft $draft): array
     {
-        $draft->loadMissing(['owner:id,name,email', 'members.user:id,name,email']);
-        $leaderName = Str::of((string) $draft->project_leader)->squish()->lower()->toString();
-        $people = collect([[
-            'name' => $draft->owner->name,
-            'email' => $draft->owner->email,
-        ]])->concat($draft->members->map(fn ($member): array => [
-            'name' => $member->user?->name ?? $member->name,
-            'email' => $member->user?->email ?? $member->email,
-        ]));
-        $match = $people->first(
-            fn (array $person): bool => Str::of((string) $person['name'])->squish()->lower()->toString() === $leaderName,
-        );
+        $leaderName = Str::of((string) $this->input('project_leader', $draft->project_leader))->squish()->lower()->toString();
+        $people = collect(app(ProposalWorkspacePeople::class)->forDraft($draft));
 
-        return (string) ($match['email'] ?? $draft->owner->email);
+        return $leaderName === ''
+            ? $people->firstWhere('owner', true)
+            : ($people->first(
+                fn (array $person): bool => Str::of((string) $person['name'])->squish()->lower()->toString() === $leaderName,
+            ) ?? []);
     }
 
     private function allowsDraftValidation(): bool

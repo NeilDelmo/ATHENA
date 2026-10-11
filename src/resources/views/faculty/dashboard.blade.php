@@ -69,6 +69,8 @@
         @endif
 
         <div data-dashboard-columns class="min-w-0 space-y-6">
+        <x-dashboard-assistant-suggestions :items="$assistantReviewSuggestions" />
+
         @if ($revisionRequestedTopics->isNotEmpty())
             <section data-revision-worklist aria-labelledby="revision-worklist-heading" class="space-y-3">
                 <div class="flex items-center gap-3">
