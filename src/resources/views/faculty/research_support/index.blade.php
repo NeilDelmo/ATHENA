@@ -8,15 +8,16 @@
     @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
         <div
             x-data="{
-                activeResearchTool: 'rrl',
+                activeResearchTool: @js($journalTopic ? 'journal' : 'rrl'),
                 syncActiveResearchTool() {
                     const researcherTools = {
                         '#turnitin': 'turnitin',
                         '#journal-finder': 'journal',
+                        '#journal-submissions': 'journal',
                     };
 
                     this.activeResearchTool = @js($canUseResearcherTools)
-                        ? (researcherTools[window.location.hash] ?? 'rrl')
+                        ? (researcherTools[window.location.hash] ?? @js($journalTopic ? 'journal' : 'rrl'))
                         : (window.location.hash === '#turnitin' ? 'turnitin' : 'rrl');
                 },
             }"
@@ -79,11 +80,33 @@
 
             @if ($canUseResearcherTools)
                 <div x-show="activeResearchTool === 'journal'" x-cloak class="athena-readable mb-6">
+                    @if ($journalTopic)
+                        <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
+                            <div>
+                                <p class="text-sm font-bold text-gray-950 dark:text-white">{{ $journalTopic->title }}</p>
+                                <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">The manuscript title and report abstract are ready. Searches and submissions stay linked to this project.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-4 text-sm font-semibold text-red-700 dark:text-red-300">
+                                <a wire:navigate href="{{ route('topics.show', $journalTopic) }}#project-monitoring" class="hover:underline">Back to project</a>
+                                <a href="#journal-submissions" class="hover:underline">Submission tracker</a>
+                                <a wire:navigate href="{{ route('research.dissemination.show', $journalTopic) }}#conferences" class="hover:underline">Conference shortlist</a>
+                            </div>
+                        </div>
+                    @endif
                     <x-journal-finder
-                        :endpoint="route('research-support.journal-search')"
+                        :endpoint="$journalTopic ? route('research.dissemination.journals.search', $journalTopic) : route('research-support.journal-search')"
+                        :initial-query="$journalTopic?->title ?? ''"
+                        :initial-context="$projectAbstract"
+                        :can-track="$journalTopic !== null"
+                        :finder-url="route('research-support.index', $journalTopic ? ['topic' => $journalTopic->id] : []).'#journal-finder'"
                         heading="Find a journal for your paper"
                         description="Search by manuscript title, topic, or abstract. ATHENA recommends journals using related indexed articles and shows the evidence behind each match."
                     />
+                    @if ($journalTopic)
+                        <div class="mt-6">
+                            <x-journal-submission-tracker :topic="$journalTopic" :journal-submissions="$journalSubmissions" :can-track-journals="true" :return-to-finder="true" />
+                        </div>
+                    @endif
                 </div>
             @endif
         </div>

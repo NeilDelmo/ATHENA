@@ -55,7 +55,20 @@
     $activeClasses = '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200';
 @endphp
 
-<nav aria-label="{{ $isResearcher ? 'Faculty Researcher' : 'Faculty' }} navigation" class="space-y-4" x-data="{ activeHash: window.location.hash || '#rrl-finder' }" @hashchange.window="activeHash = window.location.hash || '#rrl-finder'" x-on:livewire:navigated.window="activeHash = window.location.hash || '#rrl-finder'" data-faculty-navigation>
+<nav aria-label="{{ $isResearcher ? 'Faculty Researcher' : 'Faculty' }} navigation" class="space-y-4"
+    x-data="{
+        activeHash: window.location.hash === '#journal-submissions' ? '#journal-finder' : (window.location.hash || '#rrl-finder'),
+        journalFinderUrl: @js(route('research-support.index').'#journal-finder'),
+        syncJournalFinderUrl() {
+            this.journalFinderUrl = document.querySelector('[data-journal-finder-url]')?.dataset.journalFinderUrl
+                || document.querySelector('[data-find-journals]')?.href
+                || @js(route('research-support.index').'#journal-finder');
+        },
+    }"
+    x-init="syncJournalFinderUrl()"
+    @hashchange.window="activeHash = window.location.hash === '#journal-submissions' ? '#journal-finder' : (window.location.hash || '#rrl-finder')"
+    x-on:livewire:navigated.window="activeHash = window.location.hash === '#journal-submissions' ? '#journal-finder' : (window.location.hash || '#rrl-finder'); syncJournalFinderUrl()"
+    data-faculty-navigation>
     @foreach ($sections as $heading => $links)
         <section aria-label="{{ $heading }}" @if ($heading === 'Resources') data-research-help-menu @endif>
             <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -69,6 +82,7 @@
                         $isProjectLink = $routeName === 'research.index';
                     @endphp
                     <a wire:navigate href="{{ $url }}"
+                       @if ($label === 'Journal Finder') :href="journalFinderUrl" @endif
                        @if ($isProjectLink)
                            :class="[
                                $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',

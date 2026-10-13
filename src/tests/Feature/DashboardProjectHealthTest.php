@@ -23,7 +23,7 @@ beforeEach(function () {
     $this->faculty->assignRole(['faculty', 'faculty_researcher']);
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
-    $this->call = ResearchCall::create(['title' => 'Research development call', 'academic_year' => '2026-2027',
+    $this->call = ResearchCall::create(['title' => 'Call for Proposals — August 2026 Implementation', 'academic_year' => '2026-2027',
         'opens_at' => '2026-08-01', 'closes_at' => '2026-12-31', 'status' => 'open',
         'paper_revisions_end_date' => '2026-10-12', 'reference_image_path' => 'dashboard-test-poster.png']);
     $this->project = fn (array $attributes = []) => TopicProposal::create([
@@ -141,14 +141,14 @@ test('faculty proposal cards open matching scoped submission lists including sha
         ->assertViewHas('topics', fn ($topics): bool => $topics->total() === 1 && $topics->first()->id === $revision->id);
 });
 
-test('faculty revisions and readiness precede announcements and use applicable deadlines', function () {
+test('faculty announcements lead the overview revisions and drafts with applicable deadlines', function () {
     ($this->project)(['status' => 'revision_requested', 'notice_to_proceed_issued_at' => null, 'project_status' => null]);
     ProposalDraft::create(['user_id' => $this->faculty->id, 'research_call_id' => $this->call->id,
         'project_title' => 'Laboratory equipment maintenance proposal draft']);
     $response = $this->actingAs($this->faculty)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
         ->get(route('faculty.dashboard'))->assertOk()
-        ->assertSeeInOrder(['Revisions to address', 'Proposal readiness', 'Research Office announcements'])
+        ->assertSeeInOrder(['Research Office announcements', 'Proposal overview', 'Revisions to address', 'Papers ready'])
         ->assertSee('Due in 10 days')->assertSee('Oct 12, 2026')->assertDontSee('Project completion')->assertDontSee('You can submit anytime');
     ($this->exportDashboard)('faculty', $response->getContent());
 });

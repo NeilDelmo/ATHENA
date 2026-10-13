@@ -255,7 +255,7 @@ test('research head can search edit and remove directory entries while faculty c
         ->assertSee('Dr. Elena Santos')
         ->assertSee('name="role" value="verified_by"', false)
         ->assertSee('Save changes')
-        ->assertDontSee('Marco Villanueva');
+        ->assertViewHas('signatories', fn ($signatories): bool => ! $signatories->contains('name', 'Marco Villanueva'));
 
     $this->actingAs($faculty)
         ->delete(route('signatories.destroy', $signatory))

@@ -80,4 +80,20 @@ class ProposalSignatory extends Model
 
         return $selections;
     }
+
+    /** @return array<string, array{name: string, position: string}> */
+    public static function assignmentOptions(): array
+    {
+        $options = [];
+
+        foreach (self::defaultSelections() as $role => $selection) {
+            $options['template:'.$role] = ['name' => $selection['name'], 'position' => $selection['position']];
+        }
+
+        foreach (self::query()->where('active', true)->orderBy('id')->get() as $signatory) {
+            $options['directory:'.$signatory->id] = ['name' => $signatory->name, 'position' => $signatory->position];
+        }
+
+        return collect($options)->uniqueStrict('name')->all();
+    }
 }

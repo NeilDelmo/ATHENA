@@ -61,19 +61,19 @@
             ->merge($narrativeReportHistory->map(fn ($report) => '#narrative-report-'.$report->id))->values();
     @endphp
 
-    <header data-monitoring-overview class="rounded-xl border border-slate-300 bg-slate-100 px-5 py-5 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+    <header data-monitoring-overview class="rounded-xl border border-t-4 border-slate-200 border-t-brand bg-white px-5 py-5 dark:border-slate-700 dark:border-t-brand-soft dark:bg-slate-900 sm:px-6">
         <div data-project-monitoring-heading class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h3 class="text-xl font-bold tracking-tight text-slate-950 dark:text-white">{{ $topic->isCompletedProject() ? 'Project archive' : 'Project monitoring' }}</h3>
-                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $topic->isCompletedProject() ? 'Completed project archive. Reports are read-only.' : 'Track quarterly submissions and prepare the final project report.' }}</p>
+                <p class="mt-1 text-base leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Completed project archive. Reports are read-only.' : 'Track quarterly submissions and prepare the final project report.' }}</p>
             </div>
             <span class="rounded-lg px-3 py-1.5 text-sm font-semibold border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">{{ $projectStatusLabel }}</span>
         </div>
         <dl data-project-monitoring-details class="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-4">
-            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
-            <div><dt class="text-xs text-slate-500 dark:text-slate-400">Overall project progress</dt><dd class="mt-1 text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
+            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
+            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Overall project progress</dt><dd class="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
         </dl>
         @if ($projectHealth && ! $projectHealth['has_schedule'])
             <p class="mt-4 text-sm text-amber-800 dark:text-amber-300">No project schedule recorded. Project deadline checks are unavailable.</p>
@@ -167,8 +167,8 @@
     <section data-monitoring-budget-section aria-labelledby="project-secretary-heading" class="rounded-xl border border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
         <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,auto)]">
             <div class="min-w-0 max-w-xl">
-                <h4 id="project-secretary-heading" class="text-base font-semibold text-slate-950 dark:text-white">Monitoring budget</h4>
-                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Budget utilization is recorded in the submitted Monitoring Tools.' : 'The project secretary completes and confirms budget utilization before the Monitoring Tool is submitted. Confirmed project staff can also complete it.' }}</p>
+                <h4 id="project-secretary-heading" class="text-lg font-semibold text-slate-950 dark:text-white">Monitoring budget</h4>
+                <p class="mt-1 text-base leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Budget utilization is recorded in the submitted Monitoring Tools.' : 'The project secretary completes and confirms budget utilization before the Monitoring Tool is submitted. Confirmed project staff can also complete it.' }}</p>
             </div>
             <div class="flex min-w-0 flex-wrap items-center gap-3">
                 @if ($topic->researchSecretary)
@@ -180,7 +180,7 @@
                                 {{ collect(explode(' ', $topic->researchSecretary->name))->filter()->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
                             @endif
                         </span>
-                        <span class="min-w-0"><span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ $topic->researchSecretary->name }}</span><span class="block break-all text-xs text-slate-500 dark:text-slate-400">{{ $topic->researchSecretary->email }}</span></span>
+                        <span class="min-w-0"><span class="block text-base font-semibold text-slate-900 dark:text-white">{{ $topic->researchSecretary->name }}</span><span class="block break-all text-sm text-slate-500 dark:text-slate-400">{{ $topic->researchSecretary->email }}</span></span>
                     </div>
                 @else
                     <p class="text-sm text-slate-600 dark:text-slate-300">No project secretary assigned.</p>

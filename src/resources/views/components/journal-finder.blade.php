@@ -3,6 +3,7 @@
     'initialQuery' => '',
     'initialContext' => '',
     'canTrack' => false,
+    'finderUrl' => null,
     'heading' => 'Find journals for your paper',
     'description' => 'Describe the paper, then review journals that have published related indexed articles.',
 ])
@@ -10,6 +11,7 @@
 <section
     id="journal-finder"
     aria-labelledby="journal-finder-heading"
+    @if ($finderUrl) data-journal-finder-url="{{ $finderUrl }}" @endif
     x-data="journalFinder(@js([
         'endpoint' => $endpoint,
         'query' => $initialQuery,

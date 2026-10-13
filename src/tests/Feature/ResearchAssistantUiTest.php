@@ -95,6 +95,21 @@ function assistantContextIds(TestResponse $response): array
         ->all();
 }
 
+test('assistant venue actions expose project routes only for accessible dissemination projects', function () {
+    $researcher = User::factory()->create();
+    $researcher->assignRole('faculty_researcher');
+    $eligible = TopicProposal::create(['user_id' => $researcher->id, 'title' => 'Completed coastal study', 'status' => 'approved', 'project_status' => 'completed']);
+    $pending = TopicProposal::create(['user_id' => $researcher->id, 'title' => 'Proposal awaiting approval', 'status' => 'pending']);
+    $other = User::factory()->create();
+    $private = TopicProposal::create(['user_id' => $other->id, 'title' => 'Private completed study', 'status' => 'approved', 'project_status' => 'completed']);
+    $response = $this->actingAs($researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty_researcher'])
+        ->get(route('research-support.index'))->assertOk();
+    $contexts = collect(assistantContexts($response));
+    expect($contexts->firstWhere('id', $eligible->id)['dissemination']['journal_save_url'])->toBe(route('research.dissemination.journal-submissions.store', $eligible));
+    expect($contexts->firstWhere('id', $pending->id)['dissemination'] ?? null)->toBeNull();
+    expect($contexts->firstWhere('id', $private->id))->toBeNull();
+});
+
 function assistantDocxContents(string $text): string
 {
     $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-docx-');
@@ -245,7 +260,8 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Open access only')
         ->assertDontSee('Your first action is to search')
         ->assertSee('Find papers')
-        ->assertSee('Saved library')
+        ->assertSee('Shared library')
+        ->assertSee('aria-controls="shared-literature-library"', false)
         ->assertSee('Find literature')
         ->assertSee('aria-controls="literature-external-source"', false)
         ->assertSee('Searching academic papers')
@@ -256,7 +272,7 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Show full abstract')
         ->assertSee('Show less')
         ->assertSee('Paper details')
-        ->assertSee('Add to a Detailed Proposal')
+        ->assertSee('Add to proposal')
         ->assertDontSee('No scrolling required')
         ->assertDontSee('Evidence-ranked')
         ->assertSee('data-literature-query-hint', false)

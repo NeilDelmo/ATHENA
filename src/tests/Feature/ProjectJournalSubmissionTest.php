@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\ProjectConference;
 use App\Models\ProjectJournalSubmission;
 use App\Models\ResearchPublication;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -83,4 +85,56 @@ test('malformed journal fields receive validation errors instead of a server err
         'journal_name' => ['invalid'], 'manuscript_title' => ['invalid'], 'status' => 'shortlisted',
     ])->assertSessionHasErrors(['journal_name', 'manuscript_title']);
     expect(ProjectJournalSubmission::count())->toBe(0);
+});
+
+test('confirmed assistant journal saves return the saved identifier and enforce duplicate validation', function () {
+    $url = route('research.dissemination.journal-submissions.store', $this->topic);
+    $this->postJson($url, $this->entry)->assertCreated()
+        ->assertJsonPath('id', ProjectJournalSubmission::firstOrFail()->id);
+    $this->postJson($url, $this->entry)->assertUnprocessable()->assertJsonValidationErrors('fingerprint');
+    expect($this->topic->journalSubmissions()->count())->toBe(1);
+});
+
+test('assistant conference saves use the user and project bound candidate and report existing entries', function () {
+    $key = str_repeat('a', 64);
+    Cache::put('conference-candidate:'.$this->researcher->id.':'.$this->topic->id.':'.$key, [
+        'title' => 'Verified coastal conference', 'url' => 'https://www.wikicfp.com/cfp/servlet/event.showcfp?eventid=123',
+        'source' => 'WikiCFP', 'source_checked_at' => now()->toIso8601String(),
+    ], now()->addHours(2));
+    $payload = ['candidate_key' => $key, 'title' => 'Forged title', 'url' => 'https://example.org/forged', 'status' => 'shortlisted'];
+    $url = route('research.dissemination.conferences.store', $this->topic);
+    $this->postJson($url, $payload)->assertCreated()->assertJsonPath('id', ProjectConference::firstOrFail()->id);
+    expect(ProjectConference::firstOrFail()->title)->toBe('Verified coastal conference');
+    $this->postJson($url, $payload)->assertOk()->assertJsonPath('id', ProjectConference::firstOrFail()->id);
+    expect($this->topic->conferences()->count())->toBe(1);
+    Cache::forget('conference-candidate:'.$this->researcher->id.':'.$this->topic->id.':'.$key);
+    $this->postJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('conference');
+});
+
+test('assistant venue saves cannot write another researchers project', function () {
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty_researcher');
+    $this->actingAs($outsider);
+    $this->postJson(route('research.dissemination.journal-submissions.store', $this->topic), $this->entry)->assertForbidden();
+    $this->postJson(route('research.dissemination.conferences.store', $this->topic), [
+        'title' => 'Conference', 'url' => 'https://example.org/cfp', 'status' => 'shortlisted',
+    ])->assertForbidden();
+    expect($this->topic->journalSubmissions()->count())->toBe(0)->and($this->topic->conferences()->count())->toBe(0);
+});
+
+test('shared finder journal forms return to the authorized project tracker after adding and editing', function () {
+    $destination = route('research-support.index', ['topic' => $this->topic->id]).'#journal-submissions';
+    $this->post(route('research.dissemination.journal-submissions.store', $this->topic), $this->entry + ['return_to_finder' => true])
+        ->assertSessionHasNoErrors()->assertRedirect($destination);
+    $submission = ProjectJournalSubmission::firstOrFail();
+    $this->patch(route('research.dissemination.journal-submissions.update', [$this->topic, $submission]), $this->entry + ['return_to_finder' => true])
+        ->assertSessionHasNoErrors()->assertRedirect($destination);
+});
+
+test('saved assistant conference shortlist entries are visible in the authorized project workspace', function () {
+    $this->postJson(route('research.dissemination.conferences.store', $this->topic), [
+        'title' => 'Coastal conference for the project', 'url' => 'https://example.org/coastal-cfp', 'status' => 'shortlisted',
+    ])->assertCreated();
+    $this->get(route('research.dissemination.show', $this->topic))->assertOk()
+        ->assertSee('Coastal conference for the project')->assertSee('id="conferences"', false);
 });

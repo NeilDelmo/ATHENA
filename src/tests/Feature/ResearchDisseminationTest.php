@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ProjectConference;
+use App\Models\ProjectJournalSubmission;
 use App\Models\ResearcherProfile;
 use App\Models\ResearchPublication;
 use App\Models\TopicCollaborator;
@@ -74,7 +75,8 @@ test('completed projects retain dissemination access and preserve archived monit
         ->assertSee('Journal Finder')
         ->assertSee('Journal submission tracker')
         ->assertDontSee('Add a missing publication manually')
-        ->assertDontSee('Add to project shortlist')
+        ->assertSee('Add to project shortlist')
+        ->assertSee('id="conferences"', false)
         ->assertSee('Research reporting is complete');
     $this->post(route('research.dissemination.conferences.store', $this->topic), [
         'title' => 'Coastal Science 2027', 'url' => 'https://example.org/coastal-2027', 'status' => 'shortlisted',
@@ -176,6 +178,87 @@ test('authorized researchers retain journal discovery during monitoring and afte
     $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Find journals');
     $this->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee('Journal Finder');
 })->with(['ongoing', 'delayed', 'completed']);
+
+test('shared journal finder retains manuscript context and project submission tracking without external requests', function () {
+    $this->topic->narrativeReports()->create([
+        'submitted_by' => $this->researcher->id,
+        'report_type' => 'terminal',
+        'submission_date' => now(),
+        'researchers' => $this->researcher->name,
+        'implementation_start' => now()->subYear()->toDateString(),
+        'implementation_end' => now()->toDateString(),
+        'budget' => 10000,
+        'funding_agency' => 'University',
+        'accomplishment_summary' => 'Monitoring completed.',
+        'introduction' => 'Community coastal monitoring.',
+        'objectives' => 'Assess water quality.',
+        'methodology' => 'Community sampling.',
+        'results_discussion' => 'Monitoring improved.',
+        'photos' => [],
+        'terminal_data' => ['abstract' => '<p>Community-led coastal water quality monitoring.</p>'],
+    ]);
+    $submission = ProjectJournalSubmission::factory()->create([
+        'topic_id' => $this->topic->id,
+        'added_by' => $this->researcher->id,
+        'journal_name' => 'Coastal Science Journal',
+        'manuscript_title' => $this->topic->title,
+        'status' => 'shortlisted',
+    ]);
+
+    $this->get(route('research-support.index', ['topic' => $this->topic->id]))
+        ->assertOk()
+        ->assertViewHas('journalTopic', fn (?TopicProposal $topic): bool => $topic?->is($this->topic) ?? false)
+        ->assertViewHas('projectAbstract', 'Community-led coastal water quality monitoring.')
+        ->assertSee($this->topic->title)
+        ->assertSee(route('research.dissemination.journal-submissions.store', $this->topic))
+        ->assertSee(route('research.dissemination.journal-submissions.update', [$this->topic, $submission]))
+        ->assertSee('Track this journal')
+        ->assertSee('href="#journal-submissions"', false)
+        ->assertSee(route('research.dissemination.show', $this->topic).'#conferences')
+        ->assertSee('Coastal Science Journal');
+
+    Http::assertNothingSent();
+});
+
+test('shared journal finder denies unrelated or ineligible project context', function () {
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty_researcher');
+    $this->actingAs($outsider)
+        ->get(route('research-support.index', ['topic' => $this->topic->id]))
+        ->assertForbidden();
+
+    $this->actingAs($this->researcher);
+    $this->topic->update(['status' => 'pending', 'project_status' => 'not_started', 'notice_to_proceed_issued_at' => null]);
+    $this->get(route('research-support.index', ['topic' => $this->topic->id]))->assertForbidden();
+    $this->get(route('research-support.index', ['topic' => ['invalid']]))->assertRedirect()->assertSessionHasErrors('topic');
+    Http::assertNothingSent();
+});
+
+test('the generic sidebar journal finder remains available without project context', function () {
+    $this->get(route('research-support.index'))
+        ->assertOk()
+        ->assertViewHas('journalTopic', null)
+        ->assertSee('Recommend journals')
+        ->assertDontSee('Journal submission tracker');
+    Http::assertNothingSent();
+});
+
+test('conference validation errors do not open or label the journal submission form', function () {
+    $url = route('research.dissemination.show', $this->topic);
+    $this->from($url)->post(route('research.dissemination.conferences.store', $this->topic), [
+        'conference_id' => 'new', 'status' => 'accepted', 'url' => 'https://example.org/conference',
+    ])->assertRedirect($url)->assertSessionHasErrors('title');
+
+    $response = $this->get($url)->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $tracker = $xpath->query('//section[@id="journal-submissions"]')->item(0);
+    $stage = $xpath->query('//section[@id="journal-submissions"]//select[@name="status"]/option[@selected]')->item(0);
+
+    expect($tracker->textContent)->not->toContain('Please correct these details:');
+    expect($stage->getAttribute('value'))->toBe('shortlisted');
+});
 
 test('project journal discovery requires an accepted collaboration', function () {
     $collaborator = User::factory()->create();

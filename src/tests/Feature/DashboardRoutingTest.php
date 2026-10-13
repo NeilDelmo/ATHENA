@@ -110,8 +110,8 @@ test('the faculty dashboard shows recent accessible proposal drafts', function (
     $this->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('Continue working')
-        ->assertSee('Your two most recently edited drafts.')
+        ->assertSee('Resume one of your recent drafts.')
+        ->assertSee('View all drafts')
         ->assertDontSee('proposal packages')
         ->assertSee($ownedDraft->project_title)
         ->assertSee($sharedDraft->project_title)
@@ -160,7 +160,7 @@ test('the faculty dashboard prioritizes revisions and links to dedicated submiss
             'Proposal overview',
             'data-dashboard-columns',
             'Revisions to address',
-            'Continue working',
+            'Resume one of your recent drafts.',
         ])
         ->assertSee('data-revision-worklist', false)
         ->assertSee('Reviewer feedback')
@@ -320,10 +320,11 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
         ->assertSee('data-research-call-preview', false)
         ->assertSee('data-research-call-counter', false)
         ->assertDontSee('data-research-call-submit-overlay', false)
-        ->assertSee('h-40', false)
+        ->assertSee('data-announcement-layout="banner"', false)
+        ->assertSee('data-research-call-backdrop', false)
         ->assertSee('View full poster')
         ->assertDontSee('xl:grid-cols-[minmax(0,1fr)_340px]', false)
-        ->assertSeeInOrder(['Proposal overview', 'data-research-call-carousel'], false)
+        ->assertSeeInOrder(['data-research-call-carousel', 'Proposal overview'], false)
         ->assertSee('First Uploaded Research Call')
         ->assertSee('Second Uploaded Research Call')
         ->assertSee('Start a proposal')

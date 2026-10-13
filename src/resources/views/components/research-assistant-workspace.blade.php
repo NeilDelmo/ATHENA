@@ -121,6 +121,7 @@
                                 <p class="mb-1 text-xs font-semibold text-gray-900 dark:text-white">Athena</p>
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
                                 <x-research-assistant-literature />
+                                <x-research-assistant-dissemination />
                                 <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
                                     <summary class="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>

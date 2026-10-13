@@ -323,7 +323,7 @@ test('review starters launch through the actual welcome and menu controls in lig
 });
 
 test('dashboard suggestion buttons preserve quoted titles and launch the exact proposal review in the workspace', async () => {
-    const component = readFileSync(resolve('resources/views/components/dashboard-assistant-suggestions.blade.php'), 'utf8');
+    const component = readFileSync(resolve('resources/views/components/dashboard-assistant-action.blade.php'), 'utf8');
     const buttonTemplate = component.match(/<button[\s\S]*?<\/button>/)[0];
     const composer = readFileSync(resolve('resources/views/components/research-assistant-composer.blade.php'), 'utf8');
     const targetChip = composer.match(/<div data-assistant-review-target[\s\S]*?<\/div>/)[0];
@@ -345,7 +345,7 @@ test('dashboard suggestion buttons preserve quoted titles and launch the exact p
             };
             const button = buttonTemplate
                 .replace("{{ Illuminate\\Support\\Js::encode($item) }}", escape(JSON.stringify(item)))
-                .replaceAll("{{ $item['label'] }}", escape(item.label))
+                .replaceAll('{{ $actionLabel }}', escape(item.label))
                 .replaceAll("{{ $item['target_label'] }}", escape(item.target_label));
             const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
             const errors = [];

@@ -18,6 +18,10 @@ const headings = [['simple', `<x-page-header title="Research Calls" subtitle="Ma
                 <button class="bg-red-600 px-5 py-2.5 text-white">Create new call</button>
                 <button class="border border-gray-200 px-5 py-2.5">Announcement studio</button>
             </x-slot:actions>
+           </x-page-header>`], ['project', `<x-page-header class="project-page-header" title="Predictive Maintenance Dashboard for University Laboratory Equipment" subtitle="Proposal #27 · Project researcher · Research Lifecycle Demonstration Cohort">
+            <x-slot:actions>
+                <a href="#journal-finder" class="inline-flex min-h-11 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-base font-semibold text-red-800">Find journals</a>
+            </x-slot:actions>
            </x-page-header>`]];
 
 for (const [workspace, view] of [

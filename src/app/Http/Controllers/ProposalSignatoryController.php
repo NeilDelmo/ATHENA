@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SaveProposalSignatoryDefaultsRequest;
 use App\Http\Requests\SaveProposalSignatoryRequest;
 use App\Http\Requests\SelectProposalSignatoriesRequest;
 use App\Models\ProposalDraft;
@@ -9,7 +10,9 @@ use App\Models\ProposalSignatory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ProposalSignatoryController extends Controller
@@ -45,9 +48,21 @@ class ProposalSignatoryController extends Controller
         $editingSignatoryId = $signatories
             ->firstWhere('id', $request->integer('edit'))
             ?->getKey();
+        $assignmentOptions = ProposalSignatory::assignmentOptions();
+        $defaultSignatories = ProposalSignatory::managedDefaultSelections();
+        $defaultAssignments = array_fill_keys(array_keys($roles), '');
+
+        foreach ($defaultSignatories as $role => $selection) {
+            if ($selection['id'] !== null) {
+                $defaultAssignments[$role] = collect($assignmentOptions)
+                    ->search(fn (array $option): bool => $option['name'] === $selection['name']) ?: '';
+            }
+        }
 
         return view('research_head.signatories', [
-            'defaultSignatories' => ProposalSignatory::managedDefaultSelections(),
+            'assignmentOptions' => $assignmentOptions,
+            'defaultAssignments' => $defaultAssignments,
+            'defaultSignatories' => $defaultSignatories,
             'editingSignatoryId' => $editingSignatoryId,
             'roles' => $roles,
             'search' => $search,
@@ -66,6 +81,52 @@ class ProposalSignatoryController extends Controller
         $this->saveDirectoryEntry($request->validated());
 
         return back()->with('success', 'Signatory saved. Default names are applied automatically to editable proposals.');
+    }
+
+    public function saveDefaults(SaveProposalSignatoryDefaultsRequest $request): RedirectResponse
+    {
+        $assignments = $request->validated('defaults');
+
+        DB::transaction(function () use ($assignments): void {
+            $directory = ProposalSignatory::query()->orderBy('id')->lockForUpdate()->get();
+            $options = ProposalSignatory::assignmentOptions();
+            Validator::make(['defaults' => $assignments], [
+                'defaults.*' => ['nullable', 'string', Rule::in(array_keys($options))],
+            ])->validate();
+            $previous = ProposalSignatory::managedDefaultSelections();
+            $templates = ProposalSignatory::defaultSelections();
+
+            foreach ($assignments as $role => $selection) {
+                if ($selection === null || $selection === '') {
+                    ProposalSignatory::query()->where('role_key', $role)->where('is_default', true)->update(['is_default' => false]);
+
+                    continue;
+                }
+
+                $name = $options[$selection]['name'];
+
+                if ($previous[$role]['name'] === $name) {
+                    continue;
+                }
+
+                $target = $directory->first(fn (ProposalSignatory $signatory): bool => $signatory->active
+                    && $signatory->role_key === $role && $signatory->name === $name);
+                ProposalSignatory::query()->where('role_key', $role)->where('is_default', true)->update(['is_default' => false]);
+
+                if ($target) {
+                    $target->refresh()->update(['is_default' => true]);
+                } else {
+                    ProposalSignatory::create([
+                        'role_key' => $role, 'name' => $name, 'position' => $templates[$role]['position'],
+                        'active' => true, 'is_default' => true,
+                    ]);
+                }
+            }
+
+            $this->invalidatePreparedDrafts($previous);
+        });
+
+        return redirect()->route('signatories.index')->with('success', 'Signature defaults saved. Editable proposals use these names; submitted documents stay unchanged.');
     }
 
     public function update(SaveProposalSignatoryRequest $request, ProposalSignatory $signatory): RedirectResponse

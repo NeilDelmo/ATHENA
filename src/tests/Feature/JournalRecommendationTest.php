@@ -75,6 +75,55 @@ test('full journal metadata supplies official website links missing from article
         ->assertOk()->assertJsonPath('results.0.homepage_url', 'https://journal.example.org/submit');
 });
 
+test('journal website enrichment and Scopus verification start together and reuse their cached evidence', function () {
+    config(['services.scopus.key' => 'test-key']);
+    $work = healthJournalWork('W101');
+    unset($work['primary_location']['source']['homepage_url']);
+    Http::fake(function ($request, array $options) use ($work) {
+        if (str_contains($request->url(), '/works')) {
+            return Http::response(['results' => [$work]]);
+        }
+        if (str_contains($request->url(), 'api.elsevier.com')) {
+            expect($options['synchronous'] ?? false)->toBeFalse();
+
+            return Http::response(['serial-metadata-response' => ['entry' => [[
+                'prism:issn' => '12345678', 'prism:aggregationType' => 'journal', 'source-id' => '12345',
+            ]]]]);
+        }
+
+        expect($options['synchronous'] ?? false)->toBeFalse('Journal website metadata must be requested asynchronously alongside Scopus verification.');
+
+        return Http::response(['results' => [[
+            'id' => 'https://openalex.org/S101', 'homepage_url' => 'https://journal.example.org/submit', 'works_count' => 500,
+        ]]]);
+    });
+
+    $this->postJson(route('research-support.journal-search'), ['query' => 'diabetes health'])
+        ->assertOk()->assertJsonPath('results.0.homepage_url', 'https://journal.example.org/submit')
+        ->assertJsonPath('results.0.scopus.status', 'listed');
+    Http::assertSentCount(4);
+    $this->postJson(route('research-support.journal-search'), ['query' => 'diabetes health'])->assertOk();
+    Http::assertSentCount(4);
+});
+
+test('journal metadata failures preserve Scopus evidence and usable recommendations', function () {
+    config(['services.scopus.key' => 'test-key']);
+    $work = healthJournalWork('W101');
+    unset($work['primary_location']['source']['homepage_url']);
+    Http::fake([
+        'api.openalex.org/works*' => Http::response(['results' => [$work]]),
+        'api.openalex.org/sources*' => Http::failedConnection(),
+        'api.elsevier.com/*' => Http::response(['serial-metadata-response' => ['entry' => [[
+            'prism:issn' => '12345678', 'prism:aggregationType' => 'journal', 'source-id' => '12345',
+        ]]]]),
+    ]);
+
+    $response = $this->postJson(route('research-support.journal-search'), ['query' => 'diabetes health'])
+        ->assertOk()->assertJsonPath('results.0.homepage_url', null)
+        ->assertJsonPath('results.0.scopus.status', 'listed');
+    expect($response->json('warnings'))->toContain('Some journal website details could not be loaded. Use the source records to find the official submission website.');
+});
+
 test('a partial provider failure keeps usable evidence and reports incomplete searching', function () {
     Http::fake(fn ($request) => isset($request['search.semantic'])
         ? Http::response([], 503)

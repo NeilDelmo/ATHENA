@@ -86,7 +86,7 @@ class AppServiceProvider extends ServiceProvider
                     : null;
 
             $view->with('researchAssistantProposalDraftId', $activeProposalDraftId);
-            $routeTopic = request()->route('topic');
+            $routeTopic = request()->route('topic') ?? request()->attributes->get('journalFinderTopic');
 
             if (! $user || ! $user->isUsingWorkspace([
                 User::WORKSPACE_FACULTY,
@@ -132,7 +132,7 @@ class AppServiceProvider extends ServiceProvider
                 )
                 ->with($contextRelations)
                 ->latest()
-                ->get(['id', 'title', 'status', 'research_category_id', 'research_call_id']);
+                ->get(['id', 'user_id', 'title', 'status', 'project_status', 'notice_to_proceed_issued_at', 'research_category_id', 'research_call_id']);
 
             if ($activeContextTopic) {
                 $contextTopics->prepend($activeContextTopic);
@@ -148,6 +148,15 @@ class AppServiceProvider extends ServiceProvider
                     'id' => $topic->id,
                     'label' => $topic->title,
                     'status' => str_replace('_', ' ', $topic->status),
+                    'dissemination' => $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
+                        && $topic->isDisseminationAvailable() && $user->can('view', $topic) ? [
+                            'journal_search_url' => route('research.dissemination.journals.search', $topic),
+                            'journal_save_url' => route('research.dissemination.journal-submissions.store', $topic),
+                            'conference_search_url' => route('research.dissemination.conferences.search', $topic),
+                            'conference_save_url' => route('research.dissemination.conferences.store', $topic),
+                            'journal_project_url' => route('research-support.index', ['topic' => $topic->id]).'#journal-submissions',
+                            'conference_project_url' => route('research.dissemination.show', $topic).'#conferences',
+                        ] : null,
                     'meta' => collect([
                         $topic->category?->name,
                         $topic->researchCall?->academic_year,

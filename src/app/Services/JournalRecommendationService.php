@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
@@ -49,7 +48,7 @@ class JournalRecommendationService
         $searches = $this->searches($query, $context, $keywords, $recentYears);
         $payload = $this->getWorks($searches);
         $journals = $this->rankJournals($this->aggregateJournals($payload['results'], $keywords, $openAccessOnly), $keywords);
-        $journals = $this->checkScopus($this->enrichJournals(array_slice($journals, 0, 24)));
+        $journals = $this->enrichJournals(array_slice($journals, 0, 24));
         if ($indexing !== 'any') {
             $journals = array_values(array_filter($journals, fn (array $journal): bool => ! in_array($journal['scopus']['status'], ['inactive', 'discontinued'], true)));
         }
@@ -78,47 +77,6 @@ class JournalRecommendationService
             ])),
             'methodology' => 'Topic relevance, distinct related articles, and recent evidence determine the score (out of 100), not acceptance probability. Scopus records are matched by ISSN; current coverage must be checked in Scopus Sources. Web of Science indexing is checked separately in the Master Journal List.',
         ];
-    }
-
-    /** @param list<array<string, mixed>> $journals @return list<array<string, mixed>> */
-    private function enrichJournals(array $journals): array
-    {
-        $this->metadataUnavailable = false;
-        $ids = collect($journals)->filter(fn (array $journal): bool => ! $journal['homepage_url'] && preg_match('/^S\d+$/', $journal['id']))->pluck('id')->sort()->values()->all();
-        if ($ids === []) {
-            return $journals;
-        }
-        $key = 'journal-source-details:v1:'.hash('sha256', implode('|', $ids));
-        $sources = Cache::get($key);
-        if (! is_array($sources)) {
-            $parameters = ['filter' => 'openalex:'.implode('|', $ids), 'per-page' => count($ids)];
-            if (filled(config('services.openalex.key'))) {
-                $parameters['api_key'] = config('services.openalex.key');
-            }
-            try {
-                $response = Http::acceptJson()->connectTimeout(3)->timeout(8)->get('https://api.openalex.org/sources', $parameters);
-                $sources = $response->successful() ? $response->json('results') : null;
-            } catch (ConnectionException) {
-                $sources = null;
-            }
-            if (! is_array($sources)) {
-                $this->metadataUnavailable = true;
-
-                return $journals;
-            }
-            Cache::put($key, $sources, now()->addHours(6));
-        }
-        $sources = collect($sources)->filter(fn (mixed $source): bool => is_array($source) && isset($source['id']))->keyBy(fn (array $source): string => basename($source['id']));
-
-        return array_map(function (array $journal) use ($sources): array {
-            $source = $sources->get($journal['id']);
-            if ($source) {
-                $journal['homepage_url'] = $this->safeUrl($source['homepage_url'] ?? null);
-                $journal['works_count'] = (int) ($source['works_count'] ?? $journal['works_count']);
-            }
-
-            return $journal;
-        }, $journals);
     }
 
     /** @param list<string> $keywords @return list<array<string, mixed>> */
@@ -256,9 +214,14 @@ class JournalRecommendationService
     }
 
     /** @param list<array<string, mixed>> $journals @return list<array<string, mixed>> */
-    private function checkScopus(array $journals): array
+    private function enrichJournals(array $journals): array
     {
         $this->scopusUnavailable = false;
+        $this->metadataUnavailable = false;
+        $ids = collect($journals)->filter(fn (array $journal): bool => ! $journal['homepage_url'] && preg_match('/^S\d+$/', $journal['id']))->pluck('id')->sort()->values()->all();
+        $sourceKey = 'journal-source-details:v1:'.hash('sha256', implode('|', $ids));
+        $sources = $ids === [] ? [] : Cache::get($sourceKey);
+        $loadSources = ! is_array($sources);
         $missing = [];
         $checks = [];
         foreach ($journals as $journal) {
@@ -289,8 +252,16 @@ class JournalRecommendationService
                 }
             }
         }
-        $responses = $missing === [] ? [] : Http::pool(function (Pool $pool) use ($missing): array {
+        $responses = $missing === [] && ! $loadSources ? [] : Http::pool(function (Pool $pool) use ($missing, $loadSources, $ids): array {
             $requests = [];
+            if ($loadSources) {
+                $parameters = ['filter' => 'openalex:'.implode('|', $ids), 'per-page' => count($ids)];
+                if (filled(config('services.openalex.key'))) {
+                    $parameters['api_key'] = config('services.openalex.key');
+                }
+                $requests[] = $pool->as('openalex-sources')->acceptJson()->connectTimeout(3)->timeout(8)
+                    ->get('https://api.openalex.org/sources', $parameters);
+            }
             foreach ($missing as $issn => $key) {
                 $headers = ['X-ELS-APIKey' => config('services.scopus.key')];
                 if (filled(config('services.scopus.institution_token'))) {
@@ -302,6 +273,16 @@ class JournalRecommendationService
 
             return $requests;
         });
+        if ($loadSources) {
+            $response = $responses['openalex-sources'] ?? null;
+            $sources = $response instanceof Response && $response->successful() ? $response->json('results') : null;
+            if (is_array($sources)) {
+                Cache::put($sourceKey, $sources, now()->addHours(6));
+            } else {
+                $this->metadataUnavailable = true;
+            }
+        }
+        $sources = collect($sources ?? [])->filter(fn (mixed $source): bool => is_array($source) && isset($source['id']))->keyBy(fn (array $source): string => basename($source['id']));
         foreach ($missing as $issn => $key) {
             $response = $responses[$issn] ?? null;
             $entries = $response instanceof Response && $response->successful() ? $response->json('serial-metadata-response.entry') : null;
@@ -335,10 +316,18 @@ class JournalRecommendationService
             }
         }
 
-        return array_map(fn (array $journal): array => $journal + [
-            'scopus' => $checks[$journal['issn'] ?? ''] ?? ['status' => 'unverified', 'label' => 'Scopus indexing unverified', 'url' => 'https://www.scopus.com/sources', 'checked_at' => null],
-            'wos_url' => 'https://mjl.clarivate.com/home?'.http_build_query(['issn' => $journal['issn'] ?? '', 'hide_exact_match_fl' => 'true']),
-        ], $journals);
+        return array_map(function (array $journal) use ($checks, $sources): array {
+            $source = $sources->get($journal['id']);
+            if ($source) {
+                $journal['homepage_url'] = $this->safeUrl($source['homepage_url'] ?? null);
+                $journal['works_count'] = (int) ($source['works_count'] ?? $journal['works_count']);
+            }
+
+            return $journal + [
+                'scopus' => $checks[$journal['issn'] ?? ''] ?? ['status' => 'unverified', 'label' => 'Scopus indexing unverified', 'url' => 'https://www.scopus.com/sources', 'checked_at' => null],
+                'wos_url' => 'https://mjl.clarivate.com/home?'.http_build_query(['issn' => $journal['issn'] ?? '', 'hide_exact_match_fl' => 'true']),
+            ];
+        }, $journals);
     }
 
     private function workFilters(int $recentYears): string

@@ -18,7 +18,7 @@ use Illuminate\View\View;
 
 class ProjectDisseminationController extends Controller
 {
-    public function show(ManageProjectDisseminationRequest $request, TopicProposal $topic): View
+    public function show(ManageProjectDisseminationRequest $request, TopicProposal $topic, ConferenceScraperService $scraper): View
     {
         $abstract = $topic->narrativeReports()->where('report_type', 'terminal')->latest('id')->first()?->terminal_data['abstract'] ?? $topic->description;
 
@@ -27,6 +27,9 @@ class ProjectDisseminationController extends Controller
             'projectAbstract' => Str::limit(strip_tags((string) $abstract), 6000, ''),
             'journalSubmissions' => $topic->journalSubmissions()->with('addedBy:id,name')->latest('updated_at')->get(),
             'canTrackJournals' => $request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user()),
+            'canEdit' => true,
+            'conferenceQuery' => $scraper->suggestedQuery($topic->title),
+            'conferences' => $topic->conferences()->latest('updated_at')->paginate(10, ['*'], 'conferences_page')->withQueryString(),
         ]);
     }
 
@@ -128,7 +131,7 @@ class ProjectDisseminationController extends Controller
         return response()->json($data);
     }
 
-    public function storeConference(ManageProjectDisseminationRequest $request, TopicProposal $topic): RedirectResponse
+    public function storeConference(ManageProjectDisseminationRequest $request, TopicProposal $topic): RedirectResponse|JsonResponse
     {
         $data = $request->safe()->except('candidate_key');
         if ($key = $request->validated('candidate_key')) {
@@ -147,7 +150,13 @@ class ProjectDisseminationController extends Controller
             [...$data, 'added_by' => $request->user()->id],
         );
 
-        return back()->with('success', $conference->wasRecentlyCreated ? 'Conference added to the project shortlist.' : 'This conference is already in the project shortlist.');
+        $message = $conference->wasRecentlyCreated ? 'Conference added to the project shortlist.' : 'This conference is already in the project shortlist.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['id' => $conference->id, 'message' => $message], $conference->wasRecentlyCreated ? 201 : 200);
+        }
+
+        return back()->with('success', $message);
     }
 
     public function updateConference(ManageProjectDisseminationRequest $request, TopicProposal $topic, ProjectConference $conference): RedirectResponse

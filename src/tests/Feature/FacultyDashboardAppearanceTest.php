@@ -141,7 +141,7 @@ test('faculty dashboards show workspace-specific data in the shared restrained l
 
 })->with([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
 
-test('dashboard announcements use compact previews and retain proposal and full poster actions', function () {
+test('dashboard announcements use a compact colorful banner with readable call titles and proposal actions', function () {
     $items = collect([
         [
             'url' => '/test-call-poster.png',
@@ -168,16 +168,18 @@ test('dashboard announcements use compact previews and retain proposal and full 
     $poster = $xpath->query('//*[@data-research-call-poster-trigger]')->item(0);
 
     expect($slides)->toHaveCount(2)
-        ->and($slides->item(0)->getAttribute('data-announcement-layout'))->toBe('compact')
+        ->and($slides->item(0)->getAttribute('data-announcement-layout'))->toBe('banner')
         ->and($slides->item(1)->hasAttribute('hidden'))->toBeTrue()
         ->and($slides->item(1)->hasAttribute('inert'))->toBeTrue()
-        ->and($poster->getAttribute('class'))->toContain('h-40', 'sm:h-44', 'object-contain')
-        ->and($xpath->query('//a')->length)->toBe(1)
-        ->and($xpath->query('//a')->item(0)->getAttribute('href'))->toBe(route('faculty.proposal-drafts.create'))
+        ->and($poster->getAttribute('class'))->toContain('object-contain')
+        ->and($slides->item(0)->getElementsByTagName('h3')->item(0)->getAttribute('class'))->not->toContain('sr-only')
+        ->and($xpath->query('//*[@data-research-call-backdrop]')->item(0)->getAttribute('src'))->toBe(asset('images/cteb_building.png'))
+        ->and($xpath->query('//a[contains(., "Start a proposal")]')->length)->toBe(1)
+        ->and($xpath->query('//a[contains(., "Start a proposal")]')->item(0)->getAttribute('href'))->toBe(route('faculty.proposal-drafts.create'))
         ->and($xpath->query('//*[@data-research-call-preview]')->length)->toBe(4)
         ->and($xpath->query('//*[@data-research-call-lightbox]')->length)->toBe(1)
-        ->and($html)->toContain('View full poster', 'Show next announcement')
-        ->not->toContain('max-h-[38rem]', 'text-2xl');
+        ->and($html)->toContain('View full poster', 'Show next announcement', 'View research calls')
+        ->not->toContain('data-announcement-layout="compact"', 'Check the requirements and key dates');
 });
 
 test('announcement section is omitted when there are no posters', function () {

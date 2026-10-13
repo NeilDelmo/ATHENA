@@ -17,9 +17,8 @@ class DashboardAssistantSuggestions
      */
     public function forFaculty(Collection $topics, Collection $drafts, Collection $draftProgress): Collection
     {
-        $topicSuggestions = $this->forTopics($topics);
+        $topicSuggestions = $this->forTopics($topics->where('status', 'revision_requested'));
         $draftSuggestions = $drafts->whereNull('topic_id')->where('status', ProposalDraft::STATUS_DRAFT)
-            ->filter(fn (ProposalDraft $draft): bool => ($draftProgress[$draft->id]['completed'] ?? 0) < ($draftProgress[$draft->id]['total'] ?? 0))
             ->map(fn (ProposalDraft $draft): array => [
                 'label' => 'Check draft consistency',
                 'target_label' => $draft->project_title ?: 'Untitled proposal',
@@ -29,10 +28,7 @@ class DashboardAssistantSuggestions
                 'action' => ['type' => 'review_proposal', 'review_focus' => 'consistency'],
             ]);
 
-        return $topicSuggestions->where('action.review_focus', 'revision_response')
-            ->concat($draftSuggestions)
-            ->concat($topicSuggestions->where('action.review_focus', 'consistency'))
-            ->take(3)->values();
+        return $topicSuggestions->concat($draftSuggestions)->values();
     }
 
     /**

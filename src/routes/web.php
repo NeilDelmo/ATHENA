@@ -381,6 +381,7 @@ Route::middleware('auth')->group(function () {
         ->name('research-support.index');
     Route::get('/research-head/signatories', [ProposalSignatoryController::class, 'index'])->name('signatories.index');
     Route::post('/research-head/signatories', [ProposalSignatoryController::class, 'store'])->name('signatories.store');
+    Route::put('/research-head/signatories/defaults', [ProposalSignatoryController::class, 'saveDefaults'])->name('signatories.defaults');
     Route::patch('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'update'])->name('signatories.update');
     Route::delete('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'destroy'])->name('signatories.destroy');
     Route::get('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'edit'])->name('signatories.edit');

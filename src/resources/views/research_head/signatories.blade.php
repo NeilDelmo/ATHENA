@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Proposal signatory directory" subtitle="Set the default name for each signature role. Editable proposals use these names automatically until you change them.">
+        <x-page-header title="Proposal signatories" subtitle="Arrange the default names for each paper. Editable proposals use your saved assignments automatically.">
             <x-slot name="actions">
             <button type="button" x-data x-on:click="$dispatch('open-add-signatory-form')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 sm:w-auto dark:focus-visible:ring-offset-slate-900">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -10,16 +10,116 @@
         </x-page-header>
     </x-slot>
 
-    <div x-data="{ addSignatoryOpen: @js($errors->any()) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" x-on:keydown.escape.window="addSignatoryOpen = false" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>
-        <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-label="Default paper signatories">
-            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Default paper signatories</h3>
-            <dl class="mt-3 grid gap-4 sm:grid-cols-2">
-                @foreach ($defaultSignatories as $roleKey => $signatory)
-                    <div><dt class="text-xs text-gray-500 dark:text-slate-400">{{ $roles[$roleKey] }}</dt><dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">{{ $signatory['name'] }}</dd></div>
-                @endforeach
-            </dl>
-            <p class="mt-3 text-xs text-gray-500 dark:text-slate-400">Mark an active directory entry as the default for its role. Template names apply until a default is set. Submitted documents retain their original names.</p>
-        </section>
+    <div x-data="{ addSignatoryOpen: @js($errors->hasAny(['name', 'position', 'role_key', 'active', 'is_default'])) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" x-on:keydown.escape.window="addSignatoryOpen = false" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>
+        @php
+            $templateSignatories = \App\Models\ProposalSignatory::defaultSelections();
+            $paperLabels = [
+                'detailed_proposal' => 'Detailed proposal',
+                'work_plan' => 'Work plan',
+                'line_item_budget' => 'Line-item budget',
+                'gad_checklist' => 'GAD checklist',
+                'initial_screening_form' => 'Initial screening form',
+                'comment_response_form' => 'Comment response form',
+            ];
+        @endphp
+        <form
+            method="POST"
+            action="{{ route('signatories.defaults') }}"
+            x-data="signatoryDefaultBoard(@js([
+                'options' => $assignmentOptions,
+                'templates' => $templateSignatories,
+                'assignments' => old('defaults', $defaultAssignments),
+                'savedAssignments' => $defaultAssignments,
+            ]))"
+            data-signatory-default-board
+            class="rounded-xl border border-[#E7E2D8] bg-white dark:border-slate-700 dark:bg-slate-900"
+            aria-label="Default paper signatories"
+        >
+            @csrf
+            @method('PUT')
+            <header class="flex flex-wrap items-start justify-between gap-4 border-b border-[#E7E2D8] px-5 py-5 dark:border-slate-700 sm:px-6">
+                <div class="max-w-xl">
+                    <h2 class="text-lg font-bold tracking-tight text-[#201A15] dark:text-white">Default paper signatories</h2>
+                    <p class="mt-1 text-sm leading-6 text-[#6B6258] dark:text-slate-400">Drag a name into any signature field, or choose one from its dropdown. You can use the same name in several fields.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <button type="button" x-cloak x-show="dirty" x-on:click="reset()" class="min-h-11 rounded-lg px-3 text-sm font-semibold text-[#6B6258] transition hover:bg-[#F4F1EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-300 dark:hover:bg-slate-800">Undo changes</button>
+                    <button type="submit" x-bind:disabled="!dirty" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#C1272D] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#9C1E23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-default disabled:bg-[#F4F1EB] disabled:text-[#8A8178] dark:disabled:bg-slate-800 dark:disabled:text-slate-500 dark:focus-visible:ring-offset-slate-900">Save defaults</button>
+                </div>
+            </header>
+
+            <div class="grid items-start lg:grid-cols-[15rem_minmax(0,1fr)]">
+                <aside class="border-b border-[#E7E2D8] bg-[#F9F7F3] p-5 dark:border-slate-700 dark:bg-slate-950/40 lg:sticky lg:top-5 lg:border-b-0 lg:border-r" aria-label="Available signatory names">
+                    <h3 class="text-sm font-bold text-[#201A15] dark:text-white">Available names</h3>
+                    <p class="mt-1 text-xs leading-5 text-[#6B6258] dark:text-slate-400">Drag a name, or select it and click a field.</p>
+                    <label for="assignment-name-search" class="sr-only">Find an available name</label>
+                    <input id="assignment-name-search" type="search" x-model="query" placeholder="Find a name" class="mt-4 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                    <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                        <template x-for="person in people" x-bind:key="person.key">
+                            <button
+                                type="button"
+                                draggable="true"
+                                x-bind:data-signatory-name="person.key"
+                                x-on:dragstart="startDrag(person.key, $event)"
+                                x-on:dragend="draggingKey = ''; hoveringRole = ''"
+                                x-on:click="selectedKey = selectedKey === person.key ? '' : person.key"
+                                x-bind:aria-pressed="selectedKey === person.key"
+                                x-bind:class="selectedKey === person.key ? 'border-red-600 bg-red-50 dark:bg-red-950/30' : 'border-[#E7E2D8] bg-white dark:border-slate-700 dark:bg-slate-900'"
+                                class="flex min-h-14 items-start gap-2 rounded-lg border p-3 text-left transition hover:border-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 active:cursor-grabbing"
+                            >
+                                <svg class="mt-1 h-4 w-4 shrink-0 text-[#8A8178]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+                                <span class="min-w-0"><span class="block text-[13px] font-semibold leading-5 text-[#201A15] dark:text-white" x-text="person.name"></span><span class="mt-1 block text-xs leading-4 text-[#6B6258] dark:text-slate-400" x-text="person.position"></span></span>
+                            </button>
+                        </template>
+                    </div>
+                    <p x-cloak x-show="people.length === 0" class="mt-3 text-sm text-[#6B6258] dark:text-slate-400">No matching names.</p>
+                    <p class="mt-4 border-t border-[#E7E2D8] pt-4 text-xs leading-5 text-[#6B6258] dark:border-slate-700 dark:text-slate-400">Need someone else? Use <strong class="font-semibold">Add a signatory</strong> above.</p>
+                </aside>
+
+                <div class="min-w-0 divide-y divide-[#E7E2D8] px-5 dark:divide-slate-700 sm:px-6">
+                    @foreach (\App\Models\ProposalSignatory::FIELDS as $paper => $fields)
+                        <section class="py-5" aria-labelledby="default-paper-{{ $paper }}">
+                            <h3 id="default-paper-{{ $paper }}" class="mb-3 text-sm font-bold text-[#201A15] dark:text-white">{{ $paperLabels[$paper] }}</h3>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                @foreach ($fields as $roleKey => $roleLabel)
+                                    <div
+                                        data-signatory-field="{{ $roleKey }}"
+                                        x-on:dragover.prevent="if (draggingKey) hoveringRole = '{{ $roleKey }}'"
+                                        x-on:dragleave="if (!$el.contains($event.relatedTarget)) hoveringRole = ''"
+                                        x-on:drop.prevent.stop="drop('{{ $roleKey }}', $event)"
+                                        x-bind:class="hoveringRole === '{{ $roleKey }}' ? 'border-red-600 bg-red-50 ring-2 ring-red-200 dark:bg-red-950/30 dark:ring-red-900' : 'border-[#E7E2D8] bg-[#FDFCF9] dark:border-slate-700 dark:bg-slate-950/40'"
+                                        class="min-w-0 rounded-lg border border-dashed p-3 transition-colors motion-reduce:transition-none"
+                                    >
+                                        <label for="default-{{ $roleKey }}" class="block text-xs font-medium leading-5 text-[#6B6258] dark:text-slate-400">{{ \Illuminate\Support\Str::after($roleLabel, ' — ') }}</label>
+                                        <button type="button" x-on:click="if (selectedKey) assign('{{ $roleKey }}', selectedKey)" x-bind:aria-label="'Place selected name in {{ $roles[$roleKey] }}. Current name: ' + displayName('{{ $roleKey }}')" class="my-2 block min-h-10 w-full rounded text-left text-sm font-semibold leading-5 text-[#201A15] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-white">
+                                            <span x-text="displayName('{{ $roleKey }}')">{{ $defaultSignatories[$roleKey]['name'] }}</span>
+                                        </button>
+                                        <select
+                                            id="default-{{ $roleKey }}"
+                                            name="defaults[{{ $roleKey }}]"
+                                            aria-label="Default for {{ $roles[$roleKey] }}"
+                                            x-model="assignments.{{ $roleKey }}"
+                                            class="block w-full rounded-md border-[#E7E2D8] bg-white py-2 pl-2.5 pr-8 text-xs text-[#6B6258] focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                                        >
+                                            <option value="" hidden>{{ $templateSignatories[$roleKey]['name'] }}</option>
+                                            @foreach ($assignmentOptions as $key => $person)
+                                                <option value="{{ $key }}" @selected(old('defaults.'.$roleKey, $defaultAssignments[$roleKey]) === $key)>{{ $person['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                        <x-input-error :messages="$errors->get('defaults.'.$roleKey)" class="mt-2" />
+                                    </div>
+                                @endforeach
+                            </div>
+                        </section>
+                    @endforeach
+                </div>
+            </div>
+            <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E2D8] bg-[#F9F7F3] px-5 py-3 text-xs leading-5 text-[#6B6258] dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-400 sm:px-6">
+                <p>Assignments take effect when you save. Submitted documents keep their original names.</p>
+                <div x-cloak x-show="dirty" class="flex flex-wrap items-center gap-3"><span class="font-semibold text-red-700 dark:text-red-300">Unsaved changes</span><button type="submit" class="min-h-11 rounded-lg bg-[#C1272D] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#9C1E23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Save defaults</button></div>
+                <p role="status" aria-live="polite" class="sr-only" x-text="message"></p>
+            </footer>
+        </form>
         <div x-show="addSignatoryOpen" x-cloak class="pointer-events-none fixed inset-0 z-[80]" role="presentation">
             <button type="button" x-on:click="addSignatoryOpen = false" data-add-signatory-backdrop class="pointer-events-auto absolute inset-0 bg-slate-950/60 backdrop-blur-sm xl:hidden" aria-label="Close add signatory editor"></button>
             <section
@@ -69,18 +169,18 @@
 
                                 <label class="block" for="new-signatory-name">
                                     <span class="text-sm font-black text-gray-800 dark:text-slate-100">Full name</span>
-                                    <input id="new-signatory-name" name="name" value="{{ old('name') }}" required maxlength="120" autocomplete="name" placeholder="e.g. Dr. Ana M. Reyes" class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
+                                    <input id="new-signatory-name" name="name" value="{{ old('name') }}" required maxlength="120" autocomplete="name" placeholder="Enter the approved full name" class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
                                     <x-input-error :messages="$errors->get('name')" class="mt-2" />
                                 </label>
 
                                 <label class="block" for="new-signatory-position">
                                     <span class="text-sm font-black text-gray-800 dark:text-slate-100">Position / designation</span>
-                                    <input id="new-signatory-position" name="position" value="{{ old('position') }}" required maxlength="120" placeholder="e.g. Dean, College of Engineering" class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
+                                    <input id="new-signatory-position" name="position" value="{{ old('position') }}" required maxlength="120" placeholder="Enter the official designation" class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
                                     <x-input-error :messages="$errors->get('position')" class="mt-2" />
                                 </label>
                             </div>
 
-                            <div class="mt-5 flex justify-end border-t border-gray-100 pt-5 dark:border-slate-800">
+                            <div class="mt-5 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5 dark:border-slate-800">
                                 <input type="hidden" name="is_default" value="0">
                                 <label class="mr-auto flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="rounded border-gray-300 text-red-700 focus:ring-red-600">Use as default for this role</label>
                                 <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-sm shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto dark:focus:ring-offset-slate-900">Add name</button>
@@ -103,7 +203,9 @@
             </div>
         @endif
 
-        <div class="grid items-start gap-6 min-[860px]:grid-cols-[15rem_minmax(0,1fr)]">
+        <details @if ($summary['total'] > 0 || $search !== '' || $selectedRole !== '') open @endif class="rounded-xl border border-[#E7E2D8] bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <summary class="cursor-pointer text-sm font-bold text-[#201A15] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-white">Manage additional directory names <span class="ml-2 font-normal text-[#6B6258] dark:text-slate-400">({{ $summary['total'] }})</span></summary>
+        <div class="mt-5 grid items-start gap-6 min-[860px]:grid-cols-[15rem_minmax(0,1fr)]">
             <aside class="space-y-2.5 min-[860px]:sticky min-[860px]:top-5" aria-label="Directory summary">
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['total']) }}</strong>total signatories</span>
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['active']) }}</strong>active</span>
@@ -239,8 +341,8 @@
                                 @empty
                                     <tr>
                                         <td colspan="5" class="px-6 py-12 text-center">
-                                            <h3 class="text-sm font-semibold text-[#201A15] dark:text-white">{{ $search !== '' || $selectedRole !== '' ? 'No matching signatories' : 'No signatories yet' }}</h3>
-                                            <p class="mt-1 text-[13px] text-[#6B6258] dark:text-slate-400">{{ $search !== '' || $selectedRole !== '' ? 'Try another search or clear the filters.' : 'Add the first approved name using the form.' }}</p>
+                                            <h3 class="text-sm font-semibold text-[#201A15] dark:text-white">{{ $search !== '' || $selectedRole !== '' ? 'No matching signatories' : 'No additional names' }}</h3>
+                                            <p class="mt-1 text-[13px] text-[#6B6258] dark:text-slate-400">{{ $search !== '' || $selectedRole !== '' ? 'Try another search or clear the filters.' : 'The institutional names above are ready to use. Add a signatory when you need another name.' }}</p>
                                         </td>
                                     </tr>
                                 @endforelse
@@ -250,5 +352,6 @@
                 </section>
             </div>
         </div>
+        </details>
     </div>
 </x-app-layout>

@@ -4,6 +4,7 @@ use App\Livewire\ResearchHeadDashboard;
 use App\Models\ProposalDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\DashboardAssistantSuggestions;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -32,7 +33,7 @@ function dashboardReviewSuggestions(string $html): array
     return $items;
 }
 
-test('faculty dashboard suggests accessible revisions and incomplete drafts before pending proposals', function () {
+test('faculty AI checks appear alongside accessible revisions and recent drafts without a duplicate list', function () {
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');
     $outside = User::factory()->create();
@@ -47,23 +48,54 @@ test('faculty dashboard suggests accessible revisions and incomplete drafts befo
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('Review with Athena')
+        ->assertDontSee('Review with Athena')
+        ->assertDontSee('data-dashboard-assistant-suggestions', false)
+        ->assertSee('AI revision check')
+        ->assertSee('AI draft check')
         ->assertSee('$store.researchAssistant.startSuggestedReview', false)
         ->assertSee('aria-controls="athena-assistant-workspace"', false)
         ->assertSee(':disabled="$store.researchAssistant.reviewLaunchBusy()"', false);
 
     $items = dashboardReviewSuggestions($response->getContent());
-    expect($items)->toHaveCount(3)
-        ->and(array_column($items, 'target_label'))->toBe([$revision->title, $draft->project_title, $pending->title])
+    expect($items)->toHaveCount(2)
+        ->and(array_column($items, 'target_label'))->toBe([$revision->title, $draft->project_title])
         ->and($items[0]['context'])->toBe(['topic_id' => $revision->id, 'workflow_scope' => 'review'])
         ->and($items[0]['action'])->toBe(['type' => 'review_proposal', 'review_focus' => 'revision_response'])
         ->and($items[0]['evidence'])->toBe('Revision requested.')
         ->and($items[1]['context'])->toBe(['proposal_draft_id' => $draft->id, 'workflow_scope' => 'review'])
         ->and($items[1]['action'])->toBe(['type' => 'review_proposal', 'review_focus' => 'consistency'])
-        ->and($items[1]['evidence'])->toContain('papers ready')
-        ->and($items[2]['context'])->toBe(['topic_id' => $pending->id, 'workflow_scope' => 'review']);
+        ->and($items[1]['evidence'])->toContain('papers ready');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-revision-task]//button[@data-review-suggestion]'))->toHaveCount(1)
+        ->and($xpath->query('//*[@data-dashboard-draft]//button[@data-review-suggestion]'))->toHaveCount(1);
 
     Http::assertNothingSent();
+});
+
+test('faculty review checks cover all revisions and complete recent drafts without a three item cap', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $revisions = collect(range(1, 4))->map(fn (int $number): TopicProposal => TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Revision '.$number,
+        'status' => 'revision_requested',
+    ]));
+    $drafts = collect(range(1, 2))->map(fn (int $number): ProposalDraft => ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'project_title' => 'Complete draft '.$number,
+    ]));
+    $progress = $drafts->mapWithKeys(fn (ProposalDraft $draft): array => [
+        $draft->id => ['completed' => 7, 'total' => 7, 'percentage' => 100],
+    ]);
+
+    $items = app(DashboardAssistantSuggestions::class)->forFaculty($revisions, $drafts, $progress);
+
+    expect($items)->toHaveCount(6)
+        ->and($items->pluck('context.topic_id')->filter()->values()->all())->toBe($revisions->pluck('id')->all())
+        ->and($items->pluck('context.proposal_draft_id')->filter()->values()->all())->toBe($drafts->pluck('id')->all());
 });
 
 test('research head dashboard caps focused review suggestions and follows the visible review filter', function () {
@@ -116,7 +148,8 @@ test('empty faculty dashboard offers no invented review targets', function () {
     $response = $this->actingAs($faculty)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
         ->get(route('faculty.dashboard'))->assertOk()
-        ->assertSee('No proposal reviews to suggest in this workspace yet.');
+        ->assertDontSee('Review with Athena')
+        ->assertSee('No proposal drafts yet');
 
     expect(dashboardReviewSuggestions($response->getContent()))->toBeEmpty();
     Http::assertNothingSent();

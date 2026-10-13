@@ -4,10 +4,12 @@ import Swal from './proposal-dialog';
 import { researchAssistantHistory } from './research-assistant-history';
 import { researchAssistantReview } from './research-assistant-review';
 import { normalizeAssistantLiterature, researchAssistantLiterature, serializeAssistantLiterature } from './research-assistant-literature';
+import { disseminationAction, disseminationSearchRequest, disseminationSearchReply, researchAssistantDissemination } from './research-assistant-dissemination';
 import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from './research-assistant-paper-insertion';
 import { createManilaClock } from './manila-clock';
 import { initializeWorkspaceSwitching } from './workspace-switching';
 import { journalFinder } from './journal-finder';
+import { projectDissemination } from './project-dissemination';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
@@ -25,6 +27,7 @@ import { projectDocumentDrawer } from './project-document-drawer';
 import { projectStatusManager } from './project-status-manager';
 import { projectWorkspace } from './project-workspace';
 import { proposalSignedUploads } from './proposal-signed-uploads';
+import { signatoryDefaultBoard } from './signatory-default-board';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
 import initializeResearchCallImageExtractors from './research-call-image-extractor';
@@ -114,10 +117,12 @@ Alpine.store('sidebar', {
 });
 
 Alpine.data('journalFinder', journalFinder);
+Alpine.data('projectDissemination', projectDissemination);
 Alpine.data('projectDocumentDrawer', projectDocumentDrawer);
 Alpine.data('projectStatusManager', projectStatusManager);
 Alpine.data('projectWorkspace', projectWorkspace);
 Alpine.data('proposalSignedUploads', proposalSignedUploads);
+Alpine.data('signatoryDefaultBoard', signatoryDefaultBoard);
 Alpine.data('researchSecretaryPicker', (config = {}) => ({
     candidates: Array.isArray(config.candidates) ? config.candidates : [],
     selectedId: config.selectedId || '',
@@ -1807,6 +1812,7 @@ Alpine.store('researchAssistant', {
     pageScope: assistantPageScope(),
     ...researchAssistantHistory(assistantHistory),
     ...researchAssistantLiterature(),
+    ...researchAssistantDissemination(),
     ...researchAssistantReview(),
     currentConversationId: null,
     historySearchOpen: false,
@@ -1951,6 +1957,7 @@ Alpine.store('researchAssistant', {
             : [];
 
         return [
+            ...this.disseminationStarterPrompts(),
             ...this.reviewStarterPrompts(),
             ...focusedFieldAction,
             ...(document.body.hasAttribute('data-faculty-shell') && (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)) ? [{
@@ -2563,7 +2570,7 @@ Alpine.store('researchAssistant', {
 
     async send(action = null, contextOverride = null) {
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
-        if (!content || this.isLoading || this.sendInProgress || this.retryAfter > 0) return;
+        if (!content || this.isLoading || this.sendInProgress || this.disseminationSaving || this.retryAfter > 0) return;
         if (this.reviewLaunchPending && action?.type !== 'review_proposal') return;
 
         if (!action && this.reviewContext?.review_focus) {
@@ -2609,6 +2616,12 @@ Alpine.store('researchAssistant', {
     async requestReply(action = this.retryAction, contextOverride = this.retryContext) {
         const chatUrl = document.body.dataset.researchAssistantUrl;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const venueAction = document.body.dataset.conferenceSearchUrl
+            ? disseminationAction(this.contextMessages().at(-1)?.content, action)
+            : null;
+        const requestContext = this.replyContext(contextOverride, action);
+        const venueSearch = venueAction ? disseminationSearchRequest(venueAction,
+            this.contextOptions.find((project) => Number(project.id) === Number(requestContext?.topic_id))) : null;
 
         if (this.isLoading) return;
 
@@ -2631,7 +2644,7 @@ Alpine.store('researchAssistant', {
         this.scrollToLatest();
 
         try {
-            const response = await fetch(chatUrl, {
+            const response = venueAction && !venueSearch ? { ok: true } : await fetch(venueSearch?.url || chatUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 signal: abortController.signal,
@@ -2640,15 +2653,19 @@ Alpine.store('researchAssistant', {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
-                body: JSON.stringify({
+                body: JSON.stringify(venueSearch?.body || {
                     messages: this.contextMessages(),
-                    context: this.replyContext(contextOverride, action),
+                    context: requestContext,
                     conversation_id: this.currentConversationId,
                     action,
                 }),
             });
 
-            const payload = await response.json().catch(() => ({}));
+            const searchPayload = venueAction && !venueSearch ? {
+                reply: 'Choose an ongoing project with an issued Notice to Proceed, or a completed project, using Add project below. Then ask me to find journals or conferences. Only projects you can access support shortlist saving.',
+                sources: [], dissemination: { needs_project: true, results: [] },
+            } : await response.json().catch(() => ({}));
+            const payload = response.ok && venueSearch ? disseminationSearchReply(searchPayload, venueSearch) : searchPayload;
 
             if (requestSequence !== this.requestSequence || abortController.signal.aborted) return null;
 
@@ -2695,6 +2712,7 @@ Alpine.store('researchAssistant', {
                 model: payload.model,
                 sources: Array.isArray(payload.sources) ? payload.sources : [],
                 literature: normalizeAssistantLiterature(payload.literature),
+                dissemination: payload.dissemination || null,
             };
             this.messages.push(assistantMessage);
             if (action?.type === 'confirm_literature' && assistantMessage.literature?.kind === 'insertion') {

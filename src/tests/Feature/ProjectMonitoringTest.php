@@ -959,9 +959,12 @@ test('the project header highlights journal search without repeating the monitor
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
+    $journalLink = $xpath->query('//a[@data-find-journals]')->item(0);
     $actions = $xpath->query('//a[@data-find-journals]/parent::*')->item(0);
 
     expect($actions)->not->toBeNull();
+    expect($journalLink->getAttribute('href'))->toBe(route('research-support.index', ['topic' => $this->topic->id]).'#journal-finder');
+    expect($journalLink->hasAttribute('wire:navigate'))->toBeTrue();
     expect($actions->textContent)->toContain('Find journals')->not->toContain('Project monitoring');
 
     $this->topic->update(['notice_to_proceed_issued_at' => null]);

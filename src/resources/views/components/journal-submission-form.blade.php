@@ -1,6 +1,6 @@
-@props(['topic', 'submission' => null])
+@props(['topic', 'submission' => null, 'returnToFinder' => false])
 @php
-    $restore = (string) old('journal_submission_id', '') === (string) ($submission?->id ?? '');
+    $restore = !old('conference_id') && (string) old('journal_submission_id', '') === (string) ($submission?->id ?? '');
     $value = fn ($field, $default = '') => $restore ? old($field, $default) : $default;
     $prefix = 'journal-entry-'.($submission?->id ?? 'new');
     $stage = $value('status', $submission?->status ?? 'shortlisted');
@@ -22,6 +22,7 @@
     @endif
 >
     @csrf
+    @if ($returnToFinder)<input type="hidden" name="return_to_finder" value="1">@endif
     @if ($submission) @method('PATCH') @endif
     <input type="hidden" name="journal_submission_id" value="{{ $submission?->id }}">
     <div class="grid gap-4 sm:grid-cols-2">

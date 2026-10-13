@@ -35,6 +35,7 @@ class SaveProjectJournalSubmissionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'return_to_finder' => ['nullable', 'boolean'],
             'journal_name' => ['required', 'string', 'max:255'],
             'issn' => ['nullable', 'string', 'regex:/^\d{4}-\d{3}[\dX]$/i'],
             'journal_url' => ['nullable', 'url:http,https', 'max:2000'],

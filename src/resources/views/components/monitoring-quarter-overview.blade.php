@@ -5,13 +5,13 @@
 @endphp
 
 <section id="progress-reports" class="quarterly-reports overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900" aria-labelledby="quarterly-reporting-schedule-heading">
-    <header id="quarterly-reports" class="bg-slate-200/70 px-5 py-4 text-slate-950 dark:bg-slate-800 dark:text-white sm:px-6">
+    <header id="quarterly-reports" class="bg-brand px-5 py-4 text-white sm:px-6">
         <div>
-            <h4 id="quarterly-reporting-schedule-heading" class="text-base font-semibold">Quarterly reports</h4>
+            <h4 id="quarterly-reporting-schedule-heading" class="text-lg font-semibold">Quarterly reports</h4>
             @if (! $topic->isCompletedProject())
-                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Submit both reports after each quarter ends. The final period may be shorter.</p>
+                <p class="mt-1 text-base leading-6 text-red-100">Submit both reports after each quarter ends. The final period may be shorter.</p>
             @else
-                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Open a report to read the submitted paper.</p>
+                <p class="mt-1 text-base leading-6 text-red-100">Open a report to read the submitted paper.</p>
             @endif
         </div>
     </header>
@@ -19,7 +19,7 @@
     <div data-monitoring-schedule-table data-progress-schedule-table>
         <table class="w-full table-fixed text-left">
             <caption class="sr-only">Quarterly Monitoring Tool and Progress Report periods and available actions</caption>
-            <thead class="border-y border-slate-200 bg-slate-100 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
+            <thead class="border-y border-slate-200 bg-slate-100 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
                 <tr>
                     <th scope="col" class="w-2/5 px-5 py-3 font-medium sm:px-6">Reporting period</th>
                     <th scope="col" class="w-[30%] px-1 py-3 font-medium"><span class="quarterly-report-rail">Monitoring Tool</span></th>
@@ -61,7 +61,7 @@
                     @endphp
                     <tr data-reporting-quarter="{{ $row['quarter'] }}" class="border-t border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-900">
                         <th scope="row" class="px-5 py-3 align-top font-normal sm:px-6">
-                            <p data-reporting-period class="flex min-h-11 items-center gap-3 text-sm leading-6 text-slate-900 dark:text-white"><span class="quarterly-report-quarter">{{ $row['label'] }}</span><span>{{ $row['period'] }}</span></p>
+                            <p data-reporting-period class="flex min-h-11 items-center gap-3 text-base leading-6 text-slate-900 dark:text-white"><span class="quarterly-report-quarter">{{ $row['label'] }}</span><span>{{ $row['period'] }}</span></p>
                             @if ($quarterProgress !== null)
                                 <div class="ml-[3.25rem] mt-2 flex max-w-64 items-center gap-3">
                                     <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-label="{{ $row['label'] }} {{ $progressLabel }}" aria-valuenow="{{ $quarterProgress }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-slate-700 dark:bg-slate-300" style="width: {{ $quarterProgress }}%"></div></div>
