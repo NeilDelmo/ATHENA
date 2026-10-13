@@ -6,6 +6,7 @@ import { researchAssistantReview } from './research-assistant-review';
 import { normalizeAssistantLiterature, researchAssistantLiterature, serializeAssistantLiterature } from './research-assistant-literature';
 import { disseminationAction, disseminationSearchRequest, disseminationSearchReply, researchAssistantDissemination } from './research-assistant-dissemination';
 import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from './research-assistant-paper-insertion';
+import { allowedProposalChangeField, normalizeAssistantProposalChanges, proposalChangeHandoff, proposalChangeRichTextValue, researchAssistantProposalChanges, serializeAssistantProposalChanges } from './research-assistant-proposal-changes';
 import { createManilaClock } from './manila-clock';
 import { initializeWorkspaceSwitching } from './workspace-switching';
 import { journalFinder } from './journal-finder';
@@ -58,6 +59,8 @@ import {
 import {
     escapeAssistantHtml,
     formatAssistantMarkdown,
+    formatAssistantReview,
+    safeAssistantSourceUrl,
     stripAssistantGroundingFooter,
 } from './research-assistant-markdown';
 import {
@@ -823,7 +826,7 @@ async function offerRevisionUpload(blob, filename, config = {}) {
 
     const isConfirmed = isEmbeddedRevisionEditor() || await showProposalConfirmation({
         title: 'Automatically upload this file to the revision?',
-        text: `Upload "${filename}" to Revision workspace → Submit revision → ${config.revisionAttachmentLabel || 'the matching attachment'}?`,
+        text: `Upload "${filename}" to Proposal revision → Submit revision → ${config.revisionAttachmentLabel || 'the matching attachment'}?`,
         confirmButtonText: 'Automatically upload',
         cancelButtonText: 'Only download',
         icon: 'question',
@@ -859,7 +862,7 @@ async function offerRevisionUpload(blob, filename, config = {}) {
     });
 
     if (!response.ok) {
-        let message = 'The downloaded file could not be added to the revision workspace.';
+        let message = 'The downloaded file could not be added to the proposal revision.';
 
         try {
             const payload = await response.json();
@@ -1786,6 +1789,49 @@ function assistantLiteratureHandoff() {
     return literatureInsertionHandoff(storage, Number(document.body.dataset.authUserId));
 }
 
+function assistantProposalChangeHandoff() {
+    let storage = null;
+    try {
+        storage = window.sessionStorage;
+    } catch {
+        // The editor remains usable when browser storage is blocked.
+    }
+    return proposalChangeHandoff(storage, Number(document.body.dataset.authUserId));
+}
+
+async function resolveAssistantProposalChange(selection, endpoint, csrfToken) {
+    const url = sameOriginPaperUrl(endpoint, window.location.origin);
+    if (!url || !csrfToken) throw new Error('Refresh this page before applying a proposal change.');
+    const response = await fetch(url, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+        body: JSON.stringify({ proposal_draft_id: selection.proposal_draft_id, token: selection.token, suggestion_id: String(selection.suggestion_id) }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const message = Object.values(payload.errors || {}).flat()[0] || payload.message;
+        const error = new Error(message || (response.status === 409
+            ? 'The proposal changed. Review the current text and request new suggestions.'
+            : 'This suggestion is unavailable or expired. Request new suggestions.'));
+        error.status = response.status;
+        throw error;
+    }
+    const candidate = payload.proposal_change;
+    const packet = normalizeAssistantProposalChanges({
+        proposal_draft_id: candidate?.proposal_draft_id, editor_url: candidate?.editor_url,
+        suggestions: [{ ...candidate, token: selection.token }],
+    });
+    const suggestion = packet?.suggestions[0];
+    if (!suggestion || packet.proposal_draft_id !== Number(selection.proposal_draft_id)
+        || String(suggestion.id) !== String(selection.suggestion_id)
+        || !Number.isSafeInteger(candidate.document_version) || candidate.document_version < 0
+        || !Number.isSafeInteger(candidate.draft_version) || candidate.draft_version < 0) {
+        throw new Error('Athena returned an invalid proposal change. Request new suggestions.');
+    }
+    return { ...suggestion, proposal_draft_id: packet.proposal_draft_id, editor_url: packet.editor_url,
+        document_version: candidate.document_version, draft_version: candidate.draft_version };
+}
+
 Alpine.store('researchAssistant', {
     drawerOpen: false,
     workspaceOpen: false,
@@ -1814,6 +1860,7 @@ Alpine.store('researchAssistant', {
     ...researchAssistantLiterature(),
     ...researchAssistantDissemination(),
     ...researchAssistantReview(),
+    ...researchAssistantProposalChanges(),
     currentConversationId: null,
     historySearchOpen: false,
     historySearchQuery: '',
@@ -1959,6 +2006,13 @@ Alpine.store('researchAssistant', {
         return [
             ...this.disseminationStarterPrompts(),
             ...this.reviewStarterPrompts(),
+            ...(this.proposalDraftId && document.body.hasAttribute('data-faculty-shell') ? [{
+                label: 'Suggest proposal changes',
+                description: 'Check saved proposal requirements and review precise edits before applying them.',
+                evidence: 'Uses the saved proposal and Research Manual',
+                prompt: 'Read my saved proposal against the Research Manual requirements. Identify evidence gaps and suggest precise changes for my review.',
+                action: { type: 'suggest_proposal_changes' },
+            }] : []),
             ...focusedFieldAction,
             ...(document.body.hasAttribute('data-faculty-shell') && (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)) ? [{
                 label: 'Find related studies',
@@ -2136,6 +2190,10 @@ Alpine.store('researchAssistant', {
     },
 
     renderMessage(message) {
+        if (message?.review?.summary || message?.review?.findings?.length) {
+            return formatAssistantReview(message.review);
+        }
+
         const content = typeof message === 'object' ? message?.content : message;
         const hasSeparateSources = typeof message === 'object'
             && Array.isArray(message?.sources)
@@ -2143,7 +2201,12 @@ Alpine.store('researchAssistant', {
 
         return formatAssistantMarkdown(
             hasSeparateSources ? stripAssistantGroundingFooter(content) : content,
+            typeof message === 'object' && Array.isArray(message?.sources) ? message.sources : [],
         );
+    },
+
+    sourceUrl(source) {
+        return safeAssistantSourceUrl(source?.url);
     },
 
     usePrompt(prompt) {
@@ -2173,6 +2236,7 @@ Alpine.store('researchAssistant', {
 
     selectProjectContext(contextId) {
         this.reviewContext = null;
+        this.proposalHelpOpen = false;
         const context = this.contextOptions.find((option) => Number(option.id) === Number(contextId));
         this.selectedContextId = context?.id || 0;
         this.contextEnabled = Boolean(context);
@@ -2425,6 +2489,7 @@ Alpine.store('researchAssistant', {
             messages: this.messages.map((message) => ({
                 ...message,
                 literature: serializeAssistantLiterature(message.literature),
+                proposal_changes: serializeAssistantProposalChanges(message.proposal_changes),
             })),
             context: this.contextPayload(false),
         });
@@ -2498,7 +2563,9 @@ Alpine.store('researchAssistant', {
                     role: message.role,
                     content: String(message.content).trim(),
                     sources: Array.isArray(message.sources) ? message.sources : [],
+                    review: message.review && typeof message.review === 'object' ? message.review : null,
                     literature: normalizeAssistantLiterature(message.literature),
+                    proposal_changes: normalizeAssistantProposalChanges(message.proposal_changes),
                 }));
             this.currentConversationId = conversation.id;
             this.retryAction = null;
@@ -2525,6 +2592,110 @@ Alpine.store('researchAssistant', {
     setError(title, message) {
         this.errorTitle = title;
         this.error = message;
+    },
+
+    proposalChangesBusy() {
+        return Boolean(this.isLoading || this.sendInProgress || this.retryAfter > 0 || this.proposalChangesOperationPending
+            || this.literatureOperationPending || this.reviewLaunchPending);
+    },
+
+    proposalChangeBeforeText(suggestion) {
+        const parsed = new DOMParser().parseFromString(String(suggestion?.before || ''), 'text/html');
+        parsed.querySelectorAll('script, style').forEach((node) => node.remove());
+        parsed.querySelectorAll('p, div, li, br').forEach((node) => node.appendChild(parsed.createTextNode('\n')));
+        return parsed.body.textContent.trim();
+    },
+
+    proposalRrlAssessmentText(message) {
+        const rrl = message?.proposal_changes?.assessment?.rrl;
+        if (!rrl) return '';
+        if (rrl.count === null) {
+            const minimum = rrl.minimum === null ? '' : `Form minimum: ${rrl.minimum} reviewed studies. `;
+            return minimum + (rrl.known_count > 0
+                ? `${rrl.known_count} tracked sources; the total reviewed-study count cannot be verified from the saved text.`
+                : 'The reviewed-study count cannot be verified from the saved text.');
+        }
+        const minimum = rrl.minimum === null ? '' : `; the proposal form requires at least ${rrl.minimum}`;
+        const shortfall = rrl.shortfall > 0 ? `. Add at least ${rrl.shortfall} more relevant reviewed studies` : '';
+        return `${rrl.count} tracked reviewed ${rrl.count === 1 ? 'study' : 'studies'}${minimum}${shortfall}.`;
+    },
+
+    proposalRrlRequirementSource(message) {
+        const rrl = message?.proposal_changes?.assessment?.rrl;
+        return rrl?.requirement_reference ? rrl.sources.find((source) => source.reference === rrl.requirement_reference) || null : null;
+    },
+
+    async findProposalStudies(message) {
+        const packet = message?.proposal_changes;
+        if (!packet || this.proposalChangesBusy() || this.draft.trim()) return false;
+        return this.sendPrompt('Find additional relevant studies for this saved proposal. Let me review their evidence and draft paragraphs before adding them.',
+            { type: 'search_literature' }, { proposal_draft_id: packet.proposal_draft_id });
+    },
+
+    async refreshProposalChanges(message) {
+        const packet = message?.proposal_changes;
+        if (!packet || this.proposalChangesBusy() || this.draft.trim()) return false;
+        return this.sendPrompt('Read the current saved proposal and prepare updated, precise improvements for my review. Check the Research Manual requirements and preserve existing evidence.',
+            { type: 'suggest_proposal_changes' }, { proposal_draft_id: packet.proposal_draft_id });
+    },
+
+    async applyProposalChange(message, suggestion) {
+        const packet = message?.proposal_changes;
+        if (!packet || this.proposalChangesBusy() || suggestion?.applied || suggestion?.stale) return false;
+        const selected = normalizeAssistantProposalChanges(packet)?.suggestions.find((item) => String(item.id) === String(suggestion?.id));
+        if (!selected) return false;
+        this.proposalChangesOperationPending = true;
+        suggestion.is_working = true;
+        suggestion.error = '';
+        const sequence = this.requestSequence;
+        try {
+            const editor = document.querySelector('[data-detailed-proposal-workspace]');
+            const activeEditor = editor && Number(editor.dataset.proposalDraftId) === packet.proposal_draft_id ? editor : null;
+            if (activeEditor && !await finishPaperEditorAutoSave(activeEditor)) {
+                throw new Error('Finish saving your current edits before applying this suggestion.');
+            }
+            const selection = { proposal_draft_id: packet.proposal_draft_id, token: selected.token, suggestion_id: selected.id };
+            const candidate = await resolveAssistantProposalChange(selection, document.body.dataset.researchAssistantProposalChangesUrl,
+                document.querySelector('meta[name="csrf-token"]')?.content);
+            if (sequence !== this.requestSequence || !this.messages.includes(message)) return false;
+            if (activeEditor) {
+                const detail = { ...candidate, handled: false, promise: null };
+                window.dispatchEvent(new CustomEvent('athena-apply-proposal-change', { detail }));
+                if (!detail.handled || !detail.promise) throw new Error('Open the detailed proposal editor to apply this suggestion.');
+                const result = await detail.promise;
+                suggestion.applied = result.applied === true;
+                suggestion.saved = result.saved === true;
+                suggestion.notice = result.notice;
+                if (result.error) suggestion.error = result.error;
+                if (suggestion.applied) {
+                    packet.suggestions.filter((item) => item.id !== suggestion.id && !item.applied).forEach((item) => {
+                        item.stale = true;
+                        item.error = 'The proposal changed. Request updated suggestions before applying another change.';
+                    });
+                }
+                await this.saveConversation();
+                return suggestion.applied;
+            }
+            const url = sameOriginPaperUrl(candidate.editor_url, window.location.origin);
+            if (!url) throw new Error('The proposal editor is unavailable. Refresh and request new suggestions.');
+            if (!await finishPendingNavigationChanges()) return false;
+            if (this.hasConversation() && !await this.saveConversation()) return false;
+            if (sequence !== this.requestSequence) return false;
+            if (!assistantProposalChangeHandoff().stage(selection)) {
+                throw new Error('Browser storage could not prepare this change. Open the detailed proposal and apply it there.');
+            }
+            const destination = new URL(url);
+            destination.hash = selected.field.replaceAll('_', '-');
+            window.location.assign(destination.href);
+            return true;
+        } catch (error) {
+            suggestion.error = error instanceof Error ? error.message : 'The suggestion could not be applied. Try again.';
+            if ([409, 422].includes(error?.status)) suggestion.stale = true;
+            return false;
+        } finally {
+            suggestion.is_working = false;
+            this.proposalChangesOperationPending = false;
+        }
     },
 
     async applyLiteratureInsertion(message) {
@@ -2570,12 +2741,13 @@ Alpine.store('researchAssistant', {
 
     async send(action = null, contextOverride = null) {
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
-        if (!content || this.isLoading || this.sendInProgress || this.disseminationSaving || this.retryAfter > 0) return;
-        if (this.reviewLaunchPending && action?.type !== 'review_proposal') return;
+        if (!content || this.isLoading || this.sendInProgress || this.disseminationSaving || this.proposalChangesOperationPending || this.retryAfter > 0) return;
+        if (this.reviewLaunchPending && !['review_proposal', 'suggest_proposal_changes'].includes(action?.type)) return;
 
-        if (!action && this.reviewContext?.review_focus) {
-            action = { type: 'review_proposal', review_focus: this.reviewContext.review_focus };
+        if (!action && this.reviewContext) {
+            this.reviewContext.assistance_mode = contextOverride?.assistance_mode || 'discussion';
         }
+        this.proposalHelpOpen = false;
         this.sendInProgress = true;
         const sendSequence = this.requestSequence;
         this.retryAction = action;
@@ -2597,9 +2769,15 @@ Alpine.store('researchAssistant', {
     },
 
     replyContext(contextOverride, action) {
-        if (!contextOverride) return this.contextPayload();
-        const context = { ...contextOverride };
-        if (context.workflow_scope === 'review') return context;
+        const context = { ...(contextOverride || this.contextPayload() || {}) };
+        if (context.workflow_scope === 'review') {
+            if (!action) {
+                delete context.review_focus;
+                context.assistance_mode = contextOverride?.assistance_mode || 'discussion';
+            }
+            return context;
+        }
+        if (!contextOverride) return Object.keys(context).length ? context : null;
         if (Number(context.proposal_draft_id) === Number(this.proposalDraftId)) {
             const form = this.formContext();
             if (form) context.form = form;
@@ -2711,7 +2889,9 @@ Alpine.store('researchAssistant', {
                 content: payload.reply.trim(),
                 model: payload.model,
                 sources: Array.isArray(payload.sources) ? payload.sources : [],
+                review: payload.review && typeof payload.review === 'object' ? payload.review : null,
                 literature: normalizeAssistantLiterature(payload.literature),
+                proposal_changes: normalizeAssistantProposalChanges(payload.proposal_changes),
                 dissemination: payload.dissemination || null,
             };
             this.messages.push(assistantMessage);
@@ -2805,7 +2985,7 @@ Alpine.store('researchAssistant', {
             lines.push(message.content);
 
             if (Array.isArray(message.sources) && message.sources.length) {
-                lines.push(`Grounded sources: ${message.sources.map((source) => `${source.reference} - ${source.title}`).join('; ')}`);
+                lines.push(`Available sources: ${message.sources.map((source) => `${source.reference} - ${source.title}`).join('; ')}`);
             }
 
             lines.push('');
@@ -2859,6 +3039,7 @@ Alpine.store('researchAssistant', {
     clearConversation() {
         this.stop();
         this.reviewContext = null;
+        this.proposalHelpOpen = false;
         this.messages = [];
         this.currentConversationId = null;
         this.draft = '';
@@ -4036,6 +4217,8 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
     durationMonths: config.initialDuration ?? '',
     plannedStart: normalizeIsoDate(config.initialStart),
     plannedEnd: normalizeIsoDate(config.initialEnd),
+    projectDetailsComplete: Boolean(config.initialComplete),
+    lastSavedProjectDetailsComplete: Boolean(config.initialComplete),
     autoSave: Boolean(config.autoSave),
     autoSaveTimer: null,
     autoSaveInFlight: false,
@@ -4111,12 +4294,20 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
         if (!(form instanceof HTMLFormElement)) return;
 
         if (!form.checkValidity()) {
+            this.projectDetailsComplete = false;
             this.projectDetailsStatus('Finish the required fields to save automatically.');
 
             return;
         }
 
-        if (this.projectDetailsFingerprint(form) === this.lastSavedProjectDetails) return;
+        if (this.projectDetailsFingerprint(form) === this.lastSavedProjectDetails) {
+            this.projectDetailsComplete = this.lastSavedProjectDetailsComplete;
+            if (this.projectDetailsComplete) {
+                this.projectDetailsStatus('All changes saved.', 'saved');
+            }
+
+            return;
+        }
 
         this.projectDetailsStatus('Saving changes soon…');
         this.autoSaveTimer = window.setTimeout(() => this.saveProjectDetails(), 1200);
@@ -4134,6 +4325,7 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
         if (!form.checkValidity()) {
+            this.projectDetailsComplete = false;
             this.projectDetailsStatus('Finish the required fields to save automatically.');
 
             return;
@@ -4174,6 +4366,7 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             if (version instanceof HTMLInputElement) version.value = String(payload.draft_version);
 
             this.lastSavedProjectDetails = fingerprint;
+            this.lastSavedProjectDetailsComplete = Boolean(payload.project_details_complete);
 
             if (this.projectDetailsFingerprint(form) !== fingerprint) {
                 this.scheduleProjectDetailsAutoSave();
@@ -4182,6 +4375,7 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             }
 
             this.$el.dataset.paperDirty = 'false';
+            this.projectDetailsComplete = this.lastSavedProjectDetailsComplete;
             this.projectDetailsStatus('Saved just now.', 'saved');
         } catch (error) {
             this.$el.dataset.paperDirty = 'true';
@@ -8750,6 +8944,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         metadataUrl: config.literatureMetadataUrl,
     }),
     sourceWorkspaceInsertedDrafts: [],
+    proposalChangeApplying: false,
+    proposalChangeAppliedIds: [],
+    proposalChangeNotice: '',
+    proposalChangeError: '',
     ...proposalPreviewWorkspace(),
     ...detailedProposalPreviewWorkspace(),
     nextId: 0,
@@ -8937,6 +9135,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                     dropImages: (event, section) => this.handleMethodologyDrop(event, section),
                     onActiveSection: (fieldId) => this.focusDetailedProposalPreview(fieldId),
                 });
+                void this.applyPendingAssistantProposalChange();
             }
         });
     },
@@ -8973,6 +9172,111 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     literatureWorkspaceCitedSourcesCount() {
         return this.literatureSources.filter((source) => this.citationReferenceNumber(source) !== null).length;
+    },
+
+    proposalChangeFieldValue(field) {
+        if (!allowedProposalChangeField(field)) return null;
+        if (field.startsWith('specific_objectives.')) {
+            const objective = this.specificObjectives[Number(field.split('.')[1])];
+            return objective ? String(objective.description ?? '') : null;
+        }
+        if (field.startsWith('methodology.')) return String(this.methodology[field.split('.')[1]] ?? '');
+        const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction' }[field];
+        return property ? String(this[property] ?? '') : null;
+    },
+
+    setProposalChangeFieldValue(field, value) {
+        if (!allowedProposalChangeField(field)) return false;
+        if (field.startsWith('specific_objectives.')) {
+            const objective = this.specificObjectives[Number(field.split('.')[1])];
+            if (!objective) return false;
+            objective.description = value;
+        } else if (field.startsWith('methodology.')) {
+            this.methodology[field.split('.')[1]] = value;
+        } else {
+            const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction' }[field];
+            if (!property) return false;
+            this[property] = value;
+        }
+        return true;
+    },
+
+    async applyAssistantProposalChange(packet) {
+        if (Number(packet?.proposal_draft_id) !== Number(config.proposalDraftId)) return { applied: false, saved: false };
+        packet.handled = true;
+        const normalized = normalizeAssistantProposalChanges({ proposal_draft_id: config.proposalDraftId, suggestions: [packet] });
+        const suggestion = normalized?.suggestions[0];
+        if (!suggestion || !Number.isSafeInteger(packet.document_version) || packet.document_version < 0
+            || !Number.isSafeInteger(packet.draft_version) || packet.draft_version < 0) {
+            throw new Error('This proposal change is invalid. Request new suggestions.');
+        }
+        if (this.proposalChangeAppliedIds.includes(String(suggestion.id))) {
+            return { applied: true, saved: this.$el.dataset.paperDirty !== 'true' && !this.autoSaveInFlight && !this.autoSaveBlocked,
+                notice: 'This suggestion was already applied in this editor.' };
+        }
+        const form = this.detailedProposalAutoSaveForm();
+        if (this.proposalChangeApplying || this.autoSaveBlocked || this.autoSaveInFlight
+            || this.$el.dataset.paperSubmitting === 'true' || this.$el.dataset.paperDiscarding === 'true'
+            || this.$el.inert || this.$el.isConnected === false || !(form instanceof HTMLFormElement)) {
+            throw new Error('This editor is busy or saving is blocked. Finish saving or load the latest proposal before applying changes.');
+        }
+        if (this.detailedProposalFingerprint(form) !== this.lastSavedDetailedProposal) {
+            throw new Error('The proposal has unsaved edits. Finish saving and request a current suggestion before applying changes.');
+        }
+        const documentVersion = form.querySelector('[name="document_version"]');
+        const draftVersion = form.querySelector('[name="draft_version"]');
+        if (!documentVersion || !draftVersion || Number(documentVersion.value) !== packet.document_version
+            || Number(draftVersion.value) !== packet.draft_version) {
+            throw new Error('The proposal version changed. Load the latest saved work and request new suggestions.');
+        }
+        const name = suggestion.field.split('.').map((part, index) => index ? `[${part}]` : part).join('');
+        const control = [...form.querySelectorAll('textarea, input')].find((field) => field.name === name);
+        const current = this.proposalChangeFieldValue(suggestion.field);
+        const richText = control instanceof HTMLTextAreaElement && control.hasAttribute('data-semantic-editor');
+        const expectedControlValue = richText ? sanitizedSemanticHtml(suggestion.before, true) : suggestion.before;
+        if (!control || control.disabled || control.readOnly || control.closest('[inert]')
+            || current !== suggestion.before || (control.value !== suggestion.before && control.value !== expectedControlValue)) {
+            throw new Error('This field changed after the suggestion was prepared. Your current text was kept; request a new suggestion.');
+        }
+        if (/data-proposal-(?:citation|managed-reference)/i.test(suggestion.before)) {
+            throw new Error('This section contains linked citations. Revise it in the editor so its citations and references stay connected.');
+        }
+        this.proposalChangeApplying = true;
+        this.proposalChangeError = '';
+        try {
+            const value = richText ? proposalChangeRichTextValue(suggestion.value) : suggestion.value;
+            if (!value || !this.setProposalChangeFieldValue(suggestion.field, value)) throw new Error('The target field is unavailable.');
+            control.value = value;
+            control.dispatchEvent(new Event('input', { bubbles: true }));
+            this.proposalChangeAppliedIds = [...this.proposalChangeAppliedIds, String(suggestion.id)].slice(-20);
+            this.proposalChangeNotice = `${suggestion.label || 'Proposal text'} was updated in the editor. Saving now…`;
+            this.markProposalPreviewStale();
+            this.triggerDetailedProposalAutoSave();
+            await this.$nextTick();
+            const saved = await finishPaperEditorAutoSave(this.$el);
+            this.proposalChangeNotice = saved ? `${suggestion.label || 'Proposal text'} was updated and saved.`
+                : `${suggestion.label || 'Proposal text'} was updated in the editor. Your change still needs to be saved.`;
+            this.proposalChangeError = saved ? '' : 'Saving did not finish. Keep this page open and resolve the save warning before leaving.';
+            this.focusProposalRequirement(suggestion.field);
+            return { applied: true, saved, notice: this.proposalChangeNotice, error: this.proposalChangeError };
+        } finally {
+            this.proposalChangeApplying = false;
+        }
+    },
+
+    async applyPendingAssistantProposalChange() {
+        const handoff = assistantProposalChangeHandoff();
+        const selection = handoff.read(config.proposalDraftId);
+        if (!selection) return;
+        handoff.clear(config.proposalDraftId);
+        try {
+            if (!await finishPaperEditorAutoSave(this.$el)) throw new Error('Finish saving this proposal before applying the prepared suggestion.');
+            const candidate = await resolveAssistantProposalChange(selection,
+                config.proposalChangesUrl || document.body.dataset.researchAssistantProposalChangesUrl, config.csrfToken);
+            await this.applyAssistantProposalChange(candidate);
+        } catch (error) {
+            this.proposalChangeError = error instanceof Error ? error.message : 'The prepared change is unavailable. Request new suggestions.';
+        }
     },
 
     applyAssistantLiterature(packet) {

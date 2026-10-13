@@ -13,6 +13,7 @@ use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class ResearchAssistantWorkflowContextService
@@ -51,11 +52,11 @@ class ResearchAssistantWorkflowContextService
         ];
 
         if ($stages['review']) {
-            $workflowContext['review'] = $this->reviewContext($topic);
+            $workflowContext['review'] = $this->reviewContext($user, $topic);
         }
 
         if ($stages['notice']) {
-            $workflowContext['notice_to_proceed'] = $this->noticeContext($topic);
+            $workflowContext['notice_to_proceed'] = $this->noticeContext($user, $topic);
         }
 
         $monitoringContext = null;
@@ -179,10 +180,11 @@ PROMPT;
     }
 
     /** @return array<string, mixed> */
-    private function reviewContext(TopicProposal $topic): array
+    private function reviewContext(User $user, TopicProposal $topic): array
     {
         $reviews = TopicReview::query()
             ->whereBelongsTo($topic, 'topic')
+            ->when(! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), fn ($query) => $query->where('decision', '!=', 'head_upload'))
             ->with([
                 'reviewer:id,name',
                 'fileRevisions' => fn ($query) => $query
@@ -217,7 +219,7 @@ PROMPT;
 
         $latestVersion = $topic->latestVersion;
         $latestVersion?->loadMissing('files');
-        $requiredSignatureFiles = $signatureReview?->signatureProposalVersion?->files
+        $requiredSignatureFiles = ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $topic->hasIssuedNoticeToProceed()) ? $signatureReview?->signatureProposalVersion?->files
             ->whereIn('id', $signatureReview->required_signature_file_ids ?? [])
             ->map(fn (ProposalVersionFile $file): array => [
                 'id' => $file->getKey(),
@@ -225,7 +227,7 @@ PROMPT;
                 'filename' => $file->original_filename,
             ])
             ->values()
-            ->all() ?? [];
+            ->all() ?? [] : [];
 
         return [
             'response_status' => [
@@ -265,9 +267,10 @@ PROMPT;
     }
 
     /** @return array<string, mixed> */
-    private function noticeContext(TopicProposal $topic): array
+    private function noticeContext(User $user, TopicProposal $topic): array
     {
         $topic->loadMissing('noticeIssuer:id,name');
+        $canReadDetails = $this->canReadNoticeDetails($user, $topic);
 
         return [
             'status' => match (true) {
@@ -276,11 +279,18 @@ PROMPT;
                 $topic->isAwaitingNoticeToProceed() => 'awaiting notice preparation',
                 default => 'not available for the current proposal status',
             },
-            'saved_details' => $this->sanitizeContextValue($topic->notice_to_proceed_data ?? []),
-            'signed_pdf_available' => filled($topic->notice_to_proceed_path),
+            'saved_details' => $canReadDetails ? $this->sanitizeContextValue($topic->notice_to_proceed_data ?? []) : [],
+            'signed_pdf_available' => $canReadDetails && filled($topic->notice_to_proceed_path),
             'issued_at' => $topic->notice_to_proceed_issued_at?->toISOString(),
-            'issued_by' => $topic->noticeIssuer?->name,
+            'issued_by' => $canReadDetails ? $topic->noticeIssuer?->name : null,
         ];
+    }
+
+    private function canReadNoticeDetails(User $user, TopicProposal $topic): bool
+    {
+        return $topic->hasIssuedNoticeToProceed()
+            || $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+            || Gate::forUser($user)->allows('manageNoticeToProceed', $topic);
     }
 
     /** @return array<string, mixed> */
@@ -313,7 +323,7 @@ PROMPT;
             ->get();
 
         return [
-            'delay_assessment' => $this->delayAssessment($topic, $progressReports->first()),
+            'delay_assessment' => $this->delayAssessment($user, $topic, $progressReports->first()),
             'private_saved_drafts' => [
                 'monitoring' => $monitoringDrafts->map(fn (ProjectMonitoringDraft $draft): array => [
                     'source' => $draft->source_key,
@@ -337,10 +347,11 @@ PROMPT;
     }
 
     /** @return array<string, mixed> */
-    private function delayAssessment(TopicProposal $topic, ?ProjectProgressReport $report): array
+    private function delayAssessment(User $user, TopicProposal $topic, ?ProjectProgressReport $report): array
     {
         $today = CarbonImmutable::today(config('app.timezone'));
-        $approvedEnd = $this->recordedDate(data_get($topic->notice_to_proceed_data, 'approved_end_date'));
+        $approvedEnd = $this->canReadNoticeDetails($user, $topic)
+            ? $this->recordedDate(data_get($topic->notice_to_proceed_data, 'approved_end_date')) : null;
         $reportDate = $report?->reporting_date
             ? CarbonImmutable::instance($report->reporting_date)->startOfDay()
             : null;

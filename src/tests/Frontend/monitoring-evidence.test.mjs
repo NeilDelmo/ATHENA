@@ -85,7 +85,7 @@ test('the rendered monitoring form uploads, computes, autosaves and restores evi
     const fixture = resolve('../tmp/monitoring-evidence.html');
     execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/MonitoringEvidenceTest.php', '--filter=evidence computes partial weighted'], {
         cwd: resolve('.'), encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-        env: { ...process.env, ATHENA_MONITORING_EVIDENCE_FIXTURE: fixture },
+        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_MONITORING_EVIDENCE_FIXTURE: fixture },
     });
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))]).process(read('resources/css/app.css'), { from: undefined });
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });

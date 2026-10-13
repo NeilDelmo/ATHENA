@@ -6,6 +6,7 @@ use App\Models\ProposalDraft;
 use App\Models\User;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class ProposalAssistantContextService
@@ -29,10 +30,12 @@ class ProposalAssistantContextService
 
     public function accessibleDraft(User $user, int $proposalDraftId): ?ProposalDraft
     {
-        return ProposalDraft::query()
+        $draft = ProposalDraft::query()
             ->accessibleTo($user)
-            ->with(['documents', 'researchCall'])
             ->find($proposalDraftId);
+
+        return $draft && Gate::forUser($user)->allows('view', $draft)
+            ? $draft->load(['documents', 'researchCall']) : null;
     }
 
     /**

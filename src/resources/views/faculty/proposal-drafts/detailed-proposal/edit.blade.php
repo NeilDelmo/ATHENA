@@ -21,6 +21,7 @@
     <div
         class="detailed-proposal-writing-workspace mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-detailed-proposal-workspace
+        data-proposal-draft-id="{{ $proposalDraft->id }}"
         data-proposal-paper-workspace
         data-paper-editor
         data-paper-draft-save="true"
@@ -32,6 +33,7 @@
         x-on:proposal-cite-selection.window="openCitationPicker($event.detail)"
         x-on:proposal-open-sources.window="openSourceWorkspaceFromToolbar($event.detail)"
         x-on:athena-insert-literature.window="applyAssistantLiterature($event.detail)"
+        x-on:athena-apply-proposal-change.window="$event.detail.promise = applyAssistantProposalChange($event.detail)"
         x-data="proposalDraftDetailedProposal({
             proposalDraftId: @js($proposalDraft->id),
             initialData: @js($initialData),
@@ -64,6 +66,7 @@
             previewUrl: @js(route('faculty.proposal-drafts.detailed-proposal.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.detailed-proposal.download', $proposalDraft)),
             updateUrl: @js(route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft)),
+            proposalChangesUrl: @js(route('research-support.proposal-changes.resolve')),
             csrfToken: @js(csrf_token()),
             revisionUploadUrl: @js($proposalDraft->topic_id ? route('faculty.proposal-drafts.revision-files.store', $proposalDraft) : null),
             revisionDocumentType: @js($paper['document_type']),
@@ -83,6 +86,10 @@
         @endif
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
+        <div x-show="proposalChangeNotice || proposalChangeError" x-cloak class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" data-proposal-change-status>
+            <p x-show="proposalChangeNotice" class="text-slate-700 dark:text-slate-200" x-text="proposalChangeNotice"></p>
+            <p x-show="proposalChangeError" role="alert" class="text-red-800 dark:text-red-200" x-text="proposalChangeError"></p>
+        </div>
         <x-paper-editor-submit-status />
         <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700" data-proposal-writing-status>

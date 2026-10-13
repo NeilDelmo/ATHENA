@@ -23,7 +23,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
     if (!process.env.ATHENA_MONITORING_USE_EXISTING_FIXTURES) {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/MonitoringPageLoadingTest.php', '--filter=monitoring report forms share'], {
             cwd: resolve('.'), encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-            env: { ...process.env, ATHENA_MONITORING_BROWSER_FIXTURE_DIRECTORY: fixtureDirectory },
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_MONITORING_BROWSER_FIXTURE_DIRECTORY: fixtureDirectory },
         });
     }
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])

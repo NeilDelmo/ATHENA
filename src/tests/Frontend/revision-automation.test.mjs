@@ -13,7 +13,7 @@ test('the real revision page and editor automatically locate a reply in the offi
     if (!env.LIBREOFFICE_BINARY && existsSync(installedOffice)) env.LIBREOFFICE_BINARY = installedOffice;
     if (!process.env.ATHENA_REUSE_REVISION_AUTOMATION_FIXTURE) {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/DetailedProposalBuilderTest.php', '--filter=automatic revision replies use'], {
-            cwd: resolve('.'), encoding: 'utf8', env: { ...env, ATHENA_REVISION_AUTOMATION_FIXTURE: fixturePath },
+            cwd: resolve('.'), encoding: 'utf8', env: { ...env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_REVISION_AUTOMATION_FIXTURE: fixturePath },
         });
     }
     const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
@@ -137,7 +137,7 @@ test('the real revision page and editor automatically locate a reply in the offi
         assert.equal(downloads.length, firstDownloadCount + 1, 'Submission verifies the location against the final generated PDF');
         assert.equal(staged.length, downloads.length);
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/DetailedProposalBuilderTest.php', '--filter=automatic revision replies use'], {
-            cwd: resolve('.'), encoding: 'utf8', env: { ...env, ATHENA_REVISION_AUTOMATION_REPLY: JSON.stringify({
+            cwd: resolve('.'), encoding: 'utf8', env: { ...env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_REVISION_AUTOMATION_REPLY: JSON.stringify({
                 response: field(`${key}[response]`), no_change: Number(field(`${key}[no_change]`)),
                 page: Number(field(`${key}[page]`)), paragraph: Number(field(`${key}[paragraph]`)),
             }) },

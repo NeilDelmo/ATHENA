@@ -34,7 +34,13 @@ function reviewWorkspace(completedEvaluation = true) {
         $version->setRelation('files', collect($completedEvaluation ? [$gad, $screening, $assessment, $evaluation] : [$gad, $screening, $assessment]));
         $version->setRelation('submitter', null);
         $topic->setRelation('versions', collect([$version]));
-        $clearance = new App\Models\TopicReview(['decision' => 'gad_review', 'review_stage' => 'initial', 'comment' => 'Methodology cleared for GAD assessment.']);
+        $clearance = new App\Models\TopicReview([
+            'decision' => 'gad_review', 'review_stage' => 'initial', 'comment' => 'Methodology cleared for GAD assessment.',
+            'committee_comments' => [
+                ['location' => 'Methods', 'comment' => "Explain the sampling plan.\nInclude the target sample size."],
+                ['location' => 'Work Plan', 'comment' => 'Connect each activity to a measurable output.'],
+            ],
+        ]);
         $clearance->created_at = now();
         echo Illuminate\Support\Facades\Blade::render('<x-proposal-workflow :topic="$topic" :version="$version" :reviews="$reviews" />', ['topic' => $topic, 'version' => $version, 'reviews' => collect([$clearance])]);
         echo view('topics.partials.version-history', ['topic' => $topic, 'expanded' => true])->render();
@@ -81,6 +87,17 @@ test('collapsed assessments still allow comment previews on mobile and desktop i
                 const headOutcome = workflow.locator('[data-workflow-stage-outcome="1"]');
                 await headOutcome.waitFor({ state: 'visible' });
                 assert.match(await headOutcome.innerText(), /Methodology cleared for GAD assessment/);
+                const feedback = headOutcome.locator('[data-review-feedback]');
+                assert.equal(await feedback.getByRole('heading', { name: 'Reviewer feedback' }).count(), 1);
+                assert.equal(await feedback.locator('[data-review-comment]').count(), 3);
+                assert.match(await feedback.innerText(), /3 comments/);
+                assert.deepEqual(await feedback.locator('[data-review-comment] > p:first-child').allTextContents(), [
+                    'Comment 1 · Overall proposal', 'Comment 2 · Methods', 'Comment 3 · Work Plan',
+                ]);
+                assert.equal(await feedback.locator('[data-review-comment]').nth(1).locator('p:last-child').innerText(), 'Explain the sampling plan.\nInclude the target sample size.');
+                if (process.env.WORKFLOW_SCREENSHOT_DIRECTORY) {
+                    await headOutcome.screenshot({ path: resolve(process.env.WORKFLOW_SCREENSHOT_DIRECTORY, `review-comments-${width}-${dark ? 'dark' : 'light'}.png`) });
+                }
                 assert.equal(await gadOutcome.isVisible(), false);
                 await workflow.locator('[data-workflow-stage-button="3"]').click();
                 const coEvaluatorOutcome = workflow.locator('[data-workflow-stage-outcome="3"]');

@@ -110,7 +110,7 @@
                 </span>
                 <div>
                     <h3 id="revision-papers-heading" class="text-base font-black text-slate-950 dark:text-white">2. Revise and respond</h3>
-                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $revisionGroups->isEmpty() ? 'No paper changes were requested.' : 'Open a paper to edit it and reply to its reviewer comments in the same workspace.' }}</p>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $revisionGroups->isEmpty() ? 'No paper changes were requested.' : 'Open a paper to edit it and reply to its reviewer comments in the same editor.' }}</p>
                 </div>
             </div>
         </header>

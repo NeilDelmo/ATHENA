@@ -88,7 +88,7 @@
 
         <section id="project-details-tab" x-show="activeProposalTab === 'details'" x-cloak role="tabpanel" aria-labelledby="project-details-tab-button">
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-                <div data-paper-editor data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}" data-project-details-autosave="true" data-paper-edit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" x-data="proposalDraftProjectDetails({ initialDuration: @js($initialDuration), initialStart: @js($initialPlannedStart), initialEnd: @js($initialPlannedEnd), autoSave: true })" class="space-y-4">
+                <div data-paper-editor data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}" data-project-details-autosave="true" data-paper-edit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" x-data="proposalDraftProjectDetails({ initialDuration: @js($initialDuration), initialStart: @js($initialPlannedStart), initialEnd: @js($initialPlannedEnd), initialComplete: @js($projectDetailsComplete), autoSave: true })" class="space-y-4">
                     <x-paper-editor-submit-status />
                     <x-proposal-autosave-status />
                     <x-proposal-collaboration-monitor
@@ -102,7 +102,7 @@
                         <div class="border-b border-gray-200 px-5 py-5 dark:border-slate-800 sm:px-6">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h3 id="project-details-heading" class="text-lg font-black text-gray-950 dark:text-white">Project Details</h3>
-                                <span class="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $projectDetailsComplete ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }}">{{ $projectDetailsComplete ? 'Complete' : 'Incomplete' }}</span>
+                                <span role="status" aria-live="polite" :class="projectDetailsComplete ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200'" x-text="projectDetailsComplete ? 'Complete' : 'Incomplete'" class="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">{{ $projectDetailsComplete ? 'Complete' : 'Incomplete' }}</span>
                             </div>
                             <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">Shared information used automatically in Attachment A and the submitted proposal record.</p>
                         </div>
@@ -145,7 +145,6 @@
                                 <label for="project_leader" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Leader <span class="text-red-600">Required</span></label>
                                 <input id="project_leader" name="project_leader" type="text" list="proposal-workspace-people" value="{{ old('project_leader', $proposalDraft->project_leader ?: $proposalDraft->owner->name) }}" maxlength="120" required class="mt-2 block w-full rounded-lg border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                                 <datalist id="proposal-workspace-people">@foreach ($workspacePeople as $workspacePerson)<option value="{{ $workspacePerson['name'] }}">{{ $workspacePerson['email'] }}</option>@endforeach</datalist>
-                                <p class="mt-2 text-[11px] text-gray-500 dark:text-slate-400">Choose a workspace member or type a name. This appears under "Prepared by" in the official Work Plan.</p>
                                 @error('project_leader')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                             </div>
 

@@ -897,7 +897,7 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->assertDontSee('Completed comment-response form')
         ->assertDontSee('presentation-comment-response.docx')
         ->assertSee('Decision history')
-        ->assertSee('Open revision workspace')
+        ->assertSee('Revise proposal')
         ->assertDontSee('data-revision-proposal-details-button', false);
 
     $this->actingAs($faculty)

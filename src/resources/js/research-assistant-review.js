@@ -15,6 +15,8 @@ function reviewContext(context) {
             ? { review_focus: context.review_focus } : {}),
         ...(typeof context.review_label === 'string' && context.review_label.trim()
             ? { review_label: context.review_label.trim().slice(0, 300) } : {}),
+        ...(['revision_plan', 'feedback_explanation', 'response_draft', 'draft_guidance', 'discussion'].includes(context.assistance_mode)
+            ? { assistance_mode: context.assistance_mode } : {}),
     };
 }
 
@@ -22,10 +24,11 @@ export function researchAssistantReview() {
     return {
         reviewContext: null,
         reviewLaunchPending: false,
+        proposalHelpOpen: false,
 
         reviewLaunchBusy() {
             return Boolean(this.reviewLaunchPending || this.isLoading || this.sendInProgress
-                || this.retryAfter > 0 || this.literatureOperationPending);
+                || this.retryAfter > 0 || this.literatureOperationPending || this.proposalChangesOperationPending);
         },
 
         reviewTargetLabel(context = this.reviewContext) {
@@ -38,11 +41,13 @@ export function researchAssistantReview() {
         },
 
         reviewFocusLabel() {
+            if (this.reviewContext?.assistance_mode) return this.reviewContext.review_focus === 'consistency' ? 'Proposal help' : 'Revision help';
             if (this.reviewContext?.review_focus === 'revision_response') return 'Revision response review';
             return this.reviewContext?.review_focus === 'consistency' ? 'Proposal consistency review' : 'Proposal review';
         },
 
         restoreReviewContext(context) {
+            this.proposalHelpOpen = false;
             this.reviewContext = reviewContext(context);
             if (!this.reviewContext) return;
 
@@ -82,7 +87,53 @@ export function researchAssistantReview() {
             ];
         },
 
-        async startSuggestedReview(item, trigger = null) {
+        openProposalHelp(item, trigger = null) {
+            return this.startSuggestedReview(item, trigger, true);
+        },
+
+        proposalHelpOptions() {
+            if (!this.reviewContext) return [];
+            const revision = this.reviewContext.review_focus === 'revision_response';
+            return revision ? [
+                { key: 'revision_plan', label: 'Plan my revisions', description: 'Turn the recorded feedback into a short list of next steps.',
+                    mode: 'revision_plan', prompt: 'Help me plan my revisions. Use the recorded reviewer feedback for this proposal to suggest a short, practical sequence of changes. Separate what I need to change in the paper from what I need to explain in my response. Do not claim that anything has already been changed.' },
+                { key: 'feedback_explanation', label: 'Explain reviewer feedback', description: 'Understand what the reviewer is asking you to improve.',
+                    mode: 'feedback_explanation', prompt: 'Explain the recorded reviewer feedback for this proposal in plain language. Clarify the requested changes and give a useful example based on the available saved evidence. Say when the comment is too vague to interpret reliably.' },
+                { key: 'response_draft', label: 'Help write a response', description: 'Suggest wording that accurately reflects the changes you made.',
+                    mode: 'response_draft', prompt: 'Help me write a response to the recorded reviewer feedback. Use only changes supported by the saved proposal. If a change is not evidenced, give wording I can complete after making it rather than claiming it is done. Keep the wording concise and editable; do not submit or save a response.' },
+                { key: 'compare', label: 'Compare saved changes', description: 'Check which reviewer requests are supported by the saved papers.',
+                    prompt: 'Compare the recorded reviewer requests with the saved proposal and revision responses. Focus on what still needs attention and suggest the next step for each supported finding.' },
+            ] : [
+                ...(this.reviewContext.proposal_draft_id ? [{ key: 'proposal_changes', label: 'Suggest proposal changes',
+                    description: 'Review specific wording changes and apply the ones you choose.',
+                    action: 'suggest_proposal_changes',
+                    prompt: 'Read this saved proposal against the Research Manual requirements. Identify evidence gaps and suggest precise improvements to its existing text for my review. Let me choose which changes to apply; use the reviewed literature flow for additional studies.' }] : []),
+                { key: 'draft_guidance', label: 'Strengthen my proposal', description: 'Find the clearest next improvements in your saved draft.',
+                    mode: 'draft_guidance', prompt: 'Help me improve this saved proposal draft. Suggest up to three concrete next improvements based on its objectives, methods, work plan and budget. Explain how to make each improvement without claiming that edits were saved.' },
+                { key: 'methods', label: 'Review objectives and methods', description: 'Discuss how your research methods can answer your objectives.',
+                    mode: 'draft_guidance', prompt: 'Explain how the saved objectives and methodology in this proposal draft fit together. Suggest practical refinements and identify information I still need to provide.' },
+                { key: 'compare', label: 'Compare proposal papers', description: 'Check the saved objectives, methods, work plan and budget together.',
+                    prompt: 'Compare this proposal draft across its objectives, methods, work plan and budget. Give concise evidence-backed suggestions for any mismatches.' },
+            ];
+        },
+
+        async startProposalHelp(option, trigger = null) {
+            if (this.reviewLaunchBusy() || this.draft.trim()) return false;
+            const selected = this.proposalHelpOptions().find(item => item.key === option?.key);
+            if (!selected) return false;
+            const context = { ...this.reviewContext };
+            delete context.assistance_mode;
+            if (selected.mode) context.assistance_mode = selected.mode;
+            this.reviewContext.assistance_mode = selected.mode;
+            this.proposalHelpOpen = false;
+            this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
+            await this.sendPrompt(selected.prompt, selected.mode ? null : {
+                type: selected.action || 'review_proposal', ...(selected.action ? {} : { review_focus: context.review_focus }),
+            }, context);
+            return true;
+        },
+
+        async startSuggestedReview(item, trigger = null, chooseHelp = false) {
             if (this.reviewLaunchBusy()) return false;
 
             const context = reviewContext(item?.context);
@@ -119,6 +170,11 @@ export function researchAssistantReview() {
                     review_label: item.target_label || context.review_label,
                 });
                 this.historySearchOpen = false;
+                if (chooseHelp) {
+                    this.reviewContext.assistance_mode = 'discussion';
+                    this.proposalHelpOpen = true;
+                    return true;
+                }
                 await this.sendPrompt(item.prompt, {
                     type: 'review_proposal',
                     review_focus: item.action.review_focus,

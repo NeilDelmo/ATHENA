@@ -7,6 +7,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 import * as integration from '../../resources/js/research-assistant-dissemination.js';
+import { normalizeAssistantProposalChanges } from '../../resources/js/research-assistant-proposal-changes.js';
 
 const project = {
     id: 42, label: 'Coastal monitoring study',
@@ -153,12 +154,12 @@ test('the actual chat request routes venue intent to the selected project search
     const method = source.match(/    async requestReply\([^)]*\) \{([\s\S]*?)\n    \},/)[0];
     const requests = [];
     const pageDocument = { body: { dataset: { researchAssistantUrl: '/chat', conferenceSearchUrl: '/conference-search' } }, querySelector: () => ({ content: 'csrf' }) };
-    const methodFactory = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'disseminationAction', 'disseminationSearchRequest', 'disseminationSearchReply', `return ({${method}});`);
+    const methodFactory = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'normalizeAssistantProposalChanges', 'disseminationAction', 'disseminationSearchRequest', 'disseminationSearchReply', `return ({${method}});`);
     const store = {
         ...methodFactory(pageDocument, async (url, options) => {
             requests.push({ url, body: JSON.parse(options.body) });
             return { ok: true, json: async () => ({ results: [{ name: 'Marine Science' }] }) };
-        }, () => null, integration.disseminationAction, integration.disseminationSearchRequest, integration.disseminationSearchReply),
+        }, () => null, normalizeAssistantProposalChanges, integration.disseminationAction, integration.disseminationSearchRequest, integration.disseminationSearchReply),
         messages: [], nextMessageId: 2, requestSequence: 0, contextOptions: [project],
         contextMessages: () => [{ role: 'user', content: 'Find journals for my project.' }],
         replyContext: () => ({ topic_id: 42 }), scrollToLatest() {}, saveConversation: async () => {},

@@ -829,6 +829,18 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
         'reviewer_id' => $this->head->id,
         'decision' => 'revision_requested',
         'comment' => 'Correct the schedule before submitting.',
+        'committee_comments' => [
+            [
+                'reviewer' => 'Private Committee Reviewer One',
+                'location' => 'Work Plan, Planting schedule',
+                'comment' => 'Explain <strong>the revised planting schedule</strong>.',
+            ],
+            [
+                'reviewer' => 'Private Committee Reviewer Two',
+                'location' => 'Work Plan, Monitoring',
+                'comment' => 'Clarify the monitoring frequency.',
+            ],
+        ],
     ]);
     $revision = $review->fileRevisions()->create([
         'proposal_version_file_id' => $this->file->id,
@@ -848,9 +860,50 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
     $topicResponse = $this->actingAs($this->faculty)->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('data-faculty-revision-summary', false)
-        ->assertSee('Open revision workspace')
+        ->assertSee('Revise proposal')
         ->assertSee(route('faculty.topics.revision', $this->topic), false)
         ->assertDontSee('id="submit-revision"', false);
+
+    $topicDocument = new DOMDocument;
+    @$topicDocument->loadHTML('<?xml encoding="UTF-8">'.$topicResponse->getContent());
+    $topicXpath = new DOMXPath($topicDocument);
+    $reviewTab = '//*[@id="proposal-review-tab"]';
+    $workflow = $reviewTab.'//*[@data-proposal-routing-docket]';
+    $revisionFooter = $workflow.'//footer[@data-faculty-revision-summary]';
+    $revisionAction = '//a[@href="'.route('faculty.topics.revision', $this->topic).'" and normalize-space(.)="Revise proposal"]';
+
+    expect($topicXpath->query($reviewTab.'//*[@data-faculty-revision-summary]')->length)->toBe(1)
+        ->and($topicXpath->query($revisionFooter)->length)->toBe(1)
+        ->and($topicXpath->query($workflow.'//*[@data-workflow-stage-record][.//p[normalize-space(.)="'.$review->comment.'"]]')->length)->toBe(1)
+        ->and($topicXpath->query($reviewTab.'//p[normalize-space(.)="'.$review->comment.'"]')->length)->toBe(1)
+        ->and($topicXpath->query($workflow.'//*[@data-review-feedback]')->length)->toBe(1)
+        ->and($topicXpath->query($workflow.'//*[@data-review-feedback]//h5[normalize-space(.)="Reviewer feedback"]')->length)->toBe(1)
+        ->and($topicXpath->query($workflow.'//*[@data-review-feedback]//p[normalize-space(.)="5 comments"]')->length)->toBe(1)
+        ->and($topicXpath->query($workflow.'//*[@data-review-comment]')->length)->toBe(5)
+        ->and($topicXpath->query($reviewTab.$revisionAction)->length)->toBe(1)
+        ->and($topicXpath->query($revisionFooter.$revisionAction)->length)->toBe(1)
+        ->and($topicXpath->query($revisionFooter)->item(0)->textContent)->not->toContain($review->comment);
+
+    $commentRows = iterator_to_array($topicXpath->query($workflow.'//*[@data-review-comment]'));
+    $commentsInOrder = array_map(fn (DOMNode $row): string => trim($topicXpath->query('./p[last()]', $row)->item(0)->textContent), $commentRows);
+    $locationsInOrder = array_map(fn (DOMNode $row): string => trim($topicXpath->query('./p[1]', $row)->item(0)->textContent), $commentRows);
+    $feedbackHtml = $topicDocument->saveHTML($topicXpath->query($workflow.'//*[@data-review-feedback]')->item(0));
+
+    expect($commentsInOrder)->toBe([
+        'Correct the schedule before submitting.',
+        'Explain <strong>the revised planting schedule</strong>.',
+        'Clarify the monitoring frequency.',
+        'Move planting to the wet season.',
+        'Start planting in June.',
+    ])
+        ->and($locationsInOrder[0])->toBe('Comment 1 · Overall proposal')
+        ->and($locationsInOrder[1])->toBe('Comment 2 · Work Plan, Planting schedule')
+        ->and($locationsInOrder[2])->toBe('Comment 3 · Work Plan, Monitoring')
+        ->and($locationsInOrder[3])->toContain('Comment 4', $this->file->label())
+        ->and($locationsInOrder[4])->toContain('Comment 5', $this->file->label(), 'Page 1')
+        ->and($feedbackHtml)->toContain('Explain &lt;strong&gt;the revised planting schedule&lt;/strong&gt;.')
+        ->not->toContain('<strong>the revised planting schedule</strong>')
+        ->and($topicXpath->query($workflow)->item(0)->textContent)->not->toContain('Private Committee Reviewer One', 'Private Committee Reviewer Two');
 
     $response = $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()

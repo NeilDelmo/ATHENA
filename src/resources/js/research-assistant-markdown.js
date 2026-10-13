@@ -30,128 +30,176 @@ export function stripAssistantGroundingFooter(value) {
     return lines.slice(0, footerIndex).join('\n').trim() || content;
 }
 
-function formatAssistantInlineMarkdown(value) {
-    const codeSpans = [];
-    let formatted = escapeAssistantHtml(value).replace(/`([^`\n]+)`/g, (_, code) => {
-        const index = codeSpans.push(code) - 1;
+export function safeAssistantSourceUrl(value) {
+    if (typeof value !== 'string' || /[\u0000-\u0020\u007f]/.test(value)) return '';
+    if (!/^https?:\/\//i.test(value)) return '';
 
-        return `\uE000${index}\uE001`;
-    });
-
-    formatted = formatted
-        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
-        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-        .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="font-semibold text-red-700 underline decoration-red-300 underline-offset-2 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200">$1</a>')
-        .replace(/\uE000(\d+)\uE001/g, (_, index) => `<code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.9em] dark:bg-slate-800">${codeSpans[Number(index)]}</code>`)
-        .trim();
-
-    return formatted;
+    try {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : '';
+    } catch {
+        return '';
+    }
 }
 
-export function formatAssistantMarkdown(value) {
-    const lines = String(value ?? '').replace(/\r\n?/g, '\n').split('\n');
+function evidenceLink(source, showReference = false) {
+    const url = safeAssistantSourceUrl(source?.url);
+    if (!url) return '';
+
+    const reference = String(source.reference ?? '').replace(/^\[|\]$/g, '').trim();
+    const title = String(source.title || reference || 'Saved evidence');
+    return `<a href="${escapeAssistantHtml(url)}" target="_blank" rel="noopener noreferrer" class="assistant-evidence-link inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2" aria-label="Open evidence: ${escapeAssistantHtml(title)}">Open evidence${showReference ? `<span class="assistant-evidence-reference">${escapeAssistantHtml(reference)}</span>` : ''}</a>`;
+}
+
+function formatAssistantInlineMarkdown(value, sources) {
+    const tokens = /`([^`\n]+)`|\[([^\]\n]+)\]\(([^\s)]+)\)|\[([^\]\n]+)\]|\*\*([^*\n]+)\*\*|__([^_\n]+)__|\*([^*\n]+)\*/g;
+    const text = String(value ?? '');
+    let html = '';
+    let cursor = 0;
+
+    for (const match of text.matchAll(tokens)) {
+        html += escapeAssistantHtml(text.slice(cursor, match.index));
+        const [, code, label, link, reference, strong, alternateStrong, emphasis] = match;
+        if (code !== undefined) {
+            html += `<code>${escapeAssistantHtml(code)}</code>`;
+        } else if (label !== undefined) {
+            const url = safeAssistantSourceUrl(link);
+            html += url ? `<a href="${escapeAssistantHtml(url)}" target="_blank" rel="noopener noreferrer" class="assistant-inline-link">${escapeAssistantHtml(label)}</a>` : escapeAssistantHtml(match[0]);
+        } else if (reference !== undefined) {
+            const source = sources.find(source => String(source?.reference ?? '').replace(/^\[|\]$/g, '').trim() === reference.trim());
+            html += source && safeAssistantSourceUrl(source.url) ? evidenceLink(source, true) : escapeAssistantHtml(match[0]);
+        } else if (strong !== undefined || alternateStrong !== undefined) {
+            html += `<strong>${formatAssistantInlineMarkdown(strong ?? alternateStrong, sources)}</strong>`;
+        } else {
+            html += `<em>${formatAssistantInlineMarkdown(emphasis, sources)}</em>`;
+        }
+        cursor = match.index + match[0].length;
+    }
+
+    return html + escapeAssistantHtml(text.slice(cursor));
+}
+
+function listMarker(line) {
+    const match = line.match(/^( *)([-+*]|\d+[.)])( +)(.+)$/);
+    if (!match) return null;
+    return { indent: match[1].length, contentIndent: match[1].length + match[2].length + match[3].length, type: /^\d/.test(match[2]) ? 'ol' : 'ul', start: parseInt(match[2], 10), content: match[4] };
+}
+
+function startsBlock(line) {
+    return listMarker(line) || /^\s*(?:#{1,6}\s|```|>|---+\s*$|\*\*\*+\s*$)/.test(line);
+}
+
+function renderList(lines, startIndex, sources) {
+    const first = listMarker(lines[startIndex]);
+    const items = [];
+    let index = startIndex;
+
+    while (index < lines.length) {
+        const marker = listMarker(lines[index]);
+        if (!marker || marker.indent !== first.indent || marker.type !== first.type) break;
+        const body = [marker.content];
+        let afterBlank = false;
+        index++;
+        while (index < lines.length) {
+            const line = lines[index];
+            const nextMarker = listMarker(line);
+            if (nextMarker && nextMarker.indent <= first.indent) break;
+            if (!line.trim()) {
+                body.push('');
+                afterBlank = true;
+                index++;
+                continue;
+            }
+            const indent = line.match(/^ */)[0].length;
+            if (indent <= first.indent && (afterBlank || startsBlock(line))) break;
+            body.push(line.slice(Math.min(indent, marker.contentIndent)));
+            afterBlank = false;
+            index++;
+        }
+        items.push(`<li>${renderAssistantBlocks(body, sources)}</li>`);
+    }
+
+    const start = first.type === 'ol' && first.start !== 1 ? ` start="${first.start}"` : '';
+    return { html: `<${first.type}${start}>${items.join('')}</${first.type}>`, index };
+}
+
+function renderAssistantBlocks(lines, sources) {
     const blocks = [];
-    let paragraph = [];
-    let listType = null;
-    let listItems = [];
-    let codeFence = false;
-    let codeLines = [];
+    let index = 0;
 
-    const flushParagraph = () => {
-        if (!paragraph.length) return;
-
-        blocks.push(`<p class="my-3 first:mt-0 last:mb-0">${formatAssistantInlineMarkdown(paragraph.join(' '))}</p>`);
-        paragraph = [];
-    };
-    const flushList = () => {
-        if (!listType || !listItems.length) return;
-
-        const listClass = listType === 'ol'
-            ? 'my-3 list-decimal space-y-1.5 pl-5 marker:font-semibold marker:text-gray-500 dark:marker:text-slate-400'
-            : 'my-3 list-disc space-y-1.5 pl-5 marker:text-gray-500 dark:marker:text-slate-400';
-        const items = listItems
-            .map((item) => `<li class="pl-1">${formatAssistantInlineMarkdown(item)}</li>`)
-            .join('');
-
-        blocks.push(`<${listType} class="${listClass}">${items}</${listType}>`);
-        listType = null;
-        listItems = [];
-    };
-    const flushCode = () => {
-        blocks.push(`<pre class="my-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100"><code>${escapeAssistantHtml(codeLines.join('\n'))}</code></pre>`);
-        codeLines = [];
-    };
-
-    lines.forEach((line) => {
-        if (/^\s*```/.test(line)) {
-            flushParagraph();
-            flushList();
-
-            if (codeFence) flushCode();
-            codeFence = !codeFence;
-
-            return;
-        }
-
-        if (codeFence) {
-            codeLines.push(line);
-            return;
-        }
-
+    while (index < lines.length) {
+        const line = lines[index];
         if (!line.trim()) {
-            flushParagraph();
-            flushList();
-            return;
+            index++;
+            continue;
         }
-
-        const heading = line.match(/^\s*(#{1,4})\s+(.+?)\s*#*\s*$/);
+        if (/^\s*```/.test(line)) {
+            const code = [];
+            index++;
+            while (index < lines.length && !/^\s*```/.test(lines[index])) code.push(lines[index++]);
+            if (index < lines.length) index++;
+            blocks.push(`<pre><code>${escapeAssistantHtml(code.join('\n'))}</code></pre>`);
+            continue;
+        }
+        const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
         if (heading) {
-            flushParagraph();
-            flushList();
-            const level = Math.min(4, heading[1].length + 1);
-            const headingClass = level <= 2
-                ? 'mb-2 mt-5 text-base font-black leading-6 text-gray-950 first:mt-0 dark:text-white'
-                : 'mb-1.5 mt-4 text-sm font-black leading-6 text-gray-900 first:mt-0 dark:text-slate-100';
-
-            blocks.push(`<h${level} class="${headingClass}">${formatAssistantInlineMarkdown(heading[2])}</h${level}>`);
-            return;
+            const level = Math.min(6, heading[1].length + 1);
+            blocks.push(`<h${level}>${formatAssistantInlineMarkdown(heading[2], sources)}</h${level}>`);
+            index++;
+            continue;
         }
-
         if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) {
-            flushParagraph();
-            flushList();
-            blocks.push('<hr class="my-5 border-gray-200 dark:border-slate-700">');
-            return;
+            blocks.push('<hr>');
+            index++;
+            continue;
         }
-
-        const unorderedItem = line.match(/^\s*[-+*]\s+(.+)$/);
-        const orderedItem = line.match(/^\s*\d+[.)]\s+(.+)$/);
-        if (unorderedItem || orderedItem) {
-            flushParagraph();
-            const nextListType = orderedItem ? 'ol' : 'ul';
-
-            if (listType && listType !== nextListType) flushList();
-            listType = nextListType;
-            listItems.push((orderedItem || unorderedItem)[1]);
-            return;
+        if (listMarker(line)) {
+            const list = renderList(lines, index, sources);
+            blocks.push(list.html);
+            index = list.index;
+            continue;
         }
-
-        const quote = line.match(/^\s*>\s?(.+)$/);
-        if (quote) {
-            flushParagraph();
-            flushList();
-            blocks.push(`<blockquote class="my-4 border-l-4 border-red-200 pl-4 italic text-gray-600 dark:border-red-900 dark:text-slate-300">${formatAssistantInlineMarkdown(quote[1])}</blockquote>`);
-            return;
+        if (/^\s*>/.test(line)) {
+            const quote = [];
+            while (index < lines.length && /^\s*>/.test(lines[index])) quote.push(lines[index++].replace(/^\s*>\s?/, ''));
+            blocks.push(`<blockquote>${renderAssistantBlocks(quote, sources)}</blockquote>`);
+            continue;
         }
-
-        flushList();
-        paragraph.push(line.trim());
-    });
-
-    flushParagraph();
-    flushList();
-    if (codeFence || codeLines.length) flushCode();
+        const paragraph = [line.trim()];
+        index++;
+        while (index < lines.length && lines[index].trim() && !startsBlock(lines[index])) paragraph.push(lines[index++].trim());
+        blocks.push(`<p>${formatAssistantInlineMarkdown(paragraph.join(' '), sources)}</p>`);
+    }
 
     return blocks.join('');
+}
+
+export function formatAssistantMarkdown(value, sources = []) {
+    const lines = String(value ?? '').replace(/\r\n?/g, '\n').replaceAll('\t', '    ').split('\n');
+    const html = renderAssistantBlocks(lines, Array.isArray(sources) ? sources : []);
+    return html ? `<div class="assistant-prose">${html}</div>` : '';
+}
+
+export function formatAssistantReview(review) {
+    if (!review || typeof review !== 'object') return '';
+    const statuses = { addressed: 'Already addressed', partly_addressed: 'Partly addressed', not_evidenced: 'Evidence missing', cannot_verify: 'Cannot verify', observed_mismatch: 'Needs attention', needs_attention: 'Needs attention' };
+    const findings = (Array.isArray(review.findings) ? review.findings : []).filter(finding => finding && typeof finding === 'object').slice(0, 5);
+    const summary = review.summary ? `<p class="assistant-review-summary">${escapeAssistantHtml(review.summary)}</p>` : '';
+
+    return `<div class="assistant-prose assistant-review">${summary}${findings.map(finding => {
+        const status = Object.hasOwn(statuses, finding.status) ? finding.status : 'cannot_verify';
+        const evidence = (Array.isArray(finding.evidence) ? finding.evidence : []).filter(item => item && typeof item === 'object');
+        const nextEdit = finding.next_edit ? `<div class="assistant-review-next-edit"><h4>Suggested next step</h4><p>${escapeAssistantHtml(finding.next_edit)}</p></div>` : '';
+        const explanation = finding.explanation ? `<p class="assistant-review-explanation">${escapeAssistantHtml(finding.explanation)}</p>` : '';
+        const supportingText = evidence.map(item => {
+            const reference = String(item.reference ?? '').replace(/^\[|\]$/g, '').trim();
+            const location = String(item.location ?? '');
+            const kind = reference === 'Reviewer feedback'
+                ? (/Faculty response/i.test(location) ? 'Your response' : /Previously reviewed fields/i.test(location) ? 'Proposal' : 'Reviewer request')
+                : 'Proposal';
+            const caption = `${kind}${reference && reference !== 'Reviewer feedback' ? ` · ${escapeAssistantHtml(reference)}` : ''}${location ? ` · <span class="assistant-evidence-location">${escapeAssistantHtml(location)}</span>` : ''}`;
+            return `<figure class="assistant-review-evidence-item"><figcaption>${caption}</figcaption>${item.quote ? `<blockquote>${escapeAssistantHtml(item.quote)}</blockquote>` : ''}${evidenceLink(item)}</figure>`;
+        }).join('');
+        return `<section class="assistant-review-finding"><div class="assistant-review-narrative"><header class="assistant-review-heading"><h3>${escapeAssistantHtml(finding.title)}</h3><span class="assistant-review-status" data-review-status="${status}">${statuses[status]}</span></header>${nextEdit}${explanation}</div>${evidence.length ? `<details class="assistant-review-evidence"><summary>See supporting text (${evidence.length})</summary><div class="assistant-review-evidence-content">${supportingText}</div></details>` : ''}</section>`;
+    }).join('')}</div>`;
 }

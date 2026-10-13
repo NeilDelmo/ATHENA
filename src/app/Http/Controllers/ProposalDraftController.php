@@ -89,6 +89,7 @@ class ProposalDraftController extends Controller
 
         $validated = $request->validated();
         $validated['project_title'] = trim($validated['project_title']);
+        $validated['project_leader'] = $request->user()->name;
         $researchCallId = $validated['research_call_id'] ?? null;
         $lockKey = 'proposal-draft-create:'.hash('sha256', implode('|', [
             $request->user()->id,
@@ -284,7 +285,7 @@ class ProposalDraftController extends Controller
 
         if (! is_array($paper) || $paper['mode'] !== 'generated') {
             throw ValidationException::withMessages([
-                'document_type' => 'This file cannot be added to the revision workspace.',
+                'document_type' => 'This file cannot be added to the proposal revision.',
             ]);
         }
 

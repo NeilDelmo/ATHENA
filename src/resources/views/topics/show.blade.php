@@ -430,7 +430,26 @@
         @endphp
         <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
             <div data-visible-proposal-workflow>
-                <x-proposal-workflow :topic="$topic" :version="$latestVersion" :reviews="$topic->reviews" />
+                <x-proposal-workflow :topic="$topic" :version="$latestVersion" :reviews="$topic->reviews">
+                    @if ($isFacultyRevision)
+                        <x-slot name="footerActions" data-faculty-revision-summary>
+                            <div class="min-w-0">
+                                <h4 class="text-base font-semibold text-brand dark:text-red-300">Revise and resubmit</h4>
+                                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">Address the feedback above and submit an updated proposal.</p>
+                            </div>
+                            <div class="flex shrink-0 flex-col gap-2 sm:items-end">
+                                <dl class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                    <div class="flex items-baseline gap-1.5"><dt class="order-2">papers requested</dt><dd class="font-semibold tabular-nums">{{ $pendingFileRevisions->groupBy('document_type')->count() }}</dd></div>
+                                    <div class="flex items-baseline gap-1.5"><dt class="order-2">{{ count($commentResponseRows) === 1 ? 'review comment' : 'review comments' }}</dt><dd class="font-semibold tabular-nums">{{ count($commentResponseRows) }}</dd></div>
+                                </dl>
+                                <a href="{{ route('faculty.topics.revision', $topic) }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:focus-visible:outline-red-300">
+                                    Revise proposal
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                                </a>
+                            </div>
+                        </x-slot>
+                    @endif
+                </x-proposal-workflow>
             </div>
 
             @if ($isResearchHead && $latestVersion && $topic->review_stage !== 'lrec' && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true))
@@ -480,38 +499,6 @@
                     @endif
                 </section>
             @endif
-            @if ($isFacultyRevision)
-                <section data-faculty-revision-summary class="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-950 dark:bg-slate-950">
-                    <div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]">
-                        <div class="border-b border-red-100 p-6 dark:border-red-950 lg:border-b-0 lg:border-r lg:p-8">
-                            <div class="flex items-start gap-4">
-                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-700 text-white" aria-hidden="true">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m8.25-.75a8.25 8.25 0 1 1-16.5 0 8.25 8.25 0 0 1 16.5 0ZM12 16.5h.008v.008H12V16.5Z" /></svg>
-                                </span>
-                                <div class="min-w-0">
-                                    <p class="text-sm font-bold text-red-700 dark:text-red-300">Your action is required</p>
-                                    <h3 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">Revise and resubmit this proposal</h3>
-                                    <p class="mt-3 max-w-3xl text-base leading-7 text-gray-600 dark:text-slate-300">The correction tools now have their own workspace, so the feedback, document editor, responses, and final submission stay together without crowding this project record.</p>
-                                    @if ($latestRevisionReview?->comment)
-                                        <blockquote class="mt-5 border-l-4 border-red-200 pl-4 text-sm leading-6 text-gray-800 dark:border-red-900 dark:text-slate-100">{{ $latestRevisionReview->comment }}</blockquote>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex flex-col justify-between gap-6 bg-red-50/60 p-6 dark:bg-red-950/20 lg:p-8">
-                            <dl class="grid grid-cols-2 gap-5">
-                                <div><dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Requested papers</dt><dd class="mt-1 text-2xl font-black tabular-nums text-gray-950 dark:text-white">{{ $pendingFileRevisions->groupBy('document_type')->count() }}</dd></div>
-                                <div><dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Review comments</dt><dd class="mt-1 text-2xl font-black tabular-nums text-gray-950 dark:text-white">{{ count($commentResponseRows) }}</dd></div>
-                            </dl>
-                            <a href="{{ route('faculty.topics.revision', $topic) }}" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950">
-                                Open revision workspace
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
-                            </a>
-                        </div>
-                    </div>
-                </section>
-            @endif
-
             @if (! $isResearchHead && ! $isResearchOffice && ! $isFacultyRevision)
                 <div class="rounded-2xl border border-red-200 bg-red-50 p-5 sm:p-6">
                     <h3 class="text-lg font-black text-gray-900">What happens next</h3>

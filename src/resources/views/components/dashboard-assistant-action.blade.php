@@ -1,4 +1,4 @@
-@props(['item', 'label' => null, 'tone' => null, 'variant' => 'filled'])
+@props(['item', 'label' => null, 'tone' => null, 'variant' => 'filled', 'help' => false])
 
 @php
     $actionLabel = $label ?? $item['label'];
@@ -7,7 +7,8 @@
 <button
     type="button"
     data-review-suggestion="{{ Illuminate\Support\Js::encode($item) }}"
-    @click="$store.researchAssistant.startSuggestedReview(JSON.parse($el.dataset.reviewSuggestion), $el)"
+    @if ($help) data-proposal-help @endif
+    @click="$store.researchAssistant.{{ $help ? 'openProposalHelp' : 'startSuggestedReview' }}(JSON.parse($el.dataset.reviewSuggestion), $el)"
     :disabled="$store.researchAssistant.reviewLaunchBusy()"
     aria-controls="athena-assistant-workspace"
     aria-label="{{ $actionLabel }} for {{ $item['target_label'] }} with Athena"

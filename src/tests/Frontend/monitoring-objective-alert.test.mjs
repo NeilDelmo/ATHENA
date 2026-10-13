@@ -21,7 +21,7 @@ test('the real monitoring deadline alert fits both themes and activity warnings 
     const fixtureDirectory = resolve('storage/app/preview-zoom-qa');
     execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/MonitoringObjectiveAlertTest.php', '--filter=the monitoring editor shows official overdue alerts'], {
         encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-        env: { ...process.env, ATHENA_MONITORING_ALERT_BROWSER_FIXTURE_DIRECTORY: fixtureDirectory },
+        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_MONITORING_ALERT_BROWSER_FIXTURE_DIRECTORY: fixtureDirectory },
     });
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(read('resources/css/app.css'), { from: undefined });

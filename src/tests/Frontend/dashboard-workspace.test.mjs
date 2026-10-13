@@ -123,8 +123,8 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         assert.equal(await drafts.getByRole('heading', { name: 'Drafts', exact: true }).count(), 1);
                         assert.equal(await drafts.locator('[role="progressbar"]').count(), 0, 'Draft readiness should use one short text summary');
                         for (const [selector, label, contextKey, focus] of [
-                            ['[data-revision-task]', 'AI revision check', 'topic_id', 'revision_response'],
-                            ['[data-dashboard-draft]', 'AI draft check', 'proposal_draft_id', 'consistency'],
+                            ['[data-revision-task]', 'Get revision help', 'topic_id', 'revision_response'],
+                            ['[data-dashboard-draft]', 'Improve this draft', 'proposal_draft_id', 'consistency'],
                         ]) {
                             const rows = page.locator(selector);
                             assert.ok(await rows.count() > 0, `${label} fixture needs a visible row`);
@@ -133,11 +133,24 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                                 assert.equal(await action.count(), 1, `${label} belongs once in each row`);
                                 assert.equal((await action.textContent()).trim(), label);
                                 assert.equal(await action.isVisible(), true);
+                                assert.equal(await action.getAttribute('data-proposal-help'), '', 'Faculty help opens a choice before any AI request');
+                                assert.match(await action.getAttribute('@click'), /openProposalHelp/);
                                 const payload = JSON.parse(await action.getAttribute('data-review-suggestion'));
                                 const targetId = Number(await row.getAttribute(contextKey === 'topic_id' ? 'data-topic-id' : 'data-draft-id'));
                                 assert.deepEqual(payload.context, { [contextKey]: targetId, workflow_scope: 'review' });
                                 assert.deepEqual(payload.action, { type: 'review_proposal', review_focus: focus });
                                 assert.equal(payload.target_label, (await row.locator('h3, h4').first().textContent()).trim());
+                                if (contextKey === 'topic_id') {
+                                    const columns = await row.evaluate(element => getComputedStyle(element).gridTemplateColumns);
+                                    assert.ok(columns === 'none' || columns.split(' ').length === 1,
+                                        'Reviewer comments and actions share one compact column');
+                                    const feedback = row.locator('[data-reviewer-feedback]');
+                                    assert.ok(await feedback.isVisible(), 'The row shows the recorded feedback beside its proposal context');
+                                    assert.ok((await feedback.boundingBox()).y < (await action.boundingBox()).y,
+                                        'Recorded feedback appears before the proposal and help actions');
+                                    assert.doesNotMatch(await feedback.textContent(), /The Research Office requested changes to this proposal\./,
+                                        'Missing recorded feedback directs people to the revision workspace instead of inventing a comment');
+                                }
                                 if (contextKey === 'proposal_draft_id') {
                                     assert.match(await row.textContent(), /\d+\s+of\s+\d+\s+papers ready/);
                                     assert.doesNotMatch(await row.textContent(), /\d+%\s+ready/);

@@ -78,31 +78,31 @@
                     <h2 id="revision-worklist-heading" class="text-base font-semibold text-brand dark:text-red-300">Revisions to address</h2>
                     <span class="flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-2 text-xs font-semibold tabular-nums text-white dark:bg-red-800">{{ $revisionRequestedTopics->count() }}</span>
                 </div>
-                <p class="text-xs leading-5 text-stone-600 dark:text-stone-400">Changes requested by your reviewers. AI checks are optional.</p>
+                <p class="text-xs leading-5 text-stone-600 dark:text-stone-400">Address the requested changes, or ask Athena to help you plan your revisions.</p>
                 <div class="overflow-hidden rounded-xl border border-stone-200 bg-white dark:border-stone-700 dark:bg-stone-900">
                     <div class="divide-y divide-stone-200 dark:divide-stone-700">
                         @foreach ($revisionRequestedTopics as $topic)
                             @php
-                                $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->last() ?? $topic->reviews->last();
+                                $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->last();
                                 $revisionDeadline = $topic->review_stage !== 'lrec' ? $topic->researchCall?->paper_revisions_end_date : null;
                             @endphp
-                            <article data-revision-task data-topic-id="{{ $topic->id }}" class="grid min-w-0 gap-4 p-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-6">
+                            <article data-revision-task data-topic-id="{{ $topic->id }}" class="min-w-0 p-5">
                                 <div class="flex min-w-0 flex-col items-start gap-2">
                                     <h3 class="max-w-prose break-words text-base font-semibold leading-6 text-gray-950 dark:text-white">{{ $topic->title }}</h3>
                                     <p class="text-xs leading-5 text-gray-600 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'Independent submission' }}</p>
                                     @if ($revisionDeadline)
                                         <x-dashboard-deadline :date="$revisionDeadline->copy()->endOfDay()" />
                                     @endif
+                                    <div data-reviewer-feedback class="mt-1 min-w-0">
+                                        <p class="text-xs font-semibold text-stone-700 dark:text-stone-300">Requested change</p>
+                                        <p class="mt-1 max-w-prose whitespace-pre-line break-words text-sm leading-6 text-stone-700 dark:text-stone-300">{{ $latestRevisionReview?->comment ?: 'Open the revision page to see the requested changes.' }}</p>
+                                    </div>
                                     <div class="mt-2 flex flex-wrap items-center gap-3">
                                         <a href="{{ route('faculty.topics.revision', $topic) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:bg-red-700 dark:hover:bg-red-600 dark:focus-visible:outline-red-400">Revise and resubmit proposal</a>
                                         @if ($revisionReviewChecks->has($topic->id))
-                                            <x-dashboard-assistant-action :item="$revisionReviewChecks->get($topic->id)" label="AI revision check" variant="outline" />
+                                            <x-dashboard-assistant-action :item="$revisionReviewChecks->get($topic->id)" label="Get revision help" variant="outline" :help="true" />
                                         @endif
                                     </div>
-                                </div>
-                                <div class="min-w-0 border-t border-stone-200 pt-4 dark:border-stone-700 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-                                    <p class="text-xs font-semibold text-brand dark:text-red-300">Reviewer feedback</p>
-                                    <p class="mt-3 max-w-prose whitespace-pre-line break-words text-sm leading-6 text-gray-600 dark:text-gray-400">{{ $latestRevisionReview?->comment ?: 'The Research Office requested changes to this proposal.' }}</p>
                                 </div>
                             </article>
                         @endforeach
@@ -149,7 +149,7 @@
                                 Resume draft
                             </a>
                             @if ($draftReviewChecks->has($proposalDraft->id))
-                                <x-dashboard-assistant-action :item="$draftReviewChecks->get($proposalDraft->id)" label="AI draft check" variant="outline" />
+                                <x-dashboard-assistant-action :item="$draftReviewChecks->get($proposalDraft->id)" label="Improve this draft" variant="outline" :help="true" />
                             @endif
                         </div>
                     </article>

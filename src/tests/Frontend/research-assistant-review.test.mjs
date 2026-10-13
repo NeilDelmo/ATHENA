@@ -8,6 +8,7 @@ import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 import { researchAssistantReview } from '../../resources/js/research-assistant-review.js';
 import { normalizeAssistantLiterature, serializeAssistantLiterature } from '../../resources/js/research-assistant-literature.js';
+import { normalizeAssistantProposalChanges, serializeAssistantProposalChanges } from '../../resources/js/research-assistant-proposal-changes.js';
 
 const app = readFileSync(resolve('resources/js/app.js'), 'utf8');
 const methodSource = (name) => {
@@ -16,7 +17,7 @@ const methodSource = (name) => {
     return `${app.slice(match.index, match.index + match[0].length)}`;
 };
 const methodsSource = ['sendPrompt', 'contextPayload', 'replyContext', 'send', 'requestReply', 'contextMessages',
-    'saveConversation', 'openConversation', 'openWithContext', 'retry', 'stop', 'clearConversation', 'selectProjectContext', 'selectedContext', 'closeDocumentPicker', 'hasPaperContext']
+    'saveConversation', 'openConversation', 'openWithContext', 'retry', 'stop', 'clearConversation', 'selectProjectContext', 'selectedContext', 'closeDocumentPicker', 'hasPaperContext', 'hasContextOptions']
     .map(methodSource).join('\n');
 const response = (payload, status = 200) => ({ ok: status === 200, status, json: async () => payload });
 
@@ -29,8 +30,8 @@ function assistant(fetchReply = async (url) => response(url === '/chat'
         getElementById: () => null,
     };
     const methods = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'serializeAssistantLiterature',
-        'redactAssistantText', 'researchAssistantMessageLimit', `return ({${methodsSource}});`)(document, fetchReply,
-        normalizeAssistantLiterature, serializeAssistantLiterature, (value) => value, 8000);
+        'normalizeAssistantProposalChanges', 'serializeAssistantProposalChanges', 'redactAssistantText', 'researchAssistantMessageLimit', `return ({${methodsSource}});`)(document, fetchReply,
+        normalizeAssistantLiterature, serializeAssistantLiterature, normalizeAssistantProposalChanges, serializeAssistantProposalChanges, (value) => value, 8000);
     return {
         ...methods, ...researchAssistantReview(),
         draft: '', messages: [], isLoading: false, sendInProgress: false, retryAfter: 0,
@@ -170,7 +171,7 @@ test('draft reviews use the originating draft without leaking a different pageâ€
     const context = { proposal_draft_id: 42, workflow_scope: 'review' };
     assert.equal(await store.startSuggestedReview(reviewItem(context, 'revision_response')), true);
     assert.deepEqual(calls[0][2], context);
-    assert.deepEqual(store.replyContext(context), context);
+    assert.deepEqual(store.replyContext(context), { ...context, assistance_mode: 'discussion' });
     assert.equal(store.contextEnabled, false);
     assert.equal(store.selectedContextId, 0);
     assert.equal(store.proposalDraftId, 99, 'The current page draft keeps its identity');
@@ -178,7 +179,7 @@ test('draft reviews use the originating draft without leaking a different pageâ€
     assert.deepEqual(store.contextPayload(), { ...context, review_focus: 'revision_response', review_label: 'Proposal draft #42' });
 });
 
-test('follow-ups and retries keep the review target and focus', async () => {
+test('follow-ups and retries keep the proposal target without repeating a full review', async () => {
     const calls = [];
     let status = 200;
     const store = assistant(async (url, options) => {
@@ -190,14 +191,118 @@ test('follow-ups and retries keep the review target and focus', async () => {
     store.draft = 'Which reviewer response needs the most work?';
     status = 503;
     await store.send();
-    assert.deepEqual(calls[1].context, { topic_id: 24, workflow_scope: 'review', review_focus: 'revision_response', review_label: 'Project #24' });
-    assert.deepEqual(calls[1].action, { type: 'review_proposal', review_focus: 'revision_response' });
+    assert.deepEqual(calls[1].context, { topic_id: 24, workflow_scope: 'review', assistance_mode: 'discussion', review_label: 'Project #24' });
+    assert.equal(calls[1].action, null);
     status = 200;
     await store.retry();
     assert.deepEqual(calls[2].context, calls[1].context);
     assert.deepEqual(calls[2].action, calls[1].action);
     assert.equal(store.reviewContext.topic_id, 24, 'Targets outside the recent context list still retain their authorized selection');
     assert.equal(store.selectedContextId, 24);
+});
+
+test('faculty proposal help opens safe choices without calling the model', async () => {
+    for (const context of [{ topic_id: 24, workflow_scope: 'review' }, { proposal_draft_id: 42, workflow_scope: 'review' }]) {
+        const requests = [];
+        const store = assistant(async (url, options) => {
+            requests.push({ url, payload: JSON.parse(options.body) });
+            return response({ conversation: { id: 7 } });
+        });
+        store.messages = [{ role: 'user', content: 'Earlier chat about another proposal.' }];
+        store.currentConversationId = 7;
+        const trigger = new HTMLElement();
+        const item = { ...reviewItem(context, context.topic_id ? 'revision_response' : 'consistency'),
+            target_label: 'Water quality "2026" & farmersâ€™ research <img src=x onerror=alert(1)>' };
+        assert.equal(await store.openProposalHelp(item, trigger), true);
+        assert.equal(requests.filter(request => request.url === '/chat').length, 0,
+            'Opening the proposal choices must not consume an AI request');
+        assert.equal(requests[0].payload.messages[0].content, 'Earlier chat about another proposal.');
+        assert.equal(store.proposalHelpOpen, true);
+        assert.equal(store.workspaceOpen, true);
+        assert.equal(store.returnFocusElement, trigger);
+        assert.deepEqual(store.messages, []);
+        assert.equal(store.reviewContext.topic_id || store.reviewContext.proposal_draft_id,
+            context.topic_id || context.proposal_draft_id);
+        assert.equal(store.reviewTargetLabel(), item.target_label);
+        assert.equal(store.hasPaperContext(), false, 'Unrelated live form fields are excluded');
+        assert.deepEqual(store.proposalHelpOptions().map(option => option.label), context.topic_id
+            ? ['Plan my revisions', 'Explain reviewer feedback', 'Help write a response', 'Compare saved changes']
+            : ['Suggest proposal changes', 'Strengthen my proposal', 'Review objectives and methods', 'Compare proposal papers']);
+    }
+});
+
+test('proposal help choices send only the selected saved target and the chosen assistance mode', async () => {
+    for (const [label, mode, context, focus] of [
+        ['Plan my revisions', 'revision_plan', { topic_id: 24, workflow_scope: 'review' }, 'revision_response'],
+        ['Explain reviewer feedback', 'feedback_explanation', { topic_id: 24, workflow_scope: 'review' }, 'revision_response'],
+        ['Help write a response', 'response_draft', { topic_id: 24, workflow_scope: 'review' }, 'revision_response'],
+        ['Compare saved changes', null, { topic_id: 24, workflow_scope: 'review' }, 'revision_response'],
+        ['Strengthen my proposal', 'draft_guidance', { proposal_draft_id: 42, workflow_scope: 'review' }, 'consistency'],
+        ['Review objectives and methods', 'draft_guidance', { proposal_draft_id: 42, workflow_scope: 'review' }, 'consistency'],
+        ['Compare proposal papers', null, { proposal_draft_id: 42, workflow_scope: 'review' }, 'consistency'],
+    ]) {
+        const requests = [];
+        const store = assistant(async (url, options) => {
+            requests.push({ url, payload: JSON.parse(options.body) });
+            return response(url === '/chat' ? { reply: 'Here is a concrete next step using the saved proposal.' }
+                : { conversation: { id: 8 } });
+        });
+        await store.openProposalHelp({ ...reviewItem(context, focus), target_label: 'Water study' });
+        const option = store.proposalHelpOptions().find(option => option.label === label);
+        assert.ok(option, `Missing proposal help option: ${label}`);
+        await store.startProposalHelp(option);
+        const chat = requests.find(request => request.url === '/chat').payload;
+        assert.deepEqual(chat.context, mode ? { ...context, assistance_mode: mode, review_label: 'Water study' }
+            : { ...context, review_focus: focus, review_label: 'Water study' });
+        assert.deepEqual(chat.action, mode ? null : { type: 'review_proposal', review_focus: focus });
+        assert.equal(store.proposalHelpOpen, false);
+        assert.equal(chat.messages.length, 1, 'The selected help begins a clean proposal-bound conversation');
+        assert.ok(chat.messages[0].content.trim());
+        assert.ok(!JSON.stringify(chat).includes('Unrelated page draft'));
+    }
+});
+
+test('proposal help follow-ups, retry, and restored history remain ordinary conversations on the exact saved target', async () => {
+    const requests = [];
+    let status = 200;
+    let savedContext;
+    let savedMessages;
+    const store = assistant(async (url, options) => {
+        if (!options?.body) return response({ conversation: { id: 8, context: savedContext, messages: savedMessages } });
+        const payload = JSON.parse(options.body);
+        requests.push({ url, payload });
+        if (url === '/chat') return response({ reply: 'Draft a response with the saved reviewer comment as its basis.', message: 'Try again.' }, status);
+        savedContext = payload.context;
+        savedMessages = payload.messages;
+        return response({ conversation: { id: 8 } });
+    });
+    await store.openProposalHelp({ ...reviewItem({ proposal_draft_id: 42, workflow_scope: 'review' }, 'consistency'),
+        target_label: 'Community water study' });
+    await store.startProposalHelp(store.proposalHelpOptions().find(option => option.label === 'Strengthen my proposal'));
+    store.draft = 'Can you explain the second point in simpler terms?';
+    status = 503;
+    await store.send();
+    const failedRequest = requests.filter(request => request.url === '/chat').at(-1).payload;
+    assert.equal(failedRequest.action, null);
+    assert.deepEqual(failedRequest.context, { proposal_draft_id: 42, workflow_scope: 'review',
+        review_label: 'Community water study', assistance_mode: 'discussion' });
+    status = 200;
+    await store.retry();
+    assert.deepEqual(requests.filter(request => request.url === '/chat').at(-1).payload, failedRequest,
+        'Retry repeats the same target and conversational mode');
+    const historyContext = structuredClone(savedContext);
+    store.messages = [];
+    await store.openConversation(8);
+    assert.equal(store.reviewTargetLabel(), 'Community water study');
+    assert.equal(store.reviewContext.proposal_draft_id, 42);
+    assert.equal(store.reviewContext.assistance_mode, historyContext.assistance_mode);
+    assert.equal(store.proposalHelpOpen, false, 'Opening saved history does not restart a choice or model call');
+    store.draft = 'Help me write one concise sentence.';
+    await store.send();
+    const followUp = requests.filter(request => request.url === '/chat').at(-1).payload;
+    assert.equal(followUp.action, null);
+    assert.equal(followUp.context.proposal_draft_id, 42);
+    assert.equal(followUp.context.assistance_mode, 'discussion');
 });
 
 test('opening history restores review focus and clearing or changing project releases it', async () => {
@@ -219,6 +324,33 @@ test('opening history restores review focus and clearing or changing project rel
     store.openWithContext(12);
     assert.equal(store.reviewContext, null);
     assert.equal(store.selectedContextId, 12);
+});
+
+test('an incomplete structured review stays retryable without saving a failed assistant answer', async () => {
+    const requests = [];
+    let failed = true;
+    const store = assistant(async (url, options) => {
+        const payload = JSON.parse(options.body);
+        requests.push({ url, payload });
+        if (url !== '/chat') return response({ conversation: { id: 8 } });
+        return failed
+            ? response({ message: 'Athena could not complete this review. Please retry.', sources: Array(11).fill({ reference: 'Unused guide' }) }, 502)
+            : response({ reply: 'The sampling schedule still needs alignment.', sources: [],
+                review: { summary: 'Align the sampling schedule.', version_number: 2, findings: [] } });
+    });
+    await store.startSuggestedReview(reviewItem({ topic_id: 24, workflow_scope: 'review' }, 'revision_response'));
+    assert.match(store.error, /Please retry/);
+    assert.equal(store.messages.filter(message => message.role === 'assistant').length, 0);
+    const saved = requests.filter(request => request.url === '/history').at(-1).payload.messages;
+    assert.equal(saved.filter(message => message.role === 'assistant').length, 0);
+    failed = false;
+    await store.retry();
+    const chats = requests.filter(request => request.url === '/chat');
+    assert.deepEqual(chats[1].payload.context, chats[0].payload.context);
+    assert.deepEqual(chats[1].payload.action, chats[0].payload.action);
+    assert.equal(store.messages.filter(message => message.role === 'assistant').length, 1);
+    assert.equal(store.messages.at(-1).review.version_number, 2);
+    assert.equal(store.error, '');
 });
 
 test('review starters require a proposal and use the selected project ahead of an unrelated page draft', () => {
@@ -244,6 +376,67 @@ test('review targets retain safe display titles and have visible fallbacks outsi
     assert.equal(store.reviewTargetLabel(), 'Project #24');
     store.restoreReviewContext({ topic_id: 24, workflow_scope: 'review', review_label: 'A'.repeat(400) });
     assert.equal(store.reviewTargetLabel().length, 300);
+});
+
+test('structured reviews survive replies, saved history, restoration, copying, and text export', async () => {
+    const review = {
+        summary: 'The work plan does not yet evidence the second objective.',
+        record_basis: 'latest_submitted_version', version_number: 3, reviewed_at: '2026-10-13T04:00:00Z',
+        papers: [{ reference: 'Attachment A: Work Plan', title: 'Attachment A: Work Plan (submission v3)',
+            url: 'https://athena.test/proposals/24/work-plan', coverage: 'saved_structured_fields',
+            omitted_fields: 2, truncated_fields: ['Research design'] }],
+        findings: [{ title: 'Objective 2 has no corresponding activity', status: 'not_evidenced',
+            explanation: 'The saved work plan contains only coastal survey activities.',
+            next_edit: 'Add the survey analysis activity and its schedule.',
+            evidence: [{ reference: 'Attachment A: Work Plan', location: 'Activity 1',
+                quote: 'Quarterly coastal transects', url: 'https://athena.test/proposals/24/work-plan' }] }],
+        limitations: ['Uploaded PDF content was not read.'],
+    };
+    const reply = '## Review summary\nThe work plan does not yet evidence the second objective.\n\n'
+        + '## Next edit\nAdd the survey analysis activity and its schedule.';
+    const saves = [];
+    const store = assistant(async (url, options) => {
+        if (url === '/chat') return response({ reply, review, sources: [] });
+        if (options?.method === 'POST') {
+            saves.push(JSON.parse(options.body));
+            return response({ conversation: { id: 15 } });
+        }
+        return response({ conversation: { id: 15,
+            context: { topic_id: 24, workflow_scope: 'review', review_focus: 'consistency', review_label: 'Water study' },
+            messages: [{ role: 'user', content: 'Check my proposal.' }, { role: 'assistant', content: reply, review }] } });
+    });
+    store.messages = [{ id: 1, role: 'user', content: 'Check my proposal.' }];
+    store.restoreReviewContext({ topic_id: 24, workflow_scope: 'review', review_focus: 'consistency' });
+    await store.requestReply({ type: 'review_proposal', review_focus: 'consistency' },
+        { topic_id: 24, workflow_scope: 'review' });
+    assert.deepEqual(store.messages.at(-1).review, review);
+    assert.deepEqual(saves.at(-1).messages.at(-1).review, review);
+
+    store.messages = [];
+    await store.openConversation(15);
+    assert.deepEqual(store.messages.at(-1).review, review);
+    await store.saveConversation();
+    assert.deepEqual(saves.at(-1).messages.at(-1).review, review);
+
+    let copied = '';
+    let exported = '';
+    let downloaded = '';
+    const transcriptMethods = new Function('navigator', 'window', 'document', 'Blob', 'URL',
+        `return ({${['transcriptText', 'copyConversation', 'exportConversation'].map(methodSource).join('\n')}});`)(
+        { clipboard: { writeText: async text => { copied = text; } } }, { setTimeout() {} },
+        { body: { appendChild() {} }, createElement: () => ({ click() { downloaded = this.download; }, remove() {} }) },
+        class { constructor(parts) { exported = parts.join(''); } },
+        { createObjectURL: () => 'blob:review-transcript', revokeObjectURL() {} },
+    );
+    Object.assign(store, transcriptMethods);
+    await store.copyConversation();
+    store.exportConversation();
+    assert.match(copied, /The work plan does not yet evidence the second objective/);
+    assert.match(copied, /Add the survey analysis activity and its schedule/);
+    assert.equal(exported, copied);
+    assert.match(downloaded, /^athena-research-assistant-.*\.txt$/);
+    assert.ok(!copied.includes('[object Object]'));
+    assert.equal(store.error, '');
 });
 
 test('review starters launch through the actual welcome and menu controls in light, dark, mobile, and desktop layouts', async () => {
@@ -278,6 +471,7 @@ test('review starters launch through the actual welcome and menu controls in lig
                         ...researchAssistantReview(), draft: '', messages: [], contextEnabled: true, selectedContextId: 12,
                         proposalDraftId: 0, isLoading: false, sendInProgress: false, retryAfter: 0,
                         hasConversation() { return this.messages.length > 0; },
+                        hasContextOptions() { return false; },
                         starterPrompts() { return this.reviewStarterPrompts(); }, hasStarterPrompts() { return true; },
                         starterPromptHeading() { return 'Letâ€™s move your research forward.'; },
                         starterPromptDescription() { return 'Pick a starting point below, or ask a question of your own.'; },
@@ -345,6 +539,7 @@ test('dashboard suggestion buttons preserve quoted titles and launch the exact p
             };
             const button = buttonTemplate
                 .replace("{{ Illuminate\\Support\\Js::encode($item) }}", escape(JSON.stringify(item)))
+                .replace("{{ $help ? 'openProposalHelp' : 'startSuggestedReview' }}", 'startSuggestedReview')
                 .replaceAll('{{ $actionLabel }}', escape(item.label))
                 .replaceAll("{{ $item['target_label'] }}", escape(item.target_label));
             const page = await browser.newPage({ viewport: { width: 390, height: 900 } });

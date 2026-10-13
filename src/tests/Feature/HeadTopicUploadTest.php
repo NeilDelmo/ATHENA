@@ -1921,7 +1921,7 @@ test('a dual-role proposal owner only sees the faculty revision module in a facu
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Review status')
-        ->assertSee('Open revision workspace')
+        ->assertSee('Revise proposal')
         ->assertDontSee('id="submit-revision"', false);
 });
 

@@ -9,7 +9,7 @@ test('the proposal review loads when its dialog opens and stays mounted on reope
     const fixturePath = resolve('../tmp/proposal-review-loading.json');
     execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/OtherPageLoadingPerformanceTest.php', '--filter=the proposal hub'], {
         cwd: resolve('.'), encoding: 'utf8',
-        env: { ...process.env, ATHENA_REVIEW_BROWSER_FIXTURE: fixturePath },
+        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_REVIEW_BROWSER_FIXTURE: fixturePath },
     });
     const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
     const html = fixture.html.replaceAll('http://localhost', 'http://athena-review.test');

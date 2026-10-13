@@ -147,7 +147,7 @@ test('rendered progress reports save private evidence and keep it out of preview
     if (!process.env.ATHENA_NARRATIVE_EVIDENCE_USE_EXISTING_FIXTURE) {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/NarrativeProgressEvidenceTest.php', '--filter=narrative accomplishment evidence uploads'], {
             cwd: resolve('.'), encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-            env: { ...process.env, ATHENA_NARRATIVE_EVIDENCE_FIXTURE: fixture },
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_NARRATIVE_EVIDENCE_FIXTURE: fixture },
         });
     }
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))]).process(read('resources/css/app.css'), { from: undefined });

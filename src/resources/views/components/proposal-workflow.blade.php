@@ -88,6 +88,12 @@
                 $review->review_stage === 'gad' => $gadAssessment?->created_at && $review->created_at?->gte($gadAssessment->created_at) && $gadPassed ? 3 : 2,
                 default => 1,
             };
+            $reviewComments = $review->decision === 'revision_requested'
+                ? app(\App\Services\CommentResponseFeedback::class)->rowsForSource($review, \App\Services\CommentResponseFeedback::FORM_RESEARCH_HEAD)
+                : [
+                    ['location' => 'Overall proposal', 'comment' => $review->comment],
+                    ...array_map(fn (array $comment): array => ['location' => $comment['location'] ?? 'Overall proposal', 'comment' => $comment['comment'] ?? ''], $review->committee_comments ?? []),
+                ];
             $stageRecords[$recordStage][] = [
                 'label' => match ($review->decision) {
                     'gad_review' => 'Cleared for GAD assessment',
@@ -99,7 +105,7 @@
                     default => str($review->decision)->headline()->toString(),
                 },
                 'date' => $review->created_at,
-                'comment' => implode("\n", array_filter([$review->comment, ...array_column($review->committee_comments ?? [], 'comment')])),
+                'comments' => array_values(array_filter($reviewComments, fn (array $comment): bool => filled($comment['comment']))),
                 'file' => null,
             ];
         }
@@ -108,7 +114,9 @@
             array_unshift($stageRecords[2], [
                 'label' => ($gadPassed ? 'Passed' : ($gadNeedsRevision ? 'Needs revision' : 'Awaiting signature confirmation')).' · '.($gadAssessment->source_data['gad_score'] ?? '—').'/20',
                 'date' => $gadAssessment->created_at,
-                'comment' => $gadAssessment->source_data['gad_interpretation'] ?? '',
+                'comments' => filled($gadAssessment->source_data['gad_interpretation'] ?? '')
+                    ? [['location' => 'GAD assessment', 'comment' => $gadAssessment->source_data['gad_interpretation']]]
+                    : [],
                 'file' => $gadAssessment,
             ]);
         }
@@ -117,13 +125,13 @@
             array_unshift($stageRecords[3], [
                 'label' => str($coEvaluatorReview->source_data['recommended_action'] ?? 'Evaluation recorded')->headline()->toString(),
                 'date' => $coEvaluatorReview->created_at,
-                'comment' => $coEvaluatorReview->source_data['narrative_evaluation'],
+                'comments' => [['location' => 'Initial Screening Form · Narrative Evaluation', 'comment' => $coEvaluatorReview->source_data['narrative_evaluation']]],
                 'file' => $coEvaluatorReview,
             ]);
         }
 
         if ($released) {
-            array_unshift($stageRecords[5], ['label' => 'Notice to Proceed issued', 'date' => $topic->notice_to_proceed_issued_at, 'comment' => 'Signed documents released. Project monitoring is open.', 'file' => null]);
+            array_unshift($stageRecords[5], ['label' => 'Notice to Proceed issued', 'date' => $topic->notice_to_proceed_issued_at, 'comments' => [], 'note' => 'Signed documents released. Project monitoring is open.', 'file' => null]);
         }
     } else {
         $currentStep = null;
@@ -133,25 +141,25 @@
     }
 @endphp
 
-<section id="{{ $id }}" x-data="{ selectedStage: {{ $currentStep ?? 'null' }} }" data-proposal-routing-docket data-proposal-route @if ($topic) data-current-route-stage="{{ str($stages[$currentStep]['label'])->slug() }}" @else data-workflow-reference @endif class="proposal-docket mt-4 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm dark:border-red-950/70 dark:bg-slate-950" aria-labelledby="{{ $id }}-heading">
-    <header class="grid gap-3 border-b border-red-100 bg-red-50 px-4 py-3 text-[#7A0019] dark:border-red-950 dark:bg-red-950/25 dark:text-red-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5">
+<section id="{{ $id }}" x-data="{ selectedStage: {{ $currentStep ?? 'null' }} }" data-proposal-routing-docket data-proposal-route @if ($topic) data-current-route-stage="{{ str($stages[$currentStep]['label'])->slug() }}" @else data-workflow-reference @endif class="proposal-docket mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950" aria-labelledby="{{ $id }}-heading">
+    <header class="grid gap-3 border-b border-brand bg-[linear-gradient(90deg,#650015_0%,#7A0019_50%,#90142C_100%)] px-4 py-3 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5">
         <div>
             <h3 id="{{ $id }}-heading" class="mt-1 text-base font-black tracking-tight sm:text-lg">{{ $topic ? 'Review progress' : 'Workflow reference' }}</h3>
             @if ($topic)
-                <p class="mt-1 text-xs leading-5">{{ $released ? 'All five stages completed.' : 'Stage '.$currentStep.' of 5: '.$stages[$currentStep]['label'].'.' }} Select a completed stage to view its outcome.</p>
+                <p class="mt-1 text-xs leading-5 text-white/80">{{ $released ? 'All five stages completed.' : 'Stage '.$currentStep.' of 5: '.$stages[$currentStep]['label'].'.' }} Select a completed stage to view its outcome.</p>
             @endif
         </div>
         @if ($topic)
             <dl class="grid grid-cols-2 gap-x-4 text-[11px] sm:text-right">
-                <div><dt class="text-[#7A0019]/65 dark:text-red-200/70">Proposal</dt><dd class="font-black tabular-nums">#{{ $topic->id }}</dd></div>
-                <div><dt class="text-[#7A0019]/65 dark:text-red-200/70">Version</dt><dd class="font-black tabular-nums">{{ $version?->version_number ?? '—' }}</dd></div>
+                <div><dt class="text-white/80">Proposal</dt><dd class="font-black tabular-nums">#{{ $topic->id }}</dd></div>
+                <div><dt class="text-white/80">Version</dt><dd class="font-black tabular-nums">{{ $version?->version_number ?? '—' }}</dd></div>
             </dl>
         @endif
     </header>
 
     <div data-horizontal-stepper>
         <ol @class([
-            'grid list-none divide-red-100 dark:divide-red-950',
+            'grid list-none divide-slate-200 dark:divide-slate-800',
             'grid-cols-1 divide-y lg:grid-cols-5 lg:divide-x lg:divide-y-0' => $topic,
             'grid-cols-1 divide-y sm:grid-cols-2 sm:divide-x xl:grid-cols-5 xl:divide-y-0' => ! $topic,
         ]) aria-label="Proposal review route">
@@ -169,20 +177,22 @@
                 <li @if ($isCurrent) aria-current="step" @endif data-route-step data-route-state="{{ str($state)->slug() }}" @class([
                     'relative min-w-0',
                     'bg-white dark:bg-slate-950' => ! $isCurrent,
-                    'bg-red-50/70 dark:bg-red-950/20' => $isCurrent,
+                    'bg-brand' => $isCurrent,
                 ])>
-                    @if ($isCurrent)
-                        <span class="absolute inset-x-0 top-0 h-0.5 bg-[#7A0019] dark:bg-red-400" aria-hidden="true"></span>
-                    @endif
                     @if ($topic)
-                        <button type="button" data-workflow-stage-button="{{ $number }}" @disabled(! $canInspect) @click="selectedStage = {{ $number }}" @if ($canInspect) :aria-expanded="selectedStage === {{ $number }}" aria-expanded="{{ $number === $currentStep ? 'true' : 'false' }}" aria-controls="{{ $id }}-stage-{{ $number }}" @endif :class="selectedStage === {{ $number }} ? 'ring-2 ring-inset ring-[#7A0019] dark:ring-red-400' : ''" class="flex h-full min-h-11 w-full items-start gap-2.5 border border-transparent px-4 py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-red-700 enabled:hover:bg-slate-50 disabled:cursor-default dark:enabled:hover:bg-slate-900 sm:px-5">
+                        <button type="button" data-workflow-stage-button="{{ $number }}" @disabled(! $canInspect) @click="selectedStage = {{ $number }}" @if ($canInspect) :aria-expanded="selectedStage === {{ $number }}" aria-expanded="{{ $number === $currentStep ? 'true' : 'false' }}" aria-controls="{{ $id }}-stage-{{ $number }}" @endif :class="selectedStage === {{ $number }} ? '{{ $isCurrent ? 'ring-2 ring-inset ring-white/50' : 'ring-2 ring-inset ring-brand dark:ring-red-300' }}' : ''" @class([
+                            'flex h-full min-h-11 w-full items-start gap-2.5 border border-transparent px-4 py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-default sm:px-5',
+                            'focus-visible:outline-white enabled:hover:bg-brand-soft' => $isCurrent,
+                            'focus-visible:outline-brand enabled:hover:bg-slate-50 dark:focus-visible:outline-red-300 dark:enabled:hover:bg-slate-900' => ! $isCurrent,
+                        ])>
                     @else
                         <div class="flex items-start gap-2.5 px-4 py-4 sm:px-5">
                     @endif
                         <span @class([
                             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black tabular-nums',
                             'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' => $isComplete,
-                            'bg-[#7A0019] text-white shadow-sm dark:bg-red-700' => $isCurrent || ! $topic,
+                            'bg-[#fff] text-brand shadow-sm' => $isCurrent,
+                            'bg-brand text-white shadow-sm' => ! $topic,
                             'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' => $topic && ! $isComplete && ! $isCurrent,
                         ])>
                             @if ($isComplete)
@@ -193,17 +203,17 @@
                         </span>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                                <span class="text-sm font-black leading-5 text-slate-950 dark:text-white">{{ $stage['label'] }}</span>
+                                <span @class(['text-sm font-black leading-5', 'text-white' => $isCurrent, 'text-slate-950 dark:text-white' => ! $isCurrent])>{{ $stage['label'] }}</span>
                                 @if ($topic)
                                 <span @class([
                                     'text-[0.625rem] font-black tracking-wider',
                                     'text-emerald-700 dark:text-emerald-400' => $isComplete,
-                                    'text-[#7A0019] dark:text-red-300' => $isCurrent,
+                                    'text-white/80' => $isCurrent,
                                     'text-slate-400 dark:text-slate-500' => ! $isComplete && ! $isCurrent,
                                 ])>{{ $stateLabel }}</span>
                                 @endif
                             </div>
-                            <p class="mt-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">{{ $stage['owner'] }}</p>
+                            <p @class(['mt-1.5 text-xs font-bold', 'text-white/80' => $isCurrent, 'text-slate-600 dark:text-slate-300' => ! $isCurrent])>{{ $stage['owner'] }}</p>
                             @if ($topic)
                                 <span class="sr-only">{{ $stage['detail'] }}</span>
                                 @if ($canInspect && ! $isCurrent)
@@ -227,17 +237,33 @@
         @foreach ($stages as $number => $stage)
             @if ($number <= $currentStep || ! empty($stageRecords[$number]))
                 <section id="{{ $id }}-stage-{{ $number }}" data-workflow-stage-outcome="{{ $number }}" x-show="selectedStage === {{ $number }}" @if ($number !== $currentStep) x-cloak style="display: none;" @endif class="border-t border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-5" aria-labelledby="{{ $id }}-stage-{{ $number }}-heading">
-                    <h4 id="{{ $id }}-stage-{{ $number }}-heading" class="text-sm font-bold text-slate-950 dark:text-white">{{ $stage['label'] }}</h4>
+                    <h4 id="{{ $id }}-stage-{{ $number }}-heading" class="text-sm font-bold text-brand dark:text-red-300">{{ $stage['label'] }}</h4>
                     @forelse ($stageRecords[$number] as $record)
-                        <article data-workflow-stage-record class="mt-3 border-l-2 border-slate-200 pl-3 text-sm dark:border-slate-700">
+                        <article data-workflow-stage-record class="mt-3 text-sm">
                             <div class="flex flex-wrap items-baseline justify-between gap-2">
                                 <p class="font-semibold text-slate-900 dark:text-white">{{ $record['label'] }}</p>
                                 @if ($record['date'])
                                     <time datetime="{{ $record['date']->toIso8601String() }}" class="text-xs text-slate-500 dark:text-slate-400">{{ $record['date']->format('M j, Y · g:i A') }}</time>
                                 @endif
                             </div>
-                            @if (filled($record['comment']))
-                                <p class="mt-2 whitespace-pre-line break-words leading-6 text-slate-600 dark:text-slate-300">{{ $record['comment'] }}</p>
+                            @if ($record['comments'])
+                                <div data-review-feedback class="mt-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+                                    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                                        <h5 class="text-sm font-semibold text-slate-900 dark:text-white">Reviewer feedback</h5>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ count($record['comments']) }} {{ count($record['comments']) === 1 ? 'comment' : 'comments' }}</p>
+                                    </div>
+                                    <ol aria-label="Reviewer comments" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                        @foreach ($record['comments'] as $comment)
+                                            <li data-review-comment class="py-3 first:pt-0 last:pb-0">
+                                                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">@if (count($record['comments']) > 1)Comment {{ $loop->iteration }} · @endif{{ $comment['location'] ?: 'Overall proposal' }}</p>
+                                                <p class="mt-1 max-w-prose whitespace-pre-line break-words leading-7 text-slate-700 dark:text-slate-200">{{ $comment['comment'] }}</p>
+                                            </li>
+                                        @endforeach
+                                    </ol>
+                                </div>
+                            @endif
+                            @if (filled($record['note'] ?? null))
+                                <p class="mt-2 text-slate-600 dark:text-slate-300">{{ $record['note'] }}</p>
                             @endif
                             @if ($record['file'])
                                 <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -259,7 +285,7 @@
     @endif
 
     @unless ($topic)
-        <dl class="grid gap-3 border-t border-red-100 px-4 py-3 text-xs leading-5 dark:border-red-950 sm:grid-cols-2 sm:px-5 lg:grid-cols-3" data-workflow-label-key>
+        <dl class="grid gap-3 border-t border-slate-200 px-4 py-3 text-xs leading-5 dark:border-slate-800 sm:grid-cols-2 sm:px-5 lg:grid-cols-3" data-workflow-label-key>
             @foreach ([
                 'New submission / New revision' => 'A faculty submission has arrived and has not been opened by the Research Head.',
                 'Needs review' => 'The submission has been opened; the faculty is waiting for feedback or clearance.',
@@ -273,8 +299,14 @@
         </dl>
     @endunless
 
-    <footer class="grid gap-1 border-t border-red-100 bg-red-50/60 px-4 py-3 dark:border-red-950 dark:bg-red-950/15 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-start sm:px-5">
-        <p class="text-[10px] font-black tracking-[0.12em] text-[#7A0019]/70 dark:text-red-300">{{ $topic ? 'NEXT STEP' : 'FACULTY ACTION' }}</p>
-        <p class="text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">{{ $nextAction }} <span class="text-slate-500 dark:text-slate-400">Revision requests return to the review stage that issued them.</span></p>
-    </footer>
+    @isset($footerActions)
+        <footer {{ $footerActions->attributes->class(['flex flex-col gap-4 border-t border-slate-200 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5']) }}>
+            {{ $footerActions }}
+        </footer>
+    @else
+        <footer class="grid gap-1 border-t border-slate-200 px-4 py-3 dark:border-slate-800 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-start sm:px-5">
+            <p class="text-[10px] font-black tracking-[0.12em] text-brand dark:text-red-300">{{ $topic ? 'NEXT STEP' : 'FACULTY ACTION' }}</p>
+            <p class="text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">{{ $nextAction }} <span class="text-slate-500 dark:text-slate-400">Revision requests return to the review stage that issued them.</span></p>
+        </footer>
+    @endisset
 </section>

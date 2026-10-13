@@ -1,12 +1,12 @@
 <section class="rounded-xl bg-white dark:bg-slate-900" data-proposal-paper-workspace data-monitoring-paper-workspace data-monitoring-tool-autosave="true" x-data="monitoringToolForm({
-        entries: JSON.parse('[{\u0022source_work_plan_index\u0022:0,\u0022objective\u0022:\u0022Collect responses\u0022,\u0022activity\u0022:\u0022Conduct interviews\u0022,\u0022percent_weight\u0022:\u002250.00\u0022,\u0022physical_target\u0022:\u002220 interviews\u0022,\u0022target_completion_date\u0022:\u00222026-03-31\u0022,\u0022work_plan_months\u0022:[1,2,3],\u0022actual_accomplishment\u0022:\u0022Interviewed 12 participants.\u0022,\u0022accomplished_percentage\u0022:\u002230.00\u0022,\u0022findings\u0022:\u0022\u0022,\u0022evidence\u0022:[{\u0022id\u0022:\u0022d924d122-9d94-4763-b548-0cf26bdabade\u0022,\u0022name\u0022:\u0022interviews.png\u0022,\u0022path\u0022:\u0022progress-reports\\\/1\\\/evidence\\\/FIuoulPbscfhDvNrPRy6MU6bEHfV2FlajRvA5t73.png\u0022,\u0022size\u0022:91,\u0022checksum\u0022:\u002214b5c0bf4c7181586b7c68bbbfea18f76b817841b77d78af3bd7122b42cbe108\u0022,\u0022mime_type\u0022:\u0022image\\\/png\u0022}],\u0022completed_units\u0022:12,\u0022target_units\u0022:20,\u0022progress_unit\u0022:\u0022interviews\u0022}]'),
+        entries: JSON.parse('[{\u0022source_work_plan_index\u0022:0,\u0022objective\u0022:\u0022Collect responses\u0022,\u0022activity\u0022:\u0022Conduct interviews\u0022,\u0022percent_weight\u0022:\u002250.00\u0022,\u0022physical_target\u0022:\u002220 interviews\u0022,\u0022target_completion_date\u0022:\u00222026-03-31\u0022,\u0022work_plan_months\u0022:[1,2,3],\u0022actual_accomplishment\u0022:\u0022Interviewed 12 participants.\u0022,\u0022accomplished_percentage\u0022:\u002230.00\u0022,\u0022findings\u0022:\u0022\u0022,\u0022evidence\u0022:[{\u0022id\u0022:\u0022cc6f9d61-00f9-487a-a310-935a3edc49aa\u0022,\u0022name\u0022:\u0022interviews.png\u0022,\u0022path\u0022:\u0022progress-reports\\\/1\\\/evidence\\\/n9tl9lOIxUSgF4A8nS2eR71a7aHD0XEUuUGKQieL.png\u0022,\u0022size\u0022:91,\u0022checksum\u0022:\u002214b5c0bf4c7181586b7c68bbbfea18f76b817841b77d78af3bd7122b42cbe108\u0022,\u0022mime_type\u0022:\u0022image\\\/png\u0022}],\u0022completed_units\u0022:12,\u0022target_units\u0022:20,\u0022progress_unit\u0022:\u0022interviews\u0022}]'),
         previousProgressByPeriod: JSON.parse('{\u00222026-1\u0022:[],\u00222026-2\u0022:[]}'),
         evidenceUrlTemplate: 'http:\/\/localhost\/research\/1\/monitoring-evidence\/__EVIDENCE__',
         previewUrl: 'http:\/\/localhost\/research\/1\/progress-reports\/preview',
         previewTitle: 'Monitoring Tool preview',
         draftSaveUrl: 'http:\/\/localhost\/research\/1\/progress-reports\/draft',
         initialDraftVersion: 1,
-        csrfToken: '4nP0W8fNzXsRRI4qXH4IHrqGT5lapvJtkYPbFXH7',
+        csrfToken: 'QEuuzf90aZxyEHeh9tpDBCq8AAZ5mblwXbrL1fKg',
         periodEntries: JSON.parse('{\u00222026-1\u0022:[{\u0022source_work_plan_index\u0022:0,\u0022objective\u0022:\u0022Collect responses\u0022,\u0022activity\u0022:\u0022Conduct interviews\u0022,\u0022percent_weight\u0022:\u002250.00\u0022,\u0022physical_target\u0022:\u002220 interviews\u0022,\u0022target_completion_date\u0022:\u00222026-03-31\u0022,\u0022work_plan_months\u0022:[1,2,3],\u0022actual_accomplishment\u0022:\u0022\u0022,\u0022accomplished_percentage\u0022:\u00220\u0022,\u0022findings\u0022:\u0022\u0022,\u0022target_units\u0022:20,\u0022progress_unit\u0022:\u0022interviews\u0022}],\u00222026-2\u0022:[{\u0022source_work_plan_index\u0022:1,\u0022objective\u0022:\u0022Analyze results\u0022,\u0022activity\u0022:\u0022Write findings\u0022,\u0022percent_weight\u0022:\u002250.00\u0022,\u0022physical_target\u0022:\u0022Evaluation report\u0022,\u0022target_completion_date\u0022:\u00222026-06-30\u0022,\u0022work_plan_months\u0022:[4,5,6],\u0022actual_accomplishment\u0022:\u0022\u0022,\u0022accomplished_percentage\u0022:\u00220\u0022,\u0022findings\u0022:\u0022\u0022,\u0022target_units\u0022:1,\u0022progress_unit\u0022:\u0022completed output\u0022}]}'),
         approvedWorkPlanAvailable: true,
         initialPeriodKey: '2026-1',
@@ -49,7 +49,7 @@
     <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" x-on:resize.window.debounce.150ms="resizeProposalPaperPreview()">
     <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
     <form id="monitoring-form-1" x-ref="form" data-monitoring-tool-autosave-form method="POST" action="http://localhost/research/1/progress-reports/prepare" enctype="multipart/form-data" class="space-y-8 bg-white p-4 sm:p-6 dark:bg-slate-900 " x-on:submit="prepareMonitoringPdf($event)">
-        <input type="hidden" name="_token" value="4nP0W8fNzXsRRI4qXH4IHrqGT5lapvJtkYPbFXH7" autocomplete="off">                <input type="hidden" name="draft_version" value="1">
+        <input type="hidden" name="_token" value="QEuuzf90aZxyEHeh9tpDBCq8AAZ5mblwXbrL1fKg" autocomplete="off">                <input type="hidden" name="draft_version" value="1">
         <input type="hidden" name="progress_mode" value="evidence">
 
         
@@ -60,7 +60,7 @@
                 <div class="bg-white p-4 dark:bg-slate-900 sm:col-span-2">
                     <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Research project</p>
                     <p class="mt-1 break-words text-base font-semibold text-slate-900 dark:text-white">Evidence monitoring project</p>
-                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Mr. Quinton Cronin · ₱50,000.00 · 6 months</p>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Easton Cassin · ₱50,000.00 · 6 months</p>
                 </div>
                 <div class="bg-white p-4 dark:bg-slate-900">
                     <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Reporting sequence</p>
@@ -219,7 +219,7 @@
             <div class="space-y-3">
                                                                         <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
                         <input type="hidden" name="budget_utilization[0][type]" value="Purchase Request">
-                        <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">Purchase Request</summary>
+                        <summary class="disclosure-summary cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">Purchase Request</summary>
                         <div class="mt-3 grid gap-4 sm:grid-cols-2">
                             <label class="text-sm font-medium text-gray-700 dark:text-slate-200 sm:col-span-2">Details of request
                                 <textarea name="budget_utilization[0][details]" rows="2" maxlength="300" autocomplete="off" class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
@@ -237,7 +237,7 @@
                     </details>
                                                         <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
                         <input type="hidden" name="budget_utilization[1][type]" value="Cash Advance">
-                        <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">Cash Advance</summary>
+                        <summary class="disclosure-summary cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">Cash Advance</summary>
                         <div class="mt-3 grid gap-4 sm:grid-cols-2">
                             <label class="text-sm font-medium text-gray-700 dark:text-slate-200 sm:col-span-2">Details of request
                                 <textarea name="budget_utilization[1][details]" rows="2" maxlength="300" autocomplete="off" class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
@@ -255,7 +255,7 @@
                     </details>
                                                         <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
                         <input type="hidden" name="budget_utilization[2][type]" value="Request of Payment">
-                        <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">Request of Payment</summary>
+                        <summary class="disclosure-summary cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-200">Request of Payment</summary>
                         <div class="mt-3 grid gap-4 sm:grid-cols-2">
                             <label class="text-sm font-medium text-gray-700 dark:text-slate-200 sm:col-span-2">Details of request
                                 <textarea name="budget_utilization[2][details]" rows="2" maxlength="300" autocomplete="off" class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
@@ -275,7 +275,7 @@
         </section>
 
         <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
-            <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-100">Supporting Details <span class="font-normal text-gray-500">(optional)</span></summary>
+            <summary class="disclosure-summary cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-100">Supporting Details <span class="font-normal text-gray-500">(optional)</span></summary>
         <div class="mt-4 grid gap-4 rounded-xl bg-gray-50 p-4 dark:bg-slate-950 sm:grid-cols-2">
             <div>
                 <label for="prepared_by_date_signed" class="text-sm font-medium text-gray-700 dark:text-slate-200">Date signed by project leader <span class="font-normal text-gray-400">(optional)</span></label>

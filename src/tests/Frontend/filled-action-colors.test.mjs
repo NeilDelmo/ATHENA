@@ -15,7 +15,7 @@ const journalAction = topic.match(/<a data-find-journals[\s\S]*?<\/a>/)[0];
 const report = await readFile(new URL('../../resources/views/components/narrative-report-summary.blade.php', import.meta.url), 'utf8');
 const reportClasses = report.match(/<a[^\n]*?class="([^"]+)"/)[1];
 
-test('filled actions match Revise tool while table actions retain their original colors in both themes', async () => {
+test('filled actions match Revise tool while outlined and table actions retain their colors in both themes', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
 
     try {
@@ -38,7 +38,7 @@ test('filled actions match Revise tool while table actions retain their original
 
                 const background = (selector) => page.locator(selector).evaluate((element) => getComputedStyle(element).backgroundColor);
                 const red = await background('#revision');
-                for (const selector of ['#report', '#dashboard', '#rh', '#literal', '[data-find-journals]']) {
+                for (const selector of ['#dashboard', '#rh', '#literal']) {
                     await expect(page.locator(selector)).toHaveCSS('background-color', red);
                     assert.equal(await page.locator(selector).evaluate((element) => getComputedStyle(element).color), 'rgb(255, 255, 255)');
                     await page.locator(selector).hover();
@@ -51,11 +51,22 @@ test('filled actions match Revise tool while table actions retain their original
                 await page.locator('#table').hover();
                 assert.equal(await background('#table'), 'rgb(159, 18, 57)');
                 assert.equal(await background('#secondary'), dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
+                assert.equal(await background('#report'), 'rgba(0, 0, 0, 0)', 'The outlined report link stays secondary');
+                await expect(page.locator('#report')).toHaveCSS('color', dark ? 'rgb(226, 232, 240)' : 'rgb(51, 65, 85)');
+                await page.locator('#report').hover();
+                await expect(page.locator('#report')).toHaveCSS('background-color', dark ? 'rgb(30, 41, 59)' : 'rgb(248, 250, 252)');
+                await page.mouse.move(width - 1, 699);
+                await expect(page.locator('[data-find-journals]')).toHaveCSS('background-color', dark ? 'rgba(69, 10, 10, 0.4)' : 'rgb(254, 242, 242)');
+                await expect(page.locator('[data-find-journals]')).toHaveCSS('color', dark ? 'rgb(254, 202, 202)' : 'rgb(153, 27, 27)');
+                await page.locator('[data-find-journals]').hover();
+                await expect(page.locator('[data-find-journals]')).toHaveCSS('background-color', dark ? 'rgba(69, 10, 10, 0.7)' : 'rgb(254, 226, 226)');
+                await page.mouse.move(width - 1, 699);
                 const bounds = await page.locator('[data-find-journals]').boundingBox();
-                assert.ok(bounds.height >= 48);
+                assert.ok(bounds.height >= 44);
                 assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
+                await page.keyboard.press('Tab');
                 await page.locator('[data-find-journals]').focus();
-                assert.equal(await page.locator('[data-find-journals]').evaluate((element) => getComputedStyle(element).getPropertyValue('--tw-ring-color').trim()), 'rgb(220 38 38 / 1)');
+                await expect(page.locator('[data-find-journals]')).toHaveCSS('outline-color', 'rgb(185, 28, 28)');
                 await page.close();
             }
         }

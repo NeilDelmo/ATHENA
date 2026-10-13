@@ -12,7 +12,7 @@ test('the rendered project views preserve monitoring, poster covers, file select
     if (process.env.ATHENA_WORKSPACE_FIXTURE_READY !== '1') {
         execFileSync('php', ['vendor/pestphp/pest/bin/pest', '--compact', 'tests/Feature/ProjectWorkspaceTest.php', '--filter=exports project workspace'], {
             encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
-            env: { ...process.env, ATHENA_EXPORT_PROJECT_WORKSPACE: '1' },
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_PROJECT_WORKSPACE: '1' },
         });
     }
     const html = readFileSync(resolve('storage/framework/testing/project-workspace.html'), 'utf8');

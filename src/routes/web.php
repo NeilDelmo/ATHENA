@@ -398,6 +398,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/research-support/chat', ResearchAssistantController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.chat');
+    Route::post('/research-support/proposal-changes/resolve', [ResearchAssistantController::class, 'resolveProposalChange'])
+        ->middleware(['workspace:faculty|faculty_researcher', 'throttle:20,1'])
+        ->name('research-support.proposal-changes.resolve');
     Route::get('/research-support/documents', ResearchAssistantDocumentController::class)
         ->middleware('throttle:60,1')
         ->name('research-support.documents');

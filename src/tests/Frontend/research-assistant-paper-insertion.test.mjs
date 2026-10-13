@@ -4,6 +4,7 @@ import test from 'node:test';
 import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from '../../resources/js/research-assistant-paper-insertion.js';
 import { escapeAssistantHtml } from '../../resources/js/research-assistant-markdown.js';
 import { normalizeAssistantLiterature, serializeAssistantLiterature } from '../../resources/js/research-assistant-literature.js';
+import { normalizeAssistantProposalChanges, serializeAssistantProposalChanges } from '../../resources/js/research-assistant-proposal-changes.js';
 
 function storage() {
     const values = new Map();
@@ -117,8 +118,8 @@ function chat(fetchReply) {
         querySelector: () => ({ content: 'csrf' }),
         getElementById: () => ({ value: 'Unsaved text belonging to the currently open proposal.' }),
     };
-    const methods = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'serializeAssistantLiterature', 'redactAssistantText', 'researchAssistantMessageLimit',
-        `return ({${sending}${saving}});`)(document, fetchReply, normalizeAssistantLiterature, serializeAssistantLiterature, (value) => value, 8000);
+    const methods = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'serializeAssistantLiterature', 'normalizeAssistantProposalChanges', 'serializeAssistantProposalChanges', 'redactAssistantText', 'researchAssistantMessageLimit',
+        `return ({${sending}${saving}});`)(document, fetchReply, normalizeAssistantLiterature, serializeAssistantLiterature, normalizeAssistantProposalChanges, serializeAssistantProposalChanges, (value) => value, 8000);
     return {
         ...methods,
         draft: '', messages: [], isLoading: false, sendInProgress: false, retryAfter: 0,

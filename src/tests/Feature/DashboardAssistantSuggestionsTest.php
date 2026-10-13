@@ -50,9 +50,13 @@ test('faculty AI checks appear alongside accessible revisions and recent drafts 
         ->assertOk()
         ->assertDontSee('Review with Athena')
         ->assertDontSee('data-dashboard-assistant-suggestions', false)
-        ->assertSee('AI revision check')
-        ->assertSee('AI draft check')
-        ->assertSee('$store.researchAssistant.startSuggestedReview', false)
+        ->assertSee('Get revision help')
+        ->assertSee('Improve this draft')
+        ->assertDontSee('AI revision check')
+        ->assertDontSee('The Research Office requested changes to this proposal.')
+        ->assertSee('Open the revision page to see the requested changes.')
+        ->assertSee('data-proposal-help', false)
+        ->assertSee('$store.researchAssistant.openProposalHelp', false)
         ->assertSee('aria-controls="athena-assistant-workspace"', false)
         ->assertSee(':disabled="$store.researchAssistant.reviewLaunchBusy()"', false);
 

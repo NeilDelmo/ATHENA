@@ -619,7 +619,8 @@ test('faculty create proposal drafts without selecting a research call', functio
             ->assertSessionHasNoErrors();
     }
     expect($this->faculty->proposalDrafts()->count())->toBe(2)
-        ->and($this->faculty->proposalDrafts()->pluck('research_call_id')->unique()->all())->toBe([null]);
+        ->and($this->faculty->proposalDrafts()->pluck('research_call_id')->unique()->all())->toBe([null])
+        ->and($this->faculty->proposalDrafts()->pluck('project_leader')->unique()->all())->toBe(['Faculty Owner']);
     $this->get(route('faculty.proposal-drafts.index'))->assertOk()->assertSee('First Coastal Study');
 });
 
@@ -694,7 +695,7 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
         ->get(route('topics.show', $revisionProposal))
         ->assertOk()
         ->assertSee('data-faculty-revision-summary', false)
-        ->assertSee('Open revision workspace')
+        ->assertSee('Revise proposal')
         ->assertDontSee('Faculty action required')
         ->assertDontSee('What happens next')
         ->assertDontSee('Revision requested â€” your action is required')
@@ -863,6 +864,9 @@ test('the proposal hub separates editable papers from automatically included ass
         ->assertDontSee('data-paper-shortcuts-dropdown', false)
         ->assertSee('data-project-details-autosave="true"', false)
         ->assertSee('data-project-details-autosave-form', false)
+        ->assertDontSee('Save protection is on.')
+        ->assertDontSee('Choose a workspace member or type a name.')
+        ->assertDontSee('Prepared by')
         ->assertSee('aria-labelledby="project-details-heading" class="overflow-visible', false)
         ->assertDontSee('aria-labelledby="project-details-heading" class="overflow-hidden', false)
         ->assertDontSee('Upload PDF')
@@ -1128,7 +1132,8 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ]))
         ->assertOk()
         ->assertJsonPath('message', 'Project details saved.')
-        ->assertJsonPath('draft_version', 2);
+        ->assertJsonPath('draft_version', 2)
+        ->assertJsonPath('project_details_complete', true);
 
     $this->actingAs($this->faculty)
         ->putJson(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
@@ -1138,7 +1143,8 @@ test('project details are validated once and reused by the Work Plan workflow', 
             'planned_end' => '2028-01-31',
         ]))
         ->assertOk()
-        ->assertJsonPath('draft_version', 2);
+        ->assertJsonPath('draft_version', 2)
+        ->assertJsonPath('project_details_complete', true);
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
@@ -1162,7 +1168,13 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertOk()
         ->assertSee('Automatically Saved Project Details')
         ->assertSee('Faculty Owner')
+        ->assertDontSee('Project Leader / Prepared by')
         ->assertSee('Each 12-month block becomes a matching Attachment A year sheet.');
+
+    $this->get(route('faculty.proposal-drafts.show', $draft))->assertOk()
+        ->assertDontSee('Save protection is on.')
+        ->assertDontSee('Choose a workspace member or type a name.')
+        ->assertDontSee('Prepared by');
 });
 
 test('the GAD checklist is automatic and preserves every page of the supplied Box 7a document', function () {

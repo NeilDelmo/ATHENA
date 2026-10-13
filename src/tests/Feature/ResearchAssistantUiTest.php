@@ -144,7 +144,7 @@ test('assistant distinguishes activity delay from project end and report submiss
     $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', config('app.timezone')));
     $owner = User::factory()->create();
     $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
-    $topic->update(['notice_to_proceed_data' => ['approved_end_date' => '2026-11-30']]);
+    $topic->update(['notice_to_proceed_data' => ['approved_end_date' => '2026-11-30'], 'notice_to_proceed_issued_at' => now()]);
     $previous = $topic->progressReports()->create([
         'submitted_by' => $owner->id,
         'reporting_date' => '2026-08-31',
@@ -223,6 +223,7 @@ test('assistant does not invent a project delay when completion or schedule is u
     $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
     $topic->update([
         'notice_to_proceed_data' => ['approved_end_date' => $end],
+        'notice_to_proceed_issued_at' => now(),
         'project_status' => $completed ? TopicProposal::PROJECT_STATUS_COMPLETED : TopicProposal::PROJECT_STATUS_ONGOING,
     ]);
     $packet = app(ResearchAssistantWorkflowContextService::class)->promptContext($owner, $topic, ['workflow_scope' => 'monitoring'], 'How many days delayed?');
@@ -313,6 +314,10 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertDontSee('Ask about research questions, methodology, writing, or proposal revisions.')
         ->assertSee('data-assistant-full-workspace', false)
         ->assertSee('data-assistant-workspace', false)
+        ->assertSee('data-assistant-history-toggle', false)
+        ->assertSee('data-assistant-history-sidebar', false)
+        ->assertSee('data-assistant-review-coverage', false)
+        ->assertSee('Saved fields only')
         ->assertSee('openWorkspace()', false)
         ->assertSee('collapseWorkspace()', false)
         ->assertSee('workspaceOpen', false);
@@ -668,7 +673,7 @@ test('authenticated users can receive a gemini research response', function (str
         && $request['max_completion_tokens'] === 1400
         && $request['messages'][0]['role'] === 'system'
         && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
-        && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role))
+        && str_contains($request['messages'][0]['content'], 'Active ATHENA workspace: '.$researcher->activeWorkspaceLabel())
         && str_contains($request['messages'][0]['content'], 'Proposal-paper changes save automatically.'));
 })->with(['faculty', 'faculty_researcher', 'research_head']);
 
@@ -1089,7 +1094,7 @@ test('users can attach their own proposal context to a chat request', function (
             && str_contains($message['content'], 'Replace the unsupported sample-size claim.')
             && str_contains($message['content'], 'A sample of 20 is sufficient.')
             && str_contains($message['content'], 'Provide a defensible sample-size basis.')
-            && str_contains($message['content'], 'unresolved_required_revisions')
+            && str_contains($message['content'], 'revision_requests')
             && ! str_contains($message['content'], 'Completed the first round of coastal observations')
             && ! str_contains($message['content'], 'Add the revised fieldwork schedule')
     ));

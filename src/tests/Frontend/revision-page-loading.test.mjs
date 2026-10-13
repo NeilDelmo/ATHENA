@@ -70,7 +70,7 @@ test('the full revision page makes no editor requests until a paper or annotatio
     const fixturePath = resolve('../tmp/revision-page-loading.html');
     execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/RevisionPageLoadingTest.php'], {
         cwd: resolve('.'), encoding: 'utf8',
-        env: { ...process.env, ATHENA_REVISION_BROWSER_FIXTURE: fixturePath },
+        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_REVISION_BROWSER_FIXTURE: fixturePath },
     });
     const html = readFileSync(fixturePath, 'utf8').replaceAll('http://localhost', 'http://athena-revision.test');
     const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));

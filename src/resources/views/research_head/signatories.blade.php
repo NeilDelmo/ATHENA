@@ -204,7 +204,7 @@
         @endif
 
         <details @if ($summary['total'] > 0 || $search !== '' || $selectedRole !== '') open @endif class="rounded-xl border border-[#E7E2D8] bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-            <summary class="cursor-pointer text-sm font-bold text-[#201A15] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-white">Manage additional directory names <span class="ml-2 font-normal text-[#6B6258] dark:text-slate-400">({{ $summary['total'] }})</span></summary>
+            <summary class="disclosure-summary cursor-pointer text-sm font-bold text-[#201A15] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-white">Manage additional directory names <span class="ml-2 font-normal text-[#6B6258] dark:text-slate-400">({{ $summary['total'] }})</span></summary>
         <div class="mt-5 grid items-start gap-6 min-[860px]:grid-cols-[15rem_minmax(0,1fr)]">
             <aside class="space-y-2.5 min-[860px]:sticky min-[860px]:top-5" aria-label="Directory summary">
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['total']) }}</strong>total signatories</span>

@@ -286,7 +286,7 @@ test('revision-linked generated paper downloads can be staged in the matching re
     expect($appJavaScript)
         ->toContain('offerRevisionUpload')
         ->toContain('Automatically upload this file to the revision?')
-        ->toContain('Revision workspace')
+        ->toContain('Proposal revision')
         ->toContain('revisionUploadUrl')
         ->toContain("'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0'")
         ->toContain('detailed-research-proposal.pdf')

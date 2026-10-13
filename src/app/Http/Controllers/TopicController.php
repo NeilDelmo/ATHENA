@@ -587,7 +587,7 @@ class TopicController extends Controller
             'feedback_responses.*.paragraph.required_unless' => 'The revised paragraph could not be recorded. Open the paper and try again.',
         ], [
             'estimated_budget' => 'total project cost',
-            'revision_draft_id' => 'revision workspace',
+            'revision_draft_id' => 'proposal revision',
             'detailed_proposal' => 'detailed proposal',
             'document' => 'detailed proposal',
             'work_plan' => 'work plan',

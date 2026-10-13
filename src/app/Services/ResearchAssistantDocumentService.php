@@ -91,7 +91,7 @@ class ResearchAssistantDocumentService
                 );
             }
 
-            $this->addTopicDocuments($documents, $topic);
+            $this->addTopicDocuments($documents, $topic, $user);
         }
 
         return $documents
@@ -125,7 +125,7 @@ PROMPT;
     }
 
     /** @param Collection<int, array<string, string>> $documents */
-    private function addTopicDocuments(Collection $documents, TopicProposal $topic): void
+    private function addTopicDocuments(Collection $documents, TopicProposal $topic, User $user): void
     {
         $versions = ProposalVersion::query()
             ->whereBelongsTo($topic, 'topic')
@@ -154,6 +154,9 @@ PROMPT;
             ->get();
 
         foreach ($versionFiles as $file) {
+            if (! $this->canAnalyzeVersionFile($user, $file)) {
+                continue;
+            }
             $version = $file->version?->version_number;
             $label = collect([
                 $version ? 'Version '.$version : null,
@@ -186,22 +189,24 @@ PROMPT;
             'Latest revised proposal',
             'Submitted proposal',
         );
-        $this->addOption(
-            $documents,
-            ['type' => self::TYPE_TOPIC_FILE, 'id' => $topic->getKey(), 'variant' => 'signed_approval'],
-            $topic->signed_approval_path,
-            'signed-approval-'.$topic->getKey().'.pdf',
-            'Signed proposal approval',
-            'Approval workflow',
-        );
-        $this->addOption(
-            $documents,
-            ['type' => self::TYPE_TOPIC_FILE, 'id' => $topic->getKey(), 'variant' => 'notice_to_proceed'],
-            $topic->notice_to_proceed_path,
-            $topic->notice_to_proceed_original_filename ?: 'notice-to-proceed-'.$topic->getKey().'.pdf',
-            'Signed Notice to Proceed',
-            'Notice to Proceed',
-        );
+        if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $topic->hasIssuedNoticeToProceed()) {
+            $this->addOption(
+                $documents,
+                ['type' => self::TYPE_TOPIC_FILE, 'id' => $topic->getKey(), 'variant' => 'signed_approval'],
+                $topic->signed_approval_path,
+                'signed-approval-'.$topic->getKey().'.pdf',
+                'Signed proposal approval',
+                'Approval workflow',
+            );
+            $this->addOption(
+                $documents,
+                ['type' => self::TYPE_TOPIC_FILE, 'id' => $topic->getKey(), 'variant' => 'notice_to_proceed'],
+                $topic->notice_to_proceed_path,
+                $topic->notice_to_proceed_original_filename ?: 'notice-to-proceed-'.$topic->getKey().'.pdf',
+                'Signed Notice to Proceed',
+                'Notice to Proceed',
+            );
+        }
 
         $progressReports = ProjectProgressReport::query()
             ->submitted()
@@ -364,7 +369,7 @@ PROMPT;
         $file = ProposalVersionFile::query()->with('version.topic')->find($id);
         $topic = $file?->version?->topic;
 
-        if (! $file || ! $topic || Gate::forUser($user)->denies('view', $topic)) {
+        if (! $file || ! $topic || Gate::forUser($user)->denies('view', $topic) || ! $this->canAnalyzeVersionFile($user, $file)) {
             throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
         }
 
@@ -377,6 +382,11 @@ PROMPT;
         $topic = TopicProposal::query()->find($id);
 
         if (! $topic || Gate::forUser($user)->denies('view', $topic)) {
+            throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
+        }
+
+        if (in_array($variant, ['signed_approval', 'notice_to_proceed'], true)
+            && ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $topic->hasIssuedNoticeToProceed()) {
             throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
         }
 
@@ -403,6 +413,17 @@ PROMPT;
             ),
             default => throw new ResearchAssistantDocumentException('That document selection is not supported.'),
         };
+    }
+
+    private function canAnalyzeVersionFile(User $user, ProposalVersionFile $file): bool
+    {
+        if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            return true;
+        }
+
+        return ! ($file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+            && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
+            && (! $file->version?->topic?->hasIssuedNoticeToProceed() || $file->isSuperseded()));
     }
 
     /** @return array{path: string, filename: string, label: string} */

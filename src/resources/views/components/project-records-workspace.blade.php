@@ -77,13 +77,13 @@
             </button>
             <button type="button" class="workspace-nav" :aria-current="location === 'unfiled' ? 'location' : null" @click="openLocation('unfiled')" @dragover.stop="dragOver($event, null)" @drop.stop="drop($event, null)"><span class="flex-1">Unfiled projects</span><span class="workspace-count" x-text="unfiledCount"></span></button>
             <details class="mt-4" open>
-                <summary class="min-h-11 cursor-pointer px-3 py-2 text-base font-semibold text-slate-700 dark:text-slate-200">Years</summary>
+                <summary class="disclosure-summary min-h-11 cursor-pointer px-3 py-2 text-base font-semibold text-slate-700 dark:text-slate-200">Years</summary>
                 <template x-for="item in years" :key="item.year">
                     <button type="button" class="workspace-nav" :aria-current="location === 'year:' + item.year ? 'location' : null" @click="openLocation('year:' + item.year)"><svg class="h-5 w-6 shrink-0" aria-hidden="true"><use href="#workspace-folder-art" /></svg><span x-text="item.year"></span><span class="workspace-count" x-text="item.count"></span></button>
                 </template>
             </details>
             <details class="mt-4" open>
-                <summary class="min-h-11 cursor-pointer px-3 py-2 text-base font-semibold text-slate-700 dark:text-slate-200">My folders</summary>
+                <summary class="disclosure-summary min-h-11 cursor-pointer px-3 py-2 text-base font-semibold text-slate-700 dark:text-slate-200">My folders</summary>
                 <p x-show="!folders.length" class="px-3 py-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Use New folder to start organizing.</p>
                 <template x-for="folder in folderTree" :key="folder.id">
                     <button type="button" class="workspace-nav" :class="{'workspace-drop-target': dropTarget === folder.id}" :style="{paddingLeft: (12 + Math.min(folder.depth, 5) * 12) + 'px'}" :aria-current="location === folder.id ? 'location' : null" :aria-label="'Open folder ' + folder.name" :title="folderPath(folder.id).map(item => item.name).join(' / ')" @click="openLocation(folder.id)" @dragover.stop="dragOver($event, folder.id)" @dragleave.stop="dragLeave($event, folder.id)" @drop.stop="drop($event, folder.id)"><svg class="h-5 w-6 shrink-0" aria-hidden="true"><use href="#workspace-folder-art" /></svg><span class="truncate" x-text="folder.name"></span><span class="workspace-count" x-text="folderCount(folder.id)"></span></button>
