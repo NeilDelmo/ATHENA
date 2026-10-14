@@ -9528,7 +9528,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     citationReferenceSourceIds() {
-        return orderedCitationSourceIds(this.citationMarkerSourceIds(), this.activeProposalCitations());
+        return orderedCitationSourceIds(this.citationMarkerSourceIds(), this.activeProposalCitations())
+            .filter((sourceLinkId) => this.literatureSources.some((source) => Number(source.id) === sourceLinkId));
     },
 
     citationReferenceSources() {

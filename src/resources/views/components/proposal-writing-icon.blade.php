@@ -5,6 +5,7 @@
         'bold' => 'M6 4h7a4 4 0 0 1 0 8H6V4Zm0 8h8a4 4 0 0 1 0 8H6v-8Z',
         'italic' => 'M10 4h10M4 20h10M15 4 9 20',
         'underline' => 'M6 3v7a6 6 0 0 0 12 0V3M4 21h16',
+        'removeFormat' => 'M4 4h14M11 4 7 16M4 16h5M15 14l6 6M21 14l-6 6',
         'bullets' => 'M9 6h12M9 12h12M9 18h12M3 6h.01M3 12h.01M3 18h.01',
         'numbered-list' => 'M10 6h11M10 12h11M10 18h11M3 4h1v4M3 8h2M3 12a1 1 0 0 1 2 0c0 1-2 1-2 3h2M3 18h1a1 1 0 0 1 0 2H3m1-2a1 1 0 0 0 0-2H3',
         'undo' => 'M3 10h11a6 6 0 0 1 0 12M3 10l5-5M3 10l5 5',

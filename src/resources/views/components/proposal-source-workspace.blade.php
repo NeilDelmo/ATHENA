@@ -3,15 +3,14 @@
     x-cloak
     @keydown.escape.window="sourceWorkspaceOpen && closeSourceWorkspace()"
     @keydown="trapSourceWorkspaceFocus($event)"
-    {{ $attributes->merge(['class' => 'fixed inset-0 z-[65] flex']) }}
-    :class="sourceWorkspaceCitationMode ? 'items-center justify-center p-3 sm:p-6' : 'justify-end'"
+    {{ $attributes->merge(['class' => 'fixed inset-0 z-[65] flex items-center justify-center p-3 sm:p-6']) }}
     role="dialog"
     aria-modal="true"
     aria-labelledby="proposal-source-dialog-heading"
     data-source-workspace
 >
     <button type="button" @click="closeSourceWorkspace()" tabindex="-1" aria-label="Close Sources workspace" class="absolute inset-0 bg-slate-950/50"></button>
-    <section x-ref="sourceWorkspacePanel" class="relative flex min-h-0 w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-950" :class="sourceWorkspaceCitationMode ? 'max-h-[85dvh] rounded-xl sm:max-w-2xl' : 'h-full border-l border-slate-200 dark:border-slate-700 sm:w-[min(92vw,72rem)]'">
+    <section x-ref="sourceWorkspacePanel" class="relative flex max-h-[85dvh] min-h-0 w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-slate-950" :class="!sourceWorkspaceCitationMode && (sourceWorkspaceView !== 'list' || sourceWorkspaceSelectedPassages.length) ? 'sm:max-w-6xl' : 'sm:max-w-2xl'">
         <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-700 sm:px-6">
             <div class="min-w-0">
                 <div class="flex items-center gap-3">

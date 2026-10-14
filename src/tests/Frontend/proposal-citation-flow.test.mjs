@@ -249,6 +249,24 @@ test('centered picker edits a citation source and locator with native undo and k
     } finally { await browser.close(); }
 });
 
+test('citations from another proposal do not shift this proposal reference numbers', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await openEditor(browser);
+        await page.locator('#related-literature').evaluate((field) => {
+            field.value = '<p>Imported wording <span data-proposal-citation="99999"> [8]</span>.</p>'
+                + '<p>Current proposal wording <span data-proposal-citation="7"> [3]</span>.</p>';
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        await expect(page.locator('.semantic-rich-text-editor [data-proposal-citation="7"]')).toHaveText(' [1]');
+        await expect(page.locator('#references')).toHaveValue(/<p data-proposal-managed-reference="7">\[1\] M\. Santos/);
+        await expect(page.locator('#related-literature')).toHaveValue(/Imported wording.*data-proposal-citation="99999".*Current proposal wording/s);
+        assert.deepEqual(await page.evaluate(() => citationState.citationReferenceSourceIds()), [7]);
+        assert.equal(await page.locator('#references').evaluate((field) => field._semanticEditor.querySelectorAll('p').length), 1);
+    } finally { await browser.close(); }
+});
+
 test('citations refreshed from reviewed text remain keyboard editable and cancellation restores focus', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {

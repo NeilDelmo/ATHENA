@@ -120,7 +120,7 @@ test('shared writing tools preserve selection, serialize tables, target figures,
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
 
     try {
-        for (const width of [1440, 1024, 390]) {
+        for (const width of [1440, 1024, 390, 320]) {
             for (const dark of [false, true]) {
                 const page = await browser.newPage({ viewport: { width, height: 1000 } });
                 const errors = [];
@@ -193,7 +193,8 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 const boldButton = page.getByRole('button', { name: 'Bold', exact: true });
                 assert.equal(await boldButton.isDisabled(), true);
                 assert.equal(await page.getByRole('button', { name: 'Sources', exact: true }).count(), 0);
-                assert.equal(await page.locator('[data-writing-menu-toggle]').count(), 3);
+                assert.equal(await page.locator('[data-writing-menu-toggle]').count(), 2);
+                assert.equal(await page.getByRole('button', { name: 'More', exact: true }).count(), 0);
                 assert.equal(await page.locator('[data-writing-editor-expand]').count(), 2);
                 assert.equal(await page.locator('[data-writing-expand]').count(), 0);
                 await page.evaluate(() => {
@@ -213,6 +214,12 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 const citationBounds = await page.locator('[data-writing-cite]').boundingBox();
                 const toolbarBounds = await page.locator('[data-proposal-writing-toolbar]').boundingBox();
                 assert.ok(citationBounds.x >= toolbarBounds.x && citationBounds.x + citationBounds.width <= toolbarBounds.x + toolbarBounds.width);
+                const formattingControls = page.locator('[aria-label="Text formatting and insertion"] > .proposal-writing-buttons').first();
+                assert.equal(await formattingControls.evaluate((element) => element.scrollWidth <= element.clientWidth), true);
+                for (const control of await formattingControls.locator('button').all()) {
+                    const bounds = await control.boundingBox();
+                    assert.ok(bounds.x >= toolbarBounds.x && bounds.x + bounds.width <= toolbarBounds.x + toolbarBounds.width);
+                }
                 assert.equal(await boldButton.locator('svg[aria-hidden="true"]').count(), 1);
                 assert.ok(await boldButton.evaluate((button) => parseFloat(getComputedStyle(button).fontSize) >= 13));
                 assert.ok(await boldButton.evaluate((button) => parseFloat(getComputedStyle(button).opacity) >= .7));
@@ -227,26 +234,26 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 });
                 await boldButton.locator('svg').click();
                 assert.match(await page.locator('#rationale').inputValue(), /<strong>Study paragraph\.<\/strong>/);
-                const moreButton = page.getByRole('button', { name: 'More', exact: true });
-                await moreButton.click();
-                const moreMenu = page.getByRole('menu', { name: 'More formatting', exact: true });
-                await expect(moreMenu.getByRole('menuitem', { name: 'Underline', exact: true })).toBeFocused();
+                const listsButton = page.getByRole('button', { name: 'Lists', exact: true });
+                await listsButton.click();
+                const listsMenu = page.getByRole('menu', { name: 'Lists', exact: true });
+                await expect(listsMenu.getByRole('menuitem', { name: 'Bullets', exact: true })).toBeFocused();
                 await page.keyboard.press('ArrowDown');
-                await expect(moreMenu.getByRole('menuitem', { name: 'Clear formatting', exact: true })).toBeFocused();
+                await expect(listsMenu.getByRole('menuitem', { name: 'Numbered list', exact: true })).toBeFocused();
                 await page.keyboard.press('Escape');
-                await expect(moreButton).toBeFocused();
-                assert.equal(await moreMenu.isVisible(), false);
-                await moreButton.click();
+                await expect(listsButton).toBeFocused();
+                assert.equal(await listsMenu.isVisible(), false);
+                await listsButton.click();
                 await page.getByRole('button', { name: 'Hide tools', exact: true }).click();
                 await expect(page.locator('[data-writing-toolbar-controls]')).toBeHidden();
                 await page.getByRole('button', { name: 'Show tools', exact: true }).click();
                 await expect(page.locator('[data-writing-toolbar-controls]')).toBeVisible();
-                assert.equal(await moreMenu.isVisible(), false);
-                await moreButton.click();
-                await moreMenu.getByRole('menuitem', { name: 'Underline', exact: true }).click();
+                assert.equal(await listsMenu.isVisible(), false);
+                const underlineButton = page.getByRole('button', { name: 'Underline', exact: true });
+                await underlineButton.click();
                 assert.match(await page.locator('#rationale').inputValue(), /<u>/);
-                await page.getByRole('button', { name: 'Lists', exact: true }).click();
-                const listsMenu = page.getByRole('menu', { name: 'Lists', exact: true });
+                await expect(underlineButton).toHaveAttribute('aria-pressed', 'true');
+                await listsButton.click();
                 const menuBounds = await listsMenu.boundingBox();
                 assert.ok(menuBounds.x >= 0 && menuBounds.x + menuBounds.width <= width);
                 await listsMenu.getByRole('menuitem', { name: 'Bullets', exact: true }).click();
@@ -269,8 +276,7 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                     const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
                     element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
                 });
-                await moreButton.click();
-                await moreMenu.getByRole('menuitem', { name: 'Clear formatting', exact: true }).click();
+                await page.getByRole('button', { name: 'Clear formatting', exact: true }).click();
                 assert.equal(await rationale.locator('strong, u').count(), 0);
                 assert.equal(await rationale.locator('[data-proposal-citation="42"]').count(), 1);
                 await rationale.press('ControlOrMeta+End');

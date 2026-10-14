@@ -64,6 +64,8 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .proposal-preview-dock :is(button, a):focus-visible, .proposal-writing-preview-launcher:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 3px; }
 .proposal-writing-action-group { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
 .proposal-writing-action-group + .proposal-writing-action-group { padding-left: .375rem; border-left: 1px solid var(--proposal-writing-border); }
+.detailed-proposal-writing-toolbar .proposal-writing-toolbar-row { flex-wrap: wrap; }
+.detailed-proposal-writing-toolbar .proposal-writing-toolbar-row > .proposal-writing-buttons:not(.proposal-writing-primary-action) { flex: 1 1 auto; width: auto; flex-wrap: wrap; overflow-x: visible; }
 .detailed-proposal-writing-toolbar :is(.proposal-writing-buttons, .proposal-table-picker, .proposal-writing-menu) button { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; line-height: 1.25; }
 .proposal-writing-icon { width: 1rem; height: 1rem; flex-shrink: 0; }
 .detailed-proposal-writing-toolbar .proposal-writing-buttons button:disabled { opacity: .7; }

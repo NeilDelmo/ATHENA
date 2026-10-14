@@ -298,7 +298,7 @@ test('session redirects, validation errors, and malformed service responses leav
     }
 });
 
-test('compiled Sources panel supports reading evidence, synthesis review, focus, and both themes on mobile and desktop', async () => {
+test('compiled centered Sources dialog supports reading evidence, synthesis review, focus, and both themes on mobile and desktop', async () => {
     const compiled = spawnSync('php', ['-r', String.raw`
         require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
         $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
@@ -332,6 +332,17 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
                 await page.getByRole('button', { name: 'Sources', exact: true }).click();
                 await expect(page.getByRole('dialog', { name: 'Sources', exact: true })).toBeVisible();
+                const panel = page.locator('section[x-ref="sourceWorkspacePanel"]');
+                const assertCenteredPanel = async () => {
+                    const box = await panel.boundingBox();
+                    assert.ok(Math.abs(box.x + box.width / 2 - width / 2) < 2, 'Sources should be horizontally centered');
+                    assert.ok(Math.abs(box.y + box.height / 2 - 450) < 2, 'Sources should be vertically centered');
+                    assert.ok(box.height <= 766, 'Sources should leave space around the dialog');
+                    return box;
+                };
+                const listBox = await assertCenteredPanel();
+                assert.ok(listBox.width <= 672, 'The source list should be as compact as the citation picker');
+                if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `sources-list-${width}-${dark ? 'dark' : 'light'}.png`) });
                 assert.equal(await page.evaluate(() => document.body.style.overflow), 'hidden');
                 await expect(page.getByRole('button', { name: 'Close Sources', exact: true })).toBeFocused();
                 await expect(page.getByLabel('Page or section (optional)', { exact: true })).toBeHidden();
@@ -350,6 +361,8 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 await page.getByRole('button', { name: 'This proposal', exact: true }).click();
                 await page.getByRole('button', { name: 'Read', exact: true }).click();
                 await expect(page.locator('[data-source-page-text]')).toHaveText(quote);
+                const readerBox = await assertCenteredPanel();
+                if (width >= 1024) assert.ok(readerBox.width > listBox.width, 'Reading should have more room than browsing');
                 await expect(page.getByText('Only part of the PDF was extracted.', { exact: true })).toBeVisible();
                 await page.locator('[data-source-page-text]').evaluate((element) => { const range = document.createRange(); range.selectNodeContents(element); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); });
                 await expect(page.getByLabel('Selected PDF excerpt', { exact: true })).toHaveValue(quote);
@@ -364,6 +377,7 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 assert.equal(await page.evaluate(() => window.sourceInsertions), 0);
                 await review.fill('My edited synthesis explains the relationship between community participation and improved learning outcomes.');
                 await page.getByLabel('Add reviewed text to', { exact: true }).selectOption('rationale');
+                await assertCenteredPanel();
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
                 if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) {
                     await page.locator('section[x-ref="sourceWorkspacePanel"] > div.overflow-y-auto').evaluate((element) => { element.scrollTop = 0; });
@@ -373,9 +387,16 @@ test('compiled Sources panel supports reading evidence, synthesis review, focus,
                 await expect(page.getByRole('button', { name: 'Reviewed draft inserted', exact: true })).toBeDisabled();
                 assert.equal(await page.evaluate(() => window.sourceInsertedDraft.destination), 'rationale');
                 assert.equal(await page.evaluate(() => window.sourceInsertedDraft.draft.evidence[0].passage_id), firstId);
+                await page.getByRole('button', { name: 'Back to sources', exact: true }).click();
+                assert.equal((await assertCenteredPanel()).width, readerBox.width, 'Selected evidence should keep its reading space beside the source list');
                 await page.getByRole('button', { name: 'Close Sources', exact: true }).click();
                 await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeFocused();
                 assert.equal(await page.evaluate(() => document.body.style.overflow), '');
+                await page.evaluate(() => Alpine.$data(document.querySelector('main')).openSourceWorkspace('paper', true));
+                await expect(page.getByRole('dialog', { name: 'Insert citation', exact: true })).toBeVisible();
+                assert.equal((await assertCenteredPanel()).width, listBox.width, 'Citation mode should stay compact after collecting evidence');
+                await page.keyboard.press('Escape');
+                await expect(page.getByRole('dialog')).toBeHidden();
                 assert.deepEqual(errors, []);
                 await page.close();
             }

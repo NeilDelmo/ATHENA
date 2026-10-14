@@ -4,7 +4,7 @@
 
         <div class="proposal-writing-buttons">
             <div class="proposal-writing-action-group" role="group" aria-label="Text style">
-                @foreach (['bold' => 'Bold', 'italic' => 'Italic'] as $command => $label)
+                @foreach (['bold' => 'Bold', 'italic' => 'Italic', 'underline' => 'Underline'] as $command => $label)
                     <button type="button" data-writing-command="{{ $command }}" aria-label="{{ $label }}" title="{{ $label }}" aria-pressed="false" disabled><x-proposal-writing-icon :name="$command" /><span>{{ $label }}</span></button>
                 @endforeach
             </div>
@@ -14,9 +14,12 @@
                 @endforeach
             </div>
             <div class="proposal-writing-action-group" role="group" aria-label="Additional tools">
-                @foreach (['lists' => 'Lists', 'insert' => 'Insert', 'more' => 'More'] as $menu => $label)
+                @foreach (['lists' => 'Lists', 'insert' => 'Insert'] as $menu => $label)
                     <button type="button" data-writing-menu-toggle="{{ $menu }}" aria-haspopup="menu" aria-expanded="false" aria-controls="proposal-writing-{{ $menu }}-menu" disabled><span>{{ $label }}</span><svg class="proposal-writing-menu-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button>
                 @endforeach
+            </div>
+            <div class="proposal-writing-action-group" role="group" aria-label="Clear formatting">
+                <button type="button" data-writing-command="removeFormat" aria-label="Clear formatting" title="Clear formatting" disabled><x-proposal-writing-icon name="removeFormat" /><span>Clear formatting</span></button>
             </div>
         </div>
         <div class="proposal-writing-buttons proposal-writing-primary-action" role="group" aria-label="Insert">
@@ -30,10 +33,6 @@
     <div id="proposal-writing-insert-menu" data-writing-menu="insert" hidden class="proposal-writing-menu" role="menu" aria-label="Insert">
         <button type="button" role="menuitem" tabindex="-1" data-writing-image disabled title="Select a narrative section that supports figures"><x-proposal-writing-icon name="image" /><span>Image</span></button>
         <button type="button" role="menuitem" tabindex="-1" data-writing-table aria-expanded="false" aria-controls="proposal-table-picker" disabled><x-proposal-writing-icon name="table" /><span>Table</span></button>
-    </div>
-    <div id="proposal-writing-more-menu" data-writing-menu="more" hidden class="proposal-writing-menu" role="menu" aria-label="More formatting">
-        <button type="button" role="menuitem" tabindex="-1" data-writing-command="underline" disabled><x-proposal-writing-icon name="underline" /><span>Underline</span></button>
-        <button type="button" role="menuitem" tabindex="-1" data-writing-command="removeFormat" disabled><span>Clear formatting</span></button>
     </div>
     <div data-writing-table-tools hidden class="proposal-writing-buttons" role="toolbar" aria-label="Selected table tools">
         @foreach (['add-row' => 'Add row', 'add-column' => 'Add column', 'remove-row' => 'Remove row', 'remove-column' => 'Remove column', 'remove-table' => 'Remove table'] as $action => $label)
