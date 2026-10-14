@@ -44,7 +44,7 @@
             <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">All accessible projects · Search by title, category, or year.</p>
         </div>
         <div class="min-h-0 max-h-[min(24rem,38dvh)] space-y-1.5 overflow-y-auto overscroll-contain p-2">
-            <template x-for="project in projects" :key="project.id">
+            <template x-for="project in (open ? projects : [])" :key="project.id">
                 <button data-assistant-project-option type="button" @click="$store.researchAssistant.selectProjectContext(project.id); open = false; $refs.trigger.focus()" :aria-pressed="$store.researchAssistant.contextEnabled && Number($store.researchAssistant.selectedContextId) === Number(project.id)" class="group flex w-full items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3 text-left transition hover:border-gray-300 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-500 aria-pressed:border-red-200 aria-pressed:bg-red-50 dark:border-slate-800 dark:bg-slate-800/30 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:aria-pressed:border-red-800 dark:aria-pressed:bg-red-950/40">
                     <span class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 sm:inline-flex" aria-hidden="true">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8M8 17h5"/></svg>

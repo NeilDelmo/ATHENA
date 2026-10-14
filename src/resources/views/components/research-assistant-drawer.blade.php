@@ -74,6 +74,7 @@
                             <div data-assistant-response class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-semibold text-gray-900 dark:text-white">Athena</p>
                                 <x-research-assistant-evidence />
+                                <x-research-assistant-document-reading />
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
                                 <x-research-assistant-literature />
                                 <x-research-assistant-proposal-changes />

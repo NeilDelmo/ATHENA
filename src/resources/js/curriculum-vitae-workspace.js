@@ -12,8 +12,11 @@ export function curriculumVitaePaperWorkspace() {
             if (!this.previewPaneOpen || this.previewViewingCvPackage) return;
 
             const previewDocument = this.$refs.previewFrame?.contentDocument;
-            previewDocument?.querySelector(`[data-proposal-preview-section="${this.previewFocusSection}"]`)
-                ?.scrollIntoView({ block: 'start' });
+            const section = previewDocument?.querySelector(`[data-proposal-preview-section="${this.previewFocusSection}"]`);
+            if (section) {
+                // Keep preview scrolling from moving the surrounding editor page.
+                previewDocument.defaultView.scrollBy({ top: section.getBoundingClientRect().top, behavior: 'instant' });
+            }
         },
 
         showProposalPreview() {

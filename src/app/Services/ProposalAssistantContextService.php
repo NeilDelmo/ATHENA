@@ -41,7 +41,7 @@ class ProposalAssistantContextService
     /**
      * @param  array<string, mixed>  $context
      */
-    public function promptContext(?ProposalDraft $draft, array $context, string $question = ''): ?string
+    public function promptContext(?ProposalDraft $draft, array $context, string $question = '', bool $includeSavedValues = true): ?string
     {
         $paperSlug = $this->paperSlug($context['paper_slug'] ?? null);
         $paper = $paperSlug ? config('proposal_field_guidance.papers.'.$paperSlug) : null;
@@ -52,7 +52,7 @@ class ProposalAssistantContextService
             ? $this->relationshipsFor($paperSlug)
             : [];
         $browserContext = $this->sanitizeBrowserContext($context['form'] ?? null);
-        $savedPaperDocument = $draft && $paperSlug
+        $savedPaperDocument = $includeSavedValues && $draft && $paperSlug
             ? $this->savedPaperDocument(
                 $draft,
                 $paperSlug,
@@ -84,7 +84,7 @@ class ProposalAssistantContextService
             'current_field_guide' => $fieldGuide,
             'official_relationships' => $relationships,
             'saved_current_paper' => $savedPaperDocument,
-            'saved_connected_papers' => $draft && $paperSlug && $this->connectedPapersAreRelevant($question)
+            'saved_connected_papers' => $includeSavedValues && $draft && $paperSlug && $this->connectedPapersAreRelevant($question)
                 ? $this->savedConnectedPapers($draft, $paperSlug, $question)
                 : null,
             'proposal_readiness' => $draft && $this->readinessIsRelevant($question)

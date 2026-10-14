@@ -3,13 +3,10 @@
 namespace App\Services;
 
 use App\Models\ProposalDraft;
-use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\TopicReviewFileRevision;
-use App\Support\LineItemBudgetData;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalPaperCatalog;
-use App\Support\WorkPlanProposalObjectives;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -27,7 +24,10 @@ class ResearchAssistantProposalReviewService
         'expense_breakdown' => ['project_title', 'items.*.category', 'items.*.account', 'items.*.sub_account', 'items.*.particulars', 'items.*.details', 'items.*.purpose', 'items.*.unit', 'items.*.quantity', 'items.*.unit_cost', 'items.*.total_cost', 'grand_total'],
     ];
 
-    public function __construct(private ResearchAssistantProposalAssistanceService $proposalAssistance) {}
+    public function __construct(
+        private ResearchAssistantProposalAssistanceService $proposalAssistance,
+        private ResearchAssistantPaperReader $paperReader,
+    ) {}
 
     public function focus(array $action, array $context, string $question): ?string
     {
@@ -75,18 +75,7 @@ class ResearchAssistantProposalReviewService
             $document = $documents->firstWhere('document_type', $type);
             $data = $document?->source_data ?? [];
             if ($draft && $document && $data !== []) {
-                if ($type === ProposalVersionFile::TYPE_WORK_PLAN) {
-                    $objectives = app(WorkPlanProposalObjectives::class);
-                    $data['entries'] = $objectives->entries($data['entries'] ?? [], $objectives->forDraft($draft));
-                }
-                if ($type === ProposalVersionFile::TYPE_LINE_ITEM_BUDGET) {
-                    $data = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown($data, $documents->firstWhere('document_type', 'expense_breakdown')?->source_data['items'] ?? null);
-                    $data = [...$data, ...Arr::only(LineItemBudgetData::fromValidated($data), ['computed_mooe_total', 'mooe_total', 'computed_co_total', 'co_total', 'computed_project_total', 'project_total'])];
-                }
-                $data = [...$data, 'project_title' => $draft->project_title, 'planned_start' => $draft->planned_start?->toDateString(), 'planned_end' => $draft->planned_end?->toDateString()];
-                if ($type === ProposalVersionFile::TYPE_WORK_PLAN) {
-                    $data['total_duration_months'] = $draft->duration_months;
-                }
+                $data = $this->paperReader->effectiveData($draft, $type, $data, $documents);
             }
             $fields = $this->fields($data, $type);
             $label = $catalog->label($type);

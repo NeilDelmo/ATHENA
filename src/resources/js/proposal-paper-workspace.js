@@ -37,7 +37,10 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
             const previewDocument = this.$refs.previewFrame?.contentDocument;
             const section = [...(previewDocument?.querySelectorAll('[data-proposal-preview-section]') || [])]
                 .find((element) => element.dataset.proposalPreviewSection === this.previewFocusSection);
-            section?.scrollIntoView({ block: 'start' });
+            if (section) {
+                // Keep preview scrolling from moving the surrounding editor page.
+                previewDocument.defaultView.scrollBy({ top: section.getBoundingClientRect().top, behavior: 'instant' });
+            }
         },
 
         initializeProposalPaperPreview() {

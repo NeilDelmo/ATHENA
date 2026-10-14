@@ -26,6 +26,60 @@ const toolbar = execFileSync('php', ['-r', `
     echo view('components.detailed-proposal-writing-toolbar')->render();
 `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
 
+test('following a writing section scrolls only the preview frame before and after refresh', async () => {
+    const cvWorkspace = readFileSync(new URL('../../resources/js/curriculum-vitae-workspace.js', import.meta.url), 'utf8').replace(/^import .+;\r?\n/gm, '').replaceAll('export ', '');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const { nested, cv } of [{ nested: false, cv: false }, { nested: true, cv: false }, { nested: true, cv: true }]) {
+            const section = cv ? 'cv-person-1' : 'rationale';
+            const page = await browser.newPage({ viewport: { width: 1440, height: 700 } });
+            await page.setContent(`<body style="margin:0"><div style="height:800px"></div>
+                <div id="ancestor" style="${nested ? 'height:360px;overflow-y:auto' : ''}">
+                    ${nested ? '<div style="height:250px"></div>' : ''}
+                    <iframe id="preview" style="display:block;width:400px;height:300px;border:0"></iframe>
+                    ${nested ? '<div style="height:500px"></div>' : ''}
+                </div><div style="height:2000px"></div></body>`);
+            await page.addScriptTag({ content: `${preview}\n${paperWorkspace}\n${cvWorkspace}
+                window.previewState = {
+                    ...${cv ? 'curriculumVitaePaperWorkspace' : 'proposalPaperPreviewWorkspace'}(), previewPaneOpen: true, previewHtml: 'Loaded preview', activeCvPersonIndex: 0,
+                    $refs: { previewFrame: document.getElementById('preview') }, $nextTick: callback => callback(),
+                };
+                window.previewLoads = 0;
+                previewState.$refs.previewFrame.addEventListener('load', () => {
+                    previewState.proposalPreviewLoaded(); window.previewLoads++;
+                });` });
+            const results = [];
+            for (const [index, height] of [1600, 2000].entries()) {
+                await page.evaluate(({ height, index, nested, section }) => {
+                    window.scrollTo(0, 350);
+                    document.getElementById('ancestor').scrollTop = nested ? 125 : 0;
+                    if (index === 0) previewState.previewFocusSection = '';
+                    previewState.$refs.previewFrame.srcdoc = `<body style="margin:0;width:800px"><div style="height:${height}px"></div><section data-proposal-preview-section="${section}">Writing section</section><div style="height:2000px"></div></body>`;
+                }, { height, index, nested, section });
+                await page.waitForFunction((count) => window.previewLoads === count, index + 1);
+                if (index === 0) await page.evaluate(({ cv, section }) => cv ? previewState.focusCurriculumVitaePreview() : previewState.focusProposalPaperPreview(section), { cv, section });
+                results.push(await page.evaluate(() => ({
+                    mainScroll: window.scrollY,
+                    ancestorScroll: document.getElementById('ancestor').scrollTop,
+                    frameScroll: previewState.$refs.previewFrame.contentWindow.scrollY,
+                    sectionTop: previewState.$refs.previewFrame.contentDocument.querySelector('section').getBoundingClientRect().top,
+                    zoom: Number(previewState.$refs.previewFrame.contentDocument.body.style.zoom),
+                })));
+            }
+            for (const result of results) {
+                assert.equal(result.zoom, 0.5);
+                assert.equal(result.mainScroll, 350, `Preview must preserve the editor viewport: ${JSON.stringify({ nested, cv, results })}`);
+                assert.equal(result.ancestorScroll, nested ? 125 : 0);
+                assert.ok(result.frameScroll > 0);
+                assert.ok(Math.abs(result.sectionTop) <= 1, `Zoomed section should align with the frame top: ${JSON.stringify(result)}`);
+            }
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('attachment references remain neutral and compact in both themes', async () => {
     const view = readFileSync(resolve('resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php'), 'utf8');
     const headings = {

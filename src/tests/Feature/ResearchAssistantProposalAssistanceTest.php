@@ -84,6 +84,23 @@ test('mixed valid and stale citations cannot establish a complete RRL count', fu
     Http::assertNothingSent();
 });
 
+test('saved RRL coverage includes its exported opening paragraphs and deduplicates across both fields', function () {
+    $ids = [];
+    foreach (range(1, 2) as $number) {
+        $ids[] = $this->draft->literatureSources()->create(['fingerprint' => hash('sha256', 'opening-study'.$number), 'title' => 'Opening study '.$number, 'provider' => 'fixture'])->id;
+    }
+    $this->document->update(['source_data' => [
+        'introduction' => '<p>Opening study review <span data-proposal-citation="'.$ids[0].'">[1]</span>.</p>',
+        'related_literature' => '<p>Further review <span data-proposal-citation="'.$ids[0].'">[1]</span> and <span data-proposal-citation="'.$ids[1].'">[2]</span>.</p>',
+    ]]);
+    expect($this->assistance->assessment($this->draft)['rrl'])->toMatchArray(['count' => 2, 'known_count' => 2, 'count_status' => 'tracked']);
+    $data = $this->document->source_data;
+    $data['introduction'] = '<p>Untracked opening study discussion.</p>';
+    $this->document->update(['source_data' => $data]);
+    expect($this->assistance->assessment($this->draft)['rrl'])->toMatchArray(['count' => null, 'known_count' => 2, 'count_status' => 'partial']);
+    Http::assertNothingSent();
+});
+
 test('proposal literature counts remain partial when untracked blocks or invalid markers accompany known sources', function (string $untracked) {
     $link = $this->draft->literatureSources()->create(['fingerprint' => hash('sha256', 'tracked'), 'title' => 'Tracked study', 'provider' => 'fixture']);
     $html = '<p>Tracked findings.<span data-proposal-citation="'.$link->id.'">[1]</span></p>'.$untracked;

@@ -123,6 +123,7 @@
                             <div data-assistant-response class="min-w-0 flex-1 text-base leading-relaxed text-stone-950 dark:text-stone-100">
                                 <p class="mb-1 text-xs font-semibold text-red-900 dark:text-red-200">Athena</p>
                                 <x-research-assistant-evidence />
+                                <x-research-assistant-document-reading />
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
                                 <x-research-assistant-literature />
                                 <x-research-assistant-proposal-changes />

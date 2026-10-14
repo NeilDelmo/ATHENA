@@ -20,7 +20,7 @@
             </template>
         </div>
         <p x-show="$store.researchAssistant.documentError" role="alert" class="px-2 py-3 text-sm text-red-600 dark:text-red-300" x-text="$store.researchAssistant.documentError"></p>
-        <p class="px-2 py-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Only the selected PDF or DOCX is sent to Athena for this request.</p>
-        <button type="button" @click="$store.researchAssistant.analyzeSelectedDocument()" :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.selectedDocumentToken || $store.researchAssistant.isLoading" class="min-h-11 w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-900" x-text="$store.researchAssistant.documentLoading ? 'Loading…' : 'Analyze document'"></button>
+        <p class="px-2 py-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Choose a saved paper before PDF generation, or a PDF or DOCX. Type a question below or request a summary. Only relevant readable passages from this document are sent; it stays selected for follow-up questions. Current edits must finish saving first.</p>
+        <button type="button" @click="$store.researchAssistant.analyzeSelectedDocument()" :disabled="$store.researchAssistant.documentLoading || $store.researchAssistant.documentAnalysisPending || !$store.researchAssistant.selectedDocumentToken || $store.researchAssistant.isLoading" class="min-h-11 w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-900" x-text="$store.researchAssistant.documentLoading ? 'Loading…' : $store.researchAssistant.documentAnalysisPending ? 'Saving paper…' : 'Analyze document'"></button>
     </div>
 </div>

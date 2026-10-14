@@ -44,7 +44,8 @@ class ResearchAssistantProposalAssistanceService
         unset($source);
         $minimum = $this->literatureMinimum($sources);
         $requirement = collect($sources)->first(fn (array $source): bool => preg_match('/minimum\s+(?:of\s+)?(?:\d+|[a-z]+)\s+(?:literature|litemture|studies|sources)\b/i', $source['content']) === 1);
-        $rrl = $this->literatureCoverage((string) ($data['related_literature'] ?? ''), $draft->literatureSources()->pluck('id')->all());
+        $rrlHtml = '<div>'.(string) ($data['introduction'] ?? '').'</div><div>'.(string) ($data['related_literature'] ?? '').'</div>';
+        $rrl = $this->literatureCoverage($rrlHtml, $draft->literatureSources()->pluck('id')->all());
         if ($document && ! is_array($document->source_data)) {
             $rrl = [...$rrl, 'count' => null, 'count_status' => 'unknown'];
         }

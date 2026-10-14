@@ -115,6 +115,9 @@ test('page navigation replaces the clock timer and releases detached pages', () 
 });
 
 test('the built app loads history and dialogs on demand across page navigation', async () => {
+    const draftList = readFileSync(resolve('resources/views/faculty/proposal-drafts/index.blade.php'), 'utf8');
+    const resumeNavigation = draftList.match(/<a\s+(wire:navigate(?:\.hover)?)\s+href="\{\{ route\('faculty\.proposal-drafts\.show'/)?.[1];
+    assert.ok(resumeNavigation, 'Resume must keep Livewire navigation');
     const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
     const appEntry = manifest['resources/js/app.js'];
     const allowedAssets = new Set(Object.values(manifest).map((entry) => entry.file));
@@ -125,9 +128,11 @@ test('the built app loads history and dialogs on demand across page navigation',
         let historyRequests = 0;
         let dialogRequests = 0;
         let actionRequests = 0;
+        let draftPageRequests = 0;
         page.on('pageerror', (error) => errors.push(error.message));
         await page.route('http://athena-loading.test/**', async (route) => {
             const path = new URL(route.request().url()).pathname.slice(1);
+            if (path === 'second') draftPageRequests++;
             if (allowedAssets.has(path)) {
                 if (path.includes('sweetalert2')) dialogRequests++;
                 await route.fulfill({ body: readFileSync(resolve('public/build', path)), contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript' });
@@ -151,7 +156,7 @@ test('the built app loads history and dialogs on demand across page navigation',
                 <h1>${path === 'second' ? 'Second page' : 'First page'}</h1>
                 <button @click="$store.researchAssistant.openWorkspace()">Open history</button>
                 <template x-for="item in $store.researchAssistant.history"><p x-text="item.title"></p></template>
-                <a href="/second" wire:navigate>Next page</a>
+                <a href="/second" ${resumeNavigation}>Resume</a>
                 <form action="/action" method="post" data-proposal-confirm><button type="submit">Check confirmation</button></form>
                 <time id="manila-system-time"></time>
             </body></html>` });
@@ -163,8 +168,14 @@ test('the built app loads history and dialogs on demand across page navigation',
         await page.getByRole('button', { name: 'Open history' }).click();
         await page.getByText('Saved chat is ready', { exact: true }).waitFor();
         assert.equal(historyRequests, 1);
-        await page.getByRole('link', { name: 'Next page' }).click();
+        const prefetchedDraft = page.waitForResponse('http://athena-loading.test/second', { timeout: 2000 });
+        await page.getByRole('link', { name: 'Resume', exact: true }).hover();
+        await prefetchedDraft;
+        assert.equal(draftPageRequests, 1);
+        assert.equal(page.url(), 'http://athena-loading.test/first');
+        await page.getByRole('link', { name: 'Resume', exact: true }).click();
         await page.getByRole('heading', { name: 'Second page' }).waitFor();
+        assert.equal(draftPageRequests, 1, 'Resume reuses its prefetched page');
         await page.getByRole('button', { name: 'Open history' }).click();
         assert.equal(historyRequests, 1);
 

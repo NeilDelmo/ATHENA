@@ -303,7 +303,9 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Search history')
         ->assertSee('Chats are saved to your ATHENA account.')
         ->assertSee('Analyze document')
-        ->assertSee('Only the selected PDF or DOCX is sent to Athena for this request.')
+        ->assertSee('Choose a saved paper before PDF generation, or a PDF or DOCX.')
+        ->assertSee('data-assistant-active-document', false)
+        ->assertSee('data-assistant-document-reading', false)
         ->assertSee('data-research-assistant-documents-url="'.route('research-support.documents').'"', false)
         ->assertDontSee('Research prompt groups')
         ->assertDontSee('Planning')
@@ -781,7 +783,7 @@ test('users can explicitly analyze one selected PDF or DOCX', function (string $
     if ($format === 'pdf') {
         Process::assertRan(fn (PendingProcess $process): bool => is_array($process->command)
             && in_array('-l', $process->command, true)
-            && in_array('40', $process->command, true));
+            && in_array((string) config('research_assistant.document.maximum_pdf_pages'), $process->command, true));
     }
 })->with([
     'PDF document' => 'pdf',
@@ -1432,7 +1434,7 @@ test('assistant prioritizes the focused saved field even when it appears late in
     Http::assertSent(function ($request): bool {
         $prompt = collect($request['messages'])->pluck('content')->join("\n");
 
-        return str_contains($prompt, '"field": "methodology"')
+        return str_contains($prompt, '"field":"methodology"')
             && str_contains($prompt, 'Late saved methodology using quarterly field observations.');
     });
 });
@@ -1525,8 +1527,10 @@ test('athena receives a safe application context packet with live row values and
 
         return str_contains($prompt, 'ATHENA application context packet')
             && str_contains($prompt, 'Context packet budget study')
-            && str_contains($prompt, 'saved_current_paper')
-            && str_contains($prompt, 'saved_connected_papers')
+            && str_contains($prompt, 'ATHENA saved proposal paper evidence')
+            && str_contains($prompt, 'private_saved_draft')
+            && ! str_contains($prompt, 'saved_current_paper')
+            && ! str_contains($prompt, 'saved_connected_papers')
             && str_contains($prompt, 'proposal_readiness')
             && str_contains($prompt, 'papers_needing_attention')
             && str_contains($prompt, 'Saved paper values are saved data')

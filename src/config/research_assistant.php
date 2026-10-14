@@ -16,7 +16,10 @@ return [
     'document' => [
         'maximum_bytes' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_MAX_BYTES', 25 * 1024 * 1024),
         'maximum_characters' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_MAX_CHARACTERS', 24000),
-        'maximum_pdf_pages' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_MAX_PDF_PAGES', 40),
+        'maximum_pdf_pages' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_MAX_PDF_PAGES', 200),
+        'maximum_extracted_bytes' => 1024 * 1024,
+        'maximum_context_bytes' => 12000,
+        'extraction_cache_seconds' => 3600,
         'maximum_docx_xml_bytes' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_MAX_DOCX_XML_BYTES', 12 * 1024 * 1024),
         'extraction_timeout' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_EXTRACTION_TIMEOUT', 20),
         'pdftotext_binary' => env('PDFTOTEXT_BINARY', 'pdftotext'),

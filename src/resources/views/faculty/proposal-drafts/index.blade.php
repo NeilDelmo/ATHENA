@@ -46,7 +46,7 @@
                         </div>
                     </div>
                     <div data-draft-actions class="grid w-44 grid-cols-2 items-center gap-2">
-                        <a wire:navigate href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="dashboard-action col-start-1 w-full text-base">Resume</a>
+                        <a wire:navigate.hover href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="dashboard-action col-start-1 w-full text-base">Resume</a>
                         @can('delete', $proposalDraft)
                             <form
                                 class="col-start-2"

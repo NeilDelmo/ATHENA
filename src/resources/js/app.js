@@ -1872,6 +1872,8 @@ Alpine.store('researchAssistant', {
     documentPickerOpen: false,
     documentOptions: [],
     selectedDocumentToken: '',
+    activeDocument: null,
+    documentAnalysisPending: false,
     documentLoading: false,
     documentRequestSequence: 0,
     documentError: '',
@@ -1893,8 +1895,10 @@ Alpine.store('researchAssistant', {
             this.capturePaperField(event.target);
         });
         window.addEventListener('hashchange', () => {
+            if (this.pageScope !== assistantPageScope()) this.clearActiveDocument();
             this.pageScope = assistantPageScope();
         });
+        document.addEventListener('livewire:navigating', () => this.clearActiveDocument());
     },
 
     syncPageScroll() {
@@ -1924,6 +1928,10 @@ Alpine.store('researchAssistant', {
         this.documentPickerOpen = false;
         this.documentOptions = [];
         this.selectedDocumentToken = '';
+        this.activeDocument = null;
+        this.documentAnalysisPending = false;
+        this.retryAction = null;
+        this.retryContext = null;
         this.documentLoading = false;
         this.documentError = '';
         this.drawerOpen = false;
@@ -2235,6 +2243,7 @@ Alpine.store('researchAssistant', {
     },
 
     selectProjectContext(contextId) {
+        if (this.activeDocument || this.documentAnalysisPending) this.clearActiveDocument();
         this.reviewContext = null;
         this.proposalHelpOpen = false;
         const context = this.contextOptions.find((option) => Number(option.id) === Number(contextId));
@@ -2303,6 +2312,39 @@ Alpine.store('researchAssistant', {
         this.documentError = '';
     },
 
+    clearActiveDocument() {
+        if (this.activeDocument || this.documentAnalysisPending) this.stop();
+        this.activeDocument = null;
+        this.documentAnalysisPending = false;
+        this.documentRequestSequence++;
+        if (this.retryAction?.type === 'analyze_document') {
+            this.retryAction = null;
+            this.retryContext = null;
+        }
+    },
+
+    documentReadingMetadata(value) {
+        if (!value || typeof value !== 'object'
+            || !['saved_draft_projection', 'submitted_snapshot', 'uploaded_file'].includes(value.basis)
+            || !['SAVED', 'PDF', 'DOCX'].includes(value.format)) return null;
+        const count = (number) => Number.isInteger(number) && number >= 0 ? Math.min(number, 100000) : 0;
+        return {
+            label: String(value.label || value.filename || 'Selected document').slice(0, 300),
+            filename: String(value.filename || '').slice(0, 255),
+            format: value.format,
+            basis: value.basis,
+            version: Number.isInteger(value.version) && value.version >= 0 ? value.version : null,
+            coverage: {
+                selected_passages: count(value.coverage?.selected_passages),
+                total_passages: count(value.coverage?.total_passages),
+                omitted_passages: count(value.coverage?.omitted_passages),
+                truncated: value.coverage?.truncated === true,
+                limitations: (Array.isArray(value.coverage?.limitations) ? value.coverage.limitations : [])
+                    .filter((item) => typeof item === 'string').slice(0, 6).map((item) => item.slice(0, 500)),
+            },
+        };
+    },
+
     async loadDocumentOptions() {
         const requestSequence = ++this.documentRequestSequence;
         const baseUrl = this.documentsUrl();
@@ -2339,7 +2381,7 @@ Alpine.store('researchAssistant', {
             this.selectedDocumentToken = String(this.documentOptions[0]?.token || '');
 
             if (this.documentOptions.length === 0) {
-                this.documentError = 'No PDF or DOCX is available for this proposal.';
+                this.documentError = 'No saved paper, PDF, or DOCX is available for this proposal.';
             }
         } catch (error) {
             if (requestSequence !== this.documentRequestSequence) return;
@@ -2352,7 +2394,7 @@ Alpine.store('researchAssistant', {
     },
 
     async analyzeSelectedDocument() {
-        if (this.isLoading || !this.selectedDocumentToken) return;
+        if (this.isLoading || this.sendInProgress || this.documentAnalysisPending || !this.selectedDocumentToken) return;
 
         const documentOption = this.documentOptions.find(
             (option) => option.token === this.selectedDocumentToken,
@@ -2360,13 +2402,30 @@ Alpine.store('researchAssistant', {
 
         if (!documentOption) return;
 
-        const action = assistantDocumentAction(documentOption.token);
-        const filename = String(documentOption.filename || documentOption.label || 'selected document');
-        this.closeDocumentPicker();
-        await this.sendPrompt(
-            `Analyze the selected document “${filename}”. Summarize its purpose and key points, then identify incomplete, inconsistent, or unclear parts that need attention. Base the answer only on readable content from this document.`,
-            action,
-        );
+        const selectionSequence = this.documentRequestSequence;
+        const requestSequence = this.requestSequence;
+        this.documentAnalysisPending = true;
+        try {
+            const editor = currentPaperEditor();
+            if ((paperEditorHasUnsavedChanges(editor) && !await finishPaperEditorAutoSave(editor))
+                || (backgroundAutoSaveHasPendingChanges() && !await finishBackgroundAutoSaves())) {
+                this.documentError = 'Save your latest changes before asking Athena to read this paper.';
+                return;
+            }
+            if (selectionSequence !== this.documentRequestSequence || requestSequence !== this.requestSequence) return;
+            const filename = String(documentOption.filename || documentOption.label || 'selected document');
+            const question = this.draft.trim() || `Analyze the selected document “${filename}”. Summarize its purpose and key points, then identify incomplete, inconsistent, or unclear parts that need attention. Base the answer only on readable content from this document.`;
+            this.activeDocument = {
+                token: documentOption.token,
+                label: String(documentOption.label || filename).slice(0, 300),
+                format: String(documentOption.format || '').slice(0, 10),
+            };
+            this.closeDocumentPicker();
+            this.documentAnalysisPending = false;
+            return await this.sendPrompt(question, assistantDocumentAction(documentOption.token));
+        } finally {
+            if (selectionSequence === this.documentRequestSequence) this.documentAnalysisPending = false;
+        }
     },
 
     historyUrl() {
@@ -2490,6 +2549,7 @@ Alpine.store('researchAssistant', {
                 ...message,
                 literature: serializeAssistantLiterature(message.literature),
                 proposal_changes: serializeAssistantProposalChanges(message.proposal_changes),
+                document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
             })),
             context: this.contextPayload(false),
         });
@@ -2536,10 +2596,14 @@ Alpine.store('researchAssistant', {
 
     async openConversation(conversationId) {
         this.stop();
+        const requestSequence = this.requestSequence;
+        this.activeDocument = null;
+        this.documentAnalysisPending = false;
+        this.documentRequestSequence++;
         const hadConversation = this.hasConversation();
         const savedConversation = await this.saveConversation();
 
-        if (hadConversation && !savedConversation) return;
+        if ((hadConversation && !savedConversation) || requestSequence !== this.requestSequence) return;
 
         const conversationUrl = this.historyConversationUrl(conversationId);
         if (!conversationUrl) return;
@@ -2550,6 +2614,8 @@ Alpine.store('researchAssistant', {
                 headers: { Accept: 'application/json' },
             });
             const payload = await response.json().catch(() => ({}));
+
+            if (requestSequence !== this.requestSequence) return;
 
             if (!response.ok || !payload.conversation) {
                 throw new Error(payload.message || 'The chat could not be loaded.');
@@ -2566,6 +2632,7 @@ Alpine.store('researchAssistant', {
                     review: message.review && typeof message.review === 'object' ? message.review : null,
                     literature: normalizeAssistantLiterature(message.literature),
                     proposal_changes: normalizeAssistantProposalChanges(message.proposal_changes),
+                    document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
                 }));
             this.currentConversationId = conversation.id;
             this.retryAction = null;
@@ -2741,7 +2808,7 @@ Alpine.store('researchAssistant', {
 
     async send(action = null, contextOverride = null) {
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
-        if (!content || this.isLoading || this.sendInProgress || this.disseminationSaving || this.proposalChangesOperationPending || this.retryAfter > 0) return;
+        if (!content || this.isLoading || this.sendInProgress || this.documentAnalysisPending || this.disseminationSaving || this.proposalChangesOperationPending || this.retryAfter > 0) return;
         if (this.reviewLaunchPending && !['review_proposal', 'suggest_proposal_changes'].includes(action?.type)) return;
 
         if (!action && this.reviewContext) {
@@ -2794,10 +2861,12 @@ Alpine.store('researchAssistant', {
     async requestReply(action = this.retryAction, contextOverride = this.retryContext) {
         const chatUrl = document.body.dataset.researchAssistantUrl;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const effectiveAction = action || (this.activeDocument?.token
+            ? { type: 'analyze_document', document_token: this.activeDocument.token } : null);
         const venueAction = document.body.dataset.conferenceSearchUrl
-            ? disseminationAction(this.contextMessages().at(-1)?.content, action)
+            ? disseminationAction(this.contextMessages().at(-1)?.content, effectiveAction)
             : null;
-        const requestContext = this.replyContext(contextOverride, action);
+        const requestContext = this.replyContext(contextOverride, effectiveAction);
         const venueSearch = venueAction ? disseminationSearchRequest(venueAction,
             this.contextOptions.find((project) => Number(project.id) === Number(requestContext?.topic_id))) : null;
 
@@ -2835,7 +2904,7 @@ Alpine.store('researchAssistant', {
                     messages: this.contextMessages(),
                     context: requestContext,
                     conversation_id: this.currentConversationId,
-                    action,
+                    action: effectiveAction,
                 }),
             });
 
@@ -2893,6 +2962,7 @@ Alpine.store('researchAssistant', {
                 literature: normalizeAssistantLiterature(payload.literature),
                 proposal_changes: normalizeAssistantProposalChanges(payload.proposal_changes),
                 dissemination: payload.dissemination || null,
+                document_reading: payload.document_reading ? this.documentReadingMetadata(payload.document_reading) : null,
             };
             this.messages.push(assistantMessage);
             if (action?.type === 'confirm_literature' && assistantMessage.literature?.kind === 'insertion') {
@@ -3052,6 +3122,9 @@ Alpine.store('researchAssistant', {
         this.documentPickerOpen = false;
         this.documentOptions = [];
         this.selectedDocumentToken = '';
+        this.activeDocument = null;
+        this.documentAnalysisPending = false;
+        this.documentRequestSequence++;
         this.documentLoading = false;
         this.documentError = '';
         this.copiedMessageId = null;
