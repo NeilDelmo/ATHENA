@@ -60,7 +60,7 @@ test('the workspace selector shows clear choices without overflow on mobile and 
                 assert.equal(await header.getByText('ATHENA', { exact: true }).evaluate((element) => getComputedStyle(element).color), 'rgb(255, 255, 255)');
                 assert.equal(await header.getByRole('button').evaluate((element) => getComputedStyle(element).color), 'rgb(255, 255, 255)');
                 assert.equal(await page.getByRole('heading', { name: 'Choose your workspace' }).isVisible(), true);
-                for (const name of ['Research Head', 'Research Projects', 'Faculty']) {
+                for (const name of ['Research Head', 'Faculty Researcher', 'Faculty']) {
                     assert.equal(await page.getByRole('heading', { name, exact: true }).isVisible(), true);
                 }
                 assert.equal(await page.locator('[data-current-workspace-badge]').count(), 1);
@@ -159,13 +159,13 @@ async function switchingPage(browser, kind = 'three') {
             state.posts.push(request);
             if (state.pausePost) await new Promise((resolve) => { state.releasePost = resolve; });
             if (state.responseStatus === 200) {
-                activeWorkspace = kind === 'role' ? 'Research Office' : 'Research Projects';
+                activeWorkspace = kind === 'role' ? 'Research Office' : 'Faculty Researcher';
             }
             return route.fulfill({ status: state.responseStatus, json: state.responseBody || { redirect: dashboard } });
         }
         if (request.url() === dashboard) {
             state.dashboards++;
-            const contextId = activeWorkspace === 'Faculty' ? 101 : activeWorkspace === 'Research Projects' ? 202 : 303;
+            const contextId = activeWorkspace === 'Faculty' ? 101 : activeWorkspace === 'Faculty Researcher' ? 202 : 303;
             return route.fulfill({ contentType: 'text/html', body: html(`<script>window.athenaResearchAssistantContexts = [{ id: ${contextId}, label: '${activeWorkspace} project' }]; window.athenaResearchAssistantActiveContextId = null; window.athenaResearchAssistantPageActions = [];</script><div x-data data-app-shell data-auth-user-id="1"><h1>${activeWorkspace} workspace</h1><aside x-persist="app-sidebar-${activeWorkspace}">${activeWorkspace} navigation</aside><a wire:navigate href="${action}">Switch Workspace</a></div>`) });
         }
         if (request.url() === action) {
@@ -209,7 +209,7 @@ test('workspace and legacy role switching reuse the app and fetch a fresh dashbo
             assert.match(request.postData(), new RegExp(`name="${kind === 'role' ? 'role' : 'workspace'}"\\s+${key}`));
             assert.ok(request.postData().includes('a'.repeat(40)));
             state.releasePost();
-            await page.getByRole('heading', { name: `${kind === 'role' ? 'Research Office' : 'Research Projects'} workspace` }).waitFor();
+            await page.getByRole('heading', { name: `${kind === 'role' ? 'Research Office' : 'Faculty Researcher'} workspace` }).waitFor();
             assert.equal(page.url(), dashboard);
             assert.equal(state.dashboards, 2);
             assert.equal(state.documents, 1, 'switch must avoid a document reload');
@@ -254,7 +254,7 @@ test('failed switches show the server error and permit a single retry without le
         state.responseStatus = 200;
         state.responseBody = null;
         await button.click();
-        await page.getByRole('heading', { name: 'Research Projects workspace' }).waitFor();
+        await page.getByRole('heading', { name: 'Faculty Researcher workspace' }).waitFor();
         assert.equal(state.posts.length, 5);
         assert.deepEqual(state.errors, []);
     } finally {

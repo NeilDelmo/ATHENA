@@ -7155,26 +7155,32 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             if (response.status === 422) {
                 const payload = await response.json();
 
+                this.previewStale = true;
+                if (revision !== this.previewRevision) return;
+
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Work Plan information.';
-                this.previewStale = true;
+                this.previewError = this.validationMessage;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The preview service is unavailable. Please try again.');
 
-            this.previewHtml = await response.text();
+            const previewHtml = await response.text();
             this.previewStale = revision !== this.previewRevision;
+            if (!this.previewStale) this.previewHtml = previewHtml;
         } catch (error) {
             this.previewStale = true;
+            if (revision !== this.previewRevision) return;
+
             this.previewError = error instanceof Error
                 ? error.message
                 : 'The preview service is unavailable. Please try again.';
         } finally {
             this.previewLoading = false;
             this.previewReady = Boolean(this.previewHtml);
-            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+            if (this.previewStale && revision !== this.previewRevision) {
                 this.scheduleProposalPaperPreview();
             }
         }
@@ -7775,25 +7781,31 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
             if (response.status === 422) {
                 const payload = await response.json();
+                this.previewStale = true;
+                if (revision !== this.previewRevision) return;
+
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Line-Item Budget information.';
-                this.previewStale = true;
+                this.previewError = this.validationMessage;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The preview could not be generated. Please try again.');
 
-            this.previewHtml = await response.text();
+            const previewHtml = await response.text();
             this.previewStale = revision !== this.previewRevision;
+            if (!this.previewStale) this.previewHtml = previewHtml;
         } catch (error) {
             this.previewStale = true;
+            if (revision !== this.previewRevision) return;
+
             this.previewError = error instanceof Error ? error.message : 'The preview could not be generated.';
         } finally {
             this.previewLoading = false;
             this.previewReady = Boolean(this.previewHtml);
 
-            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+            if (this.previewStale && revision !== this.previewRevision) {
                 this.scheduleProposalPaperPreview();
             }
         }
@@ -8322,23 +8334,29 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
             if (response.status === 422) {
                 const payload = await response.json();
+                this.previewStale = true;
+                if (revision !== this.previewRevision) return;
+
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Estimated Expense Breakdown information.';
-                this.previewStale = true;
+                this.previewError = this.validationMessage;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The preview could not be generated. Please try again.');
-            this.previewHtml = await response.text();
+            const previewHtml = await response.text();
             this.previewStale = revision !== this.previewRevision;
+            if (!this.previewStale) this.previewHtml = previewHtml;
         } catch (error) {
             this.previewStale = true;
+            if (revision !== this.previewRevision) return;
+
             this.previewError = error instanceof Error ? error.message : 'The preview could not be generated.';
         } finally {
             this.previewLoading = false;
             this.previewReady = Boolean(this.previewHtml);
-            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+            if (this.previewStale && revision !== this.previewRevision) {
                 this.scheduleProposalPaperPreview();
             }
         }
@@ -8923,25 +8941,31 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
             if (response.status === 422) {
                 const payload = await response.json();
+                this.previewStale = true;
+                if (revision !== this.previewRevision) return;
+
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Curriculum Vitae information.';
-                this.previewStale = true;
+                this.previewError = this.validationMessage;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The CV preview could not be generated. Please try again.');
 
-            this.previewHtml = await response.text();
+            const previewHtml = await response.text();
             this.previewStale = revision !== this.previewRevision;
+            if (!this.previewStale) this.previewHtml = previewHtml;
         } catch (error) {
             this.previewStale = true;
+            if (revision !== this.previewRevision) return;
+
             this.previewError = error instanceof Error ? error.message : 'The CV preview could not be generated.';
         } finally {
             this.previewLoading = false;
             this.previewReady = Boolean(this.previewHtml);
 
-            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+            if (this.previewStale && revision !== this.previewRevision) {
                 this.scheduleProposalPaperPreview();
             }
         }
@@ -10627,18 +10651,22 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     addSpecificMethodGroup() {
         this.specificMethodGroups.push(this.newSpecificMethodGroup());
+        this.triggerDetailedProposalAutoSave();
     },
 
     removeSpecificMethodGroup(index) {
         this.specificMethodGroups.splice(index, 1);
+        this.triggerDetailedProposalAutoSave();
     },
 
     addSpecificMethod(objective) {
         objective.methods.push(this.newSpecificMethod());
+        this.triggerDetailedProposalAutoSave();
     },
 
     removeSpecificMethod(objective, index) {
         objective.methods.splice(index, 1);
+        this.triggerDetailedProposalAutoSave();
     },
 
     specificMethodGroupLetter(index) {
@@ -10725,10 +10753,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         if (!Array.isArray(this.expectedOutputs[key])) this.expectedOutputs[key] = [];
 
         this.expectedOutputs[key].push(this.newExpectedOutput());
+        this.triggerDetailedProposalAutoSave();
     },
 
     removeExpectedOutput(key, index) {
         this.expectedOutputs[key]?.splice(index, 1);
+        this.triggerDetailedProposalAutoSave();
     },
 
     startDetailedProposalAutoSave() {
@@ -10741,14 +10771,17 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             ? ''
             : this.detailedProposalFingerprint(form);
 
-        form.addEventListener('input', () => this.triggerDetailedProposalAutoSave());
+        const saveFieldChange = (event) => {
+            if (event.target.id !== 'workspace-person-search') this.triggerDetailedProposalAutoSave();
+        };
+        form.addEventListener('input', saveFieldChange);
         form.addEventListener('input', (event) => {
             const citationField = proposalCitationField(event.target.id) || proposalCitationFieldIds()
                 .map((fieldId) => document.getElementById(fieldId))
                 .find((field) => field?._semanticEditor?.contains(event.target));
             if (citationField) this.$nextTick(() => this.synchronizeLiteratureCitations());
         });
-        form.addEventListener('change', () => this.triggerDetailedProposalAutoSave());
+        form.addEventListener('change', saveFieldChange);
         form.addEventListener('input', (event) => this.clearDetailedProposalFieldHighlight(event.target));
         form.addEventListener('change', (event) => this.clearDetailedProposalFieldHighlight(event.target));
         form.addEventListener('focusout', (event) => {
@@ -11664,23 +11697,29 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             if (response.status === 422) {
                 const payload = await response.json();
+                this.previewStale = true;
+                if (revision !== this.previewRevision) return;
+
                 this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Detailed Research Proposal information.';
-                this.previewStale = true;
+                this.previewError = this.validationMessage;
 
                 return;
             }
 
             if (!response.ok) throw new Error('The content preview could not be generated. Please try again.');
-            this.previewHtml = await response.text();
+            const previewHtml = await response.text();
             this.previewStale = revision !== this.previewRevision;
+            if (!this.previewStale) this.previewHtml = previewHtml;
         } catch (error) {
             this.previewStale = true;
+            if (revision !== this.previewRevision) return;
+
             this.previewError = error instanceof Error ? error.message : 'The content preview could not be generated.';
         } finally {
             this.previewLoading = false;
             this.previewReady = Boolean(this.previewHtml);
-            if (this.previewStale && revision !== this.previewRevision && !this.previewError && !this.validationMessage) {
+            if (this.previewStale && revision !== this.previewRevision) {
                 this.scheduleDetailedProposalPreview();
             }
         }

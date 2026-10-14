@@ -239,6 +239,82 @@ test('adding reordering and removing objectives trigger autosave without needing
     assert.equal(changes, 4);
 });
 
+test('adding and removing methods and expected outputs invalidate the paper without a text edit', () => {
+    const state = editor({ proposalPreviewWorkspace }, { keepAutoSave: true });
+    state.plainText = (value) => String(value ?? '');
+    state.$el = { dataset: {} };
+    state.$refs = {};
+    state.scheduleDetailedProposalAutoSave = () => {};
+    state.previewHtml = '<p>Last rendered paper</p>';
+
+    const changes = [
+        () => state.addSpecificMethodGroup(),
+        () => state.addSpecificMethod(state.specificMethodGroups[0]),
+        () => state.removeSpecificMethod(state.specificMethodGroups[0], 0),
+        () => state.removeSpecificMethodGroup(0),
+        () => state.addExpectedOutput('products'),
+        () => state.removeExpectedOutput('products', 0),
+    ];
+
+    for (const change of changes) {
+        state.previewStale = false;
+        state.$el.dataset.paperDirty = 'false';
+        const revision = state.previewRevision;
+        change();
+        assert.equal(state.previewStale, true);
+        assert.equal(state.previewRevision, revision + 1);
+        assert.equal(state.$el.dataset.paperDirty, 'true');
+    }
+});
+
+test('proposal field and rich text edits invalidate the preview while person searches do not', () => {
+    class Form {
+        listeners = {};
+        addEventListener(type, listener) {
+            (this.listeners[type] ??= []).push(listener);
+        }
+        dispatch(type, target) {
+            for (const listener of this.listeners[type]) listener({ target });
+        }
+    }
+    const state = editor({
+        proposalPreviewWorkspace,
+        HTMLFormElement: Form,
+        proposalCitationField: () => null,
+        proposalCitationFieldIds: () => [],
+    }, { keepAutoSave: true });
+    const form = new Form();
+    state.$el = { dataset: {} };
+    state.$refs = { form };
+    state.detailedProposalFingerprint = () => '';
+    state.clearDetailedProposalFieldHighlight = () => {};
+    state.scheduleDetailedProposalAutoSave = () => {};
+    state.previewHtml = '<p>Last rendered paper</p>';
+    state.startDetailedProposalAutoSave();
+
+    for (const type of ['input', 'change']) {
+        state.previewStale = false;
+        const revision = state.previewRevision;
+        form.dispatch(type, { id: 'workspace-person-search', name: '', closest: () => null });
+        assert.equal(state.previewStale, false);
+        assert.equal(state.previewRevision, revision);
+
+        form.dispatch(type, { id: 'proposal-title', name: 'title', closest: () => null });
+        assert.equal(state.previewStale, true);
+        assert.equal(state.previewRevision, revision + 1);
+
+        state.previewStale = false;
+        form.dispatch(type, { id: '', closest: (selector) => selector === '.semantic-rich-text-editor' ? {} : null });
+        assert.equal(state.previewStale, true);
+        assert.equal(state.previewRevision, revision + 2);
+
+        state.previewStale = false;
+        form.dispatch(type, { id: '', name: '', closest: () => null });
+        assert.equal(state.previewStale, true);
+        assert.equal(state.previewRevision, revision + 3);
+    }
+});
+
 test('dragging an existing figure moves it between sections and updates numbering', () => {
     const state = editor();
     const image = state.newMethodologyImage({ section: 'research_design' });

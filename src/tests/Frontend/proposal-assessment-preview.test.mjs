@@ -317,6 +317,8 @@ test('all seven review previews stay in the review dialog and restore focus with
                 await trigger.click();
                 await page.waitForFunction(() => window.assessmentState.previewReady && !window.assessmentState.previewLoading);
                 assert.equal(await page.locator('#review-paper-preview-panel').isVisible(), true);
+                assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 assert.equal(page.context().pages().length, 1);
                 assert.equal(page.url(), 'http://assessment-preview.test/workspace');
                 await page.getByRole('button', { name: 'Close preview', exact: true }).focus();
@@ -346,14 +348,17 @@ test('loading failures can be retried and closing or switching forms discards la
     const page = await browser.newPage();
     try {
         await setup(page, forms);
+        assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
         await page.route('**/gad-checklist/preview', (route) => route.fulfill({ status: 500, contentType: 'text/html', body: 'Error' }));
         await page.getByRole('button', { name: 'Preview GAD Generic Checklist', exact: true }).click();
         await page.getByRole('alert').waitFor();
         assert.equal(await page.getByRole('button', { name: 'Print', exact: true }).isDisabled(), true);
+        assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), true);
         await page.route('**/gad-checklist/preview', (route) => route.fulfill({ contentType: 'text/html', body: forms.gad }));
-        await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+        await page.getByRole('button', { name: 'Retry preview', exact: true }).click();
         await page.waitForFunction(() => window.assessmentState.previewReady && !window.assessmentState.previewLoading);
         assert.equal(await page.getByRole('alert').isVisible(), false);
+        assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
 
         await page.evaluate(() => {
             window.fetch = () => new Promise((resolve) => { window.resolveOldPreview = () => resolve(new Response('<p>Old form</p>', { headers: { 'Content-Type': 'text/html' } })); });

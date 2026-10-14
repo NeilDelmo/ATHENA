@@ -174,6 +174,20 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 await page.addScriptTag({ content: readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8') });
                 const rationale = page.getByRole('textbox', { name: 'Rationale', exact: true });
                 await rationale.waitFor();
+                const previewStatus = page.locator('.proposal-preview-dock-heading p');
+                await expect(previewStatus).toHaveText('Up to date · Automatic');
+                await expect(page.getByRole('button', { name: 'Refresh preview', exact: true, includeHidden: true })).toHaveCount(0);
+                const retryPreview = page.getByRole('button', { name: 'Retry preview', exact: true, includeHidden: true });
+                await expect(retryPreview).toBeHidden();
+                await page.evaluate(() => { window.writingState.previewError = 'Preview failed'; });
+                await expect(previewStatus).toHaveText('Check preview errors');
+                if (width >= 1024) {
+                    await expect(retryPreview).toBeVisible();
+                    await retryPreview.click();
+                    await expect(page.locator('[x-ref="previewClose"]')).toBeFocused();
+                }
+                await page.evaluate(() => { window.writingState.previewError = ''; });
+                await expect(retryPreview).toBeHidden();
                 assert.equal(await page.locator('[data-proposal-writing-toolbar]').count(), 1);
                 assert.equal(await page.locator('[aria-label="Text formatting"]').count(), 0);
                 const boldButton = page.getByRole('button', { name: 'Bold', exact: true });

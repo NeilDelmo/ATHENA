@@ -26,7 +26,7 @@ test('a research head can choose research head or faculty workspaces', function 
         ->assertDontSee('md:grid-cols-3')
         ->assertSee('Research Head')
         ->assertSee('Faculty')
-        ->assertDontSee('Research Projects')
+        ->assertDontSee('Faculty Researcher')
         ->assertDontSee('Expert Evaluator')
         ->assertSee('Current workspace')
         ->assertSee('Enter workspace')
@@ -54,7 +54,7 @@ test('workspace switches open the dashboard and do not accept per-project destin
         ->assertRedirect(route('faculty.dashboard'))->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
 });
 
-test('three workspaces use clear task names without shrinking the two-workspace layout', function () {
+test('three workspaces preserve role names without shrinking the two-workspace layout', function () {
     $user = User::factory()->create();
     $user->assignRole(['research_head', 'faculty_researcher']);
 
@@ -64,11 +64,11 @@ test('three workspaces use clear task names without shrinking the two-workspace 
         ->assertSee('max-w-5xl')
         ->assertSee('grid grid-cols-1 gap-4 md:grid-cols-3')
         ->assertSee('Research Head')
-        ->assertSee('Research Projects')
+        ->assertSee('Faculty Researcher')
         ->assertSee('Faculty')
         ->assertSee('Prepare proposals, submit research papers, and respond to review feedback.')
         ->assertDontSee('Continue as')
-        ->assertDontSee('Faculty Researcher')
+        ->assertDontSee('Research Projects')
         ->assertDontSee('Your assigned system roles are unchanged.');
 });
 
@@ -79,7 +79,7 @@ test('a faculty researcher can also enter the regular faculty workspace', functi
     $this->actingAs($facultyResearcher)
         ->get(route('workspace.select'))
         ->assertOk()
-        ->assertSee('Research Projects')
+        ->assertSee('Faculty Researcher')
         ->assertSee('Faculty')
         ->assertDontSee('Research Head');
 });
@@ -204,7 +204,7 @@ test('fast workspace switches return only the authorized dashboard and save the 
         ->and($queries->contains(fn (array $query): bool => str_contains($query['query'], '`topics`') || str_contains($query['query'], 'notifications')))->toBeFalse();
 })->with([
     'Faculty' => ['faculty', 'faculty', 'faculty.dashboard'],
-    'Research Projects' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard'],
+    'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard'],
     'Research Head' => ['research_head', 'research_head', 'research_head.dashboard'],
     'Research Office' => ['research_coordinator', 'research_office', 'research_coordinator.dashboard'],
     'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard'],

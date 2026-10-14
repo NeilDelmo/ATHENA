@@ -175,6 +175,8 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
 
                 await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => window.budgetState.previewReady && !window.budgetState.previewLoading);
+                assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 assert.equal(await page.evaluate(() => window.previewBodies.at(-1).some(([name]) => name === '_method')), false);
                 if (width >= 1024) {
                     assert.equal(await page.locator('.proposal-preview-dock-expanded').count(), 0);
@@ -202,11 +204,20 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                 await page.waitForFunction(() => !window.budgetState.previewStale && window.budgetState.previewHtml.includes('1800'));
                 const lastPreview = await page.evaluate(() => window.budgetState.previewHtml);
                 await page.evaluate(() => { window.previewFailure = true; });
-                await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+                if (width < 1024) await page.evaluate(() => window.budgetState.closeProposalPreview());
+                await page.locator('#amount-travelling_expenses').fill('1801');
+                if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => !window.budgetState.previewLoading && window.budgetState.validationMessage);
                 assert.equal(await page.evaluate(() => window.budgetState.previewHtml), lastPreview);
                 assert.equal(await page.locator('.proposal-preview-error').textContent(), 'Complete Project Details before previewing.');
-                await page.evaluate(() => { window.previewFailure = false; window.budgetState.closeProposalPreview(); });
+                const retryPreview = page.getByRole('button', { name: 'Retry preview', exact: true });
+                assert.equal(await retryPreview.isVisible(), true);
+                await page.evaluate(() => { window.previewFailure = false; });
+                await retryPreview.click();
+                await page.waitForFunction(() => !window.budgetState.previewLoading && !window.budgetState.previewStale && window.budgetState.previewHtml.includes('1801'));
+                assert.equal(await retryPreview.isVisible(), false);
+                await page.evaluate(() => window.budgetState.closeProposalPreview());
+                await page.locator('#amount-travelling_expenses').fill('1800');
 
                 await mooe.getByRole('button', { name: 'Remove', exact: true }).click();
                 await mooe.getByRole('textbox', { name: 'Custom MOOE particular' }).waitFor({ state: 'detached' });

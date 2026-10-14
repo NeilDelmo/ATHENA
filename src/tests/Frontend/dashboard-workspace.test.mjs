@@ -196,7 +196,7 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         });
                         assert.deepEqual(grayPosterWells, [], 'The poster should sit on the promotional banner without a gray thumbnail well');
                         assert.equal(await banner.getByRole('link', { name: 'Start a proposal' }).isVisible(), true);
-                        assert.equal(await banner.getByRole('button', { name: 'View full poster' }).isVisible(), true);
+                        assert.equal(await banner.getByRole('button', { name: 'View full poster' }).count(), 0);
                         for (const [control, label] of [
                             [banner.getByRole('link', { name: 'View research calls' }), 'View research calls'],
                             [drafts.getByRole('link', { name: 'View all drafts' }), 'View all drafts'],
@@ -205,8 +205,14 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                                 const computed = getComputedStyle(anchor);
                                 return { decoration: computed.textDecorationLine, border: parseFloat(computed.borderTopWidth), height: anchor.getBoundingClientRect().height };
                             });
-                            assert.equal(style.decoration, 'none', `${label} should look like a button rather than an underlined text link`);
-                            assert.ok(style.border >= 1 && style.height >= 44, `${label} needs an outlined button and usable touch target`);
+                            assert.ok(style.height >= 44, `${label} needs a usable touch target`);
+                            if (label === 'View research calls') {
+                                assert.equal(style.decoration, 'underline');
+                                assert.equal(style.border, 0);
+                            } else {
+                                assert.equal(style.decoration, 'none');
+                                assert.ok(style.border >= 1);
+                            }
                         }
                         if (width === 1440) {
                             const headerBox = await page.locator('[data-workspace-header-banner]').boundingBox();

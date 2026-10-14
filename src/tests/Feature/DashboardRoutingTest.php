@@ -322,7 +322,7 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
         ->assertDontSee('data-research-call-submit-overlay', false)
         ->assertSee('data-announcement-layout="banner"', false)
         ->assertSee('data-research-call-backdrop', false)
-        ->assertSee('View full poster')
+        ->assertDontSee('View full poster')
         ->assertDontSee('xl:grid-cols-[minmax(0,1fr)_340px]', false)
         ->assertSeeInOrder(['data-research-call-carousel', 'Proposal overview'], false)
         ->assertSee('First Uploaded Research Call')

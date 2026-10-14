@@ -176,10 +176,10 @@ test('dashboard announcements use a compact colorful banner with readable call t
         ->and($xpath->query('//*[@data-research-call-backdrop]')->item(0)->getAttribute('src'))->toBe(asset('images/cteb_building.png'))
         ->and($xpath->query('//a[contains(., "Start a proposal")]')->length)->toBe(1)
         ->and($xpath->query('//a[contains(., "Start a proposal")]')->item(0)->getAttribute('href'))->toBe(route('faculty.proposal-drafts.create'))
-        ->and($xpath->query('//*[@data-research-call-preview]')->length)->toBe(4)
+        ->and($xpath->query('//*[@data-research-call-preview]')->length)->toBe(2)
         ->and($xpath->query('//*[@data-research-call-lightbox]')->length)->toBe(1)
-        ->and($html)->toContain('View full poster', 'Show next announcement', 'View research calls')
-        ->not->toContain('data-announcement-layout="compact"', 'Check the requirements and key dates');
+        ->and($html)->toContain('Show next announcement', 'View research calls')
+        ->not->toContain('View full poster', 'data-announcement-layout="compact"', 'Check the requirements and key dates');
 });
 
 test('announcement section is omitted when there are no posters', function () {

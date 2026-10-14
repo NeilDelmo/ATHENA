@@ -2,11 +2,11 @@
 <aside x-show="previewPaneOpen" x-cloak class="proposal-preview-dock" :class="{ 'proposal-preview-dock-expanded': previewFullscreen }" aria-label="{{ $previewLabel }}" @keydown.escape.stop="returnToProposalPaperEditor()" @keydown.stop="trapProposalPaperPreviewFocus($event)">
     <section id="{{ $panelId }}" x-ref="previewPanel" :role="previewFullscreen ? 'dialog' : 'region'" :aria-modal="previewFullscreen ? 'true' : null" aria-labelledby="{{ $panelId }}-heading">
         <header class="proposal-preview-dock-heading">
-            <div><h3 id="{{ $panelId }}-heading" x-text="previewTitle">Paper preview</h3><p x-text="previewLoading ? 'Updating…' : previewReadOnly ? 'Read-only form' : previewStale ? 'Edits awaiting preview' : previewReady ? 'Up to date' : 'Your official form'"></p></div>
+            <div><h3 id="{{ $panelId }}-heading" x-text="previewTitle">Paper preview</h3><p x-text="previewLoading ? 'Updating…' : previewReadOnly ? 'Read-only form' : previewError || validationMessage ? 'Check preview errors' : previewStale ? 'Updating soon…' : previewReady ? 'Up to date · Automatic' : 'Updates automatically'"></p></div>
             <button type="button" x-ref="previewClose" @click="previewFullscreen ? returnToProposalPaperEditor() : closeProposalPreview()" :aria-label="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize preview' : 'Collapse preview'"><span x-text="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize' : 'Hide'"></span></button>
         </header>
         <div class="proposal-preview-dock-actions">
-            <button type="button" @click="generatePreview()" :disabled="previewLoading">Refresh preview</button>
+            <button type="button" x-show="previewError || validationMessage" x-cloak @click="$refs.previewClose.focus({ preventScroll: true }); generatePreview()" :disabled="previewLoading">Retry preview</button>
             <button type="button" @click="printPreview()" :disabled="!previewReady || previewStale || previewLoading">Print</button>
             <a x-show="previewReadOnly && previewDownloadUrl" x-cloak :href="previewDownloadUrl" class="proposal-preview-download">Download Word</a>
         </div>

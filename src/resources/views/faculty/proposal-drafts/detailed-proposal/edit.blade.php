@@ -138,7 +138,7 @@
             </dl>
         </section>
 
-        <form data-paper-form data-detailed-proposal-autosave-form x-ref="form" @input="markProposalPreviewStale()" @change="markProposalPreviewStale()" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" enctype="multipart/form-data" class="space-y-6" novalidate>
+        <form data-paper-form data-detailed-proposal-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" enctype="multipart/form-data" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $detailedProposalDocument?->lock_version ?? 0) }}">

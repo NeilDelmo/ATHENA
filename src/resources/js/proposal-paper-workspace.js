@@ -69,7 +69,9 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
             if (this.previewDisposed || !this.previewPaneOpen || this.$el?.closest?.('[data-revision-embedded]')) return;
 
             this.previewRefreshTimer = window.setTimeout(() => {
-                if (!this.previewLoading) this.generatePreview();
+                if (this.previewDisposed || !this.previewPaneOpen || this.$el?.closest?.('[data-revision-embedded]')) return;
+                if (this.previewLoading || (this.previewHtml && !this.previewStale)) return;
+                this.generatePreview();
             }, delay);
         },
 

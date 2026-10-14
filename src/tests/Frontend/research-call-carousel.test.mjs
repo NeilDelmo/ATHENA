@@ -1,29 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 
 const source = (await readFile(new URL('../../resources/js/research-call-carousel.js', import.meta.url), 'utf8'))
     .replace('export default initializeResearchCallCarousels;', 'initializeResearchCallCarousels();');
 
-const fixture = `<main><a id="outside" href="#">Outside content</a>
-<section data-research-call-carousel>
-<article data-research-call-slide><button data-research-call-preview>First preview<img data-research-call-poster-trigger src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="First poster"></button><a href="#proposal">Start a proposal</a></article>
-<article data-research-call-slide hidden inert><button data-research-call-preview>Second preview<img data-research-call-poster-trigger src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Second poster"></button></article>
-<p data-research-call-counter></p><button data-research-call-previous>Previous</button><button data-research-call-next>Next</button>
-<div data-research-call-lightbox class="hidden" role="dialog" aria-hidden="true"><button data-research-call-lightbox-close>Close preview</button><img data-research-call-lightbox-image></div>
-</section></main>`;
+const fixture = `<main><a id="outside" href="#">Outside content</a>${execFileSync('php', ['-r', `
+    require 'vendor/autoload.php';
+    $app = require 'bootstrap/app.php';
+    $app->make(\\Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap();
+    echo view('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => collect([
+        ['url' => '/first-poster.png', 'alt' => 'First poster', 'isResearchCall' => true, 'canSubmitProposal' => true],
+        ['url' => '/second-poster.png', 'alt' => 'Second poster', 'isResearchCall' => false, 'canSubmitProposal' => false],
+    ])])->render();
+`], { encoding: 'utf8' })}</main>`;
+const manifest = JSON.parse(await readFile(new URL('../../public/build/manifest.json', import.meta.url), 'utf8'));
+const styles = await readFile(new URL(`../../public/build/${manifest['resources/css/app.css'].file}`, import.meta.url), 'utf8');
 
 test('carousel navigation, keyboard previews, and navigation cleanup work at desktop and mobile sizes', async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
-        for (const width of [1440, 390]) {
+        for (const { width, dark } of [{ width: 1440, dark: false }, { width: 1440, dark: true }, { width: 390, dark: false }, { width: 390, dark: true }]) {
             const page = await browser.newPage({ viewport: { width, height: 900 } });
-            await page.setContent(`<style>.hidden { display:none; }</style>${fixture}`);
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles}</style><body>${fixture}</body></html>`);
             await page.evaluate(() => { window.setInterval = () => { throw new Error('Posters must not auto-advance while reading'); }; });
             await page.addScriptTag({ content: source });
             await page.addScriptTag({ content: source });
             const slides = page.locator('[data-research-call-slide]');
+            assert.equal(await slides.nth(0).locator('[data-research-call-preview]').count(), 1);
+            assert.equal(await page.getByRole('button', { name: 'View full poster' }).count(), 0);
+            const callsLink = slides.nth(0).getByRole('link', { name: 'View research calls' });
+            const linkStyle = await callsLink.evaluate((element) => {
+                const style = getComputedStyle(element);
+                return { decoration: style.textDecorationLine, border: style.borderTopWidth, background: style.backgroundColor, height: element.getBoundingClientRect().height };
+            });
+            assert.equal(linkStyle.decoration, 'underline');
+            assert.equal(linkStyle.border, '0px');
+            assert.equal(linkStyle.background, 'rgba(0, 0, 0, 0)');
+            assert.ok(linkStyle.height >= 44);
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
             assert.equal(await slides.nth(1).isVisible(), false);
             await page.locator('[data-research-call-next]').click();
             assert.equal(await slides.nth(0).isVisible(), false);

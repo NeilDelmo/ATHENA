@@ -123,6 +123,8 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                 assert.equal(await page.evaluate(() => window.expenseState.grandTotal()), 4800);
                 if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => !window.expenseState.previewStale && window.expenseState.previewHtml.includes('Current cost: 400'));
+                assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 await page.waitForFunction(() => {
                     const frame = window.expenseState.$refs.previewFrame;
                     return frame?.contentDocument?.body?.textContent.includes('Current cost: 400')
@@ -164,16 +166,22 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
 
                 const previousPreview = await page.evaluate(() => window.expenseState.previewHtml);
                 await page.evaluate(() => { window.previewFailure=true; });
-                await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+                if (width < 1024) await page.evaluate(() => window.expenseState.closeProposalPreview());
+                await page.locator('#expense-unit-cost-1').fill('401');
+                if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => !window.expenseState.previewLoading && window.expenseState.validationMessage);
                 assert.equal(await page.evaluate(() => window.expenseState.previewHtml), previousPreview);
                 assert.equal(await page.locator('.proposal-preview-error').textContent(), 'Please review this expense item.');
-                await page.evaluate(() => { window.previewFailure=false; window.previewDelay=100; window.pendingPreview=window.expenseState.generatePreview(); });
+                const retryPreview = page.getByRole('button', { name: 'Retry preview', exact: true });
+                assert.equal(await retryPreview.isVisible(), true);
+                await page.evaluate(() => { window.previewFailure=false; window.previewDelay=100; });
+                await retryPreview.click();
                 await page.evaluate(() => {
                     window.expenseState.items[0].unit_cost='450';
                     window.expenseState.triggerExpenseBreakdownAutoSave();
                 });
                 await page.waitForFunction(() => !window.expenseState.previewStale && window.expenseState.previewHtml.includes('Current cost: 450'));
+                assert.equal(await retryPreview.isVisible(), false);
 
                 await page.evaluate(() => window.expenseState.closeProposalPreview());
                 await page.getByRole('button', { name: 'Add another expense item', exact: true }).click();

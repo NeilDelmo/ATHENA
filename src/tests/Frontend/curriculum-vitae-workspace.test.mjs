@@ -184,6 +184,8 @@ test('CV editing follows one member while preserving the whole package, autosave
 
                 await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => window.cvState.previewReady&&!window.cvState.previewLoading);
+                assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 const frame = page.locator('[x-ref="previewFrame"]');
                 const previewAtMember = async (index) => {
                     await page.waitForFunction((memberIndex) => {
@@ -227,15 +229,23 @@ test('CV editing follows one member while preserving the whole package, autosave
                 await page.locator('[name="people[1][middle_name]"]').fill('Updated Coastal');
                 if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => !window.cvState.previewStale&&window.cvState.previewHtml.includes('Updated Coastal'));
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 await previewAtMember(2);
                 const lastPreview = await page.evaluate(() => window.cvState.previewHtml);
                 await page.evaluate(() => { window.previewFailure=true; });
-                await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
-                await page.waitForFunction(() => !window.cvState.previewLoading&&window.cvState.validationMessage);
+                if (width < 1024) await page.evaluate(() => window.cvState.closeProposalPreview());
+                await page.locator('[name="people[1][middle_name]"]').fill('Updated Coastal Retry');
+                if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
+                await page.waitForFunction(() => !window.cvState.previewLoading&&(window.cvState.previewError||window.cvState.validationMessage));
+                await page.waitForFunction(() => !window.cvState.autoSaveInFlight&&window.savedBodies.at(-1)?.some(([name,value])=>name==='people[1][middle_name]'&&value==='Updated Coastal Retry'));
                 assert.equal(await page.evaluate(() => window.cvState.previewHtml), lastPreview);
+                assert.equal(await page.getByRole('alert').textContent(), 'Please review these team CVs.');
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), true);
                 await page.evaluate(() => { window.previewFailure=false; });
-                await page.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+                await page.getByRole('button', { name: 'Retry preview', exact: true }).click();
                 await page.waitForFunction(() => !window.cvState.previewLoading&&!window.cvState.previewStale);
+                assert.equal(await page.evaluate(() => window.cvState.previewHtml.includes('Updated Coastal Retry')), true);
+                assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 if (width < 1024) await page.evaluate(() => window.cvState.closeProposalPreview());
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                 if (process.env.ATHENA_EDITOR_VISUAL_DIR) {

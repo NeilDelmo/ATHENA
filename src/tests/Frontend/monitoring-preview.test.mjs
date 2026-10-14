@@ -125,6 +125,8 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     const dock = workspace.locator('.proposal-preview-dock');
                     const frame = dock.frameLocator('iframe');
                     await frame.getByText(/First field notes/).waitFor();
+                    assert.equal(await dock.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
+                    assert.equal(await dock.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                     if (type !== 'monitoring') {
                         assert.equal(await frame.locator('img').evaluate((element) => element.naturalWidth), 1, 'Uploaded images must be hydrated inside the paper iframe');
                     }
@@ -146,7 +148,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     assert.equal(await zoom.innerText(), '100%');
                     await dock.getByRole('button', { name: 'Print', exact: true }).focus();
                     await page.keyboard.press('Shift+Tab');
-                    assert.equal(await dock.getByRole('button', { name: 'Refresh preview', exact: true }).evaluate((element) => element === document.activeElement), true);
+                    assert.equal(await dock.getByRole('button', { name: 'Minimize preview', exact: true }).evaluate((element) => element === document.activeElement), true);
                     await frame.locator('body').press('Escape');
                     assert.equal(await page.evaluate(() => window.monitorState.previewFullscreen), false);
                     assert.equal(await field.inputValue(), 'First field notes.');
@@ -161,12 +163,17 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await frame.getByText(/Updated field notes/).waitFor();
                     await page.waitForFunction(() => window.savedDrafts.some((fields) => fields.some(([,value]) => value === 'Updated field notes.')));
                     await page.evaluate(() => { window.previewFailure = true; });
-                    await dock.getByRole('button', { name: 'Refresh preview', exact: true }).click();
+                    if (width < 1024) await frame.locator('body').press('Escape');
+                    await field.fill('Final field notes.');
+                    if (width < 1024) await previewButton.click();
                     await dock.getByRole('alert').getByText('Please review the report details.').waitFor();
-                    assert.equal(await field.inputValue(), 'Updated field notes.');
+                    assert.equal(await field.inputValue(), 'Final field notes.');
+                    assert.equal(await dock.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), true);
                     await page.evaluate(() => { window.previewFailure = false; });
-                    await dock.getByRole('button', { name: 'Refresh preview', exact: true }).click();
-                    await page.waitForFunction(() => !window.monitorState.previewError && window.monitorState.previewReady && !window.monitorState.previewLoading);
+                    await dock.getByRole('button', { name: 'Retry preview', exact: true }).click();
+                    await page.waitForFunction(() => !window.monitorState.previewError && !window.monitorState.validationMessage && window.monitorState.previewReady && !window.monitorState.previewLoading);
+                    await frame.getByText(/Final field notes/).waitFor();
+                    assert.equal(await dock.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                     assert.equal(await page.getByRole('button', { name: 'View full paper', exact: true }).count(), 0);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     assert.deepEqual(errors, []);
