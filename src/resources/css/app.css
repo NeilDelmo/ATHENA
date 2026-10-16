@@ -1440,7 +1440,7 @@ html.dark .revision-target-active {
 .revision-dialog-header button { min-height: 2.75rem; }
 .revision-dialog-header button:disabled { opacity: .35; cursor: default; }
 .revision-dialog-body { flex: 1; min-height: 0; overflow: hidden; }
-.revision-document-workspace { position: relative; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); height: 100%; }
+.revision-document-workspace { position: relative; display: grid; grid-template-columns: clamp(15rem, 26%, 23rem) minmax(0, 1fr); height: 100%; }
 .revision-feedback, .revision-editor-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .revision-feedback { border-right: 1px solid #e2e8f0; background: #f1f5f9; }
 .revision-reference-heading { display: flex; flex-direction: column; gap: .625rem; flex-shrink: 0; padding: 1rem; background: white; border-bottom: 1px solid #e2e8f0; }
@@ -1529,10 +1529,10 @@ html.dark .revision-resolution-panel { border-color: #334155; }
 .revision-pdf-viewer { position: relative; height: 100dvh; overflow: hidden; background: #e2e8f0; }
 .revision-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 1rem; height: 100%; overflow: auto; padding: 1rem; scrollbar-gutter: stable both-edges; }
 .revision-pdf-pages .pdf-annotation-page { flex-shrink: 0; }
-.revision-comment-response-paper { position: static; width: 100%; max-width: 64rem; max-height: none; margin: 0 auto; padding: 0; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .75rem; color: inherit; background: white; }
+.revision-comment-response-paper { position: static; width: 100%; max-width: 24rem; max-height: none; margin: 0 auto; padding: 0; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .75rem; color: inherit; background: white; }
 .revision-comment-response-paper:not(:modal) .revision-pdf-viewer { height: auto; }
 .revision-comment-response-paper [data-comment-response-preview] { display: flex; flex-direction: column; }
-.revision-comment-response-paper:not(:modal) [data-comment-response-preview] { height: min(48rem, 75dvh); }
+.revision-comment-response-paper:not(:modal) [data-comment-response-preview] { height: min(26rem, 60dvh); }
 .revision-comment-response-paper:not(:modal) [data-comment-response-preview] iframe { pointer-events: none; }
 .revision-comment-response-paper:not(:modal) .revision-pdf-pages { height: auto; }
 .revision-comment-response-paper .revision-pdf-pages:empty { min-height: 28rem; }
@@ -1562,7 +1562,7 @@ html.dark .revision-frame-loading { background: rgb(15 23 42 / .94); color: #cbd
 .revision-dialog :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid #7a0019; outline-offset: 2px; }
 html.dark .revision-dialog :is(button, input, textarea, select, summary):focus-visible { outline-color: #fb7185; }
 @media (min-width: 1280px) {
-    .revision-responses-visible { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) clamp(20rem, 25%, 24rem); }
+    .revision-responses-visible { grid-template-columns: clamp(15rem, 24%, 23rem) minmax(0, 1fr) clamp(20rem, 25%, 24rem); }
 }
 @media (max-width: 1279px) {
     .revision-responses-visible .revision-feedback-and-response { position: absolute; inset: 0 0 0 auto; z-index: 40; width: min(25rem, 100%); box-shadow: -12px 0 36px rgb(15 23 42 / .18); }

@@ -82,10 +82,11 @@
                                 <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
                                     <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800">
                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
-                                        <span>Sources available to Athena</span>
-                                        <span class="text-gray-500" x-text="message.sources?.length || 0"></span>
+                                        <span>Reference material</span>
+                                        <span class="text-gray-500" x-text="`(${message.sources?.length || 0})`"></span>
                                         <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
                                     </summary>
+                                    <p class="mt-2 text-xs leading-5 text-stone-600 dark:text-stone-300">These are the records and references Athena could consult for this reply. The number counts reference items, not verified citations.</p>
                                     <div class="mt-2 grid gap-1.5">
                                         <template x-for="source in message.sources" :key="source.reference">
                                             <span class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200">

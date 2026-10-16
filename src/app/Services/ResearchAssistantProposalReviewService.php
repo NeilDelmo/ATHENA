@@ -450,7 +450,7 @@ PROMPT;
             '.papers.*.omitted_fields' => ['required', 'integer', 'min:0', 'max:1000000'],
             '.papers.*.truncated_fields' => ['present', 'array', 'max:64'],
             '.papers.*.truncated_fields.*' => ['string', 'max:160'],
-            '.findings' => ['present_with:'.$prefix, 'array', 'max:5'],
+            '.findings' => ['exclude_if:'.$prefix.',null', 'present_with:'.$prefix, 'array', 'max:5'],
             '.findings.*' => ['array:title,status,explanation,next_edit,evidence'],
             '.findings.*.title' => ['required', 'string', 'max:160'],
             '.findings.*.status' => ['required', 'in:'.implode(',', self::FINDING_STATUSES)],
@@ -462,7 +462,7 @@ PROMPT;
             '.findings.*.evidence.*.location' => ['required', 'string', 'max:160'],
             '.findings.*.evidence.*.quote' => ['required', 'string', 'max:600'],
             '.findings.*.evidence.*.url' => ['nullable', 'string', 'max:2048'],
-            '.limitations' => ['present_with:'.$prefix, 'array', 'max:12'],
+            '.limitations' => ['exclude_if:'.$prefix.',null', 'present_with:'.$prefix, 'array', 'max:12'],
             '.limitations.*' => ['string', 'max:600'],
         ];
 

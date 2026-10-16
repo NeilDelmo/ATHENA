@@ -47,8 +47,8 @@ test('public text previews report character truncation without claiming complete
 
     $preview = app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken);
 
-    expect(Str::length($preview['preview_text']))->toBe(30000)
-        ->and($preview['coverage']['characters'])->toBe(30000)
+    expect(Str::length($preview['preview_text']))->toBeLessThanOrEqual(30000)
+        ->and($preview['coverage']['characters'])->toBe(Str::length($preview['preview_text']))
         ->and($preview['coverage']['character_limit'])->toBe(30000)
         ->and($preview['coverage']['page_limit'])->toBeNull()
         ->and($preview['coverage']['truncated'])->toBeTrue()

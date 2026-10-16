@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*')
                 || $request->routeIs('research-support.chat')
                 || $request->routeIs('research-support.proposal-changes.resolve')
-                || $request->routeIs('research-support.history.*')
+                || $request->routeIs('research-support.history', 'research-support.history.*')
                 || ($request->expectsJson() && $request->routeIs('research.dissemination.*'))
                 || $request->routeIs(
                     'research-support.literature-*',

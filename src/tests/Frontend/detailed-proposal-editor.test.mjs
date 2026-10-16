@@ -496,7 +496,7 @@ test('an abstract-based generated draft enables insertion and adds its matching 
             const detailedProposalPreviewWorkspace = () => ({});
             const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
             ${app.slice(start, end)}
-            window.state = window.proposalFactory({ literatureSynthesisUrl: '/synthesize', literatureDraftUpdateUrlTemplate: '/draft/__proposal_literature_source__' });
+            window.state = window.proposalFactory({ proposalDraftId: 42, literatureSynthesisUrl: '/synthesize', literatureDraftUpdateUrlTemplate: '/draft/__proposal_literature_source__' });
             delete window.state.init;
             window.state.triggerDetailedProposalAutoSave = () => {};
             window.state.focusLiteratureDestination = () => {};
@@ -522,6 +522,10 @@ test('an abstract-based generated draft enables insertion and adds its matching 
         await insert.click();
         await page.waitForFunction(() => window.state.references.includes('Community Monitoring'));
         const result = await page.evaluate(() => ({ rrl: window.state.relatedLiterature, references: window.state.references, citations: window.state.literatureCitations, requests: window.requests, notice: window.state.literatureSourceNotice }));
+        assert.equal(result.requests[0].body.proposal_draft_id, 42);
+        assert.equal(result.requests[0].body.source_link_id, 7);
+        assert.equal(result.requests[0].body.evidence_basis, 'abstract');
+        assert.equal('evidence_text' in result.requests[0].body, false);
         assert.match(result.rrl, /The abstract reports/);
         assert.match(result.rrl, /data-proposal-citation="7"> \[1\]/);
         assert.match(result.references, /data-proposal-managed-reference="7"/);

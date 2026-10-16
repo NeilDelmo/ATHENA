@@ -120,11 +120,18 @@ test('Work Plan shares responsive preview controls while preserving linked objec
                     const columns = await page.locator('.proposal-writing-columns').boundingBox();
                     const dock = await page.locator('.proposal-preview-dock').boundingBox();
                     const editor = await page.locator('.proposal-edit-pane').boundingBox();
-                    assert.ok(dock.width >= columns.width * 0.55, 'The default paper preview should have most of the workspace width');
-                    assert.ok(editor.width >= 240, `The editor must remain usable beside the larger preview at ${width}px: ${JSON.stringify({ columns, dock, editor })}`);
-                    assert.ok(await page.locator('iframe').evaluate((frame) => Number(frame.contentDocument.body.style.zoom)) >= (width === 1440 ? 0.5 : 0.3), 'The default preview must render the paper larger before expansion');
-                    await page.locator('#output-2').fill('Updated beside the full-size paper');
-                    assert.equal(await page.locator('#output-2').inputValue(), 'Updated beside the full-size paper');
+                    assert.ok(editor.width > dock.width, `The editor must stay wider than the compact preview at ${width}px: ${JSON.stringify({ columns, dock, editor })}`);
+                    assert.ok(dock.width <= 336, 'The side preview must stay within its compact desktop width');
+                    assert.ok(editor.width >= 240, 'The editor must remain usable beside the compact preview');
+                    const fittedPreview = await page.locator('iframe').evaluate((frame) => ({
+                        zoom: Number(frame.contentDocument.body.style.zoom),
+                        width: frame.contentDocument.documentElement.clientWidth,
+                        scrollWidth: frame.contentDocument.documentElement.scrollWidth,
+                    }));
+                    assert.ok(fittedPreview.zoom > 0 && fittedPreview.zoom <= 1, 'The compact preview must scale the paper to fit');
+                    assert.ok(fittedPreview.scrollWidth <= fittedPreview.width, 'The fitted paper must not overflow the side preview horizontally');
+                    await page.locator('#output-2').fill('Updated beside the compact paper preview');
+                    assert.equal(await page.locator('#output-2').inputValue(), 'Updated beside the compact paper preview');
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     await page.getByRole('button', { name: 'Enlarge the paper preview' }).click();
                 }

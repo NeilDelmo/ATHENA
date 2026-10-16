@@ -206,7 +206,7 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 const frame = viewer.locator('iframe');
                 const dimensions = await frame.evaluate((element) => {
                     const paper = element.contentDocument.querySelector('.comment-response-sheet');
-                    return { width: paper.offsetWidth, displayed: paper.getBoundingClientRect().width, frame: element.clientWidth, textSize: parseFloat(getComputedStyle(paper).fontSize) * Number(element.contentDocument.body.style.zoom), headingSize: getComputedStyle(paper.querySelector('h1')).fontSize, toolbar: getComputedStyle(element.contentDocument.querySelector('.preview-toolbar')).display };
+                    return { width: paper.offsetWidth, displayed: paper.getBoundingClientRect().width, frame: element.clientWidth, headingSize: getComputedStyle(paper.querySelector('h1')).fontSize, toolbar: getComputedStyle(element.contentDocument.querySelector('.preview-toolbar')).display };
                 });
                 assert.equal(dimensions.width, 816, 'The official page keeps its paper width');
                 assert.equal(dimensions.headingSize, '14px', 'Small preview frames scale the page without shrinking its typography twice');
@@ -214,10 +214,7 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 assert.equal(dimensions.toolbar, 'none');
                 const previewSize = await page.locator('dialog').boundingBox();
                 assert.ok(previewSize.width <= width - 32, 'The default paper stays within the page on phones');
-                if (width >= 1024) {
-                    assert.ok(previewSize.width >= 900, 'The default paper uses the available reading width');
-                    assert.ok(dimensions.textSize >= 13, `Paper text should be readable without enlarging: ${dimensions.textSize}px`);
-                }
+                assert.ok(previewSize.width <= 384 && previewSize.height < 550, 'The paper stays compact until enlarged');
                 assert.equal(await viewer.getByRole('button', { name: 'Zoom in', exact: true }).isVisible(), false);
                 if (process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY, `compact-comment-response-${width}-${dark ? 'dark' : 'light'}.png`) });
                 assert.ok(await frame.evaluate((element) => element.contentDocument.body.textContent.includes('Added the connection to the project objectives.')));

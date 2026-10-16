@@ -204,6 +204,27 @@ test('unavailable paper text shows the server error and offers only an explicit 
     assert.match(state.sourceWorkspaceNotice, /Abstract only/);
 });
 
+test('abstract-only linked sources can attempt paper extraction and explicitly choose the abstract fallback', async () => {
+    const calls = [];
+    const state = workspace(async (url, options) => {
+        const body = JSON.parse(options.body);
+        calls.push(body);
+        return body.evidence_basis === 'full_text' ? response({ message: 'No accessible full text is available. Attach a source PDF.' }, false, 422)
+            : response({ synthesis: 'This abstract-based draft describes the reported topic; full methods and findings still require reading the paper.', basis: 'abstract', notice: 'Based on the abstract only.' });
+    });
+    state.sourceWorkspaceActiveSourceId = 12;
+    assert.equal(state.sourceWorkspaceEvidence().document, null);
+    assert.equal(state.sourceWorkspaceActiveSource().full_text_url, undefined);
+    assert.equal(state.sourceWorkspaceCanDraftPaper(), true);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft(), false);
+    assert.equal(calls.length, 1);
+    assert.equal(state.sourceWorkspaceCanDraftAbstract(), true);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), true);
+    assert.deepEqual(calls.map((body) => body.evidence_basis), ['full_text', 'abstract']);
+    assert.equal(state.sourceWorkspaceDraft.basis, 'abstract');
+    assert.equal(state.sourceWorkspaceDraftInserted, false);
+});
+
 test('paper generation rejects unexpected evidence basis and stale source or evidence changes', async () => {
     let finish;
     const state = workspace(() => new Promise((resolve) => { finish = resolve; }));

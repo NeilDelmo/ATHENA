@@ -1877,6 +1877,7 @@ Alpine.store('researchAssistant', {
     historySearchTimer: null,
     historySearchSequence: 0,
     historySavePromise: null,
+    historySaveState: null,
     documentPickerOpen: false,
     documentOptions: [],
     selectedDocumentToken: '',
@@ -2546,21 +2547,29 @@ Alpine.store('researchAssistant', {
 
     async saveConversation(options = {}) {
         if (!this.hasConversation() || !this.historyUrl()) return null;
-        if (this.historySavePromise) return this.historySavePromise;
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         if (!csrfToken) return null;
 
-        const payload = JSON.stringify({
-            id: this.currentConversationId,
-            messages: this.messages.map((message) => ({
+        const messages = this.messages;
+        const transcript = {
+            messages: messages.map((message) => ({
                 ...message,
                 literature: serializeAssistantLiterature(message.literature),
                 proposal_changes: serializeAssistantProposalChanges(message.proposal_changes),
                 document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
             })),
             context: this.contextPayload(false),
-        });
+        };
+        const snapshot = JSON.stringify(transcript);
+        if (this.historySavePromise) {
+            const pendingState = this.historySaveState;
+            const savedConversation = await this.historySavePromise;
+            if (!savedConversation || this.messages !== messages
+                || (snapshot === pendingState?.snapshot && messages === pendingState.messages)) return savedConversation;
+            return this.saveConversation(options);
+        }
+        this.historySaveState = { snapshot, messages };
 
         const request = fetch(this.historyUrl(), {
             method: 'POST',
@@ -2571,23 +2580,33 @@ Alpine.store('researchAssistant', {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
             },
-            body: payload,
+            body: JSON.stringify({ id: this.currentConversationId, ...transcript }),
         }).then(async (response) => {
             const responsePayload = await response.json().catch(() => ({}));
 
+            if (response.redirected || [401, 419].includes(response.status)) {
+                throw new Error('Your session has expired. Copy or export this chat before signing in again.');
+            }
             if (!response.ok || !responsePayload.conversation) {
                 throw new Error(responsePayload.message || 'The chat could not be saved.');
             }
 
-            this.currentConversationId = responsePayload.conversation.id;
             this.upsertHistory(responsePayload.conversation);
+            if (this.messages === messages) {
+                this.currentConversationId = responsePayload.conversation.id;
+                if (this.errorTitle === 'Chat not saved') {
+                    this.error = '';
+                    this.errorTitle = '';
+                }
+            }
 
             return responsePayload.conversation;
         }).catch((error) => {
-            if (!options.keepalive) {
-                this.setError('History unavailable', error instanceof Error
+            if (!options.keepalive && this.messages === messages) {
+                const reason = error instanceof Error
                     ? error.message
-                    : 'The chat could not be saved.');
+                    : 'The chat could not be saved.';
+                this.setError('Chat not saved', `${reason} Your messages are still on this page. Retry saving before refreshing.`);
             }
 
             return null;
@@ -3030,7 +3049,9 @@ Alpine.store('researchAssistant', {
     },
 
     async retry() {
-        if (this.isLoading || this.retryAfter > 0 || !this.contextMessages().length) return;
+        if (this.isLoading || this.retryAfter > 0) return;
+        if (this.errorTitle === 'Chat not saved') return this.saveConversation();
+        if (!this.contextMessages().length) return;
         await this.requestReply(this.retryAction);
     },
 
@@ -8496,7 +8517,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     },
 
     curriculumVitaeSectionOptions() {
-        return Object.entries(config.sections || {}).map(([key, section]) => ({ key, label: section.label }));
+        return Object.entries(config.sections || {}).map(([key, section]) => ({ key, label: section.label, addLabel: section.add_label }));
     },
 
     toggleCurriculumVitaeMemberManager() {

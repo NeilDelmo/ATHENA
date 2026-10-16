@@ -19,11 +19,16 @@
     </div>
     </x-slot:context>
 
-    <div class="proposal-writing-buttons mt-2" role="toolbar" aria-label="CV members, entries, and preview">
-        <button type="button" @click="toggleCurriculumVitaeMemberManager()" :aria-expanded="cvMemberManagerOpen" aria-controls="cv-member-manager">Add member</button>
-        <button type="button" x-show="activeCvSection !== 'personal'" x-cloak @click="addSectionRow(activeCvPersonIndex, activeCvSection)">Add entry</button>
-        <button type="button" data-proposal-preview-toggle @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="curriculum-vitae-preview-panel" x-text="previewPaneOpen ? 'Hide preview' : 'Preview paper'"></button>
-        <button type="button" data-proposal-preview-toggle @click="showCurriculumVitaePackagePreview()" aria-controls="curriculum-vitae-preview-panel">Review team CVs</button>
+    <div class="proposal-writing-buttons mt-2" role="group" aria-label="CV editing and preview">
+        <div class="proposal-writing-action-group">
+            <button type="button" @click="toggleCurriculumVitaeMemberManager()" :aria-expanded="cvMemberManagerOpen" aria-controls="cv-member-manager">Add member</button>
+        </div>
+        <div class="proposal-writing-action-group" x-show="activeCvSection !== 'personal'" x-cloak>
+            <button type="button" @click="addSectionRow(activeCvPersonIndex, activeCvSection)" x-text="curriculumVitaeSectionOptions().find(section => section.key === activeCvSection)?.addLabel || 'Add entry'"></button>
+        </div>
+        <div class="proposal-writing-action-group">
+            <button type="button" data-proposal-preview-toggle @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="curriculum-vitae-preview-panel" x-text="previewPaneOpen ? 'Hide preview' : 'Preview paper'"></button>
+        </div>
     </div>
-    <p class="proposal-writing-hint">Every member’s CV saves automatically. The side preview follows the member you are editing.</p>
+    <p class="proposal-writing-hint">Choose a member and section to edit. Click the paper preview to enlarge it.</p>
 </x-proposal-writing-toolbar>

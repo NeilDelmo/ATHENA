@@ -198,7 +198,7 @@ test('closing a preview while generation is pending cannot reopen it when the re
     assert.equal(nodes['[data-revision-preview-frame]'].srcdoc, undefined);
 });
 
-test('the rendered revision workspace keeps replies with comments, shows larger default papers and preserves edits in both themes', async () => {
+test('the rendered revision workspace keeps replies with comments, compares compact papers and preserves edits in both themes', async () => {
     const rendered = spawnSync('php', ['-r', String.raw`
         require 'vendor/autoload.php';
         $app = require 'bootstrap/app.php';
@@ -270,8 +270,8 @@ test('the rendered revision workspace keeps replies with comments, shows larger 
                 const editorFrameBounds = await page.locator('[data-revision-editor-frame]').boundingBox();
                 if (width >= 1280) {
                     const initialPaper = await page.locator('[data-revision-reference]').boundingBox();
-                    assert.ok(initialPaper.width >= width * 0.44, `The default paper stays readable beside feedback: ${initialPaper.width}px`);
-                    assert.ok(editorFrameBounds.width >= 350, 'The larger default paper still leaves room to edit');
+                    assert.ok(initialPaper.width < editorFrameBounds.width, 'The compact paper leaves more room for editing beside feedback');
+                    assert.ok(editorFrameBounds.width >= width * 0.4, 'Editing fields stay usable with feedback open');
                 }
                 assert.equal(await page.locator('[data-revision-reference-toggle]').isVisible(), width < 768);
                 assert.ok(editorFrameBounds.height > 700, `Editor should use the available height at ${width}px: ${editorFrameBounds.height}`);
@@ -301,12 +301,8 @@ test('the rendered revision workspace keeps replies with comments, shows larger 
                 if (width >= 768) {
                     const reference = await page.locator('[data-revision-reference]').boundingBox();
                     const editor = await page.locator('.revision-editor-panel').boundingBox();
-                    assert.ok(reference.width >= width * 0.55, 'The default preview receives most of the workspace width');
-                    assert.ok(editor.width >= width * 0.35, 'The editor remains usable beside the default preview');
-                    assert.ok(reference.width > editor.width);
-                    if (width >= 1280) {
-                        assert.ok(await page.locator('[data-revision-preview-frame]').evaluate((frame) => Number(frame.contentDocument.body.style.zoom) >= 0.9), 'Default paper text is readable before enlargement');
-                    }
+                    assert.ok(reference.width < editor.width, 'The compact preview leaves most of the workspace for editing');
+                    assert.ok(editor.width >= width * 0.6, 'Editing fields keep their width beside the compact preview');
                 }
                 const editorValue = () => page.frameLocator('[data-revision-editor-frame]').locator('textarea').inputValue();
                 await page.frameLocator('[data-revision-preview-frame]').locator('.paper').click();

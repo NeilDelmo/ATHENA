@@ -410,8 +410,7 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceCurrentPage() { return this.sourceWorkspaceEvidence().document?.pages?.[this.sourceWorkspacePage] || null; },
         sourceWorkspaceHasPdfText() { return Number(this.sourceWorkspaceEvidence().document?.coverage?.characters || 0) > 0; },
         sourceWorkspaceCanDraftPaper() {
-            return Boolean(config.synthesisUrl && Number(config.proposalDraftId) > 0 && this.sourceWorkspaceActiveSource()
-                && (this.sourceWorkspaceEvidence().document || sourceWorkspaceSafeUrl(this.sourceWorkspaceActiveSource()?.full_text_url)));
+            return Boolean(config.synthesisUrl && Number(config.proposalDraftId) > 0 && this.sourceWorkspaceActiveSource());
         },
         sourceWorkspaceCanDraftAbstract() {
             return this.sourceWorkspacePaperFallbackSourceId === Number(this.sourceWorkspaceActiveSourceId)

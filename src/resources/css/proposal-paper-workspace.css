@@ -216,7 +216,7 @@ html.dark .submitted-report-preview-thumbnail .proposal-preview-paper { backgrou
 .revision-embedded [data-proposal-preview-toggle] { display: none !important; }
 .revision-embedded .proposal-writing-columns { display: block !important; }
 @media (min-width: 1024px) {
-    .proposal-writing-columns:not(.proposal-writing-preview-hidden) { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; gap: 1.5rem; }
+    .proposal-writing-columns:not(.proposal-writing-preview-hidden) { display: grid; grid-template-columns: minmax(0, 1fr) clamp(15rem, 28%, 21rem); align-items: start; gap: 1.5rem; }
     .proposal-preview-dock:not(.proposal-preview-dock-expanded):not(.submitted-report-preview) { display: block; position: sticky; top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 7rem) + .75rem); height: max(18rem, calc(100dvh - var(--proposal-writing-sticky-top) - var(--proposal-toolbar-height, 7rem) - 2rem)); max-height: 42rem; }
 }
 @media (max-width: 639px) {

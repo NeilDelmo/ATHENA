@@ -129,7 +129,13 @@ test('CV editing follows one member while preserving the whole package, autosave
                 assert.equal(await page.locator('.cv-writing-member:visible').count(), 1);
                 assert.equal(await page.evaluate(() => window.cvState.activeCvPersonIndex), revisionTarget ? 1 : 0);
                 assert.equal(await page.locator('[data-proposal-workspace-toolbar]').count(), 1);
-                assert.equal(await page.locator('.proposal-preview-dock').isVisible(), false);
+                assert.equal(await page.getByRole('button', { name: 'Review team CVs', exact: true }).count(), 0, 'The toolbar does not duplicate the paper preview');
+                assert.equal(await page.getByRole('button', { name: /^Add (qualification|project)$/ }).isVisible(), false);
+                assert.equal(await page.locator('.proposal-preview-dock').isVisible(), width >= 1024, 'The CV opens with the same side preview as the other paper editors');
+                if (width >= 1024) {
+                    await page.waitForFunction(() => window.cvState.previewReady&&!window.cvState.previewLoading);
+                    await page.getByRole('button', { name: 'Collapse preview', exact: true }).click();
+                }
                 if (revisionTarget) assert.equal(await page.evaluate(() => window.cvState.activeCvSection), 'academic_background');
                 const memberIds = await page.evaluate(() => window.cvState.people.map(person=>person.id));
                 await page.locator('#cv-editing-member').selectOption(String(memberIds[0]));
@@ -148,11 +154,12 @@ test('CV editing follows one member while preserving the whole package, autosave
                 await page.locator('#cv-editing-section').selectOption('academic_background');
                 const selectedMember = page.locator('.cv-writing-member:visible');
                 const academic = selectedMember.locator('details[data-cv-section="academic_background"]');
+                assert.equal(await page.getByRole('button', { name: 'Add qualification', exact: true }).first().isVisible(), true);
                 assert.equal(await academic.getByLabel('Year Ended', { exact: true }).first().isDisabled(), true);
                 assert.equal(await academic.getByLabel('Year Ended', { exact: true }).first().inputValue(), 'Present');
                 await academic.getByLabel('Thesis', { exact: true }).first().fill('Coastal monitoring systems\nCommunity reporting workflows');
                 await page.locator('#cv-editing-section').selectOption('projects');
-                await page.getByRole('button', { name: 'Add entry', exact: true }).click();
+                await page.locator('[data-curriculum-vitae-writing-toolbar]').getByRole('button', { name: 'Add project', exact: true }).click();
                 const newProject = selectedMember.locator('details[data-cv-section="projects"] [data-cv-row-id]').last();
                 const title = newProject.locator('textarea[name$="[title]"]');
                 await title.waitFor();
@@ -164,7 +171,7 @@ test('CV editing follows one member while preserving the whole package, autosave
                 assert.ok(saved.some(([name, value]) => name === 'people[0][first_name]' && value === 'Alice'));
                 assert.ok(saved.some(([name, value]) => name === 'people[1][last_name]' && value === 'Member'));
                 assert.ok(saved.some(([name, value]) => name === 'people[1][academic_background][0][thesis]' && value.includes('\nCommunity')));
-                assert.equal(await page.evaluate(() => window.previewBodies.length), 0);
+                assert.equal(await page.evaluate(() => window.previewBodies.length), width >= 1024 ? 1 : 0);
 
                 await page.getByRole('button', { name: 'Add member', exact: true }).click();
                 await page.locator('#workspace-cv-person-search').fill('Bina');
@@ -198,28 +205,30 @@ test('CV editing follows one member while preserving the whole package, autosave
                         assert.fail(`${width}/${dark ? 'dark' : 'light'}/member ${index}: ${error.message}; ${JSON.stringify(await page.evaluate((memberIndex) => {
                             const frame = document.querySelector('[x-ref="previewFrame"]');
                             const section = frame.contentDocument?.querySelector('[data-proposal-preview-section="cv-person-'+memberIndex+'"]');
-                            return { package: window.cvState.previewViewingCvPackage, target: window.cvState.previewFocusSection, active: window.cvState.activeCvPersonIndex, zoom: frame.contentDocument?.body?.style.zoom, section: section?.getBoundingClientRect().toJSON(), frame: frame.getBoundingClientRect().toJSON(), scroll: frame.contentWindow?.scrollY };
+                            return { target: window.cvState.previewFocusSection, active: window.cvState.activeCvPersonIndex, zoom: frame.contentDocument?.body?.style.zoom, section: section?.getBoundingClientRect().toJSON(), frame: frame.getBoundingClientRect().toJSON(), scroll: frame.contentWindow?.scrollY };
                         }, index))}`);
                     });
                 };
                 await previewAtMember(2);
                 assert.equal(await page.evaluate(() => window.previewBodies.at(-1).some(([name])=>name==='_method')), false);
-                if (width < 1024) {
-                    await page.keyboard.press('Escape');
-                    await page.waitForFunction(() => !window.cvState.previewFullscreen);
-                } else {
+                if (width >= 1024) {
                     await page.locator('#cv-editing-member').selectOption(String(memberIds[0]));
                     await previewAtMember(1);
                     await page.locator('#cv-editing-member').selectOption(String(memberIds[1]));
                     await previewAtMember(2);
-                    assert.ok(await page.locator('.proposal-edit-pane').evaluate((element) => element.getBoundingClientRect().width) >= 240, 'The editor stays usable beside the larger default paper');
-                    const columns = await page.locator('.proposal-writing-columns').boundingBox();
+                    const editor = await page.locator('.proposal-edit-pane').boundingBox();
                     const dock = await page.locator('.proposal-preview-dock').boundingBox();
-                    assert.ok(dock.width >= columns.width * 0.55, 'The default paper preview should have most of the workspace width');
+                    assert.ok(editor.width > dock.width, 'The editing fields stay wider than the compact side preview');
+                    assert.ok(dock.width <= 336, 'The side preview stays compact');
+                    assert.ok(dock.x >= editor.x + editor.width, 'The CV preview appears to the right of its editing fields');
+                    const compactZoom = await frame.evaluate((element) => Number(element.contentDocument.body.style.zoom));
+                    await page.getByRole('button', { name: 'Enlarge the paper preview', exact: true }).click();
+                    await page.waitForFunction((zoom) => Number(document.querySelector('[x-ref="previewFrame"]').contentDocument.body.style.zoom) > zoom, compactZoom);
+                    assert.equal(await page.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
+                    assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '100%');
                 }
-                await page.getByRole('button', { name: 'Review team CVs', exact: true }).click();
                 await page.locator('.proposal-preview-dock-expanded').waitFor();
-                await previewAtMember(1);
+                assert.equal(await frame.contentFrame().locator('.cv-sheet').count(), 2, 'The same preview includes every team member');
                 assert.equal(await page.locator('.proposal-edit-pane').evaluate((element) => element.inert), true);
                 await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
                 assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '110%');
@@ -228,7 +237,8 @@ test('CV editing follows one member while preserving the whole package, autosave
                 assert.equal(await page.getByRole('button', { name: 'Zoom out', exact: true }).evaluate((element) => element === document.activeElement), true);
                 await page.keyboard.press('Escape');
                 await page.waitForFunction(() => !window.cvState.previewFullscreen);
-                assert.equal(await page.getByRole('button', { name: 'Review team CVs', exact: true }).evaluate((element) => element === document.activeElement), true);
+                const previewTrigger = width >= 1024 ? page.getByRole('button', { name: 'Enlarge the paper preview', exact: true }) : page.locator('.proposal-writing-preview-launcher');
+                assert.equal(await previewTrigger.evaluate((element) => element === document.activeElement), true);
                 await page.locator('[name="people[1][middle_name]"]').fill('Updated Coastal');
                 if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => !window.cvState.previewStale&&window.cvState.previewHtml.includes('Updated Coastal'));
@@ -263,7 +273,7 @@ test('CV editing follows one member while preserving the whole package, autosave
                     window.cvState.closeProposalPreview();
                     document.body.classList.add('revision-embedded');
                     document.querySelector('main').parentElement.setAttribute('data-revision-embedded','');
-                    window.cvState.showCurriculumVitaePackagePreview();
+                    window.cvState.showProposalPreview();
                     window.cvConfig.revisionTarget='section-cv-1-academic_background';
                     window.cvState.initializeCurriculumVitaeMemberTarget();
                 });
