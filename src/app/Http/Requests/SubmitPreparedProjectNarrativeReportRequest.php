@@ -5,10 +5,14 @@ namespace App\Http\Requests;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProjectReportEvidence;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class SubmitPreparedProjectNarrativeReportRequest extends FormRequest
 {
+    protected $errorBag = 'narrativeProgress';
+
     public function authorize(): bool
     {
         $topic = $this->route('topic');
@@ -32,5 +36,33 @@ class SubmitPreparedProjectNarrativeReportRequest extends FormRequest
     public function rules(): array
     {
         return [];
+    }
+
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $topic = $this->route('topic');
+                $report = $this->route('report');
+
+                if ($this->isMethod('DELETE') || ! $topic instanceof TopicProposal
+                    || ! $report instanceof ProjectNarrativeReport || $report->report_type === 'terminal') {
+                    return;
+                }
+
+                foreach ($report->accomplishments ?? [] as $row) {
+                    if (filled($row['actual'] ?? null)
+                        && ! collect($row['evidence'] ?? [])->contains(fn (mixed $file): bool => is_array($file)
+                            && app(ProjectReportEvidence::class)->isStoredEvidence($topic, 'narrative', $file))) {
+                        $validator->errors()->add(
+                            'preparation',
+                            'Attach supporting evidence for every reported accomplishment before submitting this Progress Report. Discard the prepared PDF and prepare it again with evidence.',
+                        );
+
+                        return;
+                    }
+                }
+            },
+        ];
     }
 }

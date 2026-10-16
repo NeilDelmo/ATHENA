@@ -15,6 +15,7 @@ use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalSignatory;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
+use App\Models\ResearchManual;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -32,6 +33,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -236,6 +238,23 @@ beforeEach(function () {
 
         return $draft->fresh(['documents', 'researchCall']);
     };
+});
+
+test('submitting a prepared draft preserves its manual edition after a newer edition becomes current', function () {
+    Notification::fake();
+    $previous = ResearchManual::factory()->create();
+    $current = ResearchManual::factory()->create();
+    $draft = ($this->completeDraft)(($this->createDraft)(['research_manual_id' => $previous->id]));
+    $indexPath = Storage::disk('local')->path('research-manual/current.json');
+    File::ensureDirectoryExists(dirname($indexPath));
+    File::put($indexPath, json_encode(['schema_version' => 1, 'version' => $current->version,
+        'title' => $current->title, 'page_count' => 1, 'unindexed_pages' => [],
+        'chunks' => [['id' => 'policy', 'section' => 'Policy', 'page_start' => 1, 'page_end' => 1, 'content' => 'Current research policy.']]], JSON_THROW_ON_ERROR));
+    config(['research_assistant.manual.enabled' => true, 'research_assistant.manual.index_path' => $indexPath]);
+
+    $topic = app(SubmitProposalDraft::class)->handle($draft, $this->faculty);
+
+    expect($topic->research_manual_id)->toBe($previous->id);
 });
 
 test('faculty update an unseen submitted package repeatedly without replacing its previous versions', function () {
@@ -2582,6 +2601,7 @@ test('an rrl backed proposal completes submission revision approval notice and m
         fn (ProposalActivityNotification $notification): bool => $notification->title === 'Revision requested',
     );
 
+    $review = $topic->reviews()->where('decision', 'revision_requested')->latest('id')->firstOrFail();
     $this->actingAs($this->faculty)
         ->patch(route('faculty.topics.resubmit', $topic), [
             'title' => $topic->title,
@@ -2589,6 +2609,11 @@ test('an rrl backed proposal completes submission revision approval notice and m
             'estimated_budget' => $topic->estimated_budget ?: 3600,
             'estimated_duration_months' => $topic->estimated_duration_months,
             'change_summary' => 'Clarified the RRL-to-methodology connection while retaining the verified source.',
+            'feedback_review_id' => $review->id,
+            'feedback_responses' => collect(app(CommentResponseFeedback::class)->rows($review))->mapWithKeys(fn (array $row): array => [$row['key'] => [
+                'response' => 'Clarified the connection between the reviewed literature and monitoring methodology.',
+                'no_change' => false, 'page' => 1, 'paragraph' => 2,
+            ]])->all(),
             'detailed_proposal' => UploadedFile::fake()->create('detailed-proposal-v2.pdf', 120, 'application/pdf'),
         ])
         ->assertRedirect(route('faculty.dashboard'))
@@ -2708,6 +2733,12 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->and($report->isPrepared())->toBeTrue();
     expect(Notification::sent($this->head, ProposalActivityNotification::class)->count())
         ->toBe($headNotificationCountBeforePreparation);
+
+    $proofUpload = UploadedFile::fake()->image('baseline-monitoring-proof.png');
+    $proofPath = $proofUpload->store('progress-reports/'.$topic->id.'/evidence', 'local');
+    $proof = ['id' => (string) Str::uuid(), 'path' => $proofPath, 'name' => 'baseline-monitoring-proof.png',
+        'mime_type' => $proofUpload->getMimeType(), 'size' => $proofUpload->getSize(), 'checksum' => hash_file('sha256', $proofUpload->getRealPath())];
+    $report->update(['work_plan' => [[...$report->work_plan[0], 'evidence' => [$proof]]]]);
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,

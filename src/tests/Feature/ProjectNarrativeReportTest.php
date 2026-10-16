@@ -9,9 +9,11 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProgressReportDocumentService;
 use App\Support\ProgressReportData;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -91,6 +93,14 @@ beforeEach(function () {
         'photo_section_1' => 'methodology',
         'prepared_by_date_signed' => now()->toDateString(),
     ], $overrides);
+
+    $this->attachSubmissionProof = function (ProjectNarrativeReport $report): void {
+        $upload = UploadedFile::fake()->image('accomplishment-proof.png');
+        $path = $upload->store('narrative-progress-reports/'.$report->topic_id.'/evidence', 'local');
+        $file = ['id' => (string) Str::uuid(), 'path' => $path, 'name' => 'accomplishment-proof.png',
+            'mime_type' => $upload->getMimeType(), 'size' => $upload->getSize(), 'checksum' => hash_file('sha256', $upload->getRealPath())];
+        $report->update(['accomplishments' => array_map(fn (array $row): array => [...$row, 'evidence' => [$file]], $report->accomplishments)]);
+    };
 });
 
 test('Progress Reports use the Monitoring Tool periods including a shorter final quarter', function () {
@@ -122,6 +132,7 @@ test('Progress Reports use the Monitoring Tool periods including a shorter final
         $archive->close();
         unlink($path);
     }
+    ($this->attachSubmissionProof)($report);
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
     $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('data-progress-quarter="3"', false)->assertSee($final['period']);
     $this->get(route('project-narrative-reports.show', $report))->assertOk()->assertSee($report->reporting_period_label);
@@ -134,15 +145,29 @@ test('Progress Reports reject missing future and out-of-project quarters', funct
         $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)(['reporting_date' => $date]))
             ->assertSessionHasErrorsIn('narrativeProgress', 'reporting_date');
     }
-    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)(['submission_date' => $periods->first()['end']->toDateString()]))
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)(['submission_date' => $periods->first()['opens_at']->subDay()->toDateString()]))
         ->assertSessionHasErrorsIn('narrativeProgress', 'submission_date');
     expect(ProjectNarrativeReport::count())->toBe(0)->and($this->pdfConverter->conversionCount)->toBe(0);
 });
+
+test('Progress Reports can be submitted during the final week and after the deadline', function (string $today) {
+    $this->travelTo(CarbonImmutable::parse($today));
+    $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-01']);
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())
+        ->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    ($this->attachSubmissionProof)($report);
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+
+    expect($report->fresh()->isSubmitted())->toBeTrue()
+        ->and($report->period_end->toDateString())->toBe('2026-03-31');
+})->with(['2026-03-25', '2026-03-31', '2026-04-01']);
 
 test('only corrections create a replacement Progress Report for an already submitted quarter', function () {
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasNoErrors();
     $original = ProjectNarrativeReport::sole();
     $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasErrorsIn('narrativeProgress');
+    ($this->attachSubmissionProof)($original);
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $original]))->assertSessionHasNoErrors();
     $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasErrorsIn('narrativeProgress', 'reporting_date');
     $original->update(['review_status' => 'revision_requested']);
@@ -175,6 +200,7 @@ test('accepted collaborators share prepared Progress Reports but only the projec
     expect($report->fresh()->isPrepared())->toBeTrue();
     $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Submit to Research Head');
     $this->get(route('project-narrative-reports.view', $report))->assertOk();
+    ($this->attachSubmissionProof)($report);
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
     expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id);
 });
@@ -202,6 +228,7 @@ test('a project owner prepares an official progress-report PDF before submitting
         ->and($previewResponse->streamedContent())->toBe(Storage::disk('local')->get($report->official_pdf_path));
     Notification::assertNothingSent();
 
+    ($this->attachSubmissionProof)($report);
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
         ->assertRedirect()
@@ -341,6 +368,56 @@ test('a researcher can preview the filled progress report without submitting it'
     expect(ProjectNarrativeReport::count())->toBe(0);
 });
 
+test('the progress preview contains the same filled paper as the official template', function () {
+    $this->researcher->update(['name' => 'María Peña']);
+    $payload = ($this->progressReportPayload)();
+    unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+    $response = $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful();
+
+    $preview = new DOMDocument;
+    @$preview->loadHTML('<?xml encoding="UTF-8">'.$response->getContent());
+    $previewXPath = new DOMXPath($preview);
+    $documentPath = tempnam(sys_get_temp_dir(), 'progress-preview-test-');
+    file_put_contents($documentPath, app(ProgressReportDocumentService::class)->generate($response->viewData('report')));
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($documentPath))->toBeTrue();
+        $document = new DOMDocument;
+        $document->loadXML($archive->getFromName('word/document.xml'));
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $paperText = implode('', array_map(fn (DOMNode $node): string => $node->textContent, iterator_to_array($xpath->query('/w:document/w:body//w:t'))));
+        $normalize = fn (string $text): string => preg_replace('/\s+/u', '', $text);
+
+        expect($normalize($previewXPath->evaluate('string(//main)')))->toBe($normalize($paperText));
+
+        if ($fixtureDirectory = getenv('ATHENA_REPORT_TEMPLATE_FIXTURE_DIRECTORY')) {
+            File::ensureDirectoryExists($fixtureDirectory);
+            File::put($fixtureDirectory.'/progress-template-preview.html', $response->getContent());
+        }
+    } finally {
+        $archive->close();
+        unlink($documentPath);
+    }
+});
+
+test('quoted tracking numbers remain text in the progress preview and its print style', function () {
+    $tracking = 'PR-"26"</style><script>alert(1)</script>\\001';
+    $response = $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.preview', $this->topic), ($this->progressReportPayload)(['tracking_number' => $tracking]))
+        ->assertSuccessful();
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent());
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//script')->length)->toBe(0)
+        ->and($xpath->evaluate('string(//html/@style)'))->toContain('PR-\\"26\\"</style><script>alert(1)</script>\\\\001')
+        ->and($xpath->evaluate('string(//div[@class="progress-report-paper-footer"])'))->toBe('Tracking No.'.$tracking);
+});
+
 test('a researcher can preview a progress quarter before it ends while official preparation stays locked', function () {
     $this->travelTo('2026-02-01');
     $this->topic->update([
@@ -387,6 +464,7 @@ test('the owner and Research Head can download the official report as a PDF and 
     $this->get(route('project-narrative-reports.photos.view', [$report, 0]))->assertForbidden();
     $this->get(route('project-narrative-reports.view', $report))->assertForbidden();
 
+    ($this->attachSubmissionProof)($report);
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
         ->assertRedirect()
@@ -521,6 +599,7 @@ test('the Research Head can request progress report corrections only with remark
         ->assertSessionHasNoErrors();
 
     $report = ProjectNarrativeReport::firstOrFail();
+    ($this->attachSubmissionProof)($report);
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
         ->assertSessionHasNoErrors();

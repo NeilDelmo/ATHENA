@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProjectReportEvidence;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -39,6 +40,10 @@ class SubmitPreparedProjectProgressReportRequest extends FormRequest
                 $topic = $this->route('topic');
                 $report = $this->route('report');
 
+                if ($this->isMethod('DELETE')) {
+                    return;
+                }
+
                 if ($topic instanceof TopicProposal
                     && $report instanceof ProjectProgressReport
                     && $topic->research_secretary_id !== null
@@ -47,6 +52,23 @@ class SubmitPreparedProjectProgressReportRequest extends FormRequest
                         'preparation',
                         'Complete the budget utilization before this Monitoring Tool is submitted. The assigned project secretary has priority, but any authorized project member may complete it.',
                     );
+                }
+
+                if (! $topic instanceof TopicProposal || ! $report instanceof ProjectProgressReport) {
+                    return;
+                }
+
+                foreach ($report->work_plan ?? [] as $row) {
+                    if (((float) ($row['accomplished_percentage'] ?? 0) > 0 || (float) ($row['completed_units'] ?? 0) > 0)
+                        && ! collect($row['evidence'] ?? [])->contains(fn (mixed $file): bool => is_array($file)
+                            && app(ProjectReportEvidence::class)->isStoredEvidence($topic, 'monitoring', $file))) {
+                        $validator->errors()->add(
+                            'preparation',
+                            'Attach supporting evidence for every activity with completed work before submitting this Monitoring Tool. Discard the prepared PDF and prepare it again with evidence.',
+                        );
+
+                        return;
+                    }
                 }
             },
         ];

@@ -1,22 +1,31 @@
 @page {
     size: 13in 8.5in;
-    margin: 0.35in;
+    margin: 42.55pt 48.325pt 72pt;
+    @bottom-left {
+        content: "Tracking No. __________________________";
+        font: 12pt "Times New Roman", serif;
+        padding-left: 23.675pt;
+    }
+    @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font: 12pt "Times New Roman", serif;
+    }
 }
 
 * {
     box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
     min-height: 100%;
     margin: 0;
 }
 
 body {
-    color: #111827;
+    position: relative;
+    color: #000;
     background: #e5e7eb;
-    font-family: Arial, Helvetica, sans-serif;
+    font: 12pt/1 "Times New Roman", serif;
 }
 
 .monitoring-preview-page {
@@ -28,188 +37,202 @@ body {
     width: 13in;
     min-height: 8.5in;
     margin: 0 auto;
-    padding: 0.36in 0.42in 0.45in;
+    padding: 42.55pt 48.325pt 72pt;
     background: #fff;
     box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
-}
-
-.monitoring-header {
-    display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
-    align-items: end;
-    margin-bottom: 10pt;
-    text-align: center;
-}
-
-.monitoring-header > p {
-    margin: 0;
-    font-size: 8pt;
-}
-
-.monitoring-header > p:first-child {
-    text-align: left;
-}
-
-.monitoring-header > p:last-child {
-    text-align: right;
-}
-
-.monitoring-header h1 {
-    margin: 0;
-    font-size: 14pt;
-    line-height: 1.1;
-}
-
-.monitoring-header div p {
-    margin: 2pt 0 0;
-    font-size: 9pt;
+    counter-reset: section activity;
 }
 
 .monitoring-table {
     width: 100%;
     table-layout: fixed;
-    border: 0.75pt solid #111;
     border-collapse: collapse;
-    font-size: 8pt;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    font: inherit;
 }
 
-.monitoring-table th,
-.monitoring-table td {
-    padding: 4pt;
-    border: 0.75pt solid #111;
-    line-height: 1.25;
+.monitoring-table th, .monitoring-table td {
+    padding: 1pt 5.4pt;
+    border: 0.5pt solid #000;
     overflow-wrap: anywhere;
     vertical-align: middle;
 }
 
 .monitoring-table th {
-    background: #e5e7eb;
     font-weight: 700;
     text-align: center;
 }
 
-.monitoring-metadata-table th {
-    width: 15%;
-    text-align: left;
+.monitoring-header tr:first-child {
+    height: 52.15pt;
+}
+
+.monitoring-logo {
+    text-align: center;
+}
+
+.monitoring-logo img {
+    display: block;
+    width: 0.78125in;
+    height: 0.73333in;
+    margin: 0 auto;
+}
+
+.monitoring-header h1 {
+    margin: 0;
+    font: bold 12pt/1 "Times New Roman", serif;
+    text-align: center;
+}
+
+.monitoring-header tr:last-child {
+    height: 31.55pt;
 }
 
 .monitoring-metadata-table td {
-    width: 35%;
+    vertical-align: top;
 }
 
-.monitoring-project-title,
-.monitoring-emphasis {
-    font-weight: 700;
+.monitoring-sheet > table + table, .monitoring-section {
+    margin-top: -0.5pt;
 }
 
-.monitoring-section {
-    margin-top: 10pt;
-    break-inside: avoid;
-    page-break-inside: avoid;
+.monitoring-section-heading {
+    margin: 0;
+    padding: 1pt 5.4pt;
+    border: 0.5pt solid #000;
+    border-bottom: 0;
+    font: inherit;
 }
 
-.monitoring-section h2 {
-    margin: 0 0 4pt;
-    font-size: 9pt;
+.monitoring-section-heading::before {
+    counter-increment: section;
+    content: counter(section, upper-alpha) ". ";
 }
 
 .monitoring-work-plan-table .activity-column {
-    width: 15%;
+    width: 16.59%;
 }
 
-.monitoring-work-plan-table .weight-column,
-.monitoring-work-plan-table .progress-column {
-    width: 9%;
+.monitoring-work-plan-table .weight-column {
+    width: 9.65%;
 }
 
 .monitoring-work-plan-table .target-column {
-    width: 16%;
+    width: 13.74%;
 }
 
 .monitoring-work-plan-table .date-column {
-    width: 11%;
+    width: 10.39%;
 }
 
 .monitoring-work-plan-table .accomplishment-column {
-    width: 19%;
+    width: 23.39%;
+}
+
+.monitoring-work-plan-table .progress-column {
+    width: 9.87%;
 }
 
 .monitoring-work-plan-table .findings-column {
-    width: 21%;
+    width: 16.38%;
 }
 
-.monitoring-work-plan-table tbody tr,
-.monitoring-budget-table tbody tr {
+.monitoring-work-plan-table tr {
+    height: 50.35pt;
+}
+
+.monitoring-work-plan-table tbody tr, .monitoring-budget-table tr {
     break-inside: avoid;
-    page-break-inside: avoid;
 }
 
-.monitoring-number,
-.monitoring-date {
+.monitoring-activity::before {
+    counter-increment: activity;
+    content: counter(activity) ". ";
+}
+
+.monitoring-number, .monitoring-date {
     text-align: center;
 }
 
+.monitoring-pre-line {
+    white-space: pre-line;
+}
+
 .monitoring-money {
-    text-align: right;
-    white-space: nowrap;
+    text-align: center;
 }
 
-.monitoring-request-details {
-    font-size: 12pt;
+.monitoring-regular {
+    font-weight: 400;
 }
 
-.monitoring-total-row th,
-.monitoring-total-row td {
-    background: #f3f4f6;
+.monitoring-total-table {
+    margin-top: -0.5pt;
+}
+
+.monitoring-budget-table th[scope="row"] {
+    font-weight: 400;
+    text-align: left;
+}
+
+.monitoring-budget-table .monitoring-total-row th {
     font-weight: 700;
 }
 
 .monitoring-signatures {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12pt;
-    margin-top: 16pt;
+    grid-template-columns: 31.43fr 31.44fr 37.13fr;
+    border: 0.5pt solid #000;
+    border-top: 0;
     break-inside: avoid;
-    page-break-inside: avoid;
 }
 
 .monitoring-signature {
-    text-align: center;
+    padding: 1pt 5.4pt;
+}
+
+.monitoring-signature + .monitoring-signature {
+    border-left: 0.5pt solid #000;
 }
 
 .monitoring-signature p {
-    margin: 2pt 0;
-    font-size: 8pt;
-}
-
-.monitoring-signature > p:first-child {
-    text-align: left;
+    margin: 0;
 }
 
 .monitoring-signature-line {
-    min-height: 18pt;
-    padding-top: 7pt;
-    border-bottom: 0.75pt solid #111;
-    font-size: 9pt;
-    font-weight: 700;
+    margin-top: 24pt;
+    overflow-wrap: anywhere;
+}
+
+.monitoring-date-signed {
+    padding-top: 12pt;
+}
+
+.monitoring-paper-footer {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 11in;
+    margin: 0;
+    color: #000;
 }
 
 @media print {
     body {
         background: #fff;
     }
-
     .monitoring-preview-page {
         min-width: 0;
         padding: 0;
     }
-
     .monitoring-sheet {
         width: auto;
         min-height: 0;
+        margin: 0;
         padding: 0;
         box-shadow: none;
+    }
+    .monitoring-paper-footer {
+        display: none;
     }
 }

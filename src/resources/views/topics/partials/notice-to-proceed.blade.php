@@ -59,14 +59,38 @@
     @if ($canManageNoticeToProceed && $noticeToProceedForm && ! $topic->isCompletedProject() && ! $topic->hasIssuedNoticeToProceed())
         <div
             class="p-5 sm:p-7"
+            data-proposal-paper-workspace
             x-data="noticeToProceedForm({
                 previewUrl: @js(route('topics.notice-to-proceed.preview', $topic)),
                 csrfToken: @js(csrf_token()),
             })"
             data-notice-to-proceed-autosave="true"
         >
-            <form x-ref="form" data-notice-to-proceed-autosave-form method="POST" action="{{ route('topics.notice-to-proceed.store', $topic) }}" class="space-y-6" @submit="submitNoticeDetails">
+            <form id="notice-to-proceed-form-{{ $topic->id }}" x-ref="form" data-notice-to-proceed-autosave-form method="POST" action="{{ route('topics.notice-to-proceed.store', $topic) }}" class="space-y-6" @submit="submitNoticeDetails">
                 @csrf
+
+                <x-proposal-writing-toolbar :toolbar-id="'notice-to-proceed-tools-'.$topic->id" data-notice-writing-toolbar aria-label="Notice to Proceed tools">
+                    <x-slot:context>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <p class="proposal-writing-target">Editing: <span>Notice to Proceed</span></p>
+                            <x-proposal-autosave-status />
+                        </div>
+                    </x-slot:context>
+                    <div class="proposal-writing-toolbar-row" role="toolbar" aria-label="Notice to Proceed editing and preview">
+                        <div class="proposal-writing-buttons">
+                            <button type="button" data-notice-to-proceed-preview-button @click="showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="notice-to-proceed-preview-panel-{{ $topic->id }}" aria-haspopup="dialog" :disabled="previewLoading || submitting">
+                                <svg class="inline h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <span x-show="!previewLoading">Preview notice</span>
+                                <span x-show="previewLoading" x-cloak>Generating preview...</span>
+                            </button>
+                            <button type="submit" form="notice-to-proceed-form-{{ $topic->id }}" :disabled="submitting || previewLoading" class="!border-red-700 !bg-red-700 !text-white hover:!bg-red-800">
+                                <svg class="inline h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3h2Zm2 0v6h10V3M7 21v-8h10v8" stroke-linejoin="round"/></svg>
+                                <span x-show="!submitting">Save notice details</span>
+                                <span x-show="submitting" x-cloak>Saving details...</span>
+                            </button>
+                        </div>
+                    </div>
+                </x-proposal-writing-toolbar>
 
                 @error('notice_to_proceed')
                     <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-base font-bold text-red-800">{{ $message }}</div>
@@ -201,22 +225,10 @@
                     </div>
                 </section>
 
-                <div class="flex flex-col gap-4 border-t border-slate-300 pt-6 dark:border-slate-700 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                <div class="border-t border-slate-300 pt-6 dark:border-slate-700">
                     <div>
                         <p class="text-base font-black text-gray-950">Preview the unsigned PDF before preparing it for signatures.</p>
                         <p class="mt-1 text-base leading-5 text-gray-600">Previewing does not release anything. Faculty access and project monitoring remain locked until the signed PDF is uploaded.</p>
-                    </div>
-                    <div class="flex shrink-0 flex-wrap gap-2">
-                        <button type="button" data-notice-to-proceed-preview-button @click="showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="notice-to-proceed-preview-panel-{{ $topic->id }}" aria-haspopup="dialog" :disabled="previewLoading || submitting" class="rh-button-secondary !min-h-12 !text-base gap-2 disabled:cursor-wait disabled:opacity-60">
-                            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-                            <span x-show="!previewLoading">Preview notice</span>
-                            <span x-show="previewLoading" x-cloak>Generating preview...</span>
-                        </button>
-                        <button type="submit" :disabled="submitting || previewLoading" class="rh-button !min-h-12 !text-base gap-2 disabled:cursor-wait disabled:opacity-60">
-                            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3h2Zm2 0v6h10V3M7 21v-8h10v8" stroke-linejoin="round"/></svg>
-                            <span x-show="!submitting">Save notice details</span>
-                            <span x-show="submitting" x-cloak>Saving details...</span>
-                        </button>
                     </div>
                 </div>
 

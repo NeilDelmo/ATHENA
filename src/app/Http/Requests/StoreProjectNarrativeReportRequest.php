@@ -158,13 +158,13 @@ class StoreProjectNarrativeReportRequest extends FormRequest
                 if (! $validPeriod) {
                     $validator->errors()->add('reporting_date', $isPreview
                         ? 'Choose a reporting quarter within the approved project schedule.'
-                        : 'Choose an ended reporting quarter from the project schedule.');
+                        : 'Choose a reporting quarter whose submission window is open.');
 
                     return;
                 }
                 $period = $schedule->forDate($this->input('reporting_date'), $topic);
                 if (! $isPreview && CarbonImmutable::parse($this->input('submission_date'))->startOfDay()->lessThan($period['opens_at'])) {
-                    $validator->errors()->add('submission_date', 'The submission date must be after the selected quarter ends.');
+                    $validator->errors()->add('submission_date', 'The submission date must be on or after the selected quarter opens for submission.');
                 }
                 $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
                 if ($existing !== null && $existing->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED) {

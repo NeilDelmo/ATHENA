@@ -97,7 +97,7 @@ test('monitoring lists fetch report summaries without their full contents', func
         'reporting_date' => '2026-03-31', 'progress_percentage' => 42,
         'accomplishments' => str_repeat('Report details for the full report page. ', 1000),
         'work_plan' => [['activity' => str_repeat('Saved milestone details. ', 5000)]],
-        'budget_utilization' => [['remarks' => str_repeat('Saved expense details. ', 5000)]],
+        'budget_utilization' => [['actual_amount' => 2000, 'remarks' => str_repeat('Saved expense details. ', 5000)]],
     ]);
     $narrative = $this->topic->narrativeReports()->create($this->narrativeReportData);
 
@@ -107,7 +107,12 @@ test('monitoring lists fetch report summaries without their full contents', func
     $project = $projects->first();
     expect($project->latestProgressReport->id)->toBe($report->id)
         ->and($project->latestProgressReport->progress_percentage)->toBe(42)
-        ->and(array_keys($project->latestProgressReport->getAttributes()))->not->toContain('work_plan', 'budget_utilization', 'accomplishments');
+        ->and(array_keys($project->latestProgressReport->getAttributes()))->not->toContain('work_plan', 'accomplishments');
+    if ($route === 'faculty.dashboard') {
+        expect($response->viewData('projectHealth')[$project->id]['utilized'])->toBe(2000.0);
+    } else {
+        expect(array_keys($project->latestProgressReport->getAttributes()))->not->toContain('budget_utilization');
+    }
     if ($route === 'research_head.projects.index') {
         expect($project->latestNarrativeReport->id)->toBe($narrative->id)
             ->and(array_keys($project->latestNarrativeReport->getAttributes()))->not->toContain('introduction', 'terminal_data');

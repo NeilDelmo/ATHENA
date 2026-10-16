@@ -62,7 +62,7 @@ class StoreProjectProgressReportRequest extends FormRequest
 
         return [
             ...app(MonitoringEvidenceService::class)->rules($this),
-            'reporting_date' => ['required', 'date', ...($this->routeIs('project-progress.preview') ? [] : ['before_or_equal:today']), 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
+            'reporting_date' => ['required', 'date', 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
             'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],
@@ -98,7 +98,7 @@ class StoreProjectProgressReportRequest extends FormRequest
             function (Validator $validator): void {
                 app(MonitoringEvidenceService::class)->validateEvidence($this, $validator);
                 if (! $this->routeIs('project-progress.preview') && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canSubmitForDate($this->route('topic'), $this->input('reporting_date'))) {
-                    $validator->errors()->add('reporting_date', 'This reporting period is still in progress. Submit after its end date.');
+                    $validator->errors()->add('reporting_date', 'Submission opens in the final week of this reporting period.');
                 }
                 $workPlanInput = $this->input('work_plan', []);
                 $budgetInput = $this->input('budget_utilization', []);

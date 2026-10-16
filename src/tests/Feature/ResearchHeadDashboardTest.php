@@ -95,7 +95,7 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
         ->assertSee('data-research-head-overview', false)
         ->assertDontSee('Project monitoring')
-        ->assertSee('View analytics')
+        ->assertSee('Analytics')
         ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Needs attention', 'Upcoming deadlines'], false)
         ->assertSee(route('research_head.calendar'), false)
         ->assertDontSeeHtml('<section id="research-calendar"')
@@ -105,7 +105,8 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertDontSeeHtml('<table')
         ->assertDontSee('Monthly submission trend')
         ->assertDontSee('All research calls')
-        ->assertSee('Annual targets');
+        ->assertSee('Research targets')
+        ->assertSee(route('research_head.targets.index'));
 });
 
 test('dashboard shows completion percentages for every active project', function () {

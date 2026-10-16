@@ -149,6 +149,7 @@ test('prepared proposal PDFs are fetched and rendered in the review dialog', asy
             const iframe = page.locator('iframe');
             await iframe.contentFrame().locator('.assessment-page img').waitFor();
             assert.ok(await iframe.evaluate((frame) => frame.contentDocument.querySelector('img').naturalWidth > 1000));
+            assert.ok(await iframe.evaluate((frame) => frame.contentDocument.querySelector('.assessment-page').getBoundingClientRect().width >= 800), 'Prepared proposal papers open large enough to read on desktop');
             assert.equal(page.context().pages().length, 1);
             assert.equal(page.url(), 'http://assessment-preview.test/workspace');
             await page.getByRole('button', { name: 'Close preview', exact: true }).click();
@@ -189,6 +190,40 @@ test('automatic assessment forms share the main papers edges on wide and narrow 
     }
 });
 
+test('review assessment statuses and preview buttons align without crowding on narrow screens', async () => {
+    const forms = renderForms();
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [1440, 640, 390, 320]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            await setup(page, forms, false, false, true);
+            const rows = page.locator('[data-review-assessment-forms] li');
+            const positions = await rows.evaluateAll((elements) => elements.map((row) => {
+                const [label, status, button] = row.children;
+                const box = (element) => {
+                    const rect = element.getBoundingClientRect();
+                    return { x: rect.x, right: rect.right, y: rect.y, bottom: rect.bottom };
+                };
+                return { label: box(label), status: box(status), button: box(button) };
+            }));
+            assert.ok(Math.abs(positions[0].status.x - positions[1].status.x) < 1, 'status columns align');
+            assert.ok(Math.abs(positions[0].button.x - positions[1].button.x) < 1, 'preview buttons align');
+            for (const { label, status, button } of positions) {
+                const separate = (first, second) => first.right <= second.x || first.bottom <= second.y;
+                assert.ok(separate(label, status), 'form label and status do not overlap');
+                assert.ok(separate(status, button), 'status and preview button do not overlap');
+            }
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            if (process.env.ASSESSMENT_SCREENSHOT_DIRECTORY && [1440, 390].includes(width)) {
+                await page.locator('[data-review-assessment-forms]').screenshot({ path: resolve(process.env.ASSESSMENT_SCREENSHOT_DIRECTORY, `review-assessment-rows-${width}.png`) });
+            }
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('both assessment forms open the shared viewer with working zoom, print, download and position restoration in both themes', async () => {
     const forms = renderForms();
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -218,6 +253,11 @@ test('both assessment forms open the shared viewer with working zoom, print, dow
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     const iframe = page.locator('iframe');
                     await page.waitForFunction(() => document.querySelector('iframe').contentDocument?.body?.style.zoom);
+                    assert.equal(await page.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
+                    if (width >= 1024) {
+                        assert.ok(await iframe.evaluate((frame) => Number(frame.contentDocument.body.style.zoom) >= 0.95), `${name} should open at readable size on desktop`);
+                    }
+                    await page.getByRole('button', { name: 'Fit page', exact: true }).click();
                     if (name === 'GAD Generic Checklist') {
                         await page.waitForFunction(() => {
                             const frame = document.querySelector('iframe');
@@ -296,16 +336,16 @@ test('both assessment forms open the shared viewer with working zoom, print, dow
     }
 });
 
-test('all seven review previews stay in the review dialog and restore focus without submitting', async () => {
+test('all seven review previews cover the review text and restore focus without submitting', async () => {
     const forms = renderForms();
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
-        for (const width of [390, 1440]) {
+        for (const { width, dark } of [{ width: 390, dark: false }, { width: 1440, dark: false }, { width: 390, dark: true }, { width: 1440, dark: true }]) {
             const page = await browser.newPage({ viewport: { width, height: 900 } });
             const errors = [];
             const requests = [];
             page.on('pageerror', error => errors.push(error.message));
-            await setup(page, forms, false, false, true);
+            await setup(page, forms, dark, false, true);
             for (const slug of ['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae']) {
                 await page.route(`**/${slug}/preview`, route => {
                     requests.push({ slug, method: route.request().method(), data: route.request().postData() });
@@ -317,6 +357,13 @@ test('all seven review previews stay in the review dialog and restore focus with
                 await trigger.click();
                 await page.waitForFunction(() => window.assessmentState.previewReady && !window.assessmentState.previewLoading);
                 assert.equal(await page.locator('#review-paper-preview-panel').isVisible(), true);
+                const surfaces = await page.locator('#review-paper-preview-panel').evaluate((panel) =>
+                    [panel, panel.querySelector('header'), panel.querySelector('.proposal-preview-dock-actions'), panel.querySelector('footer')]
+                        .map((element) => getComputedStyle(element).backgroundColor));
+                assert.ok(surfaces.every((color) => color.startsWith('rgb(')), `${label} surfaces cover the underlying review text: ${surfaces.join(', ')}`);
+                if (process.env.ASSESSMENT_SCREENSHOT_DIRECTORY && label === 'Preview GAD Generic Checklist') {
+                    await page.screenshot({ path: resolve(process.env.ASSESSMENT_SCREENSHOT_DIRECTORY, `review-preview-${width}-${dark ? 'dark' : 'light'}.png`) });
+                }
                 assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
                 assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 assert.equal(page.context().pages().length, 1);

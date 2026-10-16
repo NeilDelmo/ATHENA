@@ -3,8 +3,20 @@
         <x-page-header variant="hero"
             eyebrow="Research Head"
             title="Dashboard"
-            subtitle="Your review queue, project priorities, and upcoming deadlines."
+            subtitle="Review submissions, follow up on project issues, and track upcoming deadlines."
         >
+            <x-slot name="actions">
+                <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <a wire:navigate href="{{ route('research_head.targets.index') }}" class="dashboard-action justify-center">
+                        <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></svg>
+                        Research targets
+                    </a>
+                    <a wire:navigate href="{{ route('research_head.rms-quarterly-reports.index') }}" class="dashboard-action justify-center">
+                        <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M6 3v3m12-3v3M3 10h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm2 9h3m4 0h3m-10 3h3" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        Quarterly monitoring
+                    </a>
+                </div>
+            </x-slot>
         </x-page-header>
     </x-slot>
 

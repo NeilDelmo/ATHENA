@@ -143,6 +143,27 @@ test('proposal suggestions reject arbitrary fields invented numeric commitments 
     expect($this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Improve my rationale')['proposal_changes']['suggestions'])->toBe([]);
 });
 
+test('generic proposal improvements cannot borrow numerical commitments from unrelated RRL source findings', function () {
+    $data = $this->document->source_data;
+    $data['related_literature'] = '<p>An unrelated published study examined monitoring across 12 sites.</p>';
+    $this->document->update(['source_data' => $data]);
+    ($this->fakeSuggestions)([[...$this->suggestion, 'value' => 'Assess community monitoring needs across 12 sites.']]);
+
+    $response = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Improve my rationale');
+
+    expect($response['proposal_changes']['suggestions'])->toBe([])
+        ->and($this->document->fresh()->source_data['rationale'])->toBe($data['rationale']);
+    Http::assertSent(function ($request): bool {
+        $payload = json_decode($request['messages'][1]['content'], true, flags: JSON_THROW_ON_ERROR);
+        $writingContext = json_encode([$payload['fields'], $payload['connected_saved_context']], JSON_THROW_ON_ERROR);
+
+        return ! array_key_exists('related_literature', $payload['fields'])
+            && ! array_key_exists('related_literature', $payload['connected_saved_context'])
+            && ! str_contains($writingContext, 'unrelated published study')
+            && ! str_contains($writingContext, '12 sites');
+    });
+});
+
 test('proposal suggestions strip malicious markup from generated plaintext', function () {
     ($this->fakeSuggestions)([[...$this->suggestion, 'value' => '<script>alert(1)</script><b>Assess the needs for community monitoring.</b>']]);
     $response = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Improve my rationale');

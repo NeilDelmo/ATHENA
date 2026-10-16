@@ -140,7 +140,7 @@ function assistantDocxContents(string $text): string
     return $contents;
 }
 
-test('assistant distinguishes activity delay from project end and report submission lateness', function () {
+test('assistant distinguishes activity delay from project end and report submission lateness', function (?string $initialSubmittedAt, ?int $expectedDaysLate) {
     $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', config('app.timezone')));
     $owner = User::factory()->create();
     $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
@@ -148,6 +148,7 @@ test('assistant distinguishes activity delay from project end and report submiss
     $previous = $topic->progressReports()->create([
         'submitted_by' => $owner->id,
         'reporting_date' => '2026-08-31',
+        'submitted_at' => $initialSubmittedAt,
         'version_number' => 1,
         'tracking_number' => 'SUPERSEDED-REPORT',
         'progress_percentage' => 50,
@@ -182,18 +183,23 @@ test('assistant distinguishes activity delay from project end and report submiss
     expect($delay['as_of_date'])->toBe('2026-10-01')
         ->and($delay['approved_project_end'])->toBe('2026-11-30')
         ->and($delay['calendar_days_past_approved_end'])->toBe(0)
-        ->and($delay['report_days_late'])->toBeNull()
+        ->and($delay['report_submission_deadline'])->toBe('2026-08-31')
+        ->and($delay['report_days_late'])->toBe($expectedDaysLate)
         ->and($delay['incomplete_milestones_in_latest_report'])->toHaveCount(1)
         ->and($delay['incomplete_milestones_in_latest_report'][0]['calendar_days_past_target_at_report'])->toBe(92)
         ->and($delay['incomplete_milestones_in_latest_report'][0]['calendar_days_since_target_today'])->toBe(123)
-        ->and($context['monitoring']['latest_submitted_monitoring_reports'][0]['submission_opens_on'])->toBe('2026-09-01')
-        ->and($packet)->toContain('LATEST-Q3', 'submitted_at', 'NOT submission deadlines', '[Project record]')
+        ->and($context['monitoring']['latest_submitted_monitoring_reports'][0]['submission_opens_on'])->toBe('2026-08-25')
+        ->and($packet)->toContain('LATEST-Q3', 'submitted_at', '[Project record]')
         ->not->toContain('SUPERSEDED-REPORT');
 
     $topic->update(['notice_to_proceed_data' => ['approved_end_date' => '2026-02-30']]);
     $packet = app(ResearchAssistantWorkflowContextService::class)->promptContext($owner, $topic->fresh(), ['workflow_scope' => 'monitoring'], 'Delay?');
     expect($packet)->toContain('"approved_project_end": null');
-});
+})->with([
+    'late initial submission' => ['2026-09-01', 1],
+    'on-time initial submission with a later correction' => ['2026-08-31', 0],
+    'unknown initial submission date' => [null, null],
+]);
 
 test('assistant cites saved project records instead of unrelated field guides for a delay answer', function () {
     config(['services.openrouter.key' => 'test-key']);

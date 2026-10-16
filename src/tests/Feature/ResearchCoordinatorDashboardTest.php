@@ -49,6 +49,7 @@ test('research coordinators still see their dashboard when their college has no 
         ->assertSee('Research Coordinator Dashboard')
         ->assertSee('Record LREC feedback and prepare Notices to Proceed for projects from '.User::COLLEGES['CICS'].'.')
         ->assertSee('College members')
+        ->assertSee('Quarterly Reports')
         ->assertSee('data-dashboard-layout="office-overview"', false)
         ->assertSee('Awaiting release')
         ->assertSee('LREC proposals')

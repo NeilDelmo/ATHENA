@@ -3,7 +3,7 @@ import { escapeAssistantHtml, safeAssistantSourceUrl } from './research-assistan
 const maximumHandoffAge = 10 * 60 * 1000;
 const narrativeFields = new Set([
     'executive_brief', 'rationale', 'general_objective', 'introduction',
-    'methodology.research_design', 'methodology.data_analysis',
+    'methodology.research_design', 'methodology.data_analysis', 'related_literature',
 ]);
 
 function plainRecord(value) {
@@ -83,10 +83,11 @@ export function normalizeAssistantProposalChanges(packet) {
     const suggestions = [];
 
     for (const candidate of Array.isArray(packet.suggestions) ? packet.suggestions : []) {
+        const limit = candidate?.field === 'related_literature' ? 30000 : 6000;
         if (!plainRecord(candidate) || !suggestionIdentifier(candidate.id) || !safeToken(candidate.token)
             || candidate.paper_slug !== 'detailed-proposal' || !allowedProposalChangeField(candidate.field)
-            || typeof candidate.before !== 'string' || candidate.before.length > 6000
-            || typeof candidate.value !== 'string' || !candidate.value.trim() || candidate.value.length > 6000
+            || typeof candidate.before !== 'string' || candidate.before.length > limit
+            || typeof candidate.value !== 'string' || !candidate.value.trim() || candidate.value.length > limit
             || identifiers.has(String(candidate.id)) || tokens.has(candidate.token)) continue;
 
         identifiers.add(String(candidate.id));

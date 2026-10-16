@@ -57,7 +57,7 @@ class ProjectNarrativeReportController extends Controller
         }
         if ($reportType === 'progress' && $data['quarterOptions']->isEmpty() && $data['preparedReport'] === null) {
             return redirect()->to(route('topics.show', $topic).'#project-monitoring')
-                ->withErrors(['reporting_date' => 'All ended quarters already have a submitted Progress Report.'], 'narrativeProgress');
+                ->withErrors(['reporting_date' => 'All available quarters already have a submitted Progress Report.'], 'narrativeProgress');
         }
 
         return view('faculty.progress-reports.create', [
@@ -461,16 +461,28 @@ class ProjectNarrativeReportController extends Controller
             }
         }
         if (! $file) {
-            foreach (ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->get(['id', 'topic_id', 'submission_status', 'accomplishments']) as $report) {
+            foreach (ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'accomplishments']) as $report) {
                 $candidate = collect($report->accomplishments ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
                 if ($candidate) {
-                    $this->authorizeViewer($request, $report);
+                    if ($report->isSubmitted()) {
+                        Gate::forUser($request->user())->authorize('view', $topic);
+                    } else {
+                        abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
+                            && $topic->isAccessibleTo($request->user()), 403);
+                    }
                     $file = $candidate;
                     break;
                 }
             }
         }
         abort_unless($file && $evidenceService->isStoredEvidence($topic, $file), 404);
+
+        $mimeType = Storage::disk('local')->mimeType($file['path']);
+        if ($request->boolean('preview')) {
+            abort_unless(in_array($mimeType, ['image/jpeg', 'image/png'], true), 404);
+
+            return Storage::disk('local')->response($file['path'], $file['name'], ['Content-Type' => $mimeType, 'X-Content-Type-Options' => 'nosniff']);
+        }
 
         return Storage::disk('local')->download($file['path'], $file['name'], ['X-Content-Type-Options' => 'nosniff']);
     }

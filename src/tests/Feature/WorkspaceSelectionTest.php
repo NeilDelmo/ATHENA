@@ -247,11 +247,18 @@ test('coordinator and secretary workspaces stay separate for an account with bot
     $this->actingAs($user)->get(route('role-selection.show'))
         ->assertRedirect(route('workspace.select'));
     $this->get(route('workspace.select'))->assertOk()
-        ->assertSee('Research Coordinator')->assertSee('Research Office / Secretary');
+        ->assertSee('Research Coordinator')->assertSee('Research Office Secretary')
+        ->assertDontSee('Research Office / Secretary');
 
     $this->post(route('workspace.store'), ['workspace' => 'research_secretary'])
         ->assertRedirect(route('research_secretary.dashboard'));
-    $this->get(route('research_secretary.dashboard'))->assertOk();
+    $this->get(route('research_secretary.dashboard'))->assertOk()
+        ->assertSee('Research Office Secretary Dashboard')
+        ->assertSee('Prepare Notices to Proceed, release signed documents')
+        ->assertDontSee('Research Office / Secretary');
+    $this->get(route('profile.edit'))->assertOk()
+        ->assertSee('Research Office Secretary')
+        ->assertDontSee('Research Office / Secretary');
     $this->get(route('research_coordinator.dashboard'))->assertForbidden();
 
     $this->post(route('workspace.store'), ['workspace' => 'research_office'])

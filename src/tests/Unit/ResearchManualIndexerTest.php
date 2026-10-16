@@ -9,6 +9,29 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
+test('the command refuses to replace an edition managed through the manual library', function () {
+    File::put($this->manualDirectory.'/index.json', json_encode(['managed_manual_id' => 12, 'version' => str_repeat('a', 64)], JSON_THROW_ON_ERROR));
+    $before = File::get($this->manualDirectory.'/index.json');
+
+    $this->artisan('research-manual:index', ['path' => $this->manualPdf, '--force' => true])
+        ->expectsOutputToContain('Research Head')
+        ->assertFailed();
+
+    expect(File::get($this->manualDirectory.'/index.json'))->toBe($before);
+    Process::assertNothingRan();
+});
+
+test('manual indexing can stage an edition without replacing the active index', function () {
+    Process::fake([Process::result(output: "1. Research Policy\n\nEthics approval is required.\f")]);
+    $stagedPath = $this->manualDirectory.'/staged/index.json';
+    $index = app(ResearchManualIndexer::class)->index($this->manualPdf, indexPath: $stagedPath);
+
+    expect(is_file($stagedPath))->toBeTrue()
+        ->and(is_file($this->manualDirectory.'/index.json'))->toBeFalse()
+        ->and(File::get(dirname($stagedPath).'/manual.pdf'))->toBe(File::get($this->manualPdf))
+        ->and(json_decode(File::get($stagedPath), true)['version'])->toBe($index['version']);
+});
+
 beforeEach(function () {
     $this->manualDirectory = sys_get_temp_dir().'/athena-manual-test-'.Str::uuid();
     File::ensureDirectoryExists($this->manualDirectory);

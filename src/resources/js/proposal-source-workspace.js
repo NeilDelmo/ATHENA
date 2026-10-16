@@ -133,6 +133,8 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceLoading: false,
         sourceWorkspaceSaving: false,
         sourceWorkspaceAiLoading: false,
+        sourceWorkspaceAiController: null,
+        sourceWorkspacePaperFallbackSourceId: 0,
         sourceWorkspaceError: '',
         sourceWorkspaceNotice: '',
         sourceWorkspaceVersion: 0,
@@ -192,6 +194,9 @@ export function proposalSourceWorkspace(config = {}) {
         destroySourceWorkspace() {
             this.sourceWorkspaceOpen = false;
             this.sourceWorkspaceVersion++;
+            this.sourceWorkspaceAiController?.abort();
+            this.sourceWorkspaceAiLoading = false;
+            this.invalidateSourceWorkspaceDraft();
             this.unlockSourceWorkspaceScroll();
         },
 
@@ -205,6 +210,7 @@ export function proposalSourceWorkspace(config = {}) {
 
         invalidateSourceWorkspaceDraft() {
             this.sourceWorkspaceDraftSignature = '';
+            this.sourceWorkspacePaperFallbackSourceId = 0;
             if (this.sourceWorkspaceDraft) this.sourceWorkspaceDraft.can_insert = false;
         },
 
@@ -227,13 +233,20 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceNotice = '';
             this.sourceWorkspaceClaim = sourceText(this.citationPickerSelection?.selectedText);
             await this.setSourceWorkspaceTab(tab);
-            this.$nextTick?.(() => this.$refs?.sourceWorkspaceClose?.focus());
+            // Alpine shows x-show panels on the next animation frame.
+            this.$nextTick?.(() => requestAnimationFrame(() => {
+                if (this.sourceWorkspaceOpen) this.$refs?.sourceWorkspaceClose?.focus();
+            }));
         },
 
         closeSourceWorkspace() {
-            if (this.sourceWorkspaceSaving || this.sourceWorkspaceAiLoading) return false;
+            if (this.sourceWorkspaceSaving) return false;
             this.sourceWorkspaceOpen = false;
             this.sourceWorkspaceVersion++;
+            this.sourceWorkspaceAiController?.abort();
+            this.sourceWorkspaceAiController = null;
+            this.sourceWorkspaceAiLoading = false;
+            this.invalidateSourceWorkspaceDraft();
             this.sourceWorkspaceLoading = false;
             this.unlockSourceWorkspaceScroll();
             const field = typeof document !== 'undefined' ? document.getElementById(this.citationPickerSelection?.fieldId) : null;
@@ -262,6 +275,7 @@ export function proposalSourceWorkspace(config = {}) {
         async setSourceWorkspaceTab(tab) {
             if (this.sourceWorkspaceSaving || this.sourceWorkspaceAiLoading) return;
             this.sourceWorkspaceVersion++;
+            this.invalidateSourceWorkspaceDraft();
             this.sourceWorkspaceLoading = false;
             if (this.sourceWorkspaceCitationMode && tab !== this.sourceWorkspaceTab) this.citationPickerLocator = '';
             this.sourceWorkspaceTab = ['paper', 'library', 'search', 'add'].includes(tab) ? tab : 'paper';
@@ -395,6 +409,59 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceEvidence() { return this.sourceWorkspaceEvidenceCache[this.sourceWorkspaceActiveSourceId] || { document: null, passages: [] }; },
         sourceWorkspaceCurrentPage() { return this.sourceWorkspaceEvidence().document?.pages?.[this.sourceWorkspacePage] || null; },
         sourceWorkspaceHasPdfText() { return Number(this.sourceWorkspaceEvidence().document?.coverage?.characters || 0) > 0; },
+        sourceWorkspaceCanDraftPaper() {
+            return Boolean(config.synthesisUrl && Number(config.proposalDraftId) > 0 && this.sourceWorkspaceActiveSource()
+                && (this.sourceWorkspaceEvidence().document || sourceWorkspaceSafeUrl(this.sourceWorkspaceActiveSource()?.full_text_url)));
+        },
+        sourceWorkspaceCanDraftAbstract() {
+            return this.sourceWorkspacePaperFallbackSourceId === Number(this.sourceWorkspaceActiveSourceId)
+                && Boolean(sourceText(this.sourceWorkspaceActiveSource()?.abstract || this.sourceWorkspaceActiveSource()?.description));
+        },
+        sourceWorkspacePaperDraftSignature() {
+            return JSON.stringify({ source: this.sourceWorkspaceActiveSource(), evidence: this.sourceWorkspaceEvidence() });
+        },
+        async prepareSourceWorkspacePaperDraft(basis = 'full_text') {
+            if (this.sourceWorkspaceBusy() || !this.sourceWorkspaceCanDraftPaper()
+                || !['full_text', 'abstract'].includes(basis) || (basis === 'abstract' && !this.sourceWorkspaceCanDraftAbstract())) return false;
+            const sourceId = Number(this.sourceWorkspaceActiveSourceId);
+            const version = ++this.sourceWorkspaceVersion;
+            const signature = this.sourceWorkspacePaperDraftSignature();
+            const controller = new AbortController();
+            this.sourceWorkspaceAiController = controller;
+            this.sourceWorkspaceAiLoading = true;
+            this.sourceWorkspaceError = '';
+            this.sourceWorkspaceNotice = '';
+            this.invalidateSourceWorkspaceDraft();
+            try {
+                const payload = await this.sourceWorkspaceRequest(config.synthesisUrl, { method: 'POST', signal: controller.signal,
+                    body: JSON.stringify({ proposal_draft_id: Number(config.proposalDraftId), source_link_id: sourceId, evidence_basis: basis }) });
+                if (version !== this.sourceWorkspaceVersion || signature !== this.sourceWorkspacePaperDraftSignature()) return false;
+                const paragraph = sourceText(payload.synthesis);
+                if (paragraph.length < 40 || paragraph.length > 5000 || payload.basis !== basis) {
+                    throw new Error('The assistant returned an incomplete paper draft. Your paper is unchanged.');
+                }
+                this.sourceWorkspaceDraft = { paragraph, evidence: [], can_insert: true, source_link_id: sourceId,
+                    basis: payload.basis, notice: sourceText(payload.notice), coverage: payload.coverage || {} };
+                this.sourceWorkspaceDraftSignature = signature;
+                this.sourceWorkspaceDraftMode = 'paper';
+                this.sourceWorkspaceDraftInserted = false;
+                this.sourceWorkspaceDestination = 'related-literature';
+                this.sourceWorkspaceNotice = sourceText(payload.notice);
+                this.sourceWorkspaceView = 'draft';
+                return true;
+            } catch (error) {
+                if (version === this.sourceWorkspaceVersion && signature === this.sourceWorkspacePaperDraftSignature()) {
+                    this.sourceWorkspaceError = error.message || 'The paper draft could not be prepared. Your paper is unchanged.';
+                    if (basis === 'full_text') this.sourceWorkspacePaperFallbackSourceId = sourceId;
+                }
+                return false;
+            } finally {
+                if (version === this.sourceWorkspaceVersion) {
+                    this.sourceWorkspaceAiLoading = false;
+                    this.sourceWorkspaceAiController = null;
+                }
+            }
+        },
         sourceWorkspaceCoverageLabel() {
             const coverage = this.sourceWorkspaceEvidence().document?.coverage;
             if (!coverage) return '';
@@ -517,11 +584,16 @@ export function proposalSourceWorkspace(config = {}) {
                 source.passage_ids.push(selected.passage_id);
             }
             this.sourceWorkspaceAiLoading = true;
+            const version = ++this.sourceWorkspaceVersion;
+            const controller = new AbortController();
+            this.sourceWorkspaceAiController = controller;
             this.sourceWorkspaceError = '';
             this.sourceWorkspaceDraftInserted = false;
+            this.invalidateSourceWorkspaceDraft();
             const signature = this.sourceWorkspaceAssistanceSignature();
             try {
-                const payload = await this.sourceWorkspaceRequest(config.assistanceUrl, { method: 'POST', body: JSON.stringify({ mode: this.sourceWorkspaceAiMode, claim: this.sourceWorkspaceClaim.trim() || undefined, instruction: this.sourceWorkspaceInstruction.trim() || undefined, evidence }) });
+                const payload = await this.sourceWorkspaceRequest(config.assistanceUrl, { method: 'POST', signal: controller.signal, body: JSON.stringify({ mode: this.sourceWorkspaceAiMode, claim: this.sourceWorkspaceClaim.trim() || undefined, instruction: this.sourceWorkspaceInstruction.trim() || undefined, evidence }) });
+                if (version !== this.sourceWorkspaceVersion || signature !== this.sourceWorkspaceAssistanceSignature()) return false;
                 if (!sourceText(payload.draft?.paragraph) || !Array.isArray(payload.draft?.evidence)) throw new Error('The assistant returned an incomplete draft. Try again.');
                 this.sourceWorkspaceDraft = { paragraph: sourceText(payload.draft.paragraph), evidence: payload.draft.evidence, can_insert: payload.draft.can_insert === true && payload.supported !== false };
                 this.sourceWorkspaceDraftSignature = signature;
@@ -529,13 +601,17 @@ export function proposalSourceWorkspace(config = {}) {
                 this.sourceWorkspaceNotice = sourceText(payload.notice);
                 this.sourceWorkspaceView = 'draft';
                 return true;
-            } catch (error) { this.sourceWorkspaceError = error.message; return false; }
-            finally { this.sourceWorkspaceAiLoading = false; }
+            } catch (error) { if (version === this.sourceWorkspaceVersion) this.sourceWorkspaceError = error.message; return false; }
+            finally {
+                if (version === this.sourceWorkspaceVersion) { this.sourceWorkspaceAiLoading = false; this.sourceWorkspaceAiController = null; }
+            }
         },
         sourceWorkspaceCanInsertDraft() {
-            return !this.sourceWorkspaceBusy() && this.sourceWorkspaceDraftMode === 'synthesize' && !this.sourceWorkspaceDraftInserted
+            const paper = this.sourceWorkspaceDraftMode === 'paper';
+            return !this.sourceWorkspaceBusy() && (paper || this.sourceWorkspaceDraftMode === 'synthesize') && !this.sourceWorkspaceDraftInserted
                 && this.sourceWorkspaceDraft?.can_insert === true
-                && this.sourceWorkspaceDraftSignature === this.sourceWorkspaceAssistanceSignature()
+                && this.sourceWorkspaceDraftSignature === (paper ? this.sourceWorkspacePaperDraftSignature() : this.sourceWorkspaceAssistanceSignature())
+                && (!paper || Number(this.sourceWorkspaceDraft.source_link_id) === Number(this.sourceWorkspaceActiveSourceId))
                 && sourceText(this.sourceWorkspaceDraft?.paragraph).length >= 40 && sourceText(this.sourceWorkspaceDraft?.paragraph).length <= 5000;
         },
         async insertReviewedSourceWorkspaceDraft() {
@@ -543,7 +619,9 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceSaving = true;
             this.sourceWorkspaceError = '';
             try {
-                const inserted = await this.insertSourceWorkspaceDraft(this.sourceWorkspaceDraft, this.sourceWorkspaceDestination);
+                const inserted = this.sourceWorkspaceDraftMode === 'paper'
+                    ? await this.insertSourceWorkspacePaperDraft(this.sourceWorkspaceDraft)
+                    : await this.insertSourceWorkspaceDraft(this.sourceWorkspaceDraft, this.sourceWorkspaceDestination);
                 if (!inserted) throw new Error('The reviewed draft could not be inserted. Choose an available destination and try again.');
                 this.sourceWorkspaceDraftInserted = true;
                 this.sourceWorkspaceNotice = 'Reviewed text and its source citations were added to the paper.';

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProposalTemplate;
 use App\Models\ResearchCall;
 use App\Models\ResearchKnowledgeEntry;
+use App\Models\ResearchManual;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
@@ -55,12 +56,19 @@ class ResearchKnowledgeService
      * @param  list<array{role: string, content: string}>  $recentMessages
      * @return list<array<string, mixed>>
      */
-    public function retrieve(string $question, ?string $paperSlug = null, ?string $fieldIdentifier = null, array $recentMessages = []): array
+    public function retrieve(string $question, ?string $paperSlug = null, ?string $fieldIdentifier = null, array $recentMessages = [], ?ResearchManual $manual = null): array
     {
         $terms = $this->searchTerms($question);
         $normalizedFieldIdentifier = $this->normalizeFieldIdentifier($fieldIdentifier);
 
-        $manualSources = $this->manualRetriever->retrieve($question, $recentMessages);
+        $manualSources = $this->manualRetriever->retrieve($question, $recentMessages, $manual?->indexPath());
+        if ($manual !== null) {
+            $manualSources = array_map(function (array $source) use ($manual): array {
+                $source['title'] .= ' · Edition '.$manual->edition;
+
+                return $source;
+            }, $manualSources);
+        }
 
         if ($terms === [] && ! $this->paperExists($paperSlug) && $manualSources === []) {
             return [];

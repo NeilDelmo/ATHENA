@@ -17,7 +17,7 @@ class ResearchManualIndexer
     /**
      * @return array{schema_version: int, version: string, title: string, source_file: string, page_count: int, unindexed_pages: array<int>, chunks: array<array{id: string, section: string, source_kind: string, page_start: int, page_end: int, content: string}>, reused: bool}
      */
-    public function index(string $sourcePath, string $title = 'Approved Research Manual (2023)', bool $force = false, ?string $pagesJsonPath = null): array
+    public function index(string $sourcePath, string $title = 'Approved Research Manual (2023)', bool $force = false, ?string $pagesJsonPath = null, ?string $indexPath = null): array
     {
         if (! is_file($sourcePath) || file_get_contents($sourcePath, false, null, 0, 5) !== '%PDF-') {
             throw new RuntimeException('Provide an existing PDF file to index.');
@@ -33,7 +33,7 @@ class ResearchManualIndexer
             throw new RuntimeException('The page-preserving JSON file does not exist.');
         }
 
-        $indexPath = (string) config('research_assistant.manual.index_path', storage_path('app/private/research-manual/index.json'));
+        $indexPath ??= (string) config('research_assistant.manual.index_path', storage_path('app/private/research-manual/index.json'));
         $chunkCharacters = max(300, (int) config('research_assistant.manual.chunk_characters', 1800));
         $version = hash('sha256', json_encode([
             self::SCHEMA_VERSION,
@@ -59,6 +59,10 @@ class ResearchManualIndexer
 
         try {
             $existing = $this->existingIndex($indexPath);
+
+            if (isset($existing['managed_manual_id']) && $indexPath === (string) config('research_assistant.manual.index_path', storage_path('app/private/research-manual/index.json'))) {
+                throw new RuntimeException('This library is managed through Research Head → Research manual. Upload and activate editions there.');
+            }
 
             if (! $force && ($existing['version'] ?? null) === $version && is_file($directory.'/manual.pdf')) {
                 return [...$existing, 'reused' => true];

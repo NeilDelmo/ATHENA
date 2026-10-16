@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="User Directory" subtitle="Browse all ATHENA users and manage Research Coordinator and Research Office / Secretary assignments. Each college can have one Research Coordinator." />
+        <x-page-header title="User Directory" subtitle="Browse all ATHENA users and manage Research Coordinator and Research Office Secretary assignments. Each college can have one Research Coordinator." />
     </x-slot>
 
     <div
@@ -135,7 +135,7 @@
                             <th scope="col" class="w-64 px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Email</th>
                             <th x-show="selectedCollege === 'all'" scope="col" class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">College</th>
                             <th scope="col" class="w-40 px-5 py-3 text-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Research Coordinator</th>
-                            <th scope="col" class="w-40 px-5 py-3 text-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Research Office / Secretary</th>
+                            <th scope="col" class="w-40 px-5 py-3 text-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Research Office Secretary</th>
                         </tr>
                     </thead>
                     <tbody x-cloak class="divide-y divide-gray-100 dark:divide-slate-800">
@@ -178,7 +178,7 @@
                                                         </span>
                                                     @endif
                                                     @if ($isSecretary)
-                                                        <span class="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">Research Office / Secretary</span>
+                                                        <span class="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">Research Office Secretary</span>
                                                     @endif
                                                 </div>
                                             @endif
@@ -220,8 +220,8 @@
                                 <td class="px-5 py-4 align-middle">
                                     <button
                                         type="button"
-                                        x-on:click="openRoleDialog(@js($member->name), @js(route('research_head.faculty-directory.secretary', $member)), @js($isSecretary), 'Research Office / Secretary')"
-                                        aria-label="{{ $isSecretary ? 'Remove Research Office / Secretary from ' : 'Assign Research Office / Secretary to ' }}{{ $member->name }}"
+                                        x-on:click="openRoleDialog(@js($member->name), @js(route('research_head.faculty-directory.secretary', $member)), @js($isSecretary), 'Research Office Secretary')"
+                                        aria-label="{{ $isSecretary ? 'Remove Research Office Secretary from ' : 'Assign Research Office Secretary to ' }}{{ $member->name }}"
                                         class="inline-flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2 text-xs font-bold transition {{ $isSecretary ? 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300 dark:hover:bg-blue-950/40' : 'border-gray-200 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300' }}"
                                     >
                                         {{ $isSecretary ? 'Remove' : 'Assign' }}
@@ -268,14 +268,14 @@
                         <span class="font-bold" x-text="memberName"></span>
                         will become the Research Coordinator for <span class="font-bold" x-text="memberCollege"></span>.
                     </p>
-                    <p x-show="roleLabel === 'Research Office / Secretary'" class="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-300">
+                    <p x-show="roleLabel === 'Research Office Secretary'" class="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-300">
                         <span class="font-bold" x-text="memberName"></span>
-                        <span x-text="isAssigned ? 'will lose access to the Research Office / Secretary workspace.' : 'will gain access to the Research Office / Secretary workspace.'"></span>
+                        <span x-text="isAssigned ? 'will lose access to the Research Office Secretary workspace.' : 'will gain access to the Research Office Secretary workspace.'"></span>
                         Their other roles will stay assigned.
                     </p>
                     <div x-show="!isAssigned && roleLabel === 'Research Coordinator' && replacementCoordinator !== ''" class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                         <span class="font-black">This replaces the current Research Coordinator.</span>
-                        Assigning <span class="font-bold" x-text="memberName"></span> will remove the Coordinator role from <span class="font-bold" x-text="replacementCoordinator"></span>, keeping only one Research Coordinator for this college. Research Office / Secretary assignments will stay assigned.
+                        Assigning <span class="font-bold" x-text="memberName"></span> will remove the Coordinator role from <span class="font-bold" x-text="replacementCoordinator"></span>, keeping only one Research Coordinator for this college. Research Office Secretary assignments will stay assigned.
                     </div>
 
                     <form method="POST" x-bind:action="actionUrl" class="mt-5 flex justify-end gap-2">

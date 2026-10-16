@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ResearchManualLibrary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,7 @@ class ProposalDraft extends Model
     protected $fillable = [
         'user_id',
         'research_call_id',
+        'research_manual_id',
         'topic_id',
         'project_title',
         'duration_months',
@@ -30,6 +32,15 @@ class ProposalDraft extends Model
     protected $attributes = [
         'status' => self::STATUS_DRAFT,
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProposalDraft $draft): void {
+            if (! array_key_exists('research_manual_id', $draft->getAttributes())) {
+                $draft->research_manual_id = app(ResearchManualLibrary::class)->active()?->id;
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -75,6 +86,11 @@ class ProposalDraft extends Model
     public function researchCall(): BelongsTo
     {
         return $this->belongsTo(ResearchCall::class);
+    }
+
+    public function researchManual(): BelongsTo
+    {
+        return $this->belongsTo(ResearchManual::class);
     }
 
     public function topic(): BelongsTo

@@ -19,8 +19,8 @@
     @endphp
 
     <div class="mx-auto max-w-5xl space-y-5 py-6 sm:px-6 lg:px-8">
-        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div class="grid gap-px bg-gray-200 dark:bg-slate-800 md:grid-cols-3">
+        <section class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="grid gap-px overflow-hidden rounded-t-2xl bg-gray-200 dark:bg-slate-800 md:grid-cols-3">
                 <div class="bg-slate-950 p-5 text-white md:col-span-2">
                     <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Prepared monitoring report</p>
                     <p class="mt-2 text-base font-black">{{ $report->quarter_label }} · {{ $report->reporting_period_label }}</p>
@@ -40,9 +40,19 @@
                 @endif
             </div>
 
-            <form method="POST" action="{{ request()->routeIs('project-budget.edit') ? route('project-budget.update', [$topic, $report]) : route('research_secretary.projects.budget.update', [$topic, $report]) }}" x-data="budgetUtilizationForm({ rows: @js($budgetRows), approvedBudget: @js((float) $topic->estimated_budget) })" class="space-y-6 p-5 sm:p-6">
+            <form id="budget-utilization-form-{{ $report->id }}" data-proposal-paper-workspace method="POST" action="{{ request()->routeIs('project-budget.edit') ? route('project-budget.update', [$topic, $report]) : route('research_secretary.projects.budget.update', [$topic, $report]) }}" x-data="budgetUtilizationForm({ rows: @js($budgetRows), approvedBudget: @js((float) $topic->estimated_budget) })" class="space-y-6 p-5 sm:p-6">
                 @csrf
                 @method('PUT')
+
+                <x-proposal-writing-toolbar :toolbar-id="'budget-utilization-tools-'.$report->id" data-budget-utilization-writing-toolbar aria-label="Budget utilization tools">
+                    <x-slot:context><p class="proposal-writing-target">Editing: <span>Budget utilization</span></p></x-slot:context>
+                    <div class="proposal-writing-toolbar-row" role="toolbar" aria-label="Budget utilization editing and preview">
+                        <div class="proposal-writing-buttons">
+                            <a href="{{ route('project-progress.monitoring-tool', $report) }}" class="proposal-preview-download inline-flex items-center">Review PDF</a>
+                            <button type="submit" form="budget-utilization-form-{{ $report->id }}" class="!border-red-700 !bg-red-700 !text-white hover:!bg-red-800">Confirm budget utilization</button>
+                        </div>
+                    </div>
+                </x-proposal-writing-toolbar>
 
                 @if ($errors->any())
                     <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
@@ -75,12 +85,8 @@
                     </template>
                 </div>
 
-                <div class="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
+                <div class="border-t border-gray-100 pt-5 dark:border-slate-800">
                     <p class="max-w-xl text-xs leading-5 text-gray-500 dark:text-slate-400">Saving refreshes the official Monitoring Tool PDF and records your account and completion time. The researcher can then submit it to the Research Head.</p>
-                    <div class="flex flex-wrap gap-2">
-                        <a href="{{ route('project-progress.monitoring-tool', $report) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Review PDF</a>
-                        <button class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 py-2 text-xs font-black text-white shadow-sm hover:bg-red-800">Confirm budget utilization</button>
-                    </div>
                 </div>
             </form>
         </section>

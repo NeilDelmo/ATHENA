@@ -23,6 +23,8 @@ class ProjectDocument extends Model
 
     public const CATEGORY_SUPPORTING_FILES = 'supporting_files';
 
+    public const CATEGORY_ACCOMPLISHMENT_EVIDENCE = 'accomplishment_evidence';
+
     public const CATEGORY_OTHER = 'other';
 
     /** @use HasFactory<ProjectDocumentFactory> */
@@ -59,6 +61,7 @@ class ProjectDocument extends Model
             self::CATEGORY_NOTICE_TO_PROCEED => 'Notice to Proceed',
             self::CATEGORY_MONITORING_REPORTS => 'Monitoring reports',
             self::CATEGORY_SUPPORTING_FILES => 'Supporting files',
+            self::CATEGORY_ACCOMPLISHMENT_EVIDENCE => 'Quarterly accomplishment evidence',
             self::CATEGORY_OTHER => 'Other files',
         ];
     }
@@ -67,7 +70,7 @@ class ProjectDocument extends Model
     public static function uploadCategoryOptions(): array
     {
         return collect(self::categoryOptions())
-            ->except([self::CATEGORY_ASSESSMENT_FORMS, self::CATEGORY_NOTICE_TO_PROCEED])
+            ->except([self::CATEGORY_ASSESSMENT_FORMS, self::CATEGORY_NOTICE_TO_PROCEED, self::CATEGORY_ACCOMPLISHMENT_EVIDENCE])
             ->all();
     }
 

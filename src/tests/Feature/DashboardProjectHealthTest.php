@@ -8,7 +8,9 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProjectMonitoringHealth;
 use App\Services\ResearchHeadAnalytics;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\File;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -106,6 +108,27 @@ test('both dashboards detect later missing Monitoring Tools and Progress Reports
     ($this->narrative)($project, 2);
     ($this->dashboard)()->assertViewHas('attentionProjects', fn ($projects): bool => ! $projects->contains('id', $project->id));
 });
+
+test('dashboards flag missing quarterly reports only after their deadline', function (string $today, bool $overdue, bool $prepared = false) {
+    $this->travelTo(CarbonImmutable::parse($today));
+    $project = ($this->project)(['notice_to_proceed_issued_at' => '2026-01-01']);
+    if ($prepared) {
+        ($this->narrative)($project, 1, ['submission_status' => 'prepared', 'submitted_at' => null]);
+    }
+    $issues = app(ProjectMonitoringHealth::class)->assess($project)['issues']->whereIn('type', ['quarterly', 'progress_quarterly']);
+
+    expect($issues)->toHaveCount($overdue ? 2 : 0);
+    if ($overdue) {
+        expect($issues->pluck('basis')->unique()->all())->toBe(['overdue'])
+            ->and($issues->pluck('days')->unique()->all())->toBe([0]);
+    }
+})->with([
+    'before the final week' => ['2026-03-24 23:59:59', false],
+    'during the final week' => ['2026-03-25 00:00:00', false],
+    'on the deadline' => ['2026-03-31 23:59:59', false],
+    'after the deadline' => ['2026-04-01 00:00:00', true],
+    'prepared but not submitted' => ['2026-04-01 00:00:00', true, true],
+]);
 
 test('faculty correction actions point to the exact reports and skip reviews awaiting the head', function () {
     $project = ($this->project)();

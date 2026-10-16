@@ -11,13 +11,14 @@ import { normalizeSourceEvidence, parseSourceImport, proposalSourceWorkspace, so
 
 const firstId = '7c9ae400-6fde-4f0e-9af0-934c22005a41';
 const secondId = 'ec8ce97a-8b83-4b6c-8d2d-82c9a37e8ac1';
-const linkedSource = { id: 12, literature_source_id: 3, title: 'Community learning outcomes', authors: 'A. Researcher', year: 2025, url: 'https://example.org/article' };
+const linkedSource = { id: 12, literature_source_id: 3, title: 'Community learning outcomes', authors: 'A. Researcher', year: 2025, url: 'https://example.org/article', description: 'This study examines how community participation affects learning outcomes.' };
+const librarySource = { id: 8, title: 'Community participation in schools', authors: 'B. Researcher', year: 2024, url: 'https://example.org/schools', description: 'A study of community involvement in school programmes.' };
 const quote = 'Community participation was associated with improved learning outcomes.';
 const evidence = { source: linkedSource, document: { name: 'study.pdf', url: 'https://athena.test/source/document', pages: [{ number: 2, text: quote }], coverage: { characters: quote.length, extracted_pages: 1, total_pages: 44, page_limit: 40, character_limit: 30000, limited: true }, notice: 'Only part of the PDF was extracted.' }, passages: [{ id: firstId, quote, note: 'Supports objective 2.', page: 2, kind: 'quote', origin: 'pdf' }, { id: secondId, quote: '', note: 'Check the sample size.', page: null, kind: 'note', origin: 'manual' }] };
 
 function response(payload, ok = true, status = 200) { return { ok, status, json: async () => payload }; }
 function workspace(request = async () => response({})) {
-    return { ...proposalSourceWorkspace({ csrfToken: 'token', libraryUrl: '/library', storeUrl: '/library', searchUrl: '/search', linkUrlTemplate: '/proposal/sources/__literature_source__', evidenceBase: '/proposal/links', assistanceUrl: '/proposal/assistance', metadataUrl: '/metadata', request }), literatureSources: [{ ...linkedSource }], sourceWorkspaceCanCite: () => true, upsertLiteratureSource(source) { const index = this.literatureSources.findIndex((item) => item.id === source.id); if (index === -1) this.literatureSources.push(source); else this.literatureSources[index] = source; } };
+    return { ...proposalSourceWorkspace({ csrfToken: 'token', proposalDraftId: 42, synthesisUrl: '/synthesis', libraryUrl: '/library', storeUrl: '/library', searchUrl: '/search', linkUrlTemplate: '/proposal/sources/__literature_source__', evidenceBase: '/proposal/links', assistanceUrl: '/proposal/assistance', metadataUrl: '/metadata', request }), literatureSources: [{ ...linkedSource }], sourceWorkspaceCanCite: () => true, upsertLiteratureSource(source) { const index = this.literatureSources.findIndex((item) => item.id === source.id); if (index === -1) this.literatureSources.push(source); else this.literatureSources[index] = source; } };
 }
 function collectEvidence(state) { state.sourceWorkspaceAcceptEvidence(12, evidence); state.sourceWorkspaceActiveSourceId = 12; state.toggleSourceWorkspacePassage(12, state.sourceWorkspaceEvidence().passages[0]); }
 
@@ -154,6 +155,101 @@ test('unsupported and review-only responses cannot insert, while synthesis requi
     assert.equal(await state.insertReviewedSourceWorkspaceDraft(), true);
     assert.equal(insertions, 1);
     assert.equal(await state.insertReviewedSourceWorkspaceDraft(), false);
+});
+
+test('paper drafts request server-owned full text and require explicit reviewed insertion into RRL', async () => {
+    const calls = [];
+    const state = workspace(async (url, options) => {
+        calls.push({ url, body: JSON.parse(options.body) });
+        return response({ synthesis: 'The extracted paper describes community participation and its relationship to learning outcomes.', basis: 'full_text', notice: 'Some pages were unavailable.', coverage: { limited: true } });
+    });
+    collectEvidence(state);
+    let inserted;
+    state.insertSourceWorkspacePaperDraft = async (draft) => { inserted = draft; return true; };
+    state.insertSourceWorkspaceDraft = async () => { throw new Error('Selected-evidence insertion must not be used.'); };
+    assert.equal(await state.prepareSourceWorkspacePaperDraft(), true);
+    assert.deepEqual(calls, [{ url: '/synthesis', body: { proposal_draft_id: 42, source_link_id: 12, evidence_basis: 'full_text' } }]);
+    assert.equal(inserted, undefined);
+    assert.equal(state.sourceWorkspaceDraftMode, 'paper');
+    assert.equal(state.sourceWorkspaceDraft.coverage.limited, true);
+    assert.equal(state.sourceWorkspaceDraft.notice, 'Some pages were unavailable.');
+    assert.equal(state.sourceWorkspaceDestination, 'related-literature');
+    state.sourceWorkspaceDestination = 'rationale';
+    state.sourceWorkspaceDraft.paragraph = 'My reviewed paragraph retains the paper’s findings without overstating what it established.';
+    assert.equal(await state.insertReviewedSourceWorkspaceDraft(), true);
+    assert.equal(inserted.paragraph, state.sourceWorkspaceDraft.paragraph);
+    assert.equal(inserted.source_link_id, 12);
+    assert.equal(inserted.basis, 'full_text');
+    assert.equal(await state.insertReviewedSourceWorkspaceDraft(), false);
+});
+
+test('unavailable paper text shows the server error and offers only an explicit abstract fallback', async () => {
+    const calls = [];
+    const state = workspace(async (url, options) => {
+        const body = JSON.parse(options.body);
+        calls.push(body);
+        return body.evidence_basis === 'full_text' ? response({ message: 'The PDF contains no readable body text. Attach a text PDF.' }, false, 422)
+            : response({ synthesis: 'The abstract describes community participation, but the full methods and results require reading the paper.', basis: 'abstract', notice: 'Abstract only; full paper not read.', coverage: {} });
+    });
+    collectEvidence(state);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), false);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft(), false);
+    assert.match(state.sourceWorkspaceError, /no readable body text/);
+    assert.equal(state.sourceWorkspaceDraft.can_insert, false);
+    assert.equal(calls.length, 1, 'A failed extraction must not silently use the abstract');
+    assert.equal(state.sourceWorkspaceCanDraftAbstract(), true);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), true);
+    assert.deepEqual(calls.map((body) => body.evidence_basis), ['full_text', 'abstract']);
+    assert.equal(state.sourceWorkspaceDraft.basis, 'abstract');
+    assert.match(state.sourceWorkspaceNotice, /Abstract only/);
+});
+
+test('paper generation rejects unexpected evidence basis and stale source or evidence changes', async () => {
+    let finish;
+    const state = workspace(() => new Promise((resolve) => { finish = resolve; }));
+    collectEvidence(state);
+    const pending = state.prepareSourceWorkspacePaperDraft();
+    state.sourceWorkspaceActiveSourceId = 99;
+    finish(response({ synthesis: 'A late draft that must not become available for another paper source.', basis: 'full_text' }));
+    assert.equal(await pending, false);
+    assert.equal(state.sourceWorkspaceDraft.can_insert, false);
+    state.sourceWorkspaceActiveSourceId = 12;
+    const changedEvidence = state.prepareSourceWorkspacePaperDraft();
+    state.sourceWorkspaceAcceptEvidence(12, { ...evidence, passages: [] });
+    finish(response({ synthesis: 'A late draft that must not replace a draft whose document evidence changed.', basis: 'full_text' }));
+    assert.equal(await changedEvidence, false);
+    assert.equal(state.sourceWorkspaceCanInsertDraft(), false);
+    const unexpectedBasis = state.prepareSourceWorkspacePaperDraft();
+    finish(response({ synthesis: 'A draft supplied from an abstract without the researcher choosing that fallback.', basis: 'abstract' }));
+    assert.equal(await unexpectedBasis, false);
+    assert.match(state.sourceWorkspaceError, /incomplete paper draft/);
+});
+
+test('closing Sources aborts paper generation and ignores its late response', async () => {
+    let finish, signal;
+    const state = workspace((url, options) => { signal = options.signal; return new Promise((resolve) => { finish = resolve; }); });
+    collectEvidence(state);
+    state.sourceWorkspaceOpen = true;
+    const pending = state.prepareSourceWorkspacePaperDraft();
+    assert.equal(state.sourceWorkspaceAiLoading, true);
+    assert.equal(state.closeSourceWorkspace(), true);
+    assert.equal(signal.aborted, true);
+    finish(response({ synthesis: 'A delayed response must never insert or reopen the closed source workspace.', basis: 'full_text' }));
+    assert.equal(await pending, false);
+    assert.equal(state.sourceWorkspaceOpen, false);
+    assert.equal(state.sourceWorkspaceAiLoading, false);
+    assert.equal(state.sourceWorkspaceDraft.can_insert, false);
+});
+
+test('a prepared paper draft becomes unusable after changing its source document or source identity', async () => {
+    const state = workspace(async () => response({ synthesis: 'The extracted paper describes community participation and related learning outcomes.', basis: 'full_text' }));
+    collectEvidence(state);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft(), true);
+    state.sourceWorkspaceActiveSourceId = 99;
+    assert.equal(state.sourceWorkspaceCanInsertDraft(), false);
+    state.sourceWorkspaceActiveSourceId = 12;
+    state.sourceWorkspaceAcceptEvidence(12, { ...evidence, document: { ...evidence.document, name: 'replacement.pdf' } });
+    assert.equal(state.sourceWorkspaceCanInsertDraft(), false);
 });
 
 test('UUID passage deletion clears evidence selections and uses the exact server identifier', async () => {
@@ -317,17 +413,18 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 page.on('pageerror', (error) => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles.css}[x-cloak]{display:none!important}</style></head><body class="bg-white dark:bg-slate-950"><main x-data="sourcesFixture"><button id="sources-opener" @click="openSourceWorkspace()">Sources</button>${compiled.stdout}</main></body></html>`);
                 await page.addScriptTag({ content: `${helpers}
-                    window.sourceRequests = []; window.sourceInsertions = 0;
+                    window.sourceRequests = []; window.sourceInsertions = 0; window.paperDraftInsertions = 0;
                     document.addEventListener('alpine:init', () => Alpine.data('sourcesFixture', () => ({
-                        ...proposalSourceWorkspace({ csrfToken: 'test', evidenceBase: '/proposal/links', assistanceUrl: '/assistance', libraryUrl: '/library', request: async (url, options) => {
+                        ...proposalSourceWorkspace({ csrfToken: 'test', proposalDraftId: 42, synthesisUrl: '/synthesis', evidenceBase: '/proposal/links', assistanceUrl: '/assistance', libraryUrl: '/library', request: async (url, options) => {
                             window.sourceRequests.push({url, body: options.body ? JSON.parse(options.body) : null});
-                            return {ok:true, json:async () => url === '/assistance' ? {mode:'synthesize',supported:true,draft:{paragraph:'This reviewed synthesis relates community participation to the research objectives and learning outcomes.',can_insert:true,evidence:[{source_link_id:12,passage_id:'${firstId}',page:2,quote:${JSON.stringify(quote)},title:'Community learning outcomes',kind:'quote',origin:'pdf'}]}} : ${JSON.stringify(evidence)} };
+                            return {ok:true, json:async () => url.startsWith('/library') ? { sources: ${JSON.stringify([{ ...linkedSource, id: 3 }, librarySource])} } : url === '/synthesis' ? {synthesis:'The paper describes community participation and its relationship to the measured learning outcomes.',basis:'full_text',notice:'Only part of the body text was extracted.',coverage:{limited:true}} : url === '/assistance' ? {mode:'synthesize',supported:true,draft:{paragraph:'This reviewed synthesis relates community participation to the research objectives and learning outcomes.',can_insert:true,evidence:[{source_link_id:12,passage_id:'${firstId}',page:2,quote:${JSON.stringify(quote)},title:'Community learning outcomes',kind:'quote',origin:'pdf'}]}} : ${JSON.stringify(evidence)} };
                         } }),
                         literatureSources: [${JSON.stringify(linkedSource)}], sourceWorkspaceCanCite: () => true,
                         citationPickerLocator: '', citationPickerSelection: { selectedText: 'Community participation improves outcomes.' },
                         upsertLiteratureSource(source) { this.literatureSources = [source]; },
                         citeSelectedText: async () => true,
                         insertSourceWorkspaceDraft: async (draft,destination) => {window.sourceInsertions++;window.sourceInsertedDraft={draft,destination};return true;},
+                        insertSourceWorkspacePaperDraft: async (draft) => {window.paperDraftInsertions++;window.paperInsertedDraft=draft;return true;},
                     })));` });
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
                 await page.getByRole('button', { name: 'Sources', exact: true }).click();
@@ -342,14 +439,29 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 };
                 const listBox = await assertCenteredPanel();
                 assert.ok(listBox.width <= 672, 'The source list should be as compact as the citation picker');
-                if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `sources-list-${width}-${dark ? 'dark' : 'light'}.png`) });
+                const sourceRow = page.locator('article').filter({ has: page.getByRole('heading', { name: linkedSource.title, exact: true }) });
+                await expect(sourceRow.getByRole('button', { name: 'View details', exact: true })).toBeVisible();
+                await expect(sourceRow.getByText(linkedSource.description, { exact: true })).toBeHidden();
+                await expect(sourceRow.getByText('Added to proposal', { exact: true })).toBeHidden();
+                await expect(sourceRow.getByRole('link')).toBeHidden();
+                await expect(page.getByText(/To cite your own text/)).toBeHidden();
+                if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await panel.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `sources-list-${width}-${dark ? 'dark' : 'light'}.png`) });
                 assert.equal(await page.evaluate(() => document.body.style.overflow), 'hidden');
                 await expect(page.getByRole('button', { name: 'Close Sources', exact: true })).toBeFocused();
                 await expect(page.getByLabel('Page or section (optional)', { exact: true })).toBeHidden();
                 await expect(page.getByRole('complementary', { name: 'Selected evidence and AI help' })).toBeHidden();
                 await page.getByRole('button', { name: 'Close Sources', exact: true }).focus();
                 await page.keyboard.press('Shift+Tab');
-                await expect(page.getByRole('link', { name: 'Publication', exact: true })).toBeFocused();
+                await expect(sourceRow.getByRole('button', { name: 'View details', exact: true })).toBeFocused();
+                await page.getByRole('button', { name: 'Shared library', exact: true }).click();
+                const savedLibraryRow = page.locator('article').filter({ has: page.getByRole('heading', { name: linkedSource.title, exact: true }) });
+                await expect(savedLibraryRow.getByText('Added to proposal', { exact: true })).toBeVisible();
+                await expect(savedLibraryRow.getByRole('button', { name: 'Add to proposal', exact: true })).toBeHidden();
+                const newLibraryRow = page.locator('article').filter({ has: page.getByRole('heading', { name: librarySource.title, exact: true }) });
+                await expect(newLibraryRow.getByRole('button', { name: 'Add and view', exact: true })).toBeVisible();
+                await expect(newLibraryRow.getByText(librarySource.description, { exact: true })).toBeVisible();
+                await expect(newLibraryRow.getByRole('link', { name: 'Visit website', exact: true })).toHaveAttribute('href', librarySource.url);
+                assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).literatureSources.length), 1, 'Browsing shared sources should not add them to the proposal');
                 await page.getByRole('button', { name: 'Add source', exact: true }).click();
                 await page.locator('summary').filter({ hasText: 'Reference details' }).click();
                 await page.getByLabel('Publication type', { exact: true }).selectOption('report');
@@ -359,7 +471,16 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await page.getByLabel('Publisher', { exact: true }).fill('Research Press');
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).sourceWorkspaceSourceForm.publisher), 'Research Press');
                 await page.getByRole('button', { name: 'This proposal', exact: true }).click();
-                await page.getByRole('button', { name: 'Read', exact: true }).click();
+                await page.getByRole('button', { name: 'View details', exact: true }).click();
+                const summary = page.getByRole('region', { name: 'Abstract or description', exact: true });
+                await expect(summary.getByText(linkedSource.description, { exact: true })).toBeVisible();
+                const summaryBox = await summary.boundingBox();
+                const abstractBox = await summary.getByText(linkedSource.description, { exact: true }).boundingBox();
+                assert.ok(Math.abs(abstractBox.width - (summaryBox.width - 32)) < 2, 'The abstract should fill the container inside its padding');
+                const publication = page.getByRole('link', { name: 'Open publication website', exact: true });
+                await expect(publication).toHaveAttribute('href', linkedSource.url);
+                await expect(publication).toHaveAttribute('rel', 'noopener noreferrer');
+                if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `source-details-${width}-${dark ? 'dark' : 'light'}.png`) });
                 await expect(page.locator('[data-source-page-text]')).toHaveText(quote);
                 const readerBox = await assertCenteredPanel();
                 if (width >= 1024) assert.ok(readerBox.width > listBox.width, 'Reading should have more room than browsing');
@@ -389,14 +510,32 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 assert.equal(await page.evaluate(() => window.sourceInsertedDraft.draft.evidence[0].passage_id), firstId);
                 await page.getByRole('button', { name: 'Back to sources', exact: true }).click();
                 assert.equal((await assertCenteredPanel()).width, readerBox.width, 'Selected evidence should keep its reading space beside the source list');
+                await page.getByRole('button', { name: 'View details', exact: true }).click();
+                await page.getByRole('button', { name: 'Draft from paper', exact: true }).click();
+                await expect(page.getByRole('heading', { name: 'Review the paper-based RRL draft', exact: true })).toBeVisible();
+                await expect(page.getByText('Only part of the body text was extracted.', { exact: true })).toBeVisible();
+                await expect(page.getByText('Destination: Review of Related Literature', { exact: true })).toBeVisible();
+                await expect(page.getByLabel('Add reviewed text to', { exact: true })).toBeHidden();
+                await expect(page.getByRole('region', { name: 'Evidence used in this response', exact: true })).toBeHidden();
+                assert.equal(await page.evaluate(() => window.paperDraftInsertions), 0);
+                const paperRequest = await page.evaluate(() => window.sourceRequests.find((request) => request.url === '/synthesis'));
+                assert.deepEqual(paperRequest.body, { proposal_draft_id: 42, source_link_id: 12, evidence_basis: 'full_text' });
+                await page.getByLabel('AI response', { exact: true }).fill('My reviewed RRL paragraph describes the findings of this paper while preserving their limitations.');
+                await page.getByRole('button', { name: 'Insert reviewed draft', exact: true }).click();
+                await expect(page.getByRole('button', { name: 'Reviewed draft inserted', exact: true })).toBeDisabled();
+                assert.equal(await page.evaluate(() => window.paperDraftInsertions), 1);
+                assert.equal(await page.evaluate(() => window.paperInsertedDraft.source_link_id), 12);
                 await page.getByRole('button', { name: 'Close Sources', exact: true }).click();
+                await expect(page.getByRole('dialog')).toBeHidden();
                 await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeFocused();
                 assert.equal(await page.evaluate(() => document.body.style.overflow), '');
                 await page.evaluate(() => Alpine.$data(document.querySelector('main')).openSourceWorkspace('paper', true));
                 await expect(page.getByRole('dialog', { name: 'Insert citation', exact: true })).toBeVisible();
+                await expect(page.getByRole('button', { name: 'Close Sources', exact: true })).toBeFocused();
                 assert.equal((await assertCenteredPanel()).width, listBox.width, 'Citation mode should stay compact after collecting evidence');
                 await page.keyboard.press('Escape');
                 await expect(page.getByRole('dialog')).toBeHidden();
+                await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeFocused();
                 assert.deepEqual(errors, []);
                 await page.close();
             }

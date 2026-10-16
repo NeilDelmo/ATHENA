@@ -18,6 +18,9 @@ import { detailedProposalPreviewWorkspace, initializeDetailedProposalWritingTool
 import { proposalSourceWorkspace } from './proposal-source-workspace';
 import { prepareReviewedSourceDraft } from './proposal-source-draft-insertion';
 import { proposalPaperPreviewWorkspace } from './proposal-paper-workspace';
+import { documentWritingToolbar } from './document-writing-toolbar';
+import { quarterlyReportForm } from './quarterly-report-form';
+import { rmsQuarterlyReportForm } from './rms-quarterly-report-form';
 import { proposalAssessmentPreview } from './proposal-assessment-preview';
 import { curriculumVitaePaperWorkspace } from './curriculum-vitae-workspace';
 import { commentResponsePaperPreview } from './comment-response-paper-preview';
@@ -83,6 +86,9 @@ import {
 } from './proposal-paper-autosave';
 
 window.Alpine = Alpine;
+Alpine.data('documentWritingToolbar', (config = {}) => ({ ...documentWritingToolbar(), ...config }));
+Alpine.data('quarterlyReportForm', quarterlyReportForm);
+Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm);
 
 const sidebarStorageKey = 'athena-sidebar-open';
 
@@ -160,6 +166,7 @@ Alpine.data('researchSecretaryPicker', (config = {}) => ({
     },
 }));
 Alpine.data('budgetUtilizationForm', (config = {}) => ({
+    ...documentWritingToolbar(),
     rows: Array.isArray(config.rows) ? config.rows : [],
     approvedBudget: Number(config.approvedBudget || 0),
     number(value) {
@@ -346,6 +353,7 @@ function initializeSemanticEditors() {
         textarea.dataset.semanticEditorReady = 'true';
         const largeEditor = textarea.dataset.semanticEditorSize === 'large';
         const sharedToolbar = Boolean(textarea.closest('[data-detailed-proposal-workspace]'));
+        const usesSharedControls = sharedToolbar || Boolean(textarea.closest('[data-document-writing-workspace]'));
         const container = document.createElement('div');
         container.className = 'proposal-semantic-field mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600';
         const toolbar = document.createElement('div');
@@ -532,7 +540,7 @@ function initializeSemanticEditors() {
             updateActionButtons();
         });
         editor.addEventListener('blur', () => {
-            if (!sharedToolbar) normalize();
+            if (!usesSharedControls) normalize();
         });
         editor.addEventListener('keydown', (event) => {
             if (!event.ctrlKey && !event.metaKey) return;
@@ -562,7 +570,7 @@ function initializeSemanticEditors() {
 
         textarea.classList.add('hidden');
         textarea.insertAdjacentElement('afterend', container);
-        container.append(...(sharedToolbar ? [editor] : [toolbar, editor]));
+        container.append(...(usesSharedControls ? [editor] : [toolbar, editor]));
         textarea._semanticApi = {
             saveSelection,
             restoreSelection,
@@ -2663,7 +2671,7 @@ Alpine.store('researchAssistant', {
 
     proposalChangesBusy() {
         return Boolean(this.isLoading || this.sendInProgress || this.retryAfter > 0 || this.proposalChangesOperationPending
-            || this.literatureOperationPending || this.reviewLaunchPending);
+            || this.literatureOperationPending || this.reviewLaunchPending || this.documentAnalysisPending || this.disseminationSaving);
     },
 
     proposalChangeBeforeText(suggestion) {
@@ -2671,6 +2679,18 @@ Alpine.store('researchAssistant', {
         parsed.querySelectorAll('script, style').forEach((node) => node.remove());
         parsed.querySelectorAll('p, div, li, br').forEach((node) => node.appendChild(parsed.createTextNode('\n')));
         return parsed.body.textContent.trim();
+    },
+
+    proposalChangeReplacementText(suggestion) {
+        return suggestion?.field === 'related_literature'
+            ? this.proposalChangeBeforeText({ before: suggestion.value }) : suggestion?.value || '';
+    },
+
+    async keepCurrentProposalText(message, suggestion) {
+        if (this.proposalChangesBusy() || !message?.proposal_changes || suggestion?.applied) return false;
+        message.proposal_changes.suggestions = message.proposal_changes.suggestions.filter((item) => item.id !== suggestion.id);
+        await this.saveConversation();
+        return true;
     },
 
     proposalRrlAssessmentText(message) {
@@ -2702,7 +2722,10 @@ Alpine.store('researchAssistant', {
     async refreshProposalChanges(message) {
         const packet = message?.proposal_changes;
         if (!packet || this.proposalChangesBusy() || this.draft.trim()) return false;
-        return this.sendPrompt('Read the current saved proposal and prepare updated, precise improvements for my review. Check the Research Manual requirements and preserve existing evidence.',
+        const prompt = packet.suggestions.some((item) => item.field === 'related_literature')
+            ? 'Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.'
+            : 'Read the current saved proposal and prepare updated, precise improvements for my review. Check the Research Manual requirements and preserve existing evidence.';
+        return this.sendPrompt(prompt,
             { type: 'suggest_proposal_changes' }, { proposal_draft_id: packet.proposal_draft_id });
     },
 
@@ -3541,6 +3564,7 @@ Alpine.store('literatureSearch', {
     },
 
     hasSynthesisEvidence(source = this.synthesisSource) {
+        if (this.synthesisBasis === 'full_text' && Number(source?.id) > 0 && Number(this.selectedProposalId) > 0) return true;
         const evidence = this.synthesisBasis === 'full_text'
             ? this.synthesisEvidenceText
             : String(source?.description || '').trim();
@@ -3652,7 +3676,7 @@ Alpine.store('literatureSearch', {
         this.synthesisNotice = '';
         this.synthesisError = '';
         const hasCurrentFullText = this.fullTextPreview.length >= 500 && this.fullTextResultKey === this.resultKey(source);
-        this.synthesisBasis = linkedSource.rrl_evidence_basis || (hasCurrentFullText ? 'full_text' : 'abstract');
+        this.synthesisBasis = this.synthesisDraft ? (linkedSource.rrl_evidence_basis || 'abstract') : 'full_text';
         this.synthesisEvidenceText = this.synthesisBasis === 'full_text'
             ? (hasCurrentFullText ? this.fullTextPreview : '')
             : String(source.description || '');
@@ -3660,7 +3684,7 @@ Alpine.store('literatureSearch', {
         this.synthesisReviewOpen = true;
         document.body.classList.add('overflow-y-hidden');
 
-        if (!this.hasSynthesisEvidence(source)) {
+        if (!this.hasSynthesisEvidence(linkedSource)) {
             this.synthesisError = this.synthesisBasis === 'full_text'
                 ? 'This saved draft used transient full-text evidence that is no longer retained. Reload the available public full text before regenerating; you may still edit or confirm the saved draft.'
                 : 'This record has no usable abstract. Automatic wording is disabled so ATHENA does not invent findings. You may write a paragraph manually after reviewing the paper.';
@@ -3682,12 +3706,16 @@ Alpine.store('literatureSearch', {
         document.body.classList.remove('overflow-y-hidden');
     },
 
-    async generateSynthesis() {
+    async generateSynthesis(basis = 'full_text') {
         const source = this.synthesisSource;
         const workspace = document.querySelector('[data-rrl-workspace]');
         const synthesisUrl = workspace?.dataset.literatureSynthesisUrl || '';
 
-        if (!source || !synthesisUrl || !this.hasSynthesisEvidence(source) || this.isSynthesizing) return;
+        if (!source || !synthesisUrl || !['abstract', 'full_text'].includes(basis) || this.isSynthesizing) return;
+        if (basis === 'abstract' && String(source.description || '').trim().length < 80) {
+            this.synthesisError = 'This source has no usable abstract. Attach a readable PDF or use its available public paper text.';
+            return;
+        }
 
         this.synthesisError = '';
         this.synthesisNotice = '';
@@ -3704,13 +3732,9 @@ Alpine.store('literatureSearch', {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                 },
                 body: JSON.stringify({
-                    title: source.title,
-                    authors: source.authors || null,
-                    year: source.year || null,
-                    abstract: source.description,
-                    is_open_access: Boolean(source.is_open_access),
-                    evidence_basis: this.synthesisBasis || 'abstract',
-                    evidence_text: this.synthesisBasis === 'full_text' ? this.synthesisEvidenceText : null,
+                    proposal_draft_id: Number(this.selectedProposalId),
+                    source_link_id: Number(source.id),
+                    evidence_basis: basis,
                 }),
             });
             const payload = await response.json().catch(() => ({}));
@@ -3722,12 +3746,14 @@ Alpine.store('literatureSearch', {
                     ? 'Refresh the page, then generate the synthesis again.'
                     : Object.values(payload.errors || {}).flat()[0]
                         || payload.message
-                        || 'The abstract-based synthesis could not be prepared.';
+                        || 'The paper-based synthesis could not be prepared. Attach a readable PDF in Sources or explicitly use the abstract instead.';
                 return;
             }
 
             this.synthesisDraft = String(payload.synthesis || '').trim();
             this.synthesisBasis = String(payload.basis || 'abstract');
+            this.synthesisEvidenceText = this.synthesisBasis === 'abstract' ? String(source.description || '')
+                : this.fullTextResultKey === this.resultKey(source) ? this.fullTextPreview : '';
             this.synthesisWordCountFromServer = Number(payload.word_count) || this.synthesisWordCount();
             this.synthesisNotice = String(payload.notice || 'Drafted from the available abstract only.');
             await this.persistSynthesisDraft('draft');
@@ -6090,6 +6116,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 }));
 
 Alpine.data('noticeToProceedForm', (config = {}) => ({
+    ...documentWritingToolbar(),
     ...proposalPreviewWorkspace(),
     submitting: false,
     previewHtml: '',
@@ -9032,6 +9059,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     ...proposalSourceWorkspace({
         csrfToken: config.csrfToken,
+        proposalDraftId: config.proposalDraftId,
+        synthesisUrl: config.literatureSynthesisUrl,
         libraryUrl: config.literatureLibrarySearchUrl,
         storeUrl: config.literatureLibrarySaveUrl,
         searchUrl: config.literatureSearchUrl,
@@ -9042,6 +9071,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     }),
     sourceWorkspaceInsertedDrafts: [],
     proposalChangeApplying: false,
+    rrlRevisionPending: false,
     proposalChangeAppliedIds: [],
     proposalChangeNotice: '',
     proposalChangeError: '',
@@ -9278,7 +9308,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             return objective ? String(objective.description ?? '') : null;
         }
         if (field.startsWith('methodology.')) return String(this.methodology[field.split('.')[1]] ?? '');
-        const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction' }[field];
+        const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction', related_literature: 'relatedLiterature' }[field];
         return property ? String(this[property] ?? '') : null;
     },
 
@@ -9291,11 +9321,49 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         } else if (field.startsWith('methodology.')) {
             this.methodology[field.split('.')[1]] = value;
         } else {
-            const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction' }[field];
+            const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction', related_literature: 'relatedLiterature' }[field];
             if (!property) return false;
             this[property] = value;
         }
         return true;
+    },
+
+    async requestRrlRevision() {
+        const assistant = Alpine.store('researchAssistant');
+        if (this.rrlRevisionPending || !assistant) return false;
+        this.proposalChangeError = '';
+        if (assistant.proposalChangesBusy() || assistant.draft.trim()) {
+            this.proposalChangeError = 'Finish your current assistant message before requesting an RRL revision.';
+            return false;
+        }
+        this.rrlRevisionPending = true;
+        try {
+            if (!await finishPaperEditorAutoSave(this.$el)) {
+                throw new Error('Save your current paper edits before requesting an RRL revision.');
+            }
+            if (assistant.proposalChangesBusy() || assistant.draft.trim()) {
+                throw new Error('Finish your current assistant message before requesting an RRL revision.');
+            }
+            assistant.openDrawer();
+            await assistant.sendPrompt('Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.',
+                { type: 'suggest_proposal_changes' }, { proposal_draft_id: config.proposalDraftId });
+            return true;
+        } catch (error) {
+            this.proposalChangeError = error instanceof Error ? error.message : 'The RRL revision could not be requested.';
+            return false;
+        } finally {
+            this.rrlRevisionPending = false;
+        }
+    },
+
+    proposalChangeCitationsMatch(before, value) {
+        const markers = (html) => {
+            const parsed = new DOMParser().parseFromString(html, 'text/html');
+            return [...parsed.querySelectorAll('[data-proposal-citation]')].map((node) => JSON.stringify([
+                node.getAttribute('data-proposal-citation'), node.getAttribute('data-proposal-locator') || '',
+            ])).sort();
+        };
+        return JSON.stringify(markers(before)) === JSON.stringify(markers(value));
     },
 
     async applyAssistantProposalChange(packet) {
@@ -9335,16 +9403,22 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             || current !== suggestion.before || (control.value !== suggestion.before && control.value !== expectedControlValue)) {
             throw new Error('This field changed after the suggestion was prepared. Your current text was kept; request a new suggestion.');
         }
-        if (/data-proposal-(?:citation|managed-reference)/i.test(suggestion.before)) {
+        const rrlRevision = suggestion.field === 'related_literature';
+        if (!rrlRevision && /data-proposal-(?:citation|managed-reference)/i.test(suggestion.before)) {
             throw new Error('This section contains linked citations. Revise it in the editor so its citations and references stay connected.');
         }
         this.proposalChangeApplying = true;
         this.proposalChangeError = '';
         try {
-            const value = richText ? proposalChangeRichTextValue(suggestion.value) : suggestion.value;
+            const value = rrlRevision ? sanitizedSemanticHtml(suggestion.value, true)
+                : richText ? proposalChangeRichTextValue(suggestion.value) : suggestion.value;
+            if (rrlRevision && (!richText || !this.proposalChangeCitationsMatch(suggestion.before, value))) {
+                throw new Error('The revision could not preserve the source citations. Your current RRL was kept; request a new revision.');
+            }
             if (!value || !this.setProposalChangeFieldValue(suggestion.field, value)) throw new Error('The target field is unavailable.');
             control.value = value;
             control.dispatchEvent(new Event('input', { bubbles: true }));
+            if (rrlRevision) this.synchronizeLiteratureCitations();
             this.proposalChangeAppliedIds = [...this.proposalChangeAppliedIds, String(suggestion.id)].slice(-20);
             this.proposalChangeNotice = `${suggestion.label || 'Proposal text'} was updated in the editor. Saving now…`;
             this.markProposalPreviewStale();
@@ -9741,6 +9815,34 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const textarea = field ? document.getElementById(field.id) : null;
         return Boolean(this.sourceWorkspaceCitationMode) && Boolean(proposalCitationSelection(field?.id, textarea?._semanticEditor, textarea?._semanticCitationRange))
             && (!this.citationPickerSelection?.editing || Boolean(textarea?._semanticCitationEditingMarker?.isConnected));
+    },
+
+    async insertSourceWorkspacePaperDraft(draft) {
+        const paragraph = String(draft?.paragraph || '').trim();
+        const source = this.literatureSources.find((item) => Number(item.id) === Number(draft?.source_link_id));
+        if (!source || paragraph.length < 40 || paragraph.length > 5000 || !['full_text', 'abstract'].includes(draft?.basis)) {
+            throw new Error('Review a complete draft from a source linked to this proposal before inserting it.');
+        }
+        const normalized = this.plainText(paragraph).toLowerCase().replace(/\s+/g, ' ');
+        if (normalized && this.plainText(this.relatedLiterature).toLowerCase().replace(/\s+/g, ' ').includes(normalized)) {
+            throw new Error('This reviewed paragraph is already in the RRL.');
+        }
+        const url = String(config.literatureDraftUpdateUrlTemplate || '')
+            .replace('__proposal_literature_source__', encodeURIComponent(String(source.id)));
+        if (!url) throw new Error('The proposal source is unavailable. Reopen the paper and try again.');
+        const payload = await this.sourceWorkspaceRequest(url, { method: 'PUT', body: JSON.stringify({
+            rrl_note: paragraph, rrl_draft_status: 'confirmed', rrl_evidence_basis: draft.basis,
+        }) });
+        if (Number(payload.source?.id) !== Number(source.id) || payload.source?.rrl_draft_status !== 'confirmed'
+            || payload.source?.rrl_evidence_basis !== draft.basis) throw new Error('The reviewed draft could not be confirmed for this source.');
+        this.upsertLiteratureSource(payload.source);
+        const number = this.recordLiteratureCitation(payload.source, 'related_literature', paragraph);
+        this.relatedLiterature += `<p>${this.escapeLiteratureHtml(paragraph).replaceAll('\n', '<br>')}<span data-proposal-citation="${Number(source.id)}"> [${number}]</span></p>`;
+        this.synchronizeLiteratureCitations();
+        this.notifyLiteratureFieldChanged('related-literature');
+        this.markProposalPreviewStale();
+        this.triggerDetailedProposalAutoSave();
+        return true;
     },
 
     insertSourceWorkspaceDraft(draft, fieldId = this.sourceWorkspaceDestination || 'related-literature') {
@@ -10408,9 +10510,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                     abstract: String(this.literatureReviewSource?.description || '').slice(0, 6000),
                     is_open_access: this.literatureReviewBasis === 'full_text',
                     evidence_basis: this.literatureReviewBasis,
-                    evidence_text: this.literatureReviewBasis === 'full_text'
-                        ? this.literatureReviewFullText.slice(0, 30000)
-                        : undefined,
+                    proposal_draft_id: Number(config.proposalDraftId),
+                    source_link_id: Number(this.literatureReviewSource?.id),
                     proposal_title: this.proposalTitle,
                     preceding_rrl_context: normalizedConnectionMode === 'auto'
                         ? this.literatureReviewPreviousContext

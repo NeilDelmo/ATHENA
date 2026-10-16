@@ -85,7 +85,7 @@
     @endphp
 
     <x-slot name="header">
-        <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal')" :class="$canViewMonitoring ? 'project-page-header' : ''">
+        <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal').($topic->researchManual ? ' · Research manual: '.$topic->researchManual->title.' ('.$topic->researchManual->edition.')' : '')" :class="$canViewMonitoring ? 'project-page-header' : ''">
             <x-slot name="actions">
                     @if ($sampleProposalDraft)
                         <a href="{{ route('faculty.proposal-drafts.show', $sampleProposalDraft) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-900 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Open sample proposal draft</a>

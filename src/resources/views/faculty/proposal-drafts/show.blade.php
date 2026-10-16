@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header :title="$proposalDraft->project_title" :subtitle="'Last saved '.$proposalDraft->updated_at->diffForHumans()">
+        <x-page-header :title="$proposalDraft->project_title" :subtitle="'Last saved '.$proposalDraft->updated_at->diffForHumans().($proposalDraft->researchManual ? ' · Research manual: '.$proposalDraft->researchManual->title.' ('.$proposalDraft->researchManual->edition.')' : '')">
             <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
                 <span class="inline-flex items-center gap-1.5 text-sm font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? "You're the project leader" : "Project staff · Project leader: ".$proposalDraft->owner->name }}</span>

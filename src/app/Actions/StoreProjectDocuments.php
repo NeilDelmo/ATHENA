@@ -24,16 +24,17 @@ class StoreProjectDocuments
         array $files,
         string $category,
         ?string $note,
+        ?string $subdirectory = null,
     ): Collection {
         $storedPaths = collect();
 
         try {
-            return DB::transaction(function () use ($topic, $uploader, $files, $category, $note, $storedPaths): Collection {
-                return collect($files)->map(function (UploadedFile $file) use ($topic, $uploader, $category, $note, $storedPaths): ProjectDocument {
-                    $path = $file->store('project-documents/'.$topic->id, 'local');
+            return DB::transaction(function () use ($topic, $uploader, $files, $category, $note, $storedPaths, $subdirectory): Collection {
+                return collect($files)->map(function (UploadedFile $file) use ($topic, $uploader, $category, $note, $storedPaths, $subdirectory): ProjectDocument {
+                    $path = $file->store('project-documents/'.$topic->id.($subdirectory ? '/'.$subdirectory : ''), 'local');
 
                     if (! $path) {
-                        throw new RuntimeException('The project PDF could not be stored.');
+                        throw new RuntimeException('The project file could not be stored.');
                     }
 
                     $storedPaths->push($path);

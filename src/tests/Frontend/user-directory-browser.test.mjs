@@ -121,7 +121,7 @@ test('user directory aligns roles and actions while preserving filters and confi
                 await expect(awaitingCollege.locator('td').first()).not.toContainText('College required');
                 await expect(awaitingCollege.locator('td').nth(2)).toContainText('College required');
                 await expect(awaitingCollege.locator('[data-coordinator-ineligible]')).toBeDisabled();
-                await expect(awaitingCollege.locator('[data-member-roles]')).toContainText('Research Office / Secretary');
+                await expect(awaitingCollege.locator('[data-member-roles]')).toContainText('Research Office Secretary');
 
                 if (process.env.USER_DIRECTORY_SCREENSHOT_DIRECTORY) {
                     mkdirSync(process.env.USER_DIRECTORY_SCREENSHOT_DIRECTORY, { recursive: true });
@@ -179,7 +179,7 @@ test('user directory aligns roles and actions while preserving filters and confi
                     await expect(dialog).toBeHidden();
                     await expect(button).toBeFocused();
                 }
-                assert.deepEqual([...checkedRoles].sort(), ['Research Coordinator', 'Research Office / Secretary']);
+                assert.deepEqual([...checkedRoles].sort(), ['Research Coordinator', 'Research Office Secretary']);
 
                 await page.goto('http://localhost/college-reminder-test#college');
                 await page.addScriptTag({ content: `window.livewireScriptConfig = {}; document.addEventListener('submit', event => event.preventDefault()); (() => { ${runtime}\nAlpine.plugin(import_focus.default); Alpine.start(); })();` });

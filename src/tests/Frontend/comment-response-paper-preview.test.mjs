@@ -206,14 +206,18 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 const frame = viewer.locator('iframe');
                 const dimensions = await frame.evaluate((element) => {
                     const paper = element.contentDocument.querySelector('.comment-response-sheet');
-                    return { width: paper.offsetWidth, displayed: paper.getBoundingClientRect().width, frame: element.clientWidth, headingSize: getComputedStyle(paper.querySelector('h1')).fontSize, toolbar: getComputedStyle(element.contentDocument.querySelector('.preview-toolbar')).display };
+                    return { width: paper.offsetWidth, displayed: paper.getBoundingClientRect().width, frame: element.clientWidth, textSize: parseFloat(getComputedStyle(paper).fontSize) * Number(element.contentDocument.body.style.zoom), headingSize: getComputedStyle(paper.querySelector('h1')).fontSize, toolbar: getComputedStyle(element.contentDocument.querySelector('.preview-toolbar')).display };
                 });
                 assert.equal(dimensions.width, 816, 'The official page keeps its paper width');
                 assert.equal(dimensions.headingSize, '14px', 'Small preview frames scale the page without shrinking its typography twice');
                 assert.ok(dimensions.displayed <= dimensions.frame + 1);
                 assert.equal(dimensions.toolbar, 'none');
-                const compactSize = await page.locator('dialog').boundingBox();
-                assert.ok(compactSize.width <= 384 && compactSize.height < 550, 'The paper starts as a compact card');
+                const previewSize = await page.locator('dialog').boundingBox();
+                assert.ok(previewSize.width <= width - 32, 'The default paper stays within the page on phones');
+                if (width >= 1024) {
+                    assert.ok(previewSize.width >= 900, 'The default paper uses the available reading width');
+                    assert.ok(dimensions.textSize >= 13, `Paper text should be readable without enlarging: ${dimensions.textSize}px`);
+                }
                 assert.equal(await viewer.getByRole('button', { name: 'Zoom in', exact: true }).isVisible(), false);
                 if (process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY, `compact-comment-response-${width}-${dark ? 'dark' : 'light'}.png`) });
                 assert.ok(await frame.evaluate((element) => element.contentDocument.body.textContent.includes('Added the connection to the project objectives.')));
@@ -222,6 +226,8 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 await page.waitForFunction(() => document.querySelector('dialog').matches(':modal'));
                 assert.equal(await frame.getAttribute('tabindex'), '0');
                 await viewer.getByRole('button', { name: 'Zoom in', exact: true }).waitFor();
+                assert.equal(await viewer.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
+                if (width >= 1024) assert.ok(await frame.evaluate((element) => Number(element.contentDocument.body.style.zoom) >= 0.9), 'Enlarging keeps paper text near its printed size');
                 await frame.hover();
                 await page.keyboard.down('Control');
                 await page.mouse.wheel(0, -120);
@@ -238,6 +244,7 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 await viewer.getByRole('button', { name: 'Fit width', exact: true }).click();
                 assert.equal(await viewer.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
                 await viewer.getByRole('button', { name: 'Fit page', exact: true }).click();
+                assert.ok(await frame.evaluate((element) => element.contentDocument.querySelector('.comment-response-sheet').getBoundingClientRect().height <= element.clientHeight + 1), 'Fit page remains available to see the whole sheet');
                 if (process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY, `fast-comment-response-${width}-${dark ? 'dark' : 'light'}.png`) });
                 await frame.focus();
                 await page.keyboard.press('Escape');

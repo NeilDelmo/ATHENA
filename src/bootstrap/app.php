@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*')
                 || $request->routeIs('research-support.chat')
                 || $request->routeIs('research-support.proposal-changes.resolve')
+                || $request->routeIs('research-support.history.*')
                 || ($request->expectsJson() && $request->routeIs('research.dissemination.*'))
                 || $request->routeIs(
                     'research-support.literature-*',
@@ -45,6 +46,9 @@ return Application::configure(basePath: dirname(__DIR__))
                     'faculty.proposal-drafts.work-plan.download',
                 )
                 || ($request->expectsJson() && $request->routeIs(
+                    'research_coordinator.reports.*',
+                    'research_head.quarterly-reports.*',
+                    'research_head.rms-quarterly-reports.*',
                     'workspace.store',
                     'role-selection.store',
                     'topics.head-uploads.store',

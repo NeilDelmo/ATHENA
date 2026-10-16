@@ -132,12 +132,21 @@ test('Ctrl-wheel zoom is scoped to enlarged previews, preserves ordinary scrolli
     assert.equal(wheel(-120, { ctrlKey: true }), false, 'Regenerated papers detach the previous document listener');
 });
 
-test('full-screen preview opens the pane and can return to editing layout', () => {
-    const state = { ...proposalPreviewWorkspace(), previewPaneOpen: false };
+test('full-screen preview opens at readable paper width and can return to editing layout', () => {
+    const sheet = { offsetHeight: 1248 };
+    const body = { style: {}, scrollWidth: 864, querySelector: () => sheet };
+    const frame = {
+        clientWidth: 1200,
+        clientHeight: 648,
+        contentDocument: { body, documentElement: { style: {} } },
+        contentWindow: { getComputedStyle: () => ({ minHeight: '1248px' }) },
+    };
+    const state = { ...proposalPreviewWorkspace(), $refs: { previewFrame: frame }, $nextTick: (callback) => callback() };
     state.toggleProposalPreviewFullscreen();
     assert.equal(state.previewFullscreen, true);
     assert.equal(state.previewPaneOpen, true);
-    assert.equal(state.previewFit, 'page');
+    assert.equal(state.previewFit, 'width');
+    assert.equal(body.style.zoom, '1', 'Opening a tall paper must not shrink it to the viewport height');
     state.toggleProposalPreviewFullscreen();
     assert.equal(state.previewFullscreen, false);
     assert.equal(state.previewFit, 'width');

@@ -182,7 +182,10 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                     assert.equal(await page.locator('.proposal-preview-dock-expanded').count(), 0);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     const editorWidth = await page.locator('.proposal-edit-pane').evaluate((element) => element.getBoundingClientRect().width);
-                    assert.ok(editorWidth > (width === 1440 ? 700 : 400));
+                    assert.ok(editorWidth >= 240, 'The editor stays usable beside the larger default paper');
+                    const columns = await page.locator('.proposal-writing-columns').boundingBox();
+                    const dock = await page.locator('.proposal-preview-dock').boundingBox();
+                    assert.ok(dock.width >= columns.width * 0.55, 'The default paper preview should have most of the workspace width');
                     if (process.env.ATHENA_EDITOR_VISUAL_DIR) {
                         await page.getByRole('button', { name: 'MOOE', exact: true }).click();
                         await positionBudgetForScreenshot(page);

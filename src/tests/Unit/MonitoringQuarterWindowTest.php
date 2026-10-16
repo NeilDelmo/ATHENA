@@ -3,6 +3,7 @@
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use Carbon\CarbonImmutable;
 use Tests\TestCase;
 
 uses(TestCase::class);
@@ -72,13 +73,13 @@ test('revised reports stay in their original quarter and the latest version is s
         ->and($rows->firstWhere('quarter', 3)['report'])->toBeNull();
 });
 
-test('project quarters unlock after three months and terminal opens after the duration', function () {
+test('project quarters unlock in their final week and terminal opens after the duration', function () {
     $topic = new TopicProposal(['status' => 'approved', 'estimated_duration_months' => 4, 'notice_to_proceed_issued_at' => '2026-01-15']);
     $schedule = app(MonitoringQuarterService::class);
-    $this->travelTo(now()->setDate(2026, 4, 14)->endOfDay());
+    $this->travelTo(now()->setDate(2026, 4, 7)->endOfDay());
     expect($schedule->canSubmitForDate($topic, '2026-04-14'))->toBeFalse()
         ->and($schedule->canSubmitTerminal($topic))->toBeFalse();
-    $this->travelTo(now()->setDate(2026, 4, 15)->startOfDay());
+    $this->travelTo(now()->setDate(2026, 4, 8)->startOfDay());
     expect($schedule->canSubmitForDate($topic, '2026-04-14'))->toBeTrue()
         ->and($schedule->canSubmitForDate($topic, '2026-04-15'))->toBeFalse()
         ->and($schedule->projectPeriods($topic))->toHaveCount(2)
@@ -86,4 +87,34 @@ test('project quarters unlock after three months and terminal opens after the du
     $this->travelTo(now()->setDate(2026, 5, 15)->startOfDay());
     expect($schedule->canSubmitTerminal($topic))->toBeTrue()
         ->and($schedule->canSubmitForDate($topic, '2026-05-14'))->toBeTrue();
+});
+
+test('quarterly reports open in the final week and become overdue only after the deadline', function (string $today, bool $open, string $status) {
+    $this->travelTo(CarbonImmutable::parse($today, 'Asia/Manila'));
+    $topic = new TopicProposal(['status' => 'approved', 'estimated_duration_months' => 12, 'notice_to_proceed_issued_at' => '2026-01-01']);
+    $schedule = app(MonitoringQuarterService::class);
+    $monitoring = $schedule->summaryRows(collect(), $topic)->first();
+    $progress = $schedule->narrativeProgressPeriods($topic, collect())->first();
+
+    expect($schedule->canSubmitForDate($topic, '2026-03-31'))->toBe($open)
+        ->and($monitoring['reporting_date'])->toBe($open ? '2026-03-31' : null)
+        ->and($monitoring['status'])->toBe($status)
+        ->and($progress['submission_open'])->toBe($open)
+        ->and($progress['status'])->toBe($status)
+        ->and($schedule->canSubmitTerminal($topic))->toBeFalse();
+})->with([
+    'before the final week' => ['2026-03-24 23:59:59', false, 'Upcoming'],
+    'first day of the final week' => ['2026-03-25 00:00:00', true, 'Due Mar 31, 2026'],
+    'last moment of the deadline' => ['2026-03-31 23:59:59.999999', true, 'Due Mar 31, 2026'],
+    'first overdue moment' => ['2026-04-01 00:00:00', true, 'Overdue'],
+]);
+
+test('a short final reporting period never opens before that period starts', function () {
+    $this->travelTo(now()->setDate(2026, 4, 1)->startOfDay());
+    $topic = new TopicProposal(['status' => 'approved', 'notice_to_proceed_issued_at' => '2026-01-01',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-01-01', 'approved_end_date' => '2026-04-03']]);
+    $schedule = app(MonitoringQuarterService::class);
+
+    expect($schedule->projectPeriods($topic)->last()['opens_at']->toDateString())->toBe('2026-04-01')
+        ->and($schedule->canSubmitForDate($topic, '2026-04-03'))->toBeTrue();
 });

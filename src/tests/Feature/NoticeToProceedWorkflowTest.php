@@ -86,7 +86,10 @@ test('the notice form keeps editable details visible above the signed upload', f
     $section = $xpath->query('//section[@id="notice-to-proceed"]')->item(0);
 
     expect($xpath->query('.//details', $section)->length)->toBe(0)
-        ->and($xpath->query('.//section[@data-notice-signatories]', $section)->length)->toBe(1);
+        ->and($xpath->query('.//section[@data-notice-signatories]', $section)->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-notice-writing-toolbar and @data-proposal-workspace-toolbar]', $section)->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-notice-writing-toolbar]//button[@data-writing-toolbar-close]', $section)->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-notice-writing-toolbar]//button[@data-writing-toolbar-open]', $section)->length)->toBe(1);
     if ($prepared) {
         $response->assertSeeInOrder(['data-notice-to-proceed-autosave-form', 'name="approved_budget"', 'name="verifying_officer_name"', 'data-notice-signed-upload'], false);
         expect($xpath->query('.//section[@data-notice-signed-upload]//button[@type="submit"]/svg', $section)->length)->toBe(1);

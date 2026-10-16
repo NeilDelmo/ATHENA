@@ -174,7 +174,7 @@
             </div>
         @endif
 
-        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">You can fill, save, and preview this draft now. Official PDF preparation and submission open <span class="font-semibold" x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>, after the reporting period ends.</p>
+        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">You can fill, save, and preview this draft now. Official PDF preparation and submission open <span class="font-semibold" x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>, during the final week of the reporting period.</p>
 
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
             <div class="grid gap-px bg-slate-200 dark:bg-slate-700 sm:grid-cols-3">
@@ -218,7 +218,7 @@
                 </div>
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100" x-show="hasApprovedEntries()">
                     <p class="font-bold">From your approved work plan</p>
-                    <p>Add evidence for completed work. Progress is calculated against each approved target and its activity weight.</p>
+                    <p>Evidence is required for reported accomplishments before submission. Submitted evidence appears in the project folder and the College Accomplishment Report supporting documentation. Progress is calculated against each approved target and its activity weight.</p>
                 </div>
             </div>
         </section>
@@ -313,7 +313,7 @@
                             </label>
                             <div class="space-y-3 sm:col-span-2" data-monitoring-evidence>
                                 <input type="hidden" :name="`work_plan[${index}][activity_id]`" :value="entry.activity_id || ''">
-                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence of completed work</label>
+                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence of completed work (required before submission)</label>
                                 <input :id="`activity-evidence-${index}`" :name="`activity_evidence[${evidenceKey(entry, index)}][]`" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" @change="setEvidenceFiles(entry, $event)" class="block w-full rounded-lg border border-slate-300 text-sm text-slate-600 file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:font-semibold file:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
                                 <p class="text-sm leading-6 text-slate-500 dark:text-slate-400" x-text="Number(entry.target_units || 1) > 1 ? 'Enter the total completed quantity supported by these files. Extra files do not increase progress.' : 'Attach proof that this activity’s approved output is complete. The milestone is counted once, regardless of file count.'"></p>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">Up to 5 files per activity · PDF, Word, Excel, JPG or PNG · 10 MB each</p>

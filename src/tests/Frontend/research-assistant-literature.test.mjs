@@ -22,7 +22,7 @@ function study(sourceToken, overrides = {}) {
         year: 2025,
         url: 'https://example.org/study',
         doi: '10.1234/example',
-        description: 'An abstract describing the participants, method, and research findings.',
+        description: 'An indexed abstract describing the participants, study methods, research findings, and the educational setting.',
         evidence_basis: 'abstract',
         can_synthesize: true,
         relevance: { score: 85, label: 'Strong match', reason: 'Addresses the proposal’s second objective.', matched_terms: ['learning'] },
@@ -194,11 +194,26 @@ test('draft actions use selected source tokens and retain their originating prop
 
     assert.equal(await store.draftSelectedLiterature(message), true);
     assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0][1], { type: 'draft_literature', source_tokens: ['s1', 's3'] });
+    assert.deepEqual(calls[0][1], { type: 'draft_literature', source_tokens: ['s1', 's3'], evidence_basis: 'full_text' });
     assert.deepEqual(calls[0][2], { proposal_draft_id: 42 });
     assert.equal(store.proposalDraftId, 99);
     assert.equal(message.literature.is_working, false);
     assert.equal(store.literatureOperationPending, false);
+});
+
+test('abstract fallback is explicit and papers without abstracts remain eligible when paper text is available', async () => {
+    const calls = [];
+    const store = assistant({ sendPrompt: async (...args) => calls.push(args) });
+    const message = resultsMessage({ results: [study('paper', { description: '', evidence_basis: 'metadata_only', can_read_paper: true })] });
+    assert.equal(store.toggleLiteratureSource(message, 'paper'), true);
+    assert.equal(store.canDraftLiterature(message), true);
+    assert.equal(store.canDraftLiterature(message, 'abstract'), false);
+    assert.equal(await store.draftSelectedLiterature(message), true);
+    assert.equal(calls[0][1].evidence_basis, 'full_text');
+    const fallback = resultsMessage();
+    store.toggleLiteratureSource(fallback, 's1');
+    assert.equal(await store.draftSelectedLiterature(fallback, 'abstract'), true);
+    assert.equal(calls[1][1].evidence_basis, 'abstract');
 });
 
 test('draft actions reject empty selections, unavailable sources, and tampered oversized selections', async () => {
@@ -374,7 +389,7 @@ test('compiled literature cards support selection, edited confirmation, and both
                 assert.equal(await page.locator('img').count(), 0);
                 assert.equal(await page.locator('a[href^="javascript:"]').count(), 0);
                 assert.equal(await page.evaluate(() => Boolean(window.untrustedMarkup)), false);
-                await expect(page.getByRole('button', { name: 'Generate RRL draft', exact: true })).toBeDisabled();
+                await expect(page.getByRole('button', { name: 'Generate from papers', exact: true })).toBeDisabled();
                 for (const token of ['s1', 's2', 's3']) await page.getByRole('checkbox', { name: `Select study: Study ${token}`, exact: true }).check();
                 await expect(page.getByRole('checkbox', { name: 'Select study: Study s4', exact: true })).toBeDisabled();
                 const firstSelection = page.getByRole('checkbox', { name: 'Select study: Study s1', exact: true });
@@ -382,10 +397,10 @@ test('compiled literature cards support selection, edited confirmation, and both
                 await page.keyboard.press('Space');
                 await expect(firstSelection).not.toBeChecked();
                 await firstSelection.check();
-                await page.getByRole('button', { name: 'Generate RRL draft', exact: true }).click();
+                await page.getByRole('button', { name: 'Generate from papers', exact: true }).click();
                 await expect.poll(() => page.evaluate(() => window.literatureCalls.length)).toBe(1);
                 const draftingCall = await page.evaluate(() => window.literatureCalls[0]);
-                assert.deepEqual(draftingCall[1], { type: 'draft_literature', source_tokens: ['s2', 's3', 's1'] });
+                assert.deepEqual(draftingCall[1], { type: 'draft_literature', source_tokens: ['s2', 's3', 's1'], evidence_basis: 'full_text' });
                 assert.deepEqual(draftingCall[2], { proposal_draft_id: 42 });
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
                 if (process.env.ASSISTANT_LITERATURE_SCREENSHOT_DIRECTORY) {
@@ -418,7 +433,7 @@ test('compiled literature cards support selection, edited confirmation, and both
                 await page.evaluate((empty) => { Alpine.$data(document.querySelector('main')).message = empty; }, resultsMessage({ results: [], notice: 'Try a more specific research term.' }));
                 await expect(page.getByText('Try a more specific research term.', { exact: true })).toBeVisible();
                 await expect(page.getByText('No studies found.', { exact: false })).toBeVisible();
-                await expect(page.getByRole('button', { name: 'Generate RRL draft', exact: true })).toBeDisabled();
+                await expect(page.getByRole('button', { name: 'Generate from papers', exact: true })).toBeDisabled();
                 assert.deepEqual(errors, []);
                 await page.close();
             }

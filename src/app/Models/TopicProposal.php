@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ResearchManualLibrary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -49,6 +50,7 @@ class TopicProposal extends Model
         'user_id',
         'research_secretary_id',
         'research_call_id',
+        'research_manual_id',
         'research_category_id',
         'title',
         'description',
@@ -84,6 +86,9 @@ class TopicProposal extends Model
     {
         static::creating(function (TopicProposal $topic): void {
             $topic->status_started_at = $topic->created_at ?? now();
+            if (! array_key_exists('research_manual_id', $topic->getAttributes())) {
+                $topic->research_manual_id = app(ResearchManualLibrary::class)->active()?->id;
+            }
         });
         static::updating(function (TopicProposal $topic): void {
             if ($topic->isDirty('status')) {
@@ -221,6 +226,11 @@ class TopicProposal extends Model
     public function stageTransitions(): HasMany
     {
         return $this->hasMany(ProposalStageTransition::class, 'topic_id');
+    }
+
+    public function researchManual(): BelongsTo
+    {
+        return $this->belongsTo(ResearchManual::class);
     }
 
     public function scopeMonitoringAvailable(Builder $query): Builder

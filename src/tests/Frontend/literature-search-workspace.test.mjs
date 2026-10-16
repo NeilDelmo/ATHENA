@@ -81,7 +81,7 @@ test('RRL preparation saves and links once, then requires reviewed confirmation 
     assert.equal(state.sharedSources.length, 1);
     assert.equal(state.synthesisReviewOpen, true);
     assert.equal(state.synthesisSource.rrl_draft_status, 'draft');
-    assert.equal(calls[2].body.evidence_basis, 'abstract');
+    assert.deepEqual(calls[2].body, { proposal_draft_id: 42, source_link_id: 12, evidence_basis: 'full_text' });
     assert.deepEqual(navigations, []);
     state.synthesisDraft = `${paragraph} Reviewed wording.`;
     await state.confirmSynthesis();
@@ -91,6 +91,53 @@ test('RRL preparation saves and links once, then requires reviewed confirmation 
     assert.equal(destination.searchParams.get('literature_source'), '12');
     assert.equal(destination.searchParams.get('apply_to'), 'both');
     assert.equal(destination.hash, '#related-literature');
+});
+
+test('paper retrieval failure leaves an explicit abstract fallback and never confirms a draft', async () => {
+    const calls = [];
+    const source = { id: 8, ...results[0], description: 'Indexed abstract about community monitoring and participants, with enough detail for explicitly preliminary research notes.' };
+    const linked = { ...source, id: 12, literature_source_id: 8 };
+    const { state, navigations } = finderStore(async (url, options) => {
+        const body = JSON.parse(options.body);
+        calls.push({ url, body });
+        if (url === '/synthesis' && body.evidence_basis === 'full_text') return new Response(JSON.stringify({ message: 'Attach a readable PDF or choose the abstract instead.' }), { status: 422 });
+        return new Response(JSON.stringify(url === '/synthesis'
+            ? { synthesis: 'An explicitly abstract-based preliminary paragraph for review before it is inserted in the paper.', basis: 'abstract' }
+            : { source: { ...linked, ...body } }), { status: 200 });
+    });
+    await state.prepareSynthesis(source, true);
+    assert.match(state.synthesisError, /Attach a readable PDF/);
+    assert.equal(state.synthesisDraft, '');
+    assert.deepEqual(navigations, []);
+    assert.equal(calls.some((call) => call.body.rrl_draft_status), false);
+    await state.generateSynthesis('abstract');
+    assert.equal(state.synthesisBasis, 'abstract');
+    assert.equal(calls.filter((call) => call.url === '/synthesis').at(-1).body.evidence_basis, 'abstract');
+    assert.equal(calls.at(-1).body.rrl_draft_status, 'draft');
+    assert.deepEqual(navigations, []);
+});
+
+test('reviewed paper insertion confirms the scoped source and always attaches a safe managed citation', async () => {
+    const match = app.match(/    async insertSourceWorkspacePaperDraft\(draft\) \{([\s\S]*?)\n    \},/);
+    assert.ok(match);
+    const methods = new Function('config', `return ({${match[0]}});`)({ literatureDraftUpdateUrlTemplate: '/links/__proposal_literature_source__/draft' });
+    const calls = [];
+    const state = { ...methods, literatureSources: [{ id: 12 }], relatedLiterature: '<p>Existing review.</p>',
+        plainText: (value) => String(value).replace(/<[^>]*>/g, ''),
+        escapeLiteratureHtml: (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+        sourceWorkspaceRequest: async (url, options) => { const body = JSON.parse(options.body); calls.push({ url, body }); return { source: { id: 12, ...body } }; },
+        upsertLiteratureSource() {}, recordLiteratureCitation: () => 1,
+        synchronizeLiteratureCitations() { this.synchronized = true; }, notifyLiteratureFieldChanged() {},
+        markProposalPreviewStale() {}, triggerDetailedProposalAutoSave() { this.saved = true; },
+    };
+    const draft = { source_link_id: 12, basis: 'full_text', paragraph: 'Reviewed paper finding [1] with <img src=x onerror=alert(1)> shown literally.' };
+    assert.equal(await state.insertSourceWorkspacePaperDraft(draft), true);
+    assert.equal(calls[0].url, '/links/12/draft');
+    assert.equal(calls[0].body.rrl_draft_status, 'confirmed');
+    assert.match(state.relatedLiterature, /&lt;img/);
+    assert.match(state.relatedLiterature, /data-proposal-citation="12"/);
+    assert.equal(state.synchronized, true);
+    assert.equal(state.saved, true);
 });
 
 test('adding a shared source to a proposal links it without generating or confirming RRL prose', async () => {
@@ -250,8 +297,8 @@ test('literature search keeps optional controls quiet and works in both themes o
 test('saved papers remain readable and show proposal action errors in both themes and narrow layouts', async () => {
     const html = workspace();
     const sources = [
-        { id: 8, ...results[0], added_by_name: 'Maria Santos', collections: [{ id: 3, name: 'Environment' }] },
-        { id: 9, ...results[1], added_by_name: 'Ana Reyes', collections: [] },
+        { id: 8, ...results[0], url: 'https://example.test/papers/mangrove', added_by_name: 'Maria Santos', collections: [{ id: 3, name: 'Environment' }] },
+        { id: 9, ...results[1], url: 'https://example.test/papers/coastal', added_by_name: 'Ana Reyes', collections: [] },
     ];
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
@@ -274,6 +321,14 @@ test('saved papers remain readable and show proposal action errors in both theme
                 await expect(library.locator('article')).toHaveCount(2);
                 await expect(library.getByRole('button', { name: 'Draft RRL', exact: true }).first()).toBeDisabled();
                 const primary = library.getByRole('button', { name: 'Add to proposal', exact: true }).first();
+                const publication = library.getByRole('link', { name: 'Read publication', exact: true }).first();
+                await expect(publication).toHaveText('Read publication');
+                await expect(publication).toHaveAttribute('href', sources[0].url);
+                await expect(publication).toHaveAttribute('target', '_blank');
+                await expect(publication.locator('svg')).toHaveCount(1);
+                assert.notEqual(await publication.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)', 'The publication action needs a visible button background');
+                const publicationBounds = await publication.boundingBox();
+                assert.ok(publicationBounds.width >= 44 && publicationBounds.height >= 44, 'The publication action needs a usable touch target');
                 const disabledColor = await primary.evaluate((element) => getComputedStyle(element).backgroundColor);
                 await page.getByRole('button', { name: 'Proposal to use shared papers with', exact: true }).click();
                 await page.getByRole('option', { name: /Community coastal monitoring/ }).click();

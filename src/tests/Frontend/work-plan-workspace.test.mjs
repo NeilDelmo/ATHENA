@@ -117,6 +117,15 @@ test('Work Plan shares responsive preview controls while preserving linked objec
                 assert.equal(request.some(([name]) => name === '_method'), false);
                 if (width >= 1024) {
                     assert.equal(await page.locator('.proposal-preview-dock-expanded').count(), 0);
+                    const columns = await page.locator('.proposal-writing-columns').boundingBox();
+                    const dock = await page.locator('.proposal-preview-dock').boundingBox();
+                    const editor = await page.locator('.proposal-edit-pane').boundingBox();
+                    assert.ok(dock.width >= columns.width * 0.55, 'The default paper preview should have most of the workspace width');
+                    assert.ok(editor.width >= 240, `The editor must remain usable beside the larger preview at ${width}px: ${JSON.stringify({ columns, dock, editor })}`);
+                    assert.ok(await page.locator('iframe').evaluate((frame) => Number(frame.contentDocument.body.style.zoom)) >= (width === 1440 ? 0.5 : 0.3), 'The default preview must render the paper larger before expansion');
+                    await page.locator('#output-2').fill('Updated beside the full-size paper');
+                    assert.equal(await page.locator('#output-2').inputValue(), 'Updated beside the full-size paper');
+                    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     await page.getByRole('button', { name: 'Enlarge the paper preview' }).click();
                 }
                 await page.locator('.proposal-preview-dock-expanded').waitFor({ state: 'visible' });

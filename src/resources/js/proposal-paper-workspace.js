@@ -102,7 +102,7 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
             this.previewReturnFocus = document.activeElement;
             this.previewPaneOpen = true;
             this.previewFullscreen = true;
-            this.previewFit = 'page';
+            this.previewFit = 'width';
             this.previewZoom = 100;
             this.$nextTick?.(() => {
                 this.$refs.previewClose?.focus();

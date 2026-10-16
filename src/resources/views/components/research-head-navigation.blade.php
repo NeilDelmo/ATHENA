@@ -5,6 +5,7 @@
         'calendar' => 'M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5',
         'proposals' => 'M12 6v6l4.5 2.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
         'chart' => 'M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z',
+        'target' => 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM17 12a5 5 0 1 1-10 0 5 5 0 0 1 10 0ZM13 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z',
         'faculty' => 'M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0A17.9 17.9 0 0 1 12 21.75c-2.68 0-5.22-.59-7.5-1.65Z',
         'signatories' => 'M15.75 5.25a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a7.5 7.5 0 0 1 15 0M18 9.75v6m3-3h-6',
         'document' => 'M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H6.75A2.25 2.25 0 0 0 4.5 4.5v15a2.25 2.25 0 0 0 2.25 2.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-5.25Z M8.25 15h7.5m-7.5 3h4.5',
@@ -13,22 +14,26 @@
         'Overview' => [
             ['Dashboard', 'research_head.dashboard', 'dashboard', null],
             ['Calendar', 'research_head.calendar', 'calendar', null],
-            ['Analytics', 'research_head.analytics', 'chart', null],
         ],
-        'Submission' => [
+        'Research workflow' => [
             ['Research calls', 'research-calls.index', 'calendar', null],
             ['Received submissions', 'research_head.received-submissions.index', 'document', null],
-        ],
-        'Review' => [
             ['Proposal reviews', 'research_head.proposal-submissions.index', 'proposals', 'proposal_submissions'],
             ['Report reviews', 'research_head.report-reviews.index', 'document', null],
         ],
-        'Monitoring' => [
+        'Projects' => [
             ['Research projects', 'research_head.projects.index', 'chart', 'project_monitoring'],
             ['Completed projects', 'research_head.completed-projects.index', 'document', null],
-            ['User directory', 'research_head.faculty-directory.index', 'faculty', null],
+        ],
+        'Planning & reports' => [
+            ['Research targets', 'research_head.targets.index', 'target', null],
+            ['College reports', 'research_head.quarterly-reports.index', 'document', null],
+            ['Quarterly monitoring', 'research_head.rms-quarterly-reports.index', 'chart', null],
+            ['Analytics', 'research_head.analytics', 'chart', null],
         ],
         'Resources' => [
+            ['User directory', 'research_head.faculty-directory.index', 'faculty', null],
+            ['Research manual', 'research-manuals.index', 'document', null],
             ['Signatories', 'signatories.index', 'signatories', null],
         ],
     ];
@@ -44,13 +49,17 @@
             <div class="space-y-1">
                 @foreach ($links as [$label, $routeName, $icon, $attentionArea])
                     <a wire:navigate
-                       wire:current.exact="{{ $activeClasses }}"
+                       @if ($routeName === 'research-manuals.index')
+                           wire:current="{{ $activeClasses }}"
+                       @else
+                           wire:current.exact="{{ $activeClasses }}"
+                       @endif
                        href="{{ route($routeName) }}"
                        @if ($attentionArea) data-sidebar-attention-url="{{ route('sidebar-attention.open', $attentionArea) }}" @endif
                        @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                        :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
                        aria-label="{{ $label }}" title="{{ $label }}"
-                       class="{{ $linkClasses }}">
+                       class="{{ $linkClasses }} {{ $routeName === 'research-manuals.index' && request()->routeIs('research-manuals.*') ? $activeClasses : '' }}">
                         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="{{ $icons[$icon] }}" />
                         </svg>

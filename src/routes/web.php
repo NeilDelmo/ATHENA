@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AnnouncementImageController;
 use App\Http\Controllers\Auth\ProviderController;
+use App\Http\Controllers\CollegeQuarterlyReportSubmissionController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\FacultyDirectoryController;
 use App\Http\Controllers\JournalSearchController;
@@ -45,10 +46,14 @@ use App\Http\Controllers\ResearchAssistantDocumentController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchCallDeadlineDismissalController;
 use App\Http\Controllers\ResearchCoordinatorController;
+use App\Http\Controllers\ResearchCoordinatorReportController;
 use App\Http\Controllers\ResearchHeadInitialScreeningFormController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
+use App\Http\Controllers\ResearchHeadQuarterlyReportController;
 use App\Http\Controllers\ResearchHeadReportReviewController;
+use App\Http\Controllers\ResearchHeadRmsReportController;
 use App\Http\Controllers\ResearchHeadTopicController;
+use App\Http\Controllers\ResearchManualController;
 use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RevisionPaperPreviewController;
@@ -103,6 +108,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/choose-workspace', [WorkspaceController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('workspace.store');
+    Route::prefix('college-quarterly-submissions')->name('college-quarterly-submissions.')->group(function () {
+        Route::get('/{submission}/print', [CollegeQuarterlyReportSubmissionController::class, 'print'])->name('print');
+        Route::get('/{submission}/download', [CollegeQuarterlyReportSubmissionController::class, 'download'])->name('download');
+        Route::get('/{submission}/evidence/{index}', [CollegeQuarterlyReportSubmissionController::class, 'evidence'])->whereNumber('index')->name('evidence');
+    });
 });
 
 // FACULTY ROUTES
@@ -247,6 +257,8 @@ Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApprova
 Route::get('/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'download'])
     ->middleware('auth')
     ->name('topics.notice-to-proceed.download');
+Route::get('/college-quarterly-reports/{report}/evidence/{index}', [ResearchCoordinatorReportController::class, 'evidence'])
+    ->middleware('auth')->whereNumber('index')->name('college-quarterly-reports.evidence');
 Route::middleware(['auth', 'workspace:research_office|research_secretary'])->group(function () {
     Route::post('/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('topics.notice-to-proceed.preview');
     Route::post('/topics/{topic}/notice-to-proceed/prepare', [NoticeToProceedController::class, 'prepare'])->name('topics.notice-to-proceed.store');
@@ -482,9 +494,22 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->prefix('research/{t
 
 // RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'workspace:research_head'])->group(function () {
+    Route::prefix('research-head/research-manuals')->name('research-manuals.')->group(function () {
+        Route::get('/', [ResearchManualController::class, 'index'])->name('index');
+        Route::post('/', [ResearchManualController::class, 'store'])->middleware('throttle:6,1')->name('store');
+        Route::get('/{researchManual}', [ResearchManualController::class, 'show'])->whereNumber('researchManual')->name('show');
+        Route::get('/{researchManual}/download', [ResearchManualController::class, 'download'])->whereNumber('researchManual')->name('download');
+        Route::post('/{researchManual}/activate', [ResearchManualController::class, 'activate'])->whereNumber('researchManual')->middleware('throttle:6,1')->name('activate');
+    });
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
+    Route::view('/research-head/research-targets', 'research_head.research-targets')->name('research_head.targets.index');
     Route::view('/research-head/analytics', 'research_head.analytics')->name('research_head.analytics');
     Route::view('/research-head/calendar', 'research_head.calendar')->name('research_head.calendar');
+    Route::get('/research-head/quarterly-accomplishment-reports', [ResearchHeadQuarterlyReportController::class, 'index'])->name('research_head.quarterly-reports.index');
+    Route::patch('/research-head/quarterly-accomplishment-reports/{report}/return', [ResearchHeadQuarterlyReportController::class, 'returnForCorrection'])->name('research_head.quarterly-reports.return');
+    Route::get('/research-head/rms-quarterly-reports', [ResearchHeadRmsReportController::class, 'index'])->name('research_head.rms-quarterly-reports.index');
+    Route::post('/research-head/rms-quarterly-reports', [ResearchHeadRmsReportController::class, 'store'])->name('research_head.rms-quarterly-reports.store');
+    Route::get('/research-head/rms-quarterly-reports/download', [ResearchHeadRmsReportController::class, 'download'])->name('research_head.rms-quarterly-reports.download');
     Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
     Route::patch('/research-head/faculty-directory/{member}/secretary', [FacultyDirectoryController::class, 'updateSecretary'])->name('research_head.faculty-directory.secretary');
@@ -514,6 +539,12 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
 Route::middleware(['auth', 'workspace:research_office'])->prefix('research-coordinator')->name('research_coordinator.')->group(function () {
     Route::get('/dashboard', [ResearchCoordinatorController::class, 'index'])->name('dashboard');
     Route::get('/faculty-members', [ResearchCoordinatorController::class, 'members'])->name('members.index');
+    Route::get('/reports', [ResearchCoordinatorReportController::class, 'index'])->name('reports.index');
+    Route::post('/reports', [ResearchCoordinatorReportController::class, 'store'])->name('reports.store');
+    Route::get('/reports/template', [ResearchCoordinatorReportController::class, 'template'])->name('reports.template');
+    Route::get('/reports/print', [ResearchCoordinatorReportController::class, 'print'])->name('reports.print');
+    Route::get('/reports/download', [ResearchCoordinatorReportController::class, 'download'])->name('reports.download');
+    Route::get('/reports/{report}/evidence/{index}', [ResearchCoordinatorReportController::class, 'evidence'])->whereNumber('index')->name('reports.evidence');
     Route::post('/topics/{topic}/lrec-review', [ResearchOfficeLrecFeedbackController::class, 'start'])->name('topics.lrec-review.start');
     Route::post('/topics/{topic}/lrec-feedback', [ResearchOfficeLrecFeedbackController::class, 'store'])->name('topics.lrec-feedback.store');
     Route::get('/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('topics.comment-response-form.pdf');

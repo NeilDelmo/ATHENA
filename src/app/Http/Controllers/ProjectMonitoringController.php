@@ -664,16 +664,28 @@ class ProjectMonitoringController extends Controller
             }
         }
         if (! $file) {
-            foreach (ProjectProgressReport::query()->whereBelongsTo($topic, 'topic')->get(['id', 'topic_id', 'submission_status', 'work_plan']) as $report) {
+            foreach (ProjectProgressReport::query()->whereBelongsTo($topic, 'topic')->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'work_plan']) as $report) {
                 $candidate = collect($report->work_plan ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
                 if ($candidate) {
-                    $this->authorizeViewer($request, $report);
+                    if ($report->isSubmitted()) {
+                        Gate::forUser($request->user())->authorize('view', $topic);
+                    } else {
+                        abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
+                            && $topic->isAccessibleTo($request->user()), 403);
+                    }
                     $file = $candidate;
                     break;
                 }
             }
         }
         abort_unless($file && str_starts_with($file['path'], 'progress-reports/'.$topic->id.'/evidence/') && ! str_contains($file['path'], '..') && Storage::disk('local')->exists($file['path']), 404);
+
+        $mimeType = Storage::disk('local')->mimeType($file['path']);
+        if ($request->boolean('preview')) {
+            abort_unless(in_array($mimeType, ['image/jpeg', 'image/png'], true), 404);
+
+            return Storage::disk('local')->response($file['path'], $file['name'], ['Content-Type' => $mimeType, 'X-Content-Type-Options' => 'nosniff']);
+        }
 
         return Storage::disk('local')->download($file['path'], $file['name'], ['X-Content-Type-Options' => 'nosniff']);
     }

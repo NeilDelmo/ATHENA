@@ -124,8 +124,12 @@ class ResearchAssistantProposalReviewService
             ],
         ];
 
-        if ($draft) {
-            $assessment = $this->proposalAssistance->assessment($draft);
+        $assessment = $draft ? $this->proposalAssistance->assessment($draft) : ($topic ? [
+            'record_basis' => 'latest_submitted_version',
+            'rrl' => [...$this->proposalAssistance->manualRequirements($topic), 'count' => null,
+                'known_count' => 0, 'count_status' => 'unknown', 'minimum_satisfied' => null, 'quality_verified' => false],
+        ] : null);
+        if ($assessment) {
             $packet['proposal_review_evidence']['manual_requirements'] = Arr::only($assessment, ['record_basis', 'document_id', 'document_version', 'draft_version', 'rrl']);
             $requirement = $assessment['rrl']['requirement_excerpt'] ?? null;
             $requirementReference = $assessment['rrl']['requirement_reference'] ?? null;
@@ -136,6 +140,9 @@ class ResearchAssistantProposalReviewService
                     $packet['proposal_review_evidence']['manual_requirement_citation_fields'][] = ['reference' => $requirementReference, 'field' => 'requirement', 'value' => $requirement];
                 }
             }
+        }
+
+        if ($draft) {
             $rrl = $assessment['rrl'];
             $coverageText = 'Saved RRL citation coverage: '.($rrl['known_count'] ?? 0).' distinct linked studies used. Count status: '.($rrl['count_status'] ?? 'count_unknown').'.';
             $coverageText .= ' This counts tracked citations in the saved RRL, not literature quality or approval. Untracked text prevents verification of a complete count.';

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Support\ProposalBudgetConsistency;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use JsonException;
 
@@ -24,6 +26,7 @@ class ResearchAssistantProposalAssistanceService
         'executive_brief' => 'Executive brief', 'rationale' => 'Rationale',
         'general_objective' => 'General objective', 'introduction' => 'Introduction',
         'methodology.research_design' => 'Research design', 'methodology.data_analysis' => 'Data analysis',
+        'related_literature' => 'Review of Related Literature',
     ];
 
     public function __construct(
@@ -31,19 +34,15 @@ class ResearchAssistantProposalAssistanceService
         private ResearchKnowledgeService $knowledge,
         private ProposalBudgetConsistency $budget,
         private ProposalDraftReadiness $readiness,
+        private ResearchAssistantRrlRevisionService $rrlRevision,
     ) {}
 
     public function assessment(ProposalDraft $draft): array
     {
         $document = $draft->documents()->where('document_type', 'detailed_proposal')->where('position', 0)->first();
         $data = $document?->source_data ?? [];
-        $sources = $this->manualSources('How many RRL literature studies are required for proposal approval?');
-        foreach ($sources as $index => &$source) {
-            $source['reference'] = 'Manual requirement '.($index + 1);
-        }
-        unset($source);
-        $minimum = $this->literatureMinimum($sources);
-        $requirement = collect($sources)->first(fn (array $source): bool => preg_match('/minimum\s+(?:of\s+)?(?:\d+|[a-z]+)\s+(?:literature|litemture|studies|sources)\b/i', $source['content']) === 1);
+        $requirements = $this->manualRequirements($draft);
+        $minimum = $requirements['minimum'];
         $rrlHtml = '<div>'.(string) ($data['introduction'] ?? '').'</div><div>'.(string) ($data['related_literature'] ?? '').'</div>';
         $rrl = $this->literatureCoverage($rrlHtml, $draft->literatureSources()->pluck('id')->all());
         if ($document && ! is_array($document->source_data)) {
@@ -54,12 +53,10 @@ class ResearchAssistantProposalAssistanceService
         return [
             'record_basis' => 'private_saved_draft', 'document_id' => $document?->id,
             'document_version' => $document?->lock_version ?? 0, 'draft_version' => $draft->lock_version,
-            'rrl' => [...$rrl, 'minimum' => $minimum,
+            'rrl' => [...$rrl, ...$requirements,
                 'shortfall' => $minimum !== null && $count !== null ? max(0, $minimum - $count) : null,
                 'minimum_satisfied' => $minimum !== null && $count !== null ? $count >= $minimum : null,
-                'quality_verified' => false, 'sources' => $this->knowledge->publicSources($sources),
-                'requirement_excerpt' => $requirement ? $this->requirementExcerpt($requirement['content']) : null,
-                'requirement_reference' => $requirement['reference'] ?? null,
+                'quality_verified' => false,
                 'notice' => 'Counts describe distinct tracked sources cited in saved Section XI, not literature quality or approval. Untracked writing cannot be reliably counted.'],
             'budget' => $this->budget->compare($draft),
             'papers' => $this->readiness->checklist($draft)->map(fn (array $paper): array => Arr::only($paper, ['complete', 'needs_attention', 'status']))->all(),
@@ -70,14 +67,28 @@ class ResearchAssistantProposalAssistanceService
         ];
     }
 
+    public function manualRequirements(ProposalDraft|TopicProposal $proposal): array
+    {
+        $sources = $this->manualSources('How many RRL literature studies are required for proposal approval?', $proposal);
+        foreach ($sources as $index => &$source) {
+            $source['reference'] = 'Manual requirement '.($index + 1);
+        }
+        unset($source);
+        $requirement = collect($sources)->first(fn (array $source): bool => preg_match('/minimum\s+(?:of\s+)?(?:\d+|[a-z]+)\s+(?:literature|litemture|studies|sources)\b/i', $source['content']) === 1);
+
+        return ['minimum' => $this->literatureMinimum($sources), 'sources' => $this->knowledge->publicSources($sources),
+            'requirement_excerpt' => $requirement ? $this->requirementExcerpt($requirement['content']) : null,
+            'requirement_reference' => $requirement['reference'] ?? null];
+    }
+
     public function promptContext(?ProposalDraft $draft, ?TopicProposal $topic, string $question, ?array $assessment = null): ?string
     {
-        if (! $draft && ! $topic || preg_match('/\b(?:rrl|literature|requirements?|manual|check|compare|approval|approved|budget|objectives?|methodology|improve|revise)\b/i', $question) !== 1) {
+        if (! $draft && ! $topic || preg_match('/\b(?:rrl|literature|requirements?|manual|check|compare|approval|approved|budget|objectives?|methodology|improve|revise|arrange|organize|polish)\b/i', $question) !== 1) {
             return null;
         }
         $assessment ??= $draft ? $this->assessment($draft) : [
             'record_basis' => 'latest_submitted_version', 'read_only' => true,
-            'rrl' => ['count' => null, 'known_count' => 0, 'count_status' => 'unknown', 'minimum_satisfied' => null,
+            'rrl' => [...$this->manualRequirements($topic), 'count' => null, 'known_count' => 0, 'count_status' => 'unknown', 'minimum_satisfied' => null,
                 'quality_verified' => false, 'notice' => 'Submitted literature was not counted; current draft links cannot establish submitted coverage.'],
         ];
 
@@ -98,6 +109,9 @@ class ResearchAssistantProposalAssistanceService
         if (($action['type'] ?? null) === 'suggest_proposal_changes') {
             return true;
         }
+        if ($action === [] && $this->rrlRevision->wantsRevision($question)) {
+            return true;
+        }
 
         return $action === []
             && preg_match('/\b(?:improve|rewrite|revise|fix|polish|suggest|draft|write|add)\b.{0,100}\b(?:proposal|objectives?|methodology|rationale|introduction|executive brief|research design|data analysis)\b/i', $question) === 1
@@ -111,10 +125,13 @@ class ResearchAssistantProposalAssistanceService
         abort_unless($this->ai->isConfigured(), 503, 'Athena AI is not configured.');
         $document = $draft->documents()->where('document_type', 'detailed_proposal')->where('position', 0)->first();
         abort_unless($document && is_array($document->source_data), 422, 'Save the detailed proposal before requesting changes.');
-        $allFields = $this->fieldValues($document->source_data);
+        if ($this->rrlRevision->wantsRevision($question)) {
+            return $this->respondRrl($user, $draft, $document, $question);
+        }
+        $allFields = Arr::except($this->fieldValues($document->source_data), ['related_literature']);
         $hasSavedNarrative = collect($allFields)->contains(fn (array $field): bool => $this->plain($field['before']) !== '');
         $requestedField = $this->requestedField($question);
-        $fields = array_filter($allFields, fn (array $field, string $key): bool => strlen($field['before']) <= 6000 && ($this->plain($field['before']) !== '' || $hasSavedNarrative)
+        $fields = array_filter($allFields, fn (array $field, string $key): bool => $key !== 'related_literature' && strlen($field['before']) <= 6000 && ($this->plain($field['before']) !== '' || $hasSavedNarrative)
             && ! str_contains($field['before'], 'data-proposal-citation')
             && ($requestedField === null || Str::startsWith($key, $requestedField)), ARRAY_FILTER_USE_BOTH);
         $fields = array_slice($fields, 0, 6, true);
@@ -128,10 +145,10 @@ class ResearchAssistantProposalAssistanceService
             return true;
         });
         abort_unless($fields !== [], 422, 'No complete editable text is available for this requested section. RRL additions use the reviewed literature flow.');
-        $manualVersion = $this->manualVersion();
+        $manualVersion = $this->manualVersion($draft);
         $assessment = $this->assessment($draft);
-        $sources = $this->manualSources($question.' Research Manual detailed research proposal');
-        abort_unless($this->manualVersion() === $manualVersion, 409, 'The manual changed. Request new suggestions.');
+        $sources = $this->manualSources($question.' Research Manual detailed research proposal', $draft);
+        abort_unless($this->manualVersion($draft) === $manualVersion, 409, 'The manual changed. Request new suggestions.');
         $reference = $this->knowledge->promptContext($sources, $question);
         $targets = collect($fields)->map(fn (array $field): array => ['label' => $field['label'], 'before' => $this->plain($field['before'])])->all();
         $connected = collect(Arr::except($allFields, array_keys($fields)))->filter(fn (array $field): bool => $this->plain($field['before']) !== '')
@@ -199,6 +216,36 @@ class ResearchAssistantProposalAssistanceService
             'usage' => $response->json('usage', [])];
     }
 
+    private function respondRrl(User $user, ProposalDraft $draft, ProposalDraftDocument $document, string $question): array
+    {
+        $before = $document->source_data['related_literature'] ?? '';
+        abort_unless(is_string($before), 422, 'Save the RRL paragraphs before requesting a revision.');
+        $manualVersion = $this->manualVersion($draft);
+        $linkedIds = $draft->literatureSources()->pluck('id')->all();
+        $result = $this->rrlRevision->revise($before, $linkedIds, $question);
+        $assessment = $this->assessment($draft);
+        abort_unless($this->manualVersion($draft) === $manualVersion, 409, 'The manual changed. Request a new RRL revision.');
+        $suggestions = [];
+
+        if ($result['value'] !== $before) {
+            $token = Str::random(64);
+            $safe = ['id' => Str::uuid()->toString(), 'token' => $token, 'paper_slug' => 'detailed-proposal',
+                'field' => 'related_literature', 'label' => self::FIELDS['related_literature'], 'before' => $before,
+                'value' => $result['value'], 'reason' => 'Writing and organization only. Compare every revised claim with its sources before accepting; the source papers were not re-read.'];
+            Cache::put($this->tokenKey($token), [...$safe, 'user_id' => $user->id, 'proposal_draft_id' => $draft->id,
+                'document_id' => $document->id, 'document_version' => $document->lock_version, 'draft_version' => $draft->lock_version,
+                'manual_version' => $manualVersion, 'baseline_hash' => hash('sha256', $before), 'linked_source_ids' => $linkedIds,
+            ], now()->addMinutes(30));
+            $suggestions[] = $safe;
+        }
+
+        return ['reply' => $this->plain($result['summary']).' Review the proposed wording against your sources before accepting. This does not verify the studies or replace reading the full papers.',
+            'proposal_changes' => ['proposal_draft_id' => $draft->id, 'proposal_title' => $draft->project_title,
+                'editor_url' => route('faculty.proposal-drafts.detailed-proposal.edit', $draft), 'suggestions' => $suggestions,
+                'assessment' => $assessment, 'rrl_shortfall' => $assessment['rrl']['shortfall']],
+            'sources' => $assessment['rrl']['sources'], 'model' => $result['model'], 'usage' => $result['usage']];
+    }
+
     public function resolve(User $user, ProposalDraft $draft, string $token, string $suggestionId): array
     {
         $draft->refresh();
@@ -212,7 +259,8 @@ class ResearchAssistantProposalAssistanceService
         abort_unless($document && $document->id === $cached['document_id'] && $document->lock_version === $cached['document_version']
             && $draft->lock_version === $cached['draft_version']
             && $field && hash_equals($cached['baseline_hash'], hash('sha256', $field['before']))
-            && $this->manualVersion() === $cached['manual_version'], 409, 'The paper or manual changed. Review current text and request new suggestions.');
+            && ($cached['field'] !== 'related_literature' || array_diff($cached['linked_source_ids'] ?? [], $draft->literatureSources()->pluck('id')->all()) === [])
+            && $this->manualVersion($draft) === $cached['manual_version'], 409, 'The paper or manual changed. Review current text and request new suggestions.');
 
         return [...Arr::only($cached, ['id', 'field', 'label', 'before', 'value', 'reason', 'paper_slug', 'proposal_draft_id', 'document_version']),
             'token' => $token, 'draft_version' => $draft->lock_version, 'editor_url' => route('faculty.proposal-drafts.detailed-proposal.edit', $draft)];
@@ -232,8 +280,8 @@ class ResearchAssistantProposalAssistanceService
             $prefix.'.suggestions.*.paper_slug' => ['required', 'in:detailed-proposal'],
             $prefix.'.suggestions.*.field' => ['required', 'string', 'max:160'],
             $prefix.'.suggestions.*.label' => ['nullable', 'string', 'max:160'],
-            $prefix.'.suggestions.*.before' => ['present', 'nullable', 'string', 'max:6000'],
-            $prefix.'.suggestions.*.value' => ['required', 'string', 'max:6000'],
+            $prefix.'.suggestions.*.before' => Rule::forEach(fn (mixed $value, string $attribute, array $data, mixed $context): array => ['present', 'nullable', 'string', 'max:'.((is_array($context) && ($context['field'] ?? null) === 'related_literature') ? 30000 : 6000)]),
+            $prefix.'.suggestions.*.value' => Rule::forEach(fn (mixed $value, string $attribute, array $data, mixed $context): array => ['required', 'string', 'max:'.((is_array($context) && ($context['field'] ?? null) === 'related_literature') ? 30000 : 6000)]),
             $prefix.'.suggestions.*.reason' => ['nullable', 'string', 'max:600'],
             $prefix.'.assessment' => ['nullable', 'array'],
             $prefix.'.rrl_shortfall' => ['nullable', 'integer', 'min:0'],
@@ -251,7 +299,8 @@ class ResearchAssistantProposalAssistanceService
                 || (! isset(self::FIELDS[$suggestion['field']]) && ! preg_match('/^specific_objectives\.(?:[0-9]|[1-4][0-9])\.description$/', $suggestion['field']))) {
                 continue;
             }
-            $suggestions[] = collect(['id' => 80, 'token' => 64, 'field' => 160, 'label' => 160, 'before' => 6000, 'value' => 6000, 'reason' => 600])
+            $textLimit = $suggestion['field'] === 'related_literature' ? 30000 : 6000;
+            $suggestions[] = collect(['id' => 80, 'token' => 64, 'field' => 160, 'label' => 160, 'before' => $textLimit, 'value' => $textLimit, 'reason' => 600])
                 ->mapWithKeys(fn (int $limit, string $key): array => [$key => Str::limit($this->plain((string) ($suggestion[$key] ?? ''), in_array($key, ['before', 'value'], true)), $limit, '')])
                 ->put('paper_slug', 'detailed-proposal')->all();
         }
@@ -324,9 +373,9 @@ class ResearchAssistantProposalAssistanceService
         }
     }
 
-    private function manualSources(string $question): array
+    private function manualSources(string $question, ProposalDraft|TopicProposal $proposal): array
     {
-        return array_values(array_filter($this->knowledge->retrieve($question), fn (array $source): bool => $source['type'] === 'Official Research Manual'));
+        return array_values(array_filter($this->knowledge->retrieve($question, manual: $proposal->researchManual), fn (array $source): bool => $source['type'] === 'Official Research Manual'));
     }
 
     private function literatureMinimum(array $sources): ?int
@@ -407,9 +456,9 @@ class ResearchAssistantProposalAssistanceService
         return array_diff($proposed[0], $existing[0]) !== [];
     }
 
-    private function manualVersion(): ?string
+    private function manualVersion(ProposalDraft $draft): ?string
     {
-        $path = (string) config('research_assistant.manual.index_path');
+        $path = $draft->researchManual?->indexPath() ?? (string) config('research_assistant.manual.index_path');
         if (! config('research_assistant.manual.enabled') || ! File::isFile($path)) {
             return null;
         }

@@ -155,6 +155,13 @@ class ResearchHeadDashboard extends Component
             'targetForm.faculty_target' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ])['targetForm'];
         $this->validate(['targetForm.ends_on' => ['before_or_equal:'.CarbonImmutable::parse($validated['starts_on'])->addYears(2)->toDateString()]]);
+        $publicationAllocations = ResearchAnnualTarget::where('academic_year', $validated['academic_year'])->first()?->indicators['publications']['allocations'] ?? [];
+        if ($publicationAllocations !== []) {
+            $this->validate(['targetForm.publications_target' => ['required', 'integer', 'min:'.array_sum($publicationAllocations)]], [
+                'targetForm.publications_target.required' => 'Set the overall publication target before assigning college allocations.',
+                'targetForm.publications_target.min' => 'The publication target cannot be lower than its college allocations.',
+            ]);
+        }
         foreach (['projects_target', 'publications_target', 'faculty_target'] as $key) {
             $validated[$key] = $validated[$key] === '' ? null : ($validated[$key] ?? null);
         }

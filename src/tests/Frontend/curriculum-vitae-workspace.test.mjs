@@ -212,7 +212,10 @@ test('CV editing follows one member while preserving the whole package, autosave
                     await previewAtMember(1);
                     await page.locator('#cv-editing-member').selectOption(String(memberIds[1]));
                     await previewAtMember(2);
-                    assert.ok(await page.locator('.proposal-edit-pane').evaluate((element) => element.getBoundingClientRect().width) > (width === 1440 ? 700 : 400));
+                    assert.ok(await page.locator('.proposal-edit-pane').evaluate((element) => element.getBoundingClientRect().width) >= 240, 'The editor stays usable beside the larger default paper');
+                    const columns = await page.locator('.proposal-writing-columns').boundingBox();
+                    const dock = await page.locator('.proposal-preview-dock').boundingBox();
+                    assert.ok(dock.width >= columns.width * 0.55, 'The default paper preview should have most of the workspace width');
                 }
                 await page.getByRole('button', { name: 'Review team CVs', exact: true }).click();
                 await page.locator('.proposal-preview-dock-expanded').waitFor();

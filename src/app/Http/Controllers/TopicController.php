@@ -1478,7 +1478,11 @@ class TopicController extends Controller
     {
         $projects = TopicProposal::query()
             ->accessibleTo($user)
-            ->with(['latestProgressReport', 'progressReports', 'narrativeReports']);
+            ->with([
+                'latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,progress_percentage,reporting_date,submitted_at,created_at,budget_utilization',
+                'progressReports',
+                'narrativeReports',
+            ]);
 
         $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
         $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();

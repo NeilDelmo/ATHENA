@@ -35,7 +35,7 @@ class ResearchManualRetriever
      * @param  list<array{role?: string, content?: string}>  $recentMessages
      * @return list<array<string, mixed>>
      */
-    public function retrieve(string $question, array $recentMessages = []): array
+    public function retrieve(string $question, array $recentMessages = [], ?string $indexPath = null): array
     {
         $question = $this->effectiveQuestion($question, $recentMessages);
         $requestedSections = $this->sectionReferences($question);
@@ -49,7 +49,7 @@ class ResearchManualRetriever
 
         $terms = array_values(array_unique($this->tokens($searchQuestion)));
 
-        if (($terms === [] && $requestedSections === []) || ! ($document = $this->readDocument())) {
+        if (($terms === [] && $requestedSections === []) || ! ($document = $this->readDocument($indexPath))) {
             return [];
         }
 
@@ -86,25 +86,39 @@ class ResearchManualRetriever
     }
 
     /** @return array{json: string, fingerprint: string}|null */
-    private function readDocument(): ?array
+    private function readDocument(?string $indexPath = null): ?array
     {
         if (! config('research_assistant.manual.enabled', true)) {
             return null;
         }
 
-        $path = (string) config('research_assistant.manual.index_path', storage_path('app/private/research-manual/index.json'));
+        $path = $indexPath ?? (string) config('research_assistant.manual.index_path', storage_path('app/private/research-manual/index.json'));
 
         if (! File::isFile($path)) {
             return null;
         }
 
-        try {
-            $json = File::get($path);
-        } catch (FileNotFoundException) {
+        $lock = @fopen($path.'.lock', 'c');
+        if ($lock === false) {
             return null;
         }
 
-        return ['json' => $json, 'fingerprint' => hash('sha256', $json)];
+        try {
+            if (! flock($lock, LOCK_SH)) {
+                return null;
+            }
+
+            try {
+                $json = File::get($path);
+            } catch (FileNotFoundException) {
+                return null;
+            }
+
+            return ['json' => $json, 'fingerprint' => hash('sha256', $json)];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     /** @return array<string, mixed>|null */

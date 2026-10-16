@@ -99,6 +99,15 @@ test('narrative accomplishment evidence uploads, survives reloading, and can be 
     $this->get($url)->assertNotFound();
 });
 
+test('narrative drafts and PDF preparation allow accomplishments without proof', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), ($this->payload)())
+        ->assertSuccessful()->assertJsonCount(0, 'accomplishments.0.evidence');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)())->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::query()->sole();
+    expect($report->isPrepared())->toBeTrue()->and($report->accomplishments[0]['evidence'])->toBe([]);
+    Storage::disk('local')->assertExists($report->official_pdf_path);
+});
+
 test('approved narrative objectives retain their evidence when client labels are changed', function () {
     $version = $this->topic->versions()->create([
         'submitted_by' => $this->researcher->id, 'version_number' => 1,

@@ -78,10 +78,10 @@ class FacultyDirectoryController extends Controller
 
         if ($request->validated('action') === 'assign') {
             $member->assignRole($role);
-            $message = "{$member->name} is now a Research Office / Secretary member.";
+            $message = "{$member->name} is now a Research Office Secretary.";
         } else {
             $member->removeRole($role);
-            $message = "{$member->name} is no longer a Research Office / Secretary member.";
+            $message = "{$member->name} is no longer a Research Office Secretary.";
         }
 
         return back()->with('status', $message);

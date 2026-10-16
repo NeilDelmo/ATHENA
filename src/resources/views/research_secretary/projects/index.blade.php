@@ -1,9 +1,9 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header variant="hero"
-            eyebrow="Research Office / Secretary"
-            title="Research Office / Secretary Workspace"
-            subtitle="Prepare Notices to Proceed and signed documents, and complete assigned project budgets."
+            eyebrow="Administrative workspace"
+            title="Research Office Secretary Dashboard"
+            subtitle="Prepare Notices to Proceed, release signed documents, and complete assigned project budgets."
         />
     </x-slot>
 
@@ -26,6 +26,8 @@
                 <x-dashboard-stat label="Assigned portfolio" :value="$projects->count()" description="Research projects assigned to you" href="#assigned-projects" icon="M3 7h6l2 2h10v11H3V7Zm0 0V4h6l2 3h10v2" />
             </dl>
         </section>
+
+        <livewire:research-target-board />
 
         <div class="grid items-start gap-5 xl:grid-cols-2" data-dashboard-columns>
         <x-notice-to-proceed-queue :projects="$signingProjects" />

@@ -63,16 +63,25 @@ test('malformed packets and unsafe draft identifiers cannot offer proposal chang
 
 test('only approved narrative fields and bounded objective indexes can be changed', () => {
     for (const field of ['executive_brief', 'rationale', 'general_objective', 'introduction',
-        'methodology.research_design', 'methodology.data_analysis',
+        'methodology.research_design', 'methodology.data_analysis', 'related_literature',
         'specific_objectives.0.description', 'specific_objectives.49.description']) {
         assert.equal(allowedProposalChangeField(field), true, field);
     }
-    for (const field of ['related_literature', 'references', 'methodology.specific_methods',
+    for (const field of ['references', 'methodology.specific_methods',
         'specific_objectives.50.description', 'specific_objectives.-1.description',
         'specific_objectives.01.description', 'specific_objectives.1.description.extra',
         '__proto__', 'constructor.prototype', ' rationale', {}, null]) {
         assert.equal(allowedProposalChangeField(field), false);
         assert.deepEqual(normalizeAssistantProposalChanges(packet({ suggestions: [candidate({ field })] })).suggestions, []);
+    }
+});
+
+test('whole RRL previews are bounded separately from short narrative suggestions', () => {
+    for (const property of ['before', 'value']) {
+        const suggestions = [candidate({ field: 'related_literature', [property]: 'x'.repeat(30000) })];
+        assert.equal(normalizeAssistantProposalChanges(packet({ suggestions })).suggestions[0][property].length, 30000);
+        suggestions[0][property] += 'x';
+        assert.deepEqual(normalizeAssistantProposalChanges(packet({ suggestions })).suggestions, []);
     }
 });
 

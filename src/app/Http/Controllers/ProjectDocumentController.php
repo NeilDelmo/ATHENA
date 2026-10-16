@@ -40,12 +40,14 @@ class ProjectDocumentController extends Controller
     ): StreamedResponse {
         Gate::forUser($request->user())->authorize('view', $topic);
         abort_unless(Storage::disk('local')->exists($projectDocument->file_path), 404);
+        $mimeType = Storage::disk('local')->mimeType($projectDocument->file_path);
+        abort_unless(in_array($mimeType, ['application/pdf', 'image/jpeg', 'image/png'], true), 404);
 
         return Storage::disk('local')->response(
             $projectDocument->file_path,
             $projectDocument->original_filename,
             [
-                'Content-Type' => 'application/pdf',
+                'Content-Type' => $mimeType,
                 'X-Content-Type-Options' => 'nosniff',
             ],
         );
@@ -58,12 +60,14 @@ class ProjectDocumentController extends Controller
     ): StreamedResponse {
         Gate::forUser($request->user())->authorize('view', $topic);
         abort_unless(Storage::disk('local')->exists($projectDocument->file_path), 404);
+        $mimeType = Storage::disk('local')->mimeType($projectDocument->file_path);
+        abort_unless(in_array($mimeType, ['application/pdf', 'image/jpeg', 'image/png'], true), 404);
 
         return Storage::disk('local')->download(
             $projectDocument->file_path,
             $projectDocument->original_filename,
             [
-                'Content-Type' => 'application/pdf',
+                'Content-Type' => $mimeType,
                 'X-Content-Type-Options' => 'nosniff',
             ],
         );

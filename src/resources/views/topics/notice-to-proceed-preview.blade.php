@@ -60,10 +60,10 @@
                     </tbody>
                 </table>
 
-                <p class="notice-to-proceed-note">*A maximum of 3 units must be retained for each faculty with administrative assignment/local designation.<br>Maximum of two (2) projects at a time are allowed per faculty member.</p>
+                <p class="notice-to-proceed-note">*a maximum of 3 units must be retained for each faculty with administrative assignment/local designation<br>Note: maximum of two (2) projects at a time are allowed per faculty member</p>
 
-                <p>Any changes in the Line-Item Budget, project duration, scope, or composition of the project team shall be subject to the approval of the undersigned.</p>
-                <p>Please acknowledge receipt and acceptance of this NOTICE by affixing your signature below.</p>
+                <p class="notice-to-proceed-closing">Any changes in the Line-Item Budget, project duration, scope, or composition of the project team shall be subject to the approval of the undersigned.</p>
+                <p class="notice-to-proceed-closing">Please acknowledge receipt and acceptance of this NOTICE by affixing your signature below.</p>
                 <p>Congratulations!</p>
 
                 <div class="notice-to-proceed-signatures">
@@ -85,9 +85,9 @@
 
                 <section class="notice-to-proceed-conforme">
                     <p>Conforme:</p>
-                    <div class="notice-to-proceed-conforme-line"></div>
+                    <div class="notice-to-proceed-conforme-line">____________________________________________</div>
                     <p class="notice-to-proceed-conforme-caption">Signature above printed name</p>
-                    <p class="notice-to-proceed-conforme-date">Date: ____________________</p>
+                    <p class="notice-to-proceed-conforme-date">Date:</p>
                 </section>
             </section>
             <footer class="notice-to-proceed-footer">Leading Innovations. Transforming Lives. Building the Nation.</footer>

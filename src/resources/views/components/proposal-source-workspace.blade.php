@@ -14,12 +14,12 @@
         <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-700 sm:px-6">
             <div class="min-w-0">
                 <div class="flex items-center gap-3">
-                    <button x-show="sourceWorkspaceView !== 'list'" type="button" @click="sourceWorkspaceView = 'list'; sourceWorkspaceError = ''" class="rounded-lg px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/40">Back to sources</button>
+                    <button x-show="sourceWorkspaceView !== 'list'" type="button" @click="sourceWorkspaceView = 'list'; sourceWorkspaceError = ''; invalidateSourceWorkspaceDraft()" :disabled="sourceWorkspaceBusy()" class="rounded-lg px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:text-red-200 dark:hover:bg-red-950/40">Back to sources</button>
                     <h2 id="proposal-source-dialog-heading" class="text-lg font-semibold text-slate-950 dark:text-white" x-text="sourceWorkspaceCitationMode ? (citationPickerSelection?.editing ? 'Edit citation' : 'Insert citation') : 'Sources'">Sources</h2>
                 </div>
-                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="sourceWorkspaceCitationMode ? citationPickerSelection?.sectionLabel : 'Read sources, collect evidence, and prepare your RRL.'"></p>
+                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="sourceWorkspaceCitationMode ? citationPickerSelection?.sectionLabel : 'Find and read sources for your proposal.'"></p>
             </div>
-            <button x-ref="sourceWorkspaceClose" type="button" @click="closeSourceWorkspace()" :disabled="sourceWorkspaceSaving || sourceWorkspaceAiLoading" aria-label="Close Sources" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800">
+            <button x-ref="sourceWorkspaceClose" type="button" @click="closeSourceWorkspace()" :disabled="sourceWorkspaceSaving" aria-label="Close Sources" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6" /></svg>
             </button>
         </header>
@@ -55,20 +55,20 @@
                         <p x-show="sourceWorkspaceLoading" role="status" class="px-4 py-6 text-sm text-slate-500 dark:text-slate-400 sm:px-6">Loading sources…</p>
                         <div x-show="!sourceWorkspaceLoading" class="divide-y divide-slate-200 dark:divide-slate-700">
                             <template x-for="source in sourceWorkspaceSources()" :key="sourceWorkspaceSourceKey(source)">
-                                <article class="flex flex-col gap-3 px-4 py-4 sm:px-6">
-                                    <div class="min-w-0">
+                                <article class="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-6">
+                                    <div class="min-w-0 flex-1">
                                         <h3 class="break-words text-sm font-semibold leading-6 text-slate-950 dark:text-white" x-text="source.title"></h3>
                                         <p class="mt-1 break-words text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="sourceWorkspaceMetadata(source)"></p>
                                         <p x-show="!sourceWorkspaceCitationMode && source.venue" class="mt-1 break-words text-xs text-slate-500 dark:text-slate-400" x-text="source.venue"></p>
                                         <p x-show="!sourceWorkspaceCitationMode && source.match_reason" class="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300" x-text="source.match_reason"></p>
+                                        <p x-show="!sourceWorkspaceCitationMode && sourceWorkspaceTab !== 'paper' && source.description" class="mt-2 line-clamp-2 break-words text-xs leading-5 text-slate-600 dark:text-slate-300" x-text="source.description"></p>
+                                        <a x-show="!sourceWorkspaceCitationMode && sourceWorkspaceTab !== 'paper' && sourceWorkspaceUrl(source.url)" :href="sourceWorkspaceUrl(source.url)" target="_blank" rel="noopener noreferrer" class="mt-2 inline-flex min-h-10 items-center rounded text-xs font-semibold text-red-800 hover:underline focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:text-red-200 dark:focus:ring-offset-slate-950">Visit website</a>
                                     </div>
-                                    <details x-show="!sourceWorkspaceCitationMode && source.description" class="text-xs leading-5 text-slate-600 dark:text-slate-300"><summary class="disclosure-summary cursor-pointer rounded font-semibold focus:outline-none focus:ring-2 focus:ring-red-600">Read available abstract</summary><p class="mt-2 whitespace-pre-wrap break-words" x-text="source.description"></p></details>
-                                    <div class="flex flex-wrap items-center gap-2">
+                                    <div class="flex shrink-0 flex-wrap items-center gap-2 sm:max-w-48 sm:justify-end">
                                         <button x-show="sourceWorkspaceCitationMode" type="button" @click="selectSourceWorkspaceCitation(source)" :aria-pressed="sourceWorkspaceSourceKey(sourceWorkspaceCitationSource) === sourceWorkspaceSourceKey(source)" :disabled="sourceWorkspaceBusy()" aria-label="Choose source" class="min-h-9 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800" x-text="sourceWorkspaceSourceKey(sourceWorkspaceCitationSource) === sourceWorkspaceSourceKey(source) ? 'Selected' : 'Choose source'"></button>
-                                        <button x-show="!sourceWorkspaceCitationMode" type="button" @click="readSourceWorkspaceSource(source)" :disabled="sourceWorkspaceBusy()" class="min-h-9 rounded-lg bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40">Read</button>
-                                        <button x-show="!sourceWorkspaceCitationMode && !sourceWorkspaceLinkedSource(source)" type="button" @click="saveSourceWorkspaceSource(source)" :disabled="sourceWorkspaceBusy()" class="min-h-9 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Add to proposal</button>
-                                        <span x-show="!sourceWorkspaceCitationMode && sourceWorkspaceLinkedSource(source)" class="text-[11px] text-slate-600 dark:text-slate-300">In this proposal</span>
-                                        <a x-show="!sourceWorkspaceCitationMode && sourceWorkspaceUrl(source.url)" :href="sourceWorkspaceUrl(source.url)" target="_blank" rel="noopener noreferrer" class="min-h-9 rounded-lg px-2 py-2 text-xs font-semibold text-red-800 hover:underline focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200">Publication</a>
+                                        <button x-show="!sourceWorkspaceCitationMode" type="button" @click="readSourceWorkspaceSource(source)" :disabled="sourceWorkspaceBusy()" class="min-h-11 rounded-lg bg-red-700 px-4 text-xs font-semibold text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:opacity-40 dark:focus:ring-offset-slate-950" x-text="sourceWorkspaceLinkedSource(source) ? 'View details' : 'Add and view'"></button>
+                                        <button x-show="!sourceWorkspaceCitationMode && !sourceWorkspaceLinkedSource(source)" type="button" @click="saveSourceWorkspaceSource(source)" :disabled="sourceWorkspaceBusy()" class="min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950">Add to proposal</button>
+                                        <span x-show="!sourceWorkspaceCitationMode && sourceWorkspaceTab !== 'paper' && sourceWorkspaceLinkedSource(source)" class="text-xs text-slate-500 dark:text-slate-400">Added to proposal</span>
                                     </div>
                                 </article>
                             </template>
@@ -78,7 +78,6 @@
                                 <button x-show="sourceWorkspaceTab === 'paper'" type="button" @click="setSourceWorkspaceTab('add')" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-600 dark:text-slate-200">Add a source</button>
                             </div>
                         </div>
-                        <p x-show="!sourceWorkspaceCitationMode && sourceWorkspaceSources().length" class="border-t border-slate-200 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:px-6">To cite your own text, place the cursor in a writing field and choose Insert citation. References update automatically.</p>
                     </div>
 
                     <div x-show="sourceWorkspaceView === 'list' && sourceWorkspaceTab === 'add'" class="flex flex-col gap-5 px-4 py-5 sm:px-6">
@@ -137,14 +136,16 @@
                             <h3 class="break-words text-sm font-semibold leading-6 text-slate-950 dark:text-white" x-text="sourceWorkspaceActiveSource()?.title"></h3>
                             <p class="mt-1 text-xs text-slate-500 dark:text-slate-400" x-text="sourceWorkspaceMetadata(sourceWorkspaceActiveSource())"></p>
                         </div>
-                        <details x-show="sourceWorkspaceActiveSource()?.description" class="text-xs leading-6 text-slate-600 dark:text-slate-300">
-                            <summary class="disclosure-summary cursor-pointer rounded font-semibold focus:outline-none focus:ring-2 focus:ring-red-600">Available abstract</summary>
-                            <p class="mt-2 whitespace-pre-wrap break-words" x-text="sourceWorkspaceActiveSource()?.description"></p>
-                            <p class="mt-2 text-slate-500 dark:text-slate-400">This is abstract evidence. Review the full paper before making claims beyond it.</p>
-                        </details>
+                        <section x-show="sourceWorkspaceActiveSource()?.description" aria-label="Abstract or description" class="flex flex-col gap-2 rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
+                            <h4 class="text-xs font-semibold text-slate-900 dark:text-white">Abstract or description</h4>
+                            <p class="whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300" x-text="sourceWorkspaceActiveSource()?.description"></p>
+                        </section>
                         <div class="flex flex-wrap items-center gap-3">
+                            <a x-show="sourceWorkspaceUrl(sourceWorkspaceActiveSource()?.url)" :href="sourceWorkspaceUrl(sourceWorkspaceActiveSource()?.url)" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-10 items-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950">Open publication website</a>
                             <a x-show="sourceWorkspaceUrl(sourceWorkspaceActiveSource()?.full_text_url)" :href="sourceWorkspaceUrl(sourceWorkspaceActiveSource()?.full_text_url)" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-600 dark:text-slate-200">Open available full text</a>
                             <a x-show="sourceWorkspaceEvidence().document?.url" :href="sourceWorkspaceEvidence().document?.url" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-600 dark:text-slate-200">Open original PDF</a>
+                            <button x-show="sourceWorkspaceCanDraftPaper()" type="button" @click="prepareSourceWorkspacePaperDraft()" :disabled="sourceWorkspaceBusy()" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-red-700 px-3 py-2 text-xs font-semibold text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:opacity-40 dark:focus:ring-offset-slate-950"><svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.75v4.5m-2.25-2.25h4.5M6 12.75v4.5m-2.25-2.25h4.5m10.5-6.75v3m-1.5-1.5h3M9 20.25l9.75-9.75" /></svg><span x-text="sourceWorkspaceAiLoading ? 'Preparing paper draft…' : 'Draft from paper'">Draft from paper</span></button>
+                            <button x-show="sourceWorkspaceCanDraftAbstract()" type="button" @click="prepareSourceWorkspacePaperDraft('abstract')" :disabled="sourceWorkspaceBusy()" class="inline-flex min-h-11 items-center rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50">Draft from abstract only</button>
                             <label class="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400"><span x-text="sourceWorkspaceEvidence().document ? 'Replace attached PDF' : 'Attach source PDF'"></span><input type="file" accept="application/pdf,.pdf" @change="uploadSourceWorkspaceReaderPdf($event)" :disabled="sourceWorkspaceBusy()" class="max-w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700 disabled:opacity-40 dark:file:bg-slate-800 dark:file:text-slate-200"></label>
                         </div>
                         <div x-show="sourceWorkspaceEvidence().document" class="flex flex-col gap-3">
@@ -180,9 +181,15 @@
                     </div>
 
                     <div x-show="sourceWorkspaceView === 'draft'" class="flex flex-col gap-5 px-4 py-5 sm:px-6">
-                        <h3 class="text-sm font-semibold text-slate-950 dark:text-white" x-text="sourceWorkspaceDraftMode === 'synthesize' ? 'Review the synthesis draft' : 'Review the evidence response'"></h3>
+                        <h3 class="text-sm font-semibold text-slate-950 dark:text-white" x-text="sourceWorkspaceDraftMode === 'paper' ? 'Review the paper-based RRL draft' : (sourceWorkspaceDraftMode === 'synthesize' ? 'Review the synthesis draft' : 'Review the evidence response')"></h3>
+                        <div x-show="sourceWorkspaceDraftMode === 'paper'" class="flex flex-col gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                            <p class="font-semibold text-slate-800 dark:text-slate-200" x-text="sourceWorkspaceActiveSource()?.title"></p>
+                            <p x-text="sourceWorkspaceDraft.basis === 'abstract' ? 'Based on the abstract only. It cannot establish the full paper’s methods, results, or limitations.' : 'Based on the paper text extracted by the server. Extraction can omit pages, tables, figures, or scanned text; compare this draft with the original paper.'"></p>
+                            <p x-show="sourceWorkspaceDraft.coverage?.limited" class="text-amber-800 dark:text-amber-200">Only part of the paper text was available. Review the coverage notice before inserting.</p>
+                            <p>Review and edit the wording below. Nothing is added until you choose Insert reviewed draft.</p>
+                        </div>
                         <label class="flex flex-col gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">AI response<textarea x-model="sourceWorkspaceDraft.paragraph" rows="9" maxlength="5000" :disabled="sourceWorkspaceBusy() || sourceWorkspaceDraftInserted" class="rounded-lg border-slate-300 bg-white text-sm font-normal leading-7 focus:border-red-600 focus:ring-red-600 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea></label>
-                        <section class="flex flex-col gap-3" aria-label="Evidence used in this response">
+                        <section x-show="sourceWorkspaceDraftMode !== 'paper'" class="flex flex-col gap-3" aria-label="Evidence used in this response">
                             <h4 class="text-xs font-semibold text-slate-800 dark:text-slate-200">Evidence used</h4>
                             <template x-for="(evidence, index) in sourceWorkspaceDraft?.evidence || []" :key="`${evidence.source_link_id}-${evidence.passage_id}-${index}`">
                                 <article class="flex flex-col gap-2 border-l-2 border-slate-300 pl-3 dark:border-slate-600">
@@ -192,12 +199,13 @@
                                 </article>
                             </template>
                         </section>
-                        <div x-show="sourceWorkspaceDraftMode === 'synthesize'" class="flex flex-col items-start gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
-                            <label class="flex w-full flex-col gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Add reviewed text to<select aria-label="Add reviewed text to" x-model="sourceWorkspaceDestination" class="h-11 rounded-lg border-slate-300 bg-white text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"><option value="related-literature">Review of Related Literature</option><option value="introduction">RRL opening paragraphs</option><option value="rationale">Rationale</option><option value="methodology-research_design">Research Design</option><option value="methodology-data_analysis">Data Analysis</option></select></label>
+                        <div x-show="['synthesize', 'paper'].includes(sourceWorkspaceDraftMode)" class="flex flex-col items-start gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+                            <p x-show="sourceWorkspaceDraftMode === 'paper'" class="text-xs font-semibold text-slate-700 dark:text-slate-200">Destination: Review of Related Literature</p>
+                            <label x-show="sourceWorkspaceDraftMode !== 'paper'" class="flex w-full flex-col gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Add reviewed text to<select aria-label="Add reviewed text to" x-model="sourceWorkspaceDestination" class="h-11 rounded-lg border-slate-300 bg-white text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"><option value="related-literature">Review of Related Literature</option><option value="introduction">RRL opening paragraphs</option><option value="rationale">Rationale</option><option value="methodology-research_design">Research Design</option><option value="methodology-data_analysis">Data Analysis</option></select></label>
                             <p x-show="!sourceWorkspaceDraft?.can_insert" class="text-xs leading-5 text-amber-800 dark:text-amber-200">The selected evidence does not support an insertable synthesis. Review the response and choose stronger source excerpts.</p>
                             <button type="button" @click="insertReviewedSourceWorkspaceDraft()" :disabled="!sourceWorkspaceCanInsertDraft()" class="rounded-lg bg-red-700 px-4 py-3 text-xs font-semibold text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:opacity-40 dark:focus:ring-offset-slate-950" x-text="sourceWorkspaceDraftInserted ? 'Reviewed draft inserted' : 'Insert reviewed draft'"></button>
                         </div>
-                        <p x-show="sourceWorkspaceDraftMode !== 'synthesize'" class="text-xs leading-5 text-slate-500 dark:text-slate-400">This response helps you review the evidence. Choose “Draft synthesis” to prepare text for the paper.</p>
+                        <p x-show="!['synthesize', 'paper'].includes(sourceWorkspaceDraftMode)" class="text-xs leading-5 text-slate-500 dark:text-slate-400">This response helps you review the evidence. Choose “Draft synthesis” to prepare text for the paper.</p>
                     </div>
                 </main>
 

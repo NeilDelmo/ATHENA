@@ -257,7 +257,7 @@
                     <div class="grid grid-cols-2 gap-2 xl:w-80 xl:shrink-0">
                         <button type="button" @click="$store.literatureSearch.useLibrarySource(source, 'reference')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingLibrarySource(source)" class="min-h-11 rounded-lg bg-red-700 px-2 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:bg-red-700 dark:hover:bg-red-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400">Add to proposal</button>
                         <button type="button" @click="$store.literatureSearch.useLibrarySource(source, 'rrl')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingLibrarySource(source)" class="min-h-11 rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-700 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:disabled:bg-slate-800 dark:disabled:text-slate-400">Draft RRL</button>
-                        <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="col-span-2 inline-flex min-h-11 items-center justify-center rounded-lg px-2 py-2 text-xs font-semibold text-red-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-200">Read publication</a>
+                        <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 transition-colors hover:border-red-200 hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/60"><svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6 7.5v10.125A1.875 1.875 0 0 0 7.875 19.5H18" /></svg>Read publication</a>
                     </div>
                 </article>
             </template>
@@ -464,8 +464,7 @@
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
                             <h2 id="literature-synthesis-title" class="text-lg font-semibold text-slate-950 dark:text-white">Review your RRL draft</h2>
-                            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Loaded open-access full text' : 'Indexed abstract only'"></span>
-                            <span class="sr-only">Abstract only</span>
+                            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Paper text' : 'Indexed abstract only'"></span>
                         </div>
                         <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Review the evidence and edit the paragraph before inserting it with its citation and reference. Abstract-based drafts require checking the full paper for methods and limitations.</p>
                     </div>
@@ -484,14 +483,10 @@
                             <span x-text="$store.literatureSearch.synthesisSource?.year || 'Year not listed'"></span>
                         </p>
 
-                        <div x-show="$store.literatureSearch.fullTextPreview && $store.literatureSearch.fullTextResultKey === $store.literatureSearch.resultKey($store.literatureSearch.synthesisSource)" x-cloak class="mt-4 inline-flex rounded-xl bg-slate-200/80 p-1 dark:bg-slate-800" aria-label="RRL evidence basis">
-                            <button type="button" @click="$store.literatureSearch.setSynthesisBasis('abstract')" :class="$store.literatureSearch.synthesisBasis === 'abstract' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="rounded-lg px-3 py-2 text-[10px] font-semibold">Use abstract</button>
-                            <button type="button" @click="$store.literatureSearch.setSynthesisBasis('full_text')" :class="$store.literatureSearch.synthesisBasis === 'full_text' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-950 dark:text-emerald-200' : 'text-slate-500 dark:text-slate-400'" class="rounded-lg px-3 py-2 text-[10px] font-semibold">Use loaded full text</button>
-                        </div>
-
                         <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-                            <p class="text-xs font-semibold text-slate-800 dark:text-slate-100" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Transient open-access full-text evidence' : 'Indexed abstract evidence'"></p>
-                            <p x-show="$store.literatureSearch.hasSynthesisEvidence()" class="mt-3 max-h-[34rem] overflow-y-auto whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300" x-text="$store.literatureSearch.synthesisEvidenceText"></p>
+                            <p class="text-xs font-semibold text-slate-800 dark:text-slate-100" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Paper content' : 'Indexed abstract evidence'"></p>
+                            <p x-show="$store.literatureSearch.synthesisEvidenceText" class="mt-3 max-h-[34rem] overflow-y-auto whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300" x-text="$store.literatureSearch.synthesisEvidenceText"></p>
+                            <p x-show="$store.literatureSearch.synthesisBasis === 'full_text' && !$store.literatureSearch.synthesisEvidenceText" class="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">Athena reads a PDF attached to this proposal or retrieves available public paper text. If it cannot read the paper, attach a readable PDF in Sources or explicitly choose the abstract instead.</p>
                             <p x-show="!$store.literatureSearch.hasSynthesisEvidence()" class="mt-3 text-sm leading-6 text-amber-800 dark:text-amber-200">No usable abstract was returned by the academic indexes. ATHENA will not generate claims from metadata alone.</p>
                         </div>
 
@@ -509,14 +504,15 @@
                             </div>
                             <button type="button" x-show="$store.literatureSearch.hasSynthesisEvidence()" @click="$store.literatureSearch.generateSynthesis()" :disabled="$store.literatureSearch.isSynthesizing" class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3.5 text-xs font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30">
                                 <svg :class="$store.literatureSearch.isSynthesizing ? 'animate-spin' : ''" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12a7.5 7.5 0 0 1 12.8-5.3L19.5 9M19.5 4.5V9H15M19.5 12a7.5 7.5 0 0 1-12.8 5.3L4.5 15M4.5 19.5V15H9" /></svg>
-                                <span x-text="$store.literatureSearch.isSynthesizing ? 'Generating...' : ($store.literatureSearch.synthesisDraft ? 'Generate again' : 'Generate draft')"></span>
+                                <span x-text="$store.literatureSearch.isSynthesizing ? 'Reading and drafting…' : 'Read paper and generate'"></span>
                             </button>
+                            <button type="button" x-show="($store.literatureSearch.synthesisSource?.description || '').trim().length >= 80" @click="$store.literatureSearch.generateSynthesis('abstract')" :disabled="$store.literatureSearch.isSynthesizing" class="inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Use abstract instead</button>
                         </div>
 
                         <div x-show="$store.literatureSearch.isSynthesizing && !$store.literatureSearch.synthesisDraft" class="mt-4 flex min-h-56 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-red-200 bg-red-50/60 p-6 text-center dark:border-red-900 dark:bg-red-950/20" role="status">
                             <span class="h-8 w-8 animate-spin rounded-full border-2 border-red-200 border-t-red-700 dark:border-red-950 dark:border-t-red-300"></span>
                             <p class="mt-4 text-sm font-semibold text-red-900 dark:text-red-100">Preparing editable research notes</p>
-                            <p class="mt-1 text-xs leading-5 text-red-700 dark:text-red-300">ATHENA is constrained to the evidence shown on the left.</p>
+                            <p class="mt-1 text-xs leading-5 text-red-700 dark:text-red-300">Athena uses readable paper text unless you explicitly choose an abstract-only draft.</p>
                         </div>
 
                         <textarea
@@ -534,7 +530,7 @@
                         <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                             <p class="font-medium text-slate-500 dark:text-slate-400"><span x-text="$store.literatureSearch.synthesisWordCount()"></span> words <span aria-hidden="true">&middot;</span> Review required before saving the proposal</p>
                             <span x-show="$store.literatureSearch.synthesisBasis === 'abstract'" class="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Abstract-based</span>
-                            <span x-show="$store.literatureSearch.synthesisBasis === 'full_text'" class="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">Loaded full-text based</span>
+                            <span x-show="$store.literatureSearch.synthesisBasis === 'full_text'" class="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">Paper text based</span>
                         </div>
 
                         <p x-show="$store.literatureSearch.synthesisNotice" x-cloak class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" x-text="$store.literatureSearch.synthesisNotice" role="status"></p>

@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Actions\LinkLiteratureSourceToProposal;
 use App\Actions\SaveLiteratureSource;
+use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftLiteratureSource;
 use App\Models\User;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -23,6 +25,7 @@ class ResearchAssistantLiteratureService
         private LiteratureSynthesisService $synthesis,
         private SaveLiteratureSource $saveSource,
         private LinkLiteratureSourceToProposal $linkSource,
+        private LiteratureSynthesisEvidenceResolver $evidenceResolver,
     ) {}
 
     public function isLiteratureRequest(string $question, ?string $action = null): bool
@@ -96,7 +99,7 @@ class ResearchAssistantLiteratureService
         Gate::forUser($user)->authorize('update', $draft);
 
         return match ($action['type'] ?? 'search_literature') {
-            'draft_literature' => $this->draftParagraphs($user, $draft, $context, $action['source_tokens']),
+            'draft_literature' => $this->draftParagraphs($user, $draft, $context, $action['source_tokens'], $action['evidence_basis'] ?? 'full_text'),
             'confirm_literature' => $this->confirmParagraphs($user, $draft, $action['drafts']),
             default => $this->findStudies($user, $draft, $context, $action['query'] ?? $question),
         };
@@ -139,9 +142,12 @@ class ResearchAssistantLiteratureService
             $count = min(5, max(1, ['one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5][Str::lower($match[1])] ?? (int) $match[1]));
         }
 
-        $results = collect($payload['results'])->take($count)->map(function (array $result) use ($user, $draft, $researchContext): array {
+        $linkedSources = $draft->literatureSources()->get();
+        $results = collect($payload['results'])->take($count)->map(function (array $result) use ($user, $draft, $researchContext, $linkedSources): array {
             $evidence = trim((string) ($result['description'] ?? ''));
-            $canSynthesize = Str::length($evidence) >= 80 && $evidence !== 'No description available from source.';
+            $hasAbstract = Str::length($evidence) >= 80 && $evidence !== 'No description available from source.';
+            $linked = $this->matchingSource($linkedSources, $result);
+            $canReadPaper = $this->evidenceResolver->canReadPaper($result, $linked);
             $token = $this->cacheToken('source', $user, $draft, ['source' => $result, 'objectives' => $researchContext['objectives']]);
 
             return [
@@ -153,8 +159,9 @@ class ResearchAssistantLiteratureService
                     'reason' => $result['match_reason'] ?? 'Review the source to assess its connection to your objective.',
                     'matched_terms' => $result['matched_terms'] ?? [],
                 ],
-                'evidence_basis' => $canSynthesize ? 'abstract' : 'metadata_only',
-                'can_synthesize' => $canSynthesize,
+                'evidence_basis' => $hasAbstract ? 'abstract' : 'metadata_only',
+                'can_synthesize' => $hasAbstract || $canReadPaper,
+                'can_read_paper' => $canReadPaper,
             ];
         })->values()->all();
         $notice = collect([$payload['provider_notice'] ?? null, $payload['search_notice'] ?? null])
@@ -172,7 +179,7 @@ class ResearchAssistantLiteratureService
             'year_from' => $filters['year_from'] ?? null,
             'year_to' => $filters['year_to'] ?? null,
             'results' => $results,
-            'notice' => $notice ?: 'Paragraphs use the indexed abstracts. Open the full papers to check methods and limitations.',
+            'notice' => $notice ?: 'Drafting reads available source-paper text. Attach a readable PDF in Sources when needed, or explicitly choose “Use abstracts instead” for preliminary notes.',
         ]);
     }
 
@@ -292,41 +299,48 @@ class ResearchAssistantLiteratureService
      * @param  list<string>  $sourceTokens
      * @return array<string, mixed>
      */
-    private function draftParagraphs(User $user, ProposalDraft $draft, array $context, array $sourceTokens): array
+    private function draftParagraphs(User $user, ProposalDraft $draft, array $context, array $sourceTokens, string $basis): array
     {
         $sources = array_map(fn (string $token): array => $this->resolveToken('source', $token, $user, $draft), $sourceTokens);
         $researchContext = $this->researchContext($draft, $context, '');
         $preceding = $researchContext['preceding_rrl'];
         $drafts = [];
-
-        foreach ($sources as $index => $cached) {
+        $linkedSources = $draft->literatureSources()->get();
+        $prepared = array_map(function (array $cached) use ($linkedSources, $basis): array {
             $source = $cached['source'];
-            $abstract = trim((string) ($source['description'] ?? ''));
-
-            if (Str::length($abstract) < 80 || $abstract === 'No description available from source.') {
-                throw ValidationException::withMessages(['action.source_tokens' => 'This source has insufficient abstract evidence. Select a study with an available abstract.']);
+            $linked = $this->matchingSource($linkedSources, $source);
+            if ($linked) {
+                $authoritative = $linked->toLibraryArray();
+                $source = [...$source, ...$authoritative, 'full_text_token' => $authoritative['full_text_token'] ?: ($source['full_text_token'] ?? null)];
             }
+
+            return [...$cached, 'source' => $source, 'evidence' => $this->evidenceResolver->resolve($source, $basis, $linked)];
+        }, $sources);
+
+        foreach ($prepared as $index => $cached) {
+            $source = $cached['source'];
+            $evidence = $cached['evidence'];
 
             $generated = $this->synthesis->synthesize([
                 'title' => $source['title'],
                 'authors' => $source['authors'] ?? null,
                 'year' => $source['year'] ?? null,
-                'abstract' => Str::limit($abstract, 6000, ''),
-                'evidence_basis' => 'abstract',
+                ...$evidence,
                 'proposal_title' => $draft->project_title,
                 'proposal_objectives' => $cached['objectives'] ?? $researchContext['objectives'],
                 'preceding_rrl_context' => $preceding,
                 'connection_mode' => 'auto',
             ]);
-            $token = $this->cacheToken('draft', $user, $draft, ['source' => $source, 'basis' => 'abstract']);
+            $token = $this->cacheToken('draft', $user, $draft, ['source' => $source, 'basis' => $evidence['evidence_basis']]);
             $drafts[] = [
                 'draft_token' => $token,
                 'source_token' => $sourceTokens[$index],
                 ...Arr::only($source, ['title', 'authors', 'year', 'url', 'doi']),
                 'paragraph' => $generated['synthesis'],
-                'evidence_basis' => 'abstract',
+                'evidence_basis' => $evidence['evidence_basis'],
+                'coverage' => $evidence['coverage'],
                 'relationship' => $generated['relationship'],
-                'notice' => $generated['notice'],
+                'notice' => $evidence['notice'],
             ];
             $preceding = Str::substr($preceding.' '.$generated['synthesis'], -2500);
         }
@@ -336,8 +350,21 @@ class ResearchAssistantLiteratureService
             'proposal_draft_id' => $draft->getKey(),
             'proposal_title' => $draft->project_title,
             'drafts' => $drafts,
-            'notice' => 'Each paragraph is based on its source abstract. Verify the full paper before relying on methods, limitations, or causal claims.',
+            'notice' => $basis === 'abstract' ? 'These are preliminary abstract-based notes. Read the full papers before relying on methods, limitations, or causal claims.'
+                : 'Each paragraph uses available source-paper text. Check its extraction coverage and compare the draft with the original paper before accepting.',
         ]);
+    }
+
+    /** @param Collection<int, ProposalDraftLiteratureSource> $linkedSources
+     * @param  array<string, mixed>  $source
+     */
+    private function matchingSource(Collection $linkedSources, array $source): ?ProposalDraftLiteratureSource
+    {
+        $doi = LiteratureSource::normalizeDoi($source['doi'] ?? null);
+        $fingerprint = ProposalDraftLiteratureSource::fingerprintFor($doi, (string) ($source['title'] ?? ''), isset($source['year']) ? (int) $source['year'] : null);
+
+        return $linkedSources->first(fn (ProposalDraftLiteratureSource $linked): bool => $linked->fingerprint === $fingerprint
+            || ($doi !== '' && LiteratureSource::normalizeDoi($linked->doi) === $doi));
     }
 
     /** @param list<array{draft_token: string, paragraph: string}> $paragraphs

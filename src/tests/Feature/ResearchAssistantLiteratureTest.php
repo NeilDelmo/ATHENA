@@ -42,6 +42,10 @@ beforeEach(function () {
 
 function literatureChatPayload(ProposalDraft $draft, string $question = 'Find studies for my objectives', array $action = []): array
 {
+    if (($action['type'] ?? null) === 'draft_literature' && ! array_key_exists('evidence_basis', $action)) {
+        $action['evidence_basis'] = 'abstract';
+    }
+
     return ['messages' => [['role' => 'user', 'content' => $question]], 'context' => ['proposal_draft_id' => $draft->id, 'paper_slug' => 'detailed-proposal'], ...($action !== [] ? ['action' => $action] : [])];
 }
 

@@ -6,7 +6,8 @@
     $requestedTotal = $budget->sum(fn (array $entry): float => (float) ($entry['amount_requested'] ?? 0));
     $actualTotal = $budget->sum(fn (array $entry): float => (float) ($entry['actual_amount'] ?? 0));
     $money = fn (float $amount): string => 'PHP '.number_format($amount, 2);
-    $percentage = fn (float $value): string => number_format($value, 2, '.', '').'%';
+    $percentage = fn (float $value): string => rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.').'%';
+    $leader = $report->submitter?->name ?? $report->topic->user?->name ?? '';
 @endphp
 
 <!DOCTYPE html>
@@ -19,45 +20,38 @@
         @vite('resources/css/monitoring-tool-print.css')
     </head>
     <body class="monitoring-preview-page">
+        <div class="monitoring-paper-footer">Tracking No. __________________________</div>
         <main class="monitoring-sheet" aria-label="BatStateU monitoring tool preview">
-            <header class="monitoring-header">
-                <p>BatStateU-REC-RES-03</p>
-                <div>
-                    <h1>MONITORING TOOL</h1>
-                    <p>Research Project Progress Report</p>
-                </div>
-                <p>Revision 03</p>
-            </header>
-
-            <table class="monitoring-table monitoring-metadata-table">
+            <table class="monitoring-table monitoring-header">
+                <colgroup><col style="width: 8.548%"><col style="width: 35.116%"><col style="width: 40.365%"><col style="width: 15.971%"></colgroup>
                 <tbody>
                     <tr>
-                        <th scope="row">Reporting Date</th>
-                        <td>{{ $report->reporting_date?->format('F j, Y') }}</td>
-                        <th scope="row">Tracking No.</th>
-                        <td>__________________________</td>
+                        <td class="monitoring-logo"><img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University seal"></td>
+                        <td><strong>Reference No.:</strong> BatStateU-REC-RES-03</td>
+                        <td><strong>Effectivity Date:</strong> May 18, 2022</td>
+                        <td><strong>Revision No.:</strong> 03</td>
+                    </tr>
+                    <tr><td colspan="4"><h1>MONITORING TOOL FOR ONGOING RESEARCH PROJECT</h1></td></tr>
+                </tbody>
+            </table>
+
+            <table class="monitoring-table monitoring-metadata-table">
+                <colgroup><col style="width: 46.613%"><col style="width: 53.387%"></colgroup>
+                <tbody>
+                    <tr><td colspan="2">Date: {{ $report->reporting_date?->format('F j, Y') }}</td></tr>
+                    <tr>
+                        <td>Research Project Title: {{ $report->topic->title }}</td>
+                        <td>Project Leader: {{ \Illuminate\Support\Str::upper($leader) }}</td>
                     </tr>
                     <tr>
-                        <th scope="row">Research Project Title</th>
-                        <td colspan="3" class="monitoring-project-title">{{ $report->topic->title }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Project Leader</th>
-                        <td>{{ \Illuminate\Support\Str::upper($report->topic->user->name) }}</td>
-                        <th scope="row">Project Duration</th>
-                        <td>{{ $report->topic->estimated_duration_months }} months</td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Approved Project Cost</th>
-                        <td>{{ $money($projectCost) }}</td>
-                        <th scope="row">Overall Progress</th>
-                        <td class="monitoring-emphasis">{{ $report->progress_percentage }}%</td>
+                        <td>Total Project Cost: {{ $money($projectCost) }}</td>
+                        <td>Duration: {{ (int) $report->topic->estimated_duration_months }} {{ (int) $report->topic->estimated_duration_months === 1 ? 'month' : 'months' }}</td>
                     </tr>
                 </tbody>
             </table>
 
             <section class="monitoring-section">
-                <h2>A. WORK PLAN</h2>
+                <h2 class="monitoring-section-heading">Work Plan</h2>
                 <table class="monitoring-table monitoring-work-plan-table">
                     <colgroup>
                         <col class="activity-column">
@@ -70,55 +64,59 @@
                     </colgroup>
                     <thead>
                         <tr>
-                            <th scope="col">Activity</th>
-                            <th scope="col">Percent Weight</th>
-                            <th scope="col">Physical Target<br>(Quantifiable)</th>
-                            <th scope="col">Target Completion Date</th>
+                            <th scope="col">Activities</th>
+                            <th scope="col">Percent Weight of the Activity</th>
+                            <th scope="col">Physical Targets<br><span class="monitoring-regular">(Quantifiable)</span></th>
+                            <th scope="col">Target Date of Completion based on the Approved Work Plan</th>
                             <th scope="col">Actual Accomplishment</th>
-                            <th scope="col">Percentage of Accomplished Tasks</th>
-                            <th scope="col">Notable Findings / Challenges</th>
+                            <th scope="col">*Percentage of the Accomplished Tasks</th>
+                            <th scope="col">Notable findings or challenges encountered</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($workPlan as $entry)
                             <tr>
-                                <td>
+                                <td class="monitoring-activity">
                                     @if (filled($entry['objective'] ?? null))
-                                        <strong>Objective:</strong> {{ $entry['objective'] }}<br>
-                                        <strong>Activity:</strong>
+                                        Objective: {{ $entry['objective'] }}<br>
+                                        Activity:
                                     @endif
                                     {{ $entry['activity'] }}
                                 </td>
                                 <td class="monitoring-number">{{ $percentage((float) $entry['percent_weight']) }}</td>
-                                <td>{{ $entry['physical_target'] }}</td>
+                                <td class="monitoring-pre-line monitoring-number">{{ $entry['physical_target'] }}</td>
                                 <td class="monitoring-date">{{ \Illuminate\Support\Carbon::parse($entry['target_completion_date'])->format('M j, Y') }}</td>
-                                <td>{{ $entry['actual_accomplishment'] }}</td>
+                                <td class="monitoring-pre-line monitoring-number">{{ $entry['actual_accomplishment'] }}</td>
                                 <td class="monitoring-number">{{ $percentage((float) $entry['accomplished_percentage']) }}</td>
-                                <td>{{ ($entry['findings'] ?? '') ?: '—' }}</td>
+                                <td class="monitoring-pre-line monitoring-number">{{ $entry['findings'] ?? '' }}</td>
                             </tr>
                         @endforeach
-                        <tr class="monitoring-total-row">
-                            <th scope="row">TOTAL</th>
-                            <td class="monitoring-number">{{ $percentage($workPlan->sum(fn (array $entry): float => (float) $entry['percent_weight'])) }}</td>
-                            <td colspan="3"></td>
-                            <td class="monitoring-number">{{ $report->progress_percentage }}%</td>
-                            <td></td>
-                        </tr>
+                        @for ($index = $workPlan->count(); $index < 11; $index++)
+                            <tr class="monitoring-empty-row">@for ($column = 0; $column < 7; $column++)<td></td>@endfor</tr>
+                        @endfor
+                    </tbody>
+                </table>
+                <table class="monitoring-table monitoring-total-table">
+                    <colgroup><col style="width: 73.753%"><col style="width: 26.247%"></colgroup>
+                    <tbody>
+                        <tr><td>Total accomplishment as of {{ $report->reporting_date?->format('F j, Y') }}:</td><td class="monitoring-number">{{ $percentage((float) $report->progress_percentage) }}</td></tr>
+                        <tr><td colspan="2">* = (actual accomplishment ÷ physical target) x percent weight of the activity</td></tr>
                     </tbody>
                 </table>
             </section>
 
             <section class="monitoring-section">
-                <h2>B. BUDGET UTILIZATION</h2>
+                <h2 class="monitoring-section-heading">Budget Utilization</h2>
                 <table class="monitoring-table monitoring-budget-table">
+                    <colgroup><col style="width: 16.477%"><col style="width: 29.553%"><col style="width: 10.752%"><col style="width: 11.205%"><col style="width: 10.765%"><col style="width: 21.248%"></colgroup>
                     <thead>
                         <tr>
                             <th scope="col">Type of Request</th>
                             <th scope="col">Details of Request</th>
                             <th scope="col">Amount Requested</th>
-                            <th scope="col">Actual Amount Disbursed</th>
-                            <th scope="col">Utilization</th>
-                            <th scope="col">Remarks / Challenges</th>
+                            <th scope="col">Actual Amount<br><span class="monitoring-regular">(Amount disbursed)</span></th>
+                            <th scope="col">Budget Utilized (%)</th>
+                            <th scope="col">Remarks / Challenges Encountered</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -127,7 +125,7 @@
                                 $entry = $budget->get($type, []);
                                 $amountRequested = (float) ($entry['amount_requested'] ?? 0);
                                 $actualAmount = (float) ($entry['actual_amount'] ?? 0);
-                                $utilization = $amountRequested > 0 ? ($actualAmount / $amountRequested) * 100 : 0;
+                                $utilization = $projectCost > 0 ? ($actualAmount / $projectCost) * 100 : 0;
                             @endphp
                             <tr>
                                 <th scope="row">{{ $type }}</th>
@@ -135,14 +133,14 @@
                                 <td class="monitoring-money">{{ $money($amountRequested) }}</td>
                                 <td class="monitoring-money">{{ $money($actualAmount) }}</td>
                                 <td class="monitoring-number">{{ $percentage($utilization) }}</td>
-                                <td>{{ ($entry['remarks'] ?? '') ?: '—' }}</td>
+                                <td>{{ $entry['remarks'] ?? '' }}</td>
                             </tr>
                         @endforeach
                         <tr class="monitoring-total-row">
-                            <th scope="row" colspan="2">TOTAL</th>
+                            <th scope="row" colspan="2">Total</th>
                             <td class="monitoring-money">{{ $money($requestedTotal) }}</td>
                             <td class="monitoring-money">{{ $money($actualTotal) }}</td>
-                            <td class="monitoring-number">{{ $percentage($requestedTotal > 0 ? ($actualTotal / $requestedTotal) * 100 : 0) }}</td>
+                            <td class="monitoring-number">{{ $percentage($projectCost > 0 ? ($actualTotal / $projectCost) * 100 : 0) }}</td>
                             <td></td>
                         </tr>
                     </tbody>
@@ -151,22 +149,25 @@
 
             <footer class="monitoring-signatures">
                 <section class="monitoring-signature">
-                <p>Prepared by:</p>
-                <div class="monitoring-signature-line">{{ strtoupper($report->submitter->name) }}</div>
-                <p>Project Leader</p>
-                <p>Date Signed: {{ $report->prepared_by_date_signed?->format('F j, Y') ?: '____________________' }}</p>
+                    <p>Prepared by:</p>
+                    <div class="monitoring-signature-line">_____________________________________</div>
+                    <p>{{ \Illuminate\Support\Str::upper($leader) }}</p>
+                    <p>Project Leader</p>
+                    <p class="monitoring-date-signed">Date Signed: {{ $report->prepared_by_date_signed?->format('F j, Y') }}</p>
                 </section>
                 <section class="monitoring-signature">
                     <p>Monitored by:</p>
-                    <div class="monitoring-signature-line">{{ config('work_plan.verifier.name') }}</div>
+                    <div class="monitoring-signature-line">_____________________________________</div>
+                    <p>{{ config('work_plan.verifier.name') }}</p>
                     <p>Head, Research</p>
-                    <p>Date Signed: ____________________</p>
+                    <p class="monitoring-date-signed">Date Signed:</p>
                 </section>
                 <section class="monitoring-signature">
                     <p>Reviewed &amp; Evaluated by:</p>
-                    <div class="monitoring-signature-line">{{ config('notice_to_proceed.issuing_officer.name') }}</div>
+                    <div class="monitoring-signature-line">___________________________________</div>
+                    <p>{{ config('notice_to_proceed.issuing_officer.name') }}</p>
                     <p>Vice Chancellor for Research, Development and Extension Services</p>
-                    <p>Date Signed: ____________________</p>
+                    <p class="monitoring-date-signed">Date Signed:</p>
                 </section>
             </footer>
         </main>

@@ -107,6 +107,15 @@ test('missing proof earns zero and forged evidence or progress cannot be submitt
     ]))->assertUnprocessable()->assertJsonValidationErrors('work_plan.0.completed_units');
 });
 
+test('monitoring drafts and PDF preparation allow unfinished proof', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
+        ->assertSuccessful()->assertJsonCount(0, 'work_plan.0.evidence');
+    $this->post(route('project-progress.prepare', $this->topic), ($this->payload)())->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    expect($report->isPrepared())->toBeTrue()->and($report->work_plan[0]['evidence'])->toBe([]);
+    Storage::disk('local')->assertExists($report->official_pdf_path);
+});
+
 test('unsupported oversized or unlinked evidence is rejected without storing files', function (array $files, string $error) {
     $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['activity_evidence' => $files]))
         ->assertUnprocessable()->assertJsonValidationErrors($error);

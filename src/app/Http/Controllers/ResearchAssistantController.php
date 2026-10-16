@@ -177,7 +177,8 @@ class ResearchAssistantController extends Controller
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'conversation_id' => ['nullable', 'integer'],
-            'action' => ['nullable', 'array:type,document_token,query,source_tokens,drafts,review_focus'],
+            'action' => ['nullable', 'array:type,document_token,query,source_tokens,drafts,review_focus,evidence_basis'],
+            'action.evidence_basis' => ['nullable', 'string', 'in:full_text,abstract'],
             'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_literature,confirm_literature,review_proposal,suggest_proposal_changes'],
             'action.review_focus' => ['required_if:action.type,review_proposal', 'string', 'in:consistency,revision_response'],
             'action.document_token' => ['required_if:action.type,analyze_document', 'string', 'max:4096'],
@@ -412,6 +413,7 @@ class ResearchAssistantController extends Controller
             $validated['context']['paper_slug'] ?? null,
             $validated['context']['field'] ?? null,
             $messages->take($messages->count() - 1)->values()->all(),
+            $isDocumentAnalysis ? ($documentEvidence['research_manual'] ?? null) : ($proposalDraft?->researchManual ?? $topic?->researchManual),
         );
         $knowledgeContext = $this->researchKnowledge->promptContext(
             $knowledgeSources,

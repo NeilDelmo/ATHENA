@@ -65,7 +65,7 @@ export function proposalAssessmentPreview({ initialForm = null } = {}) {
             this.previewZoom = 100;
             this.previewPaneOpen = true;
             this.previewFullscreen = true;
-            this.previewFit = 'page';
+            this.previewFit = 'width';
             this.$nextTick(() => this.$refs.previewClose?.focus({ preventScroll: true }));
             this.generatePreview();
         },

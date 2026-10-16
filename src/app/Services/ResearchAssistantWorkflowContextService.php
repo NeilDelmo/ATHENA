@@ -88,7 +88,7 @@ ATHENA retrieved only the saved workflow sections relevant to the current page a
 
 {$contextJson}
 
-Use only the included sections when describing saved ATHENA records. Distinguish saved private drafts from submitted reports and unsaved browser form values. For delay questions, lead with the relevant calculated calendar-day count and its comparison dates. Separate activity slippage, the approved project end, and report submission lateness. The reporting period end and submission opening date are NOT submission deadlines. A revision request is NOT proof of late submission. If no report deadline is recorded, say briefly that report lateness cannot be established, then give the available activity calculation. Milestone counts describe incomplete work as of the latest submitted report, not verified completion status today. Cite this saved packet as [Project record]; field guides do not substantiate project-specific dates. The project_completion.remaining_record_items list is derived from saved statuses and record availability; do not describe it as an institutional requirement unless an approved ATHENA knowledge excerpt separately establishes that rule.
+Use only the included sections when describing saved ATHENA records. Distinguish saved private drafts from submitted reports and unsaved browser form values. For delay questions, lead with the relevant calculated calendar-day count and its comparison dates. Separate activity slippage, the approved project end, and report submission lateness. Quarterly Monitoring Tools and Progress Reports open during the final seven calendar days of their reporting period, are due on its last day, and become overdue the next day. Submission opening is not the deadline. Report lateness uses the initial submission date; a revision request or later correction is not proof of late initial submission. If the deadline or initial submission date is unavailable, say briefly that report lateness cannot be established, then give the available activity calculation. Milestone counts describe incomplete work as of the latest submitted report, not verified completion status today. Cite this saved packet as [Project record]; field guides do not substantiate project-specific dates. The project_completion.remaining_record_items list is derived from saved statuses and record availability; do not describe it as an institutional requirement unless an approved ATHENA knowledge excerpt separately establishes that rule.
 PROMPT;
     }
 
@@ -350,6 +350,12 @@ PROMPT;
     private function delayAssessment(User $user, TopicProposal $topic, ?ProjectProgressReport $report): array
     {
         $today = CarbonImmutable::today(config('app.timezone'));
+        $reportDeadline = $report?->period_end ? CarbonImmutable::instance($report->period_end)->startOfDay() : null;
+        $initialReport = $report;
+        while ($initialReport?->supersedes_report_id !== null) {
+            $initialReport = $initialReport->supersedes;
+        }
+        $initialSubmissionDate = $initialReport?->submitted_at ? CarbonImmutable::instance($initialReport->submitted_at)->startOfDay() : null;
         $approvedEnd = $this->canReadNoticeDetails($user, $topic)
             ? $this->recordedDate(data_get($topic->notice_to_proceed_data, 'approved_end_date')) : null;
         $reportDate = $report?->reporting_date
@@ -383,9 +389,10 @@ PROMPT;
             'calendar_days_past_approved_end' => $approvedEnd && ! $topic->isCompletedProject()
                 ? $this->daysPast($approvedEnd, $today) : null,
             'incomplete_milestones_in_latest_report' => $milestones,
-            'report_submission_deadline' => null,
-            'report_days_late' => null,
-            'report_lateness_explanation' => 'No report submission deadline is recorded. Period closure, submission opening, and revision requests alone do not establish late submission.',
+            'report_submission_deadline' => $reportDeadline?->toDateString(),
+            'initial_report_submitted_on' => $initialSubmissionDate?->toDateString(),
+            'report_days_late' => $reportDeadline && $initialSubmissionDate ? $this->daysPast($reportDeadline, $initialSubmissionDate) : null,
+            'report_lateness_explanation' => 'Quarterly reports are due on the reporting period end date. Lateness compares the initial submission date with that deadline; corrections do not reset the initial submission date.',
         ];
     }
 
@@ -506,7 +513,9 @@ PROMPT;
             'submitted_at' => $report->submitted_at?->toISOString(),
             'reporting_period_start' => $report->period_start?->toDateString(),
             'reporting_period_end' => $report->period_end?->toDateString(),
-            'submission_opens_on' => $report->period_end?->copy()->addDay()->toDateString(),
+            'submission_opens_on' => $report->period_start && $report->period_end
+                ? app(MonitoringQuarterService::class)->submissionOpensAt($report->period_start, $report->period_end)->toDateString() : null,
+            'submission_deadline' => $report->period_end?->toDateString(),
             'tracking_number' => $report->tracking_number,
             'version' => $report->version_number,
             'progress_percentage' => $report->progress_percentage,
@@ -525,6 +534,11 @@ PROMPT;
         return $this->sanitizeContextValue([
             'submission_date' => $report->submission_date?->toDateString(),
             'submitted_at' => $report->submitted_at?->toISOString(),
+            'reporting_period_start' => $report->period_start?->toDateString(),
+            'reporting_period_end' => $report->period_end?->toDateString(),
+            'submission_opens_on' => $report->report_type === 'progress' && $report->period_start && $report->period_end
+                ? app(MonitoringQuarterService::class)->submissionOpensAt($report->period_start, $report->period_end)->toDateString() : null,
+            'submission_deadline' => $report->report_type === 'progress' ? $report->period_end?->toDateString() : null,
             'tracking_number' => $report->tracking_number,
             'implementation_start' => $report->implementation_start?->toDateString(),
             'implementation_end' => $report->implementation_end?->toDateString(),

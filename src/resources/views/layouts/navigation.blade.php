@@ -179,12 +179,12 @@
                 wire:current="{{ $sidebarCurrentClasses }}"
                 @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('research_secretary.dashboard') }}"
-                aria-label="Research Office / Secretary Dashboard"
-                title="Research Office / Secretary Dashboard"
+                aria-label="Research Office Secretary Dashboard"
+                title="Research Office Secretary Dashboard"
                 class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
-                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signing &amp; Budgets</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Notices &amp; Budgets</span>
             </a>
             <a wire:navigate wire:current="{{ $sidebarCurrentClasses }}" href="{{ route('signatories.index') }}" aria-label="Signatory defaults" title="Signatory defaults" class="{{ $sidebarLinkClasses }}">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h5M5 3h14v18H5V3m5 14h5" /></svg>
@@ -234,6 +234,19 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.74-.48 3 3 0 0 0-4.68-2.72m.94 3.2v-.01c0-1.2-.34-2.32-.94-3.19m.94 3.2v.13A11.9 11.9 0 0 1 12 20.4c-2.17 0-4.2-.58-5.94-1.6v-.12a6 6 0 0 1 11-3.17M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
                             </svg>
                             <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Members</span>
+                        </a>
+                        <a
+                            wire:navigate
+                            wire:current="{{ $sidebarCurrentClasses }}"
+                            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                            href="{{ route('research_coordinator.reports.index') }}"
+                            aria-label="Quarterly Reports"
+                            title="Quarterly Reports"
+                            class="{{ $sidebarLinkClasses }}"
+                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                        >
+                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v15a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V5a2 2 0 0 0-2-2h-3M8 2h8v4H8V2Zm-1 9h10M7 15h10" /></svg>
+                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Quarterly Reports</span>
                         </a>
                     </section>
                 </nav>

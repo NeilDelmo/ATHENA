@@ -42,8 +42,8 @@ test('research heads can view every user in the user directory', function () {
         ->assertDontSee('collegeDotClasses', false)
         ->assertSee('Assign Research Coordinator')
         ->assertSee('aria-label="Assign Research Coordinator to CICS Faculty Member"', false)
-        ->assertSee('aria-label="Assign Research Office / Secretary to CICS Faculty Member"', false)
-        ->assertSee('Assign Research Office / Secretary')
+        ->assertSee('aria-label="Assign Research Office Secretary to CICS Faculty Member"', false)
+        ->assertSee('Assign Research Office Secretary')
         ->assertDontSee('Coordinator rules:')
         ->assertSeeInOrder(['All', 'CICS', 'CTE', 'CABEIHM', 'CCJE', 'CAS', 'CHS'])
         ->assertSee($cicsMember->name)
@@ -224,9 +224,9 @@ test('the directory exposes secretary and coordinator roles independently', func
     $row = $xpath->query('//tr[@data-member-row][.//span[text()="Office Secretary"]]')->item(0);
 
     expect($row)->not->toBeNull()
-        ->and($xpath->query('.//div[@data-member-roles]', $row)->item(0)->textContent)->toContain('Research Coordinator', 'Research Office / Secretary')
+        ->and($xpath->query('.//div[@data-member-roles]', $row)->item(0)->textContent)->toContain('Research Coordinator', 'Research Office Secretary')
         ->and($xpath->query('.//button[@aria-label="Remove Research Coordinator from Office Secretary"]', $row)->length)->toBe(1)
-        ->and($xpath->query('.//button[@aria-label="Remove Research Office / Secretary from Office Secretary"]', $row)->length)->toBe(1);
+        ->and($xpath->query('.//button[@aria-label="Remove Research Office Secretary from Office Secretary"]', $row)->length)->toBe(1);
 });
 
 test('directory separates member roles from college status and keeps assignment actions consistent', function () {
@@ -256,7 +256,7 @@ test('directory separates member roles from college status and keeps assignment 
 
     expect($identity->textContent)->not->toContain('College required')
         ->and($college->textContent)->toContain('College required')
-        ->and($xpath->query('.//div[@data-member-roles]', $identity)->item(0)->textContent)->toContain('Research Office / Secretary');
+        ->and($xpath->query('.//div[@data-member-roles]', $identity)->item(0)->textContent)->toContain('Research Office Secretary');
 
     foreach ($xpath->query('//tr[@data-member-row]/td[position() >= 4]/button') as $button) {
         expect($button->getAttribute('class'))->toContain('w-full', 'min-h-11')
@@ -277,13 +277,15 @@ test('secretary assignments preserve coordinator and faculty roles', function ()
 
     $this->actingAs($this->researchHead)
         ->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'assign'])
-        ->assertRedirect()->assertSessionHasNoErrors();
+        ->assertRedirect()->assertSessionHasNoErrors()
+        ->assertSessionHas('status', $member->name.' is now a Research Office Secretary.');
 
     expect($member->refresh()->hasAllRoles(['faculty', 'research_coordinator', 'research_secretary']))->toBeTrue()
         ->and($otherSecretary->refresh()->hasRole('research_secretary'))->toBeTrue();
 
     $this->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'remove'])
-        ->assertRedirect()->assertSessionHasNoErrors();
+        ->assertRedirect()->assertSessionHasNoErrors()
+        ->assertSessionHas('status', $member->name.' is no longer a Research Office Secretary.');
 
     expect($member->refresh()->hasRole('research_secretary'))->toBeFalse()
         ->and($member->hasAllRoles(['faculty', 'research_coordinator']))->toBeTrue()

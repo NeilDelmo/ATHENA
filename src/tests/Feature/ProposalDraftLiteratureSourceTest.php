@@ -312,6 +312,7 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
             'authors' => 'Maria Santos, Luis Cruz',
             'year' => 2024,
             'abstract' => $abstract,
+            'evidence_basis' => 'abstract',
             'is_open_access' => false,
             'proposal_title' => 'Community Mangrove Monitoring',
             'preceding_rrl_context' => $precedingContext,
@@ -397,6 +398,7 @@ test('rrl synthesis retries a token limited response with a larger completion bu
             'authors' => 'Maria Santos, Luis Cruz',
             'year' => 2024,
             'abstract' => $abstract,
+            'evidence_basis' => 'abstract',
             'is_open_access' => false,
         ])
         ->assertOk()
@@ -422,6 +424,7 @@ test('rrl synthesis refuses records without a usable abstract', function () {
             'authors' => 'A. Researcher',
             'year' => 2025,
             'abstract' => 'No abstract available.',
+            'evidence_basis' => 'abstract',
             'is_open_access' => false,
         ]);
 
@@ -487,7 +490,9 @@ test('the research support page exposes shared papers collections and optional p
         ->assertDontSee('for="literature-proposal-draft"', false)
         ->assertSee('Create collection')
         ->assertSee('Review your RRL draft')
-        ->assertSee('Abstract only')
+        ->assertSee('Indexed abstract only')
+        ->assertSee('Read paper and generate')
+        ->assertSee('Use abstract instead')
         ->assertSee('Editable research notes')
         ->assertSee('data-literature-synthesis-url', false)
         ->assertSee('Add to proposal')

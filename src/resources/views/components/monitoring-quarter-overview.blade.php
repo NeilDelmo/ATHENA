@@ -9,7 +9,7 @@
         <div>
             <h4 id="quarterly-reporting-schedule-heading" class="text-lg font-semibold">Quarterly reports</h4>
             @if (! $topic->isCompletedProject())
-                <p class="mt-1 text-base leading-6 text-red-100">Submit both reports after each quarter ends. The final period may be shorter.</p>
+                <p class="mt-1 text-base leading-6 text-red-100">Submit both reports during the final week of each quarter. Reports are due on the last day and overdue the next day. The final period may be shorter.</p>
             @else
                 <p class="mt-1 text-base leading-6 text-red-100">Open a report to read the submitted paper.</p>
             @endif
@@ -56,12 +56,15 @@
                         $progressLabel = ($row['has_approved_work_plan'] ?? false) ? 'quarter targets' : 'project progress';
                         $canSubmit = $canReport && $row['reporting_date'];
                         $canDraft = $canReport && ($row['drafting_date'] ?? null);
-                        $toolStatus = $topic->isCompletedProject() && $report === null ? 'No tool on file' : ($report?->isPrepared() ? 'PDF prepared' : $row['status']);
+                        $toolStatus = $topic->isCompletedProject() && $report === null ? 'No tool on file' : ($report?->isPrepared() ? 'PDF prepared'.($report->supersedes_report_id === null && $row['end']->isPast() ? ' · Overdue' : '') : $row['status']);
                         $progressStatus = $topic->isCompletedProject() && $progressReport === null ? 'No report on file' : ($progressRow['status'] ?? 'No report on file');
                     @endphp
                     <tr data-reporting-quarter="{{ $row['quarter'] }}" class="border-t border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-900">
                         <th scope="row" class="px-5 py-3 align-top font-normal sm:px-6">
                             <p data-reporting-period class="flex min-h-11 items-center gap-3 text-base leading-6 text-slate-900 dark:text-white"><span class="quarterly-report-quarter">{{ $row['label'] }}</span><span>{{ $row['period'] }}</span></p>
+                            @if (! $topic->isCompletedProject())
+                                <p data-reporting-deadline class="ml-[3.25rem] mt-1 text-sm text-slate-600 dark:text-slate-400">Due {{ $row['end']->format('M j, Y') }}</p>
+                            @endif
                             @if ($quarterProgress !== null)
                                 <div class="ml-[3.25rem] mt-2 flex max-w-64 items-center gap-3">
                                     <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-label="{{ $row['label'] }} {{ $progressLabel }}" aria-valuenow="{{ $quarterProgress }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-slate-700 dark:bg-slate-300" style="width: {{ $quarterProgress }}%"></div></div>

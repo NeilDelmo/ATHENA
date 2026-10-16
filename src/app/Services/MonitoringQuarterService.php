@@ -144,10 +144,15 @@ class MonitoringQuarterService
                 break;
             }
             $end = $window['start']->addMonthsNoOverflow(($index + 1) * 3)->subDay()->endOfDay()->min($window['end']);
-            $periods->push(['year' => $start->year, 'quarter' => $index + 1, 'label' => 'Q'.($index + 1), 'period' => $start->format('M j, Y').' – '.$end->format('M j, Y'), 'start' => $start, 'end' => $end, 'opens_at' => $end->addDay()->startOfDay()]);
+            $periods->push(['year' => $start->year, 'quarter' => $index + 1, 'label' => 'Q'.($index + 1), 'period' => $start->format('M j, Y').' – '.$end->format('M j, Y'), 'start' => $start, 'end' => $end, 'opens_at' => $this->submissionOpensAt($start, $end)]);
         }
 
         return $periods;
+    }
+
+    public function submissionOpensAt(DateTimeInterface $start, DateTimeInterface $end): CarbonImmutable
+    {
+        return CarbonImmutable::instance($end)->subDays(6)->startOfDay()->max(CarbonImmutable::instance($start));
     }
 
     public function canSubmitForDate(TopicProposal $topic, DateTimeInterface|string $date): bool
@@ -180,11 +185,11 @@ class MonitoringQuarterService
             $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
             $editable = $report === null || $report->isPrepared() || $report->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED;
             $status = match (true) {
-                $report?->isPrepared() => 'PDF prepared',
+                $report?->isPrepared() => 'PDF prepared'.($report->version_number <= 1 && $period['end']->isPast() ? ' · Overdue' : ''),
                 $report?->review_status === ProjectNarrativeReport::STATUS_REVIEWED => 'Reviewed',
                 $report?->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED => 'Corrections requested',
                 $report !== null => 'Submitted – awaiting review',
-                $open => 'Not submitted',
+                $open => CarbonImmutable::now()->greaterThan($period['end']) ? 'Overdue' : 'Due '.$period['end']->format('M j, Y'),
                 default => 'Upcoming',
             };
 
@@ -264,11 +269,11 @@ class MonitoringQuarterService
         if ($report === null) {
             return now()->startOfDay()->isBefore($period['start'])
                 ? ['not_yet_due', 'Not yet due']
-                : ['not_submitted', 'Not submitted'];
+                : ['not_submitted', CarbonImmutable::now()->greaterThan($period['end']) ? 'Overdue' : 'Due '.$period['end']->format('M j, Y')];
         }
 
         if ($report->isPrepared()) {
-            return ['prepared', 'PDF prepared'];
+            return ['prepared', 'PDF prepared'.($report->supersedes_report_id === null && $period['end']->isPast() ? ' · Overdue' : '')];
         }
 
         return match ($report->review_status) {

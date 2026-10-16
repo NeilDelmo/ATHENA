@@ -10,7 +10,6 @@ export function commentResponsePaperPreview(url) {
 
     return {
         ...previewWorkspace,
-        previewFit: 'page',
         previewExpanded: false,
         previewHtml: '',
         previewReady: false,
@@ -99,7 +98,7 @@ export function commentResponsePaperPreview(url) {
 
         setPaperExpanded(expanded) {
             this.previewExpanded = expanded;
-            this.previewFit = 'page';
+            this.previewFit = 'width';
             this.previewZoom = 100;
             if (expanded) this.loadPaperPreview();
             this.syncPaperReplies();

@@ -1,22 +1,31 @@
 @page {
-    size: letter;
-    margin: 0.45in;
+    size: 8.5in 13in;
+    margin: 36pt 48.175pt 72pt;
+    @bottom-left {
+        content: var(--report-tracking);
+        font: 11pt "Times New Roman", serif;
+        padding-left: 23.825pt;
+    }
+    @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font: 11pt "Times New Roman", serif;
+    }
 }
 
 * {
     box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
     min-height: 100%;
     margin: 0;
 }
 
 body {
-    color: #111827;
+    position: relative;
+    color: #000;
     background: #e5e7eb;
-    font-family: Arial, Helvetica, sans-serif;
+    font: 11pt/1 "Times New Roman", serif;
 }
 
 .progress-report-preview-page {
@@ -25,184 +34,172 @@ body {
 
 .progress-report-sheet {
     width: 8.5in;
-    min-height: 11in;
+    min-height: 13in;
     margin: 0 auto;
-    padding: 0.4in;
+    padding: 36pt 48.175pt 72pt;
     background: #fff;
     box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
-}
-
-.progress-report-header {
-    display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
-    align-items: end;
-    margin-bottom: 10pt;
-    text-align: center;
-}
-
-.progress-report-header > p {
-    margin: 0;
-    font-size: 8pt;
-}
-
-.progress-report-header > p:first-child {
-    text-align: left;
-}
-
-.progress-report-header > p:last-child {
-    text-align: right;
-}
-
-.progress-report-header h1 {
-    margin: 0;
-    font-size: 14pt;
-    line-height: 1.1;
-}
-
-.progress-report-header div p {
-    margin: 2pt 0 0;
-    font-size: 9pt;
+    counter-reset: section;
 }
 
 .progress-report-table {
     width: 100%;
-    border: 0.75pt solid #111;
+    table-layout: fixed;
     border-collapse: collapse;
-    font-size: 8pt;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    font: inherit;
 }
 
-.progress-report-table th,
-.progress-report-table td {
-    padding: 5pt;
-    border: 0.75pt solid #111;
-    line-height: 1.3;
+.progress-report-table th, .progress-report-table td {
+    height: 22pt;
+    padding: 1pt 5.4pt;
+    border: 0.5pt solid #000;
     overflow-wrap: anywhere;
-    vertical-align: top;
+    vertical-align: middle;
 }
 
-.progress-report-table th {
-    background: #e5e7eb;
-    font-weight: 700;
-    text-align: left;
+.progress-report-header tr:first-child {
+    height: 42.65pt;
 }
 
-.progress-report-metadata-table th {
-    width: 31%;
+.progress-report-header {
+    font-size: 12pt;
 }
 
-.progress-report-emphasis {
-    font-weight: 700;
-}
-
-.progress-report-pre-line,
-.progress-report-narrative {
-    white-space: pre-line;
-}
-
-.progress-report-section {
-    margin-top: 12pt;
-    break-inside: auto;
-    page-break-inside: auto;
-}
-
-.progress-report-section h2 {
-    margin: 0 0 5pt;
-    font-size: 9pt;
-}
-
-.progress-report-accomplishments-table th {
+.progress-report-logo {
     text-align: center;
 }
 
-.progress-report-accomplishments-table th,
+.progress-report-logo img {
+    display: block;
+    width: 0.6125in;
+    height: 0.57431in;
+    margin: 0 auto;
+}
+
+.progress-report-header h1 {
+    margin: 0;
+    font: bold 12pt/1 "Times New Roman", serif;
+    text-align: center;
+}
+
+.progress-report-content {
+    margin-top: -0.5pt;
+}
+
+.progress-report-content h2 {
+    margin: 0;
+    font: bold 11pt/1 "Times New Roman", serif;
+}
+
+.progress-report-content h2:not(.progress-report-rationale)::before {
+    counter-increment: section;
+    content: counter(section, upper-roman) ". ";
+}
+
+.progress-report-rationale span {
+    font-weight: 400;
+}
+
+.progress-report-table .progress-report-summary-cell {
+    padding: 11pt 5.4pt;
+}
+
+.progress-report-accomplishments-table th {
+    font-weight: 700;
+    text-align: center;
+}
+
 .progress-report-accomplishments-table td {
-    width: 33.33%;
+    vertical-align: top;
+}
+
+.progress-report-pre-line, .progress-report-narrative {
+    white-space: pre-line;
 }
 
 .progress-report-narrative {
     margin: 0;
-    font-size: 9pt;
-    line-height: 1.45;
+    line-height: 1.15;
     text-align: justify;
+}
+
+.progress-report-narrative + .progress-report-narrative {
+    margin-top: 8pt;
 }
 
 .progress-report-section figure {
     margin: 10pt auto 0;
     break-inside: avoid;
-    page-break-inside: avoid;
 }
 
 .progress-report-section figure img {
     display: block;
     width: auto;
     max-width: 100%;
-    max-height: 6.4in;
+    max-height: 7.25in;
     margin: 0 auto;
 }
 
 .progress-report-section figcaption {
     margin-top: 4pt;
-    font-size: 8pt;
+    margin-bottom: 8pt;
     font-style: italic;
     text-align: center;
 }
 
+.progress-report-sign-off {
+    margin-top: 24pt;
+    break-before: page;
+}
+
+.progress-report-sign-off tr {
+    break-inside: avoid;
+}
+
 .progress-report-signature {
-    width: 45%;
-    margin-top: 22pt;
-    text-align: center;
-    break-inside: avoid;
-    page-break-inside: avoid;
-}
-
-.progress-report-review-signatures {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24pt;
-    break-inside: avoid;
-    page-break-inside: avoid;
-}
-
-.progress-report-review-signatures .progress-report-signature {
-    width: auto;
+    vertical-align: top !important;
 }
 
 .progress-report-signature p {
-    margin: 3pt 0;
-    font-size: 8pt;
-}
-
-.progress-report-signature > p:first-child {
-    text-align: left;
+    margin: 0;
 }
 
 .progress-report-signature-line {
-    min-height: 20pt;
-    padding-top: 8pt;
-    border-bottom: 0.75pt solid #111;
-    font-size: 9pt;
-    font-weight: 700;
+    margin-top: 33pt;
+}
+
+.progress-report-prepared-by {
+    height: 85pt !important;
+}
+
+.progress-report-paper-footer {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6.5in;
+    margin: 0;
+    color: #000;
 }
 
 @media print {
     body {
         background: #fff;
     }
-
     .progress-report-preview-page {
         padding: 0;
     }
-
     .progress-report-sheet {
         width: auto;
         min-height: 0;
+        margin: 0;
         padding: 0;
         box-shadow: none;
     }
-}
-
-.progress-report-narrative + .progress-report-narrative {
-    margin-top: 8pt;
+    .progress-report-sign-off {
+        margin-top: 0;
+    }
+    .progress-report-paper-footer {
+        display: none;
+    }
 }

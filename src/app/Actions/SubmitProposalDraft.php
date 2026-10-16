@@ -266,6 +266,7 @@ class SubmitProposalDraft
                 $primaryFile = $this->packageService->primaryFile($permanentFiles);
                 $topicAttributes = [
                     'research_call_id' => $lockedDraft->research_call_id,
+                    'research_manual_id' => $lockedDraft->research_manual_id,
                     'title' => $lockedDraft->project_title,
                     'estimated_duration_months' => $lockedDraft->duration_months,
                     'status' => 'pending',

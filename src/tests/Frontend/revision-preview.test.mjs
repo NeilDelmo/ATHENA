@@ -198,7 +198,7 @@ test('closing a preview while generation is pending cannot reopen it when the re
     assert.equal(nodes['[data-revision-preview-frame]'].srcdoc, undefined);
 });
 
-test('the rendered revision workspace keeps replies with comments, compares compact papers and preserves edits in both themes', async () => {
+test('the rendered revision workspace keeps replies with comments, shows larger default papers and preserves edits in both themes', async () => {
     const rendered = spawnSync('php', ['-r', String.raw`
         require 'vendor/autoload.php';
         $app = require 'bootstrap/app.php';
@@ -235,7 +235,7 @@ test('the rendered revision workspace keeps replies with comments, compares comp
     const paper = '<html><style>body{margin:16px;background:#e2e8f0;width:816px}.paper{box-sizing:border-box;background:white;width:816px;min-height:1056px;padding:64px;font:16px Georgia;color:#111827}h1{font-size:20px;text-align:center}table{border-collapse:collapse;width:100%}td{padding:16px;border:1px solid #111827}</style><body><article class="paper"><h1>ATTACHMENT A: WORK PLAN</h1><p>Fruit Drop Detection</p><table><tr><td>Objective</td><td>Activity</td><td>Schedule</td></tr><tr><td>Observe fruit drop</td><td>June fieldwork</td><td>June 2027</td></tr></table></article></body></html>';
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
-        for (const width of [390, 768, 1440]) {
+        for (const width of [390, 768, 1280, 1440]) {
             for (const dark of [false, true]) {
                 const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
                 const errors = [];
@@ -268,6 +268,11 @@ test('the rendered revision workspace keeps replies with comments, compares comp
                 }
                 assert.equal(await page.getByRole('button', { name: 'View full paper', exact: true }).count(), 0);
                 const editorFrameBounds = await page.locator('[data-revision-editor-frame]').boundingBox();
+                if (width >= 1280) {
+                    const initialPaper = await page.locator('[data-revision-reference]').boundingBox();
+                    assert.ok(initialPaper.width >= width * 0.44, `The default paper stays readable beside feedback: ${initialPaper.width}px`);
+                    assert.ok(editorFrameBounds.width >= 350, 'The larger default paper still leaves room to edit');
+                }
                 assert.equal(await page.locator('[data-revision-reference-toggle]').isVisible(), width < 768);
                 assert.ok(editorFrameBounds.height > 700, `Editor should use the available height at ${width}px: ${editorFrameBounds.height}`);
                 assert.ok(editorFrameBounds.y < 250, `Fields should begin near the top at ${width}px: ${editorFrameBounds.y}`);
@@ -287,7 +292,7 @@ test('the rendered revision workspace keeps replies with comments, compares comp
                 await page.waitForFunction(() => document.querySelector('[data-revision-preview-frame]').contentDocument?.body?.style.zoom);
                 assert.equal(await page.locator('[data-revision-editor-content]').isVisible(), true);
                 assert.equal(await page.locator('[data-revision-preview-open]').getAttribute('aria-pressed'), 'true');
-                assert.equal(await page.evaluate(() => Number(document.querySelector('[data-revision-preview-frame]').contentDocument.body.style.zoom) < 1), true);
+                assert.equal(await page.evaluate(() => Number(document.querySelector('[data-revision-preview-frame]').contentDocument.body.style.zoom) <= 1), true);
                 await page.frameLocator('[data-revision-editor-frame]').locator('textarea').fill('July fieldwork');
                 assert.equal(await page.locator('[data-revision-preview-stale]').isVisible(), true);
                 await page.locator('[data-revision-preview-refresh]').click();
@@ -296,16 +301,22 @@ test('the rendered revision workspace keeps replies with comments, compares comp
                 if (width >= 768) {
                     const reference = await page.locator('[data-revision-reference]').boundingBox();
                     const editor = await page.locator('.revision-editor-panel').boundingBox();
-                    assert.ok(reference.width < editor.width);
+                    assert.ok(reference.width >= width * 0.55, 'The default preview receives most of the workspace width');
+                    assert.ok(editor.width >= width * 0.35, 'The editor remains usable beside the default preview');
+                    assert.ok(reference.width > editor.width);
+                    if (width >= 1280) {
+                        assert.ok(await page.locator('[data-revision-preview-frame]').evaluate((frame) => Number(frame.contentDocument.body.style.zoom) >= 0.9), 'Default paper text is readable before enlargement');
+                    }
                 }
                 const editorValue = () => page.frameLocator('[data-revision-editor-frame]').locator('textarea').inputValue();
                 await page.frameLocator('[data-revision-preview-frame]').locator('.paper').click();
                 assert.equal(await page.locator('[data-revision-reference]').evaluate((element) => element.classList.contains('revision-reference-expanded')), true);
                 await page.waitForFunction(() => {
                     const frame = document.querySelector('[data-revision-preview-frame]');
-                    return frame.contentDocument.querySelector('.paper').getBoundingClientRect().height <= frame.clientHeight;
+                    const paper = frame.contentDocument.querySelector('.paper');
+                    return paper.getBoundingClientRect().width >= Math.min(800, frame.clientWidth - 32);
                 });
-                assert.equal(await page.locator('[data-revision-fit-page]').getAttribute('aria-pressed'), 'true');
+                assert.equal(await page.locator('[data-revision-fit-width]').getAttribute('aria-pressed'), 'true');
                 await page.locator('[data-revision-preview-frame]').hover();
                 await page.keyboard.down('Control');
                 await page.mouse.wheel(0, -120);
@@ -321,6 +332,7 @@ test('the rendered revision workspace keeps replies with comments, compares comp
                 await page.getByRole('button', { name: 'Fit width', exact: true }).click();
                 assert.equal(await page.locator('[data-revision-fit-width]').getAttribute('aria-pressed'), 'true');
                 await page.getByRole('button', { name: 'Fit page', exact: true }).click();
+                assert.ok(await page.locator('[data-revision-preview-frame]').evaluate((frame) => frame.contentDocument.querySelector('.paper').getBoundingClientRect().height <= frame.clientHeight + 1));
                 if (process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY) {
                     await dialog.screenshot({ path: resolve(process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY, `revision-preview-fit-${width}-${dark ? 'dark' : 'light'}.png`) });
                 }

@@ -9,6 +9,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
+use App\Models\ResearchManual;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Support\ProposalPaperCatalog;
@@ -125,7 +126,7 @@ class ResearchAssistantDocumentService
         return $this->evidence($user, $documentToken, $question, $recentMessages)['prompt'];
     }
 
-    /** @return array{prompt: string, sources: list<array<string, mixed>>, document: array<string, mixed>} */
+    /** @return array{prompt: string, sources: list<array<string, mixed>>, document: array<string, mixed>, research_manual: ?ResearchManual} */
     public function evidence(User $user, string $documentToken, string $question = '', array $recentMessages = []): array
     {
         $reference = $this->decodeReference($documentToken);
@@ -183,7 +184,7 @@ PROMPT;
             $selectionBudget -= max(256, strlen($prompt) - $budget);
         } while (strlen($prompt) > $budget && $selectionBudget >= 256);
 
-        return ['prompt' => $prompt, 'sources' => $sources, 'document' => $metadata];
+        return ['prompt' => $prompt, 'sources' => $sources, 'document' => $metadata, 'research_manual' => $document['research_manual']];
     }
 
     /** @param Collection<int, array<string, mixed>> $documents @param array<string, mixed> $paper */
@@ -229,6 +230,7 @@ PROMPT;
         return [
             'prompt' => $evidence['prompt'] ?? 'The selected paper has no readable saved fields. Do not invent its contents.',
             'sources' => $evidence['sources'],
+            'research_manual' => $record->researchManual,
             'document' => [
                 'label' => $paper['label'], 'filename' => $paper['label'], 'format' => 'SAVED',
                 'basis' => $record instanceof ProposalDraft ? 'saved_draft_projection' : 'submitted_snapshot',
@@ -465,7 +467,7 @@ PROMPT;
             $version->file_path,
             $version->original_filename,
             'Submitted proposal · Version '.$version->version_number,
-        ), 'version' => $version->version_number];
+        ), 'version' => $version->version_number, 'research_manual' => $topic->researchManual];
     }
 
     /** @return array{path: string, filename: string, label: string} */
@@ -477,11 +479,11 @@ PROMPT;
             throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
         }
 
-        return $this->fileDetails(
+        return [...$this->fileDetails(
             $document->file_path,
             $document->original_filename,
             $this->paperCatalog->label($document->document_type) ?? Str::headline($document->document_type),
-        );
+        ), 'research_manual' => $document->draft->researchManual];
     }
 
     /** @return array{path: string, filename: string, label: string} */
@@ -495,7 +497,7 @@ PROMPT;
         }
 
         return [...$this->fileDetails($file->file_path, $file->original_filename, 'Version '.$file->version->version_number.' · '.$file->label()),
-            'version' => $file->version->version_number];
+            'version' => $file->version->version_number, 'research_manual' => $topic->researchManual];
     }
 
     /** @return array{path: string, filename: string, label: string} */
@@ -512,7 +514,7 @@ PROMPT;
             throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
         }
 
-        return match ($variant) {
+        $details = match ($variant) {
             'initial' => $this->fileDetails(
                 $topic->initial_file_path,
                 $topic->initial_file_path ? basename($topic->initial_file_path) : null,
@@ -535,6 +537,8 @@ PROMPT;
             ),
             default => throw new ResearchAssistantDocumentException('That document selection is not supported.'),
         };
+
+        return [...$details, 'research_manual' => $topic->researchManual];
     }
 
     private function canAnalyzeVersionFile(User $user, ProposalVersionFile $file): bool
@@ -557,7 +561,7 @@ PROMPT;
             throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
         }
 
-        return match ($variant) {
+        $details = match ($variant) {
             'official' => $this->fileDetails(
                 $report->official_pdf_path,
                 $report->official_pdf_filename ?: 'monitoring-report-'.$report->getKey().'.pdf',
@@ -570,6 +574,8 @@ PROMPT;
             ),
             default => throw new ResearchAssistantDocumentException('That document selection is not supported.'),
         };
+
+        return [...$details, 'research_manual' => $report->topic->researchManual];
     }
 
     /** @return array{path: string, filename: string, label: string} */
@@ -581,11 +587,11 @@ PROMPT;
             throw new ResearchAssistantDocumentException('That document is unavailable for your account.', 403);
         }
 
-        return $this->fileDetails(
+        return [...$this->fileDetails(
             $report->official_pdf_path,
             $report->official_pdf_filename ?: 'narrative-report-'.$report->getKey().'.pdf',
             'Official narrative progress report',
-        );
+        ), 'research_manual' => $report->topic->researchManual];
     }
 
     /** @return array{path: string, filename: string, label: string} */

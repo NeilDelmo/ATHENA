@@ -21,7 +21,7 @@ class SynthesizeLiteratureRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         if (! $this->filled('evidence_basis')) {
-            $this->merge(['evidence_basis' => 'abstract']);
+            $this->merge(['evidence_basis' => 'full_text']);
         }
 
         if (! $this->filled('connection_mode')) {
@@ -37,13 +37,16 @@ class SynthesizeLiteratureRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title' => ['required', 'string', 'max:500'],
+            'proposal_draft_id' => ['nullable', 'required_with:source_link_id', 'integer', 'min:1'],
+            'source_link_id' => ['nullable', 'required_with:proposal_draft_id', 'integer', 'min:1'],
+            'title' => ['required_without:source_link_id', 'nullable', 'string', 'max:500'],
             'authors' => ['nullable', 'string', 'max:1200'],
             'year' => ['nullable', 'integer', 'min:1500', 'max:'.now()->year],
             'abstract' => ['nullable', 'string', 'max:6000'],
             'is_open_access' => ['nullable', 'boolean'],
             'evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
-            'evidence_text' => ['nullable', 'string', 'min:500', 'max:30000'],
+            'evidence_text' => ['prohibited'],
+            'full_text_token' => ['nullable', 'string', 'max:4096'],
             'proposal_title' => ['nullable', 'string', 'max:500'],
             'preceding_rrl_context' => ['nullable', 'string', 'max:2500'],
             'connection_mode' => ['required', Rule::in(['auto', 'standalone'])],
@@ -56,14 +59,8 @@ class SynthesizeLiteratureRequest extends FormRequest
             function (Validator $validator): void {
                 $basis = $this->string('evidence_basis')->toString();
                 $abstract = trim((string) $this->input('abstract'));
-                $evidenceText = trim((string) $this->input('evidence_text'));
-
-                if ($basis === 'abstract' && mb_strlen($abstract) < 80) {
+                if ($basis === 'abstract' && ! $this->filled('source_link_id') && mb_strlen($abstract) < 80) {
                     $validator->errors()->add('abstract', 'The available abstract is too short for a responsible synthesis.');
-                }
-
-                if ($basis === 'full_text' && mb_strlen($evidenceText) < 500) {
-                    $validator->errors()->add('evidence_text', 'Load a usable open-access full-text preview before generating from full text.');
                 }
             },
         ];

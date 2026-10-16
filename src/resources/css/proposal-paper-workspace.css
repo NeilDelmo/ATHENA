@@ -1,4 +1,4 @@
-[data-proposal-paper-workspace], [data-editable-proposal-papers], [data-automatic-assessment-preview], [data-submitted-report-document] {
+[data-proposal-paper-workspace], [data-editable-proposal-papers], [data-automatic-assessment-preview], [data-submitted-report-document], [data-proposal-review-package] {
     --proposal-writing-surface: #fff;
     --proposal-writing-workspace: #f3f5f8;
     --proposal-writing-ink: #243044;
@@ -9,7 +9,7 @@
     --proposal-writing-sticky-top: 8rem;
 }
 [data-proposal-paper-workspace] { max-width: 88rem; }
-html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-papers], html.dark [data-automatic-assessment-preview], html.dark [data-submitted-report-document] {
+html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-papers], html.dark [data-automatic-assessment-preview], html.dark [data-submitted-report-document], html.dark [data-proposal-review-package] {
     --proposal-writing-surface: #0f172a;
     --proposal-writing-workspace: #1e293b;
     --proposal-writing-ink: #f1f5f9;
@@ -88,7 +88,7 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .proposal-table-picker .proposal-table-header-option { display: flex; align-items: center; align-self: center; }
 [data-writing-table-tools] { margin-top: .5rem; }
 .proposal-writing-columns { display: block; }
-[data-proposal-paper-workspace] .proposal-edit-pane { max-width: 60rem; margin-inline: auto; }
+[data-proposal-paper-workspace] .proposal-edit-pane { width: 100%; max-width: 60rem; margin-inline: auto; }
 [data-proposal-paper-workspace] :is(input, select, textarea, .semantic-rich-text-editor) { scroll-margin-top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 3rem) + 2.5rem); }
 [data-proposal-paper-workspace] .proposal-edit-pane > section,
 [data-proposal-paper-workspace] [data-detailed-proposal-autosave-form] > section {
@@ -216,7 +216,7 @@ html.dark .submitted-report-preview-thumbnail .proposal-preview-paper { backgrou
 .revision-embedded [data-proposal-preview-toggle] { display: none !important; }
 .revision-embedded .proposal-writing-columns { display: block !important; }
 @media (min-width: 1024px) {
-    .proposal-writing-columns:not(.proposal-writing-preview-hidden) { display: grid; grid-template-columns: minmax(0, 1fr) clamp(15rem, 28%, 21rem); align-items: start; gap: 1.5rem; }
+    .proposal-writing-columns:not(.proposal-writing-preview-hidden) { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; gap: 1.5rem; }
     .proposal-preview-dock:not(.proposal-preview-dock-expanded):not(.submitted-report-preview) { display: block; position: sticky; top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 7rem) + .75rem); height: max(18rem, calc(100dvh - var(--proposal-writing-sticky-top) - var(--proposal-toolbar-height, 7rem) - 2rem)); max-height: 42rem; }
 }
 @media (max-width: 639px) {
@@ -231,4 +231,8 @@ html.dark .submitted-report-preview-thumbnail .proposal-preview-paper { backgrou
     .proposal-preview-dock-expanded { padding: .5rem; }
     .proposal-preview-dock-heading { flex-wrap: wrap; }
     .proposal-writing-preview-launcher { right: 1rem; bottom: calc(8.5rem + env(safe-area-inset-bottom)); }
+}
+[data-revision-section="section-project-team"], [data-terminal-cover-image] { container-type: inline-size; min-width: 0; }
+@container (max-width: 32rem) {
+    [data-revision-section="section-project-team"] > .grid, [data-terminal-cover-image] > .grid { grid-template-columns: minmax(0, 1fr); }
 }

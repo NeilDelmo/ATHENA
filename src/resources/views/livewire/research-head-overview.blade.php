@@ -24,6 +24,8 @@
         </a>
     </section>
 
+    <livewire:research-target-board :compact="true" />
+
     <section aria-label="Overview filters" class="border-b border-slate-200 pb-5 dark:border-slate-800">
         <form wire:submit="applyFilters" class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex min-w-0 flex-wrap items-center gap-3">
@@ -59,8 +61,6 @@
         @endforeach
     </section>
 
-    <x-dashboard-assistant-suggestions :items="$assistantReviewSuggestions" />
-
     <div class="grid items-start gap-5 xl:grid-cols-2" data-dashboard-compact-queues>
         <div class="min-w-0" data-dashboard-review-workspace>
 <section id="received-proposals" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="inbox-heading">
@@ -85,14 +85,13 @@
                             $waitingSince = $topic->status_started_at ?? $topic->latestVersion?->created_at;
                             $waitingDays = $waitingSince ? (int) max(0, \Carbon\CarbonImmutable::parse($waitingSince)->diffInDays(now(), false)) : null;
                         @endphp
-                        <a href="{{ route('topics.show', $topic) }}{{ $topic->hasIssuedNoticeToProceed() ? '#project-monitoring' : '#proposal-review' }}" class="group flex items-start gap-3 px-5 py-5 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand dark:hover:bg-slate-800/60" wire:key="overview-proposal-{{ $topic->id }}">
+                        <a href="{{ route('topics.show', $topic) }}{{ $topic->hasIssuedNoticeToProceed() ? '#project-monitoring' : '#proposal-review' }}" aria-label="{{ match ($topic->status) { 'resubmitted' => 'Review revision', 'ready_for_signature', 'approved' => 'View signing status', default => 'Review proposal' } }}: {{ $topic->title }}" class="group flex items-start gap-3 px-5 py-5 transition-colors hover:bg-rose-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand dark:hover:bg-slate-800/60" wire:key="overview-proposal-{{ $topic->id }}">
                             <span class="min-w-0 flex-1">
                                 <strong class="block break-words text-base font-semibold leading-6 group-hover:text-brand dark:group-hover:text-rose-300">{{ $topic->title }}</strong>
                                 <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm rh-muted"><span>{{ $topic->user?->name }}</span><span class="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ $topic->researchHeadQueueStatusLabel($topic->latestVersion) }}</span></span>
                                 <span class="mt-2 block text-sm font-medium text-brand dark:text-rose-300">{{ $waitingDays !== null ? $waitingDays.' '.str('day')->plural($waitingDays).($topic->status_started_at ? ' in this stage' : ' since submission') : 'Stage start date unavailable' }}</span>
-                                <span class="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-brand dark:text-rose-300">{{ match ($topic->status) { 'resubmitted' => 'Review revision', 'ready_for_signature', 'approved' => 'View signing status', default => 'Review proposal' } }} &rarr;</span>
                             </span>
-                            <svg class="mt-1 h-5 w-5 shrink-0 text-slate-400 group-hover:text-brand dark:group-hover:text-rose-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand transition-colors group-hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:group-hover:bg-rose-950/70" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M15 5.5 18.5 9M4 20l4.5-1L20 7.5a2.5 2.5 0 0 0-3.5-3.5L5 15.5 4 20Z" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
                         </a>
                     @empty
                         <div class="px-5 py-12 text-center"><p class="font-semibold">No proposals found.</p><p class="mt-2 text-sm rh-muted">Try changing the search or filters.</p></div>
@@ -115,11 +114,13 @@
                 $waitingDays = $receivedAt ? (int) max(0, $receivedAt->diffInDays(now(), false)) : null;
                 $reportLabel = ['quarterly' => 'Monitoring tool', 'progress' => 'Progress report', 'terminal' => 'Terminal report'][$report->report_type];
             @endphp
-            <a href="{{ route('topics.show', $report->topic_id) }}#{{ $reportAnchor }}" class="block px-5 py-5 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand dark:hover:bg-red-950/30" wire:key="overview-report-{{ $report->report_type }}-{{ $report->id }}">
+            <a href="{{ route('topics.show', $report->topic_id) }}#{{ $reportAnchor }}" aria-label="Review {{ strtolower($reportLabel) }}: {{ $report->title }}" class="group flex items-start gap-3 px-5 py-5 transition-colors hover:bg-rose-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand dark:hover:bg-red-950/30" wire:key="overview-report-{{ $report->report_type }}-{{ $report->id }}">
+                <span class="min-w-0 flex-1">
                 <strong class="block break-words text-base font-semibold leading-6">{{ $report->title }}</strong>
                 <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm rh-muted"><span class="rounded-md bg-red-50 px-2 py-1 font-medium text-brand dark:bg-red-950/40 dark:text-rose-200">{{ $reportLabel }}</span><span>{{ $report->faculty_name }}</span></span>
                 <span class="mt-2 block text-sm font-medium text-brand dark:text-rose-300">{{ $waitingDays !== null ? $waitingDays.' '.str('day')->plural($waitingDays).' waiting' : 'Submission date unavailable' }}@if ($report->report_date) <span class="font-normal rh-muted">· Report dated {{ \Carbon\CarbonImmutable::parse($report->report_date)->format('M j, Y') }}</span>@endif</span>
-                <span class="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-brand dark:text-rose-300">Review report &rarr;</span>
+                </span>
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand transition-colors group-hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:group-hover:bg-rose-950/70" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </a>
         @empty
             <div class="px-5 py-10 text-center"><p class="text-base font-semibold">No reports awaiting review.</p><p class="mt-2 text-sm rh-muted">Submitted monitoring, progress, and terminal reports appear here.</p></div>
@@ -128,6 +129,8 @@
     @if ($reportItems->hasPages())<div class="border-t border-slate-100 px-5 py-4 dark:border-slate-800">{{ $reportItems->links('livewire::simple-tailwind', ['scrollTo' => '#dashboard-report-reviews']) }}</div>@endif
 </section>
     </div>
+    <x-dashboard-assistant-suggestions :items="$assistantReviewSuggestions" />
+
     <aside class="grid min-w-0 items-start gap-5 lg:grid-cols-2" aria-label="Research priorities">
 <section id="needs-attention" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="attention-heading">
                 <div class="rh-panel-heading !gap-2"><h2 id="attention-heading" class="text-base font-bold">Needs attention</h2><span class="rounded-md bg-red-50 px-2 py-1 text-sm font-semibold text-brand dark:bg-red-950/40 dark:text-rose-200">{{ $attentionItems->total() }} {{ str('issue')->plural($attentionItems->total()) }}</span></div>
@@ -160,15 +163,29 @@
 
     <section aria-labelledby="dashboard-reporting-heading" class="border-t border-slate-200 pt-5 dark:border-slate-800" data-dashboard-reporting-links>
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <div><h2 id="dashboard-reporting-heading" class="text-base font-semibold">Research reporting</h2><p class="mt-1 text-sm rh-muted">Trends, pipeline, annual targets, and budget breakdowns.</p></div>
-            <div class="flex flex-wrap gap-2"><a wire:navigate href="{{ $analyticsUrl }}" class="rh-button-secondary">View analytics</a><a wire:navigate href="{{ $analyticsUrl }}#annual-targets" class="rh-button-secondary">Annual targets</a></div>
+            <h2 id="dashboard-reporting-heading" class="text-xl font-bold">Planning & reporting</h2>
+        </div>
+        <div class="mt-4 grid gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-2 dark:border-slate-800 dark:bg-slate-800">
+            @foreach ([
+                ['Research targets', route('research_head.targets.index'), 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z'],
+                ['College reports', route('research_head.quarterly-reports.index'), 'M9 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3M9 3h6v4H9V3Zm-1 9h8m-8 4h5'],
+                ['Quarterly monitoring', route('research_head.rms-quarterly-reports.index'), 'M6 3v3m12-3v3M3 10h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm2 9h3m4 0h3m-10 3h3'],
+                ['Analytics', $analyticsUrl, 'M3 3v18h18M7 13v4m5-8v8m5-12v12'],
+            ] as [$label, $url, $iconPath])
+                <a wire:navigate href="{{ $url }}" class="group flex min-w-0 items-center gap-3 bg-white p-5 transition-colors hover:bg-rose-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand dark:bg-slate-900 dark:hover:bg-slate-800">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand transition-colors group-hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:group-hover:bg-rose-950/70" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="{{ $iconPath }}" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+                    <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ $label }}</span>
+                </a>
+            @endforeach
         </div>
         <div class="mt-4 grid gap-4 sm:grid-cols-2" aria-label="Research summary">
-        <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'projectStatus' => 'completed']) }}#active-projects" class="flex items-center justify-between gap-4 rounded-lg p-2 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-900">
-            <span><span class="block text-sm font-semibold rh-muted">Completed projects</span><span class="mt-1 block text-sm font-semibold text-brand dark:text-rose-300">View completed projects &rarr;</span></span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['completed'] }}</strong>
+        <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'projectStatus' => 'completed']) }}#active-projects" class="group flex items-center gap-3 rounded-xl bg-white px-5 py-4 transition-colors hover:bg-rose-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:bg-slate-900 dark:hover:bg-slate-800">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand dark:bg-rose-950/40 dark:text-rose-300" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+            <span class="min-w-0 flex-1 text-sm font-semibold">Completed projects</span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['completed'] }}</strong>
         </a>
-        <a wire:navigate href="{{ route('research_head.faculty-directory.index') }}" class="flex items-center justify-between gap-4 rounded-lg p-2 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-900">
-            <span><span class="block text-sm font-semibold rh-muted">Faculty in active research</span><span class="mt-1 block text-sm font-semibold text-brand dark:text-rose-300">View user directory &rarr;</span></span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['faculty'] }}</strong>
+        <a wire:navigate href="{{ route('research_head.faculty-directory.index') }}" class="group flex items-center gap-3 rounded-xl bg-white px-5 py-4 transition-colors hover:bg-rose-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:bg-slate-900 dark:hover:bg-slate-800">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand dark:bg-rose-950/40 dark:text-rose-300" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round" /><circle cx="9" cy="7" r="4" /></svg></span>
+            <span class="min-w-0 flex-1 text-sm font-semibold">Faculty in active research</span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['faculty'] }}</strong>
         </a>
         </div>
     </section>

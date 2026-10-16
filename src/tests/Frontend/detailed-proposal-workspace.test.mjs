@@ -26,6 +26,48 @@ const toolbar = execFileSync('php', ['-r', `
     echo view('components.detailed-proposal-writing-toolbar')->render();
 `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
 
+test('project team and terminal cover controls fit beside larger default previews', async () => {
+    const sections = JSON.parse(execFileSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php';
+        $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        preg_match('/<section data-revision-section="section-project-team".*?<\/section>/s', file_get_contents(resource_path('views/faculty/proposal-drafts/detailed-proposal/edit.blade.php')), $team);
+        preg_match('/<section\s+id="terminal-cover".*?<\/section>/s', file_get_contents(resource_path('views/components/terminal-report-form.blade.php')), $cover);
+        echo json_encode([
+            Illuminate\Support\Facades\Blade::render($team[0], ['sectionHeadings' => ['project-team' => 'Project team'], 'workspacePeople' => [], 'professionalTitles' => []]),
+            Illuminate\Support\Facades\Blade::render($cover[0], ['coverPreview' => '', 'selectedCover' => '', 'evidence' => [], 'value' => fn () => '', 'input' => 'mt-2 block min-h-12 w-full rounded-xl border-gray-300 px-3 py-2.5 text-base']),
+        ], JSON_THROW_ON_ERROR);
+    `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } }));
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
+    const workspaceStyles = readFileSync(new URL('../../resources/css/proposal-paper-workspace.css', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [1024, 1440]) {
+            for (const section of sections) {
+                const page = await browser.newPage({ viewport: { width, height: 1000 } });
+                await page.setContent(`<style>${styles.css}\n${workspaceStyles}</style><div style="padding-left:280px"><main class="px-8"><div data-proposal-paper-workspace class="px-8"><div class="proposal-writing-columns"><div class="proposal-edit-pane">${section}</div><aside class="proposal-preview-dock"><section>Paper preview</section></aside></div></div></main></div>`);
+                const pane = await page.locator('.proposal-edit-pane').boundingBox();
+                const controls = page.locator('#workspace-person-search, [name="cover_image"], [name="cover_image_caption"]');
+                for (const control of await controls.all()) {
+                    await expect(control).toBeVisible();
+                    const bounds = await control.boundingBox();
+                    assert.ok(bounds.width >= 120, `Controls need room to use at ${width}px: ${JSON.stringify(bounds)}`);
+                    assert.ok(bounds.x >= pane.x && bounds.x + bounds.width <= pane.x + pane.width + 1, `Controls must stay inside the editing pane at ${width}px`);
+                }
+                assert.equal(await page.locator('.proposal-edit-pane').evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true, `The form must not overflow its editing pane at ${width}px`);
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+                await page.locator('.proposal-writing-columns').evaluate((element) => element.classList.add('proposal-writing-preview-hidden'));
+                const columns = await page.locator('[data-revision-section="section-project-team"] > .grid, [data-terminal-cover-image] > .grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+                assert.equal(columns, 2, 'The original two-column form returns when the preview is hidden');
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('following a writing section scrolls only the preview frame before and after refresh', async () => {
     const cvWorkspace = readFileSync(new URL('../../resources/js/curriculum-vitae-workspace.js', import.meta.url), 'utf8').replace(/^import .+;\r?\n/gm, '').replaceAll('export ', '');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });

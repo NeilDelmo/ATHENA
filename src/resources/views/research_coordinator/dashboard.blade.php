@@ -8,6 +8,13 @@
     </x-slot>
 
     <div class="space-y-5" data-dashboard-layout="office-overview">
+        <section class="dashboard-panel flex flex-wrap items-center justify-between gap-4 p-5" aria-label="Quarterly accomplishment reporting">
+            <div>
+                <h2 class="font-bold text-gray-950 dark:text-white">Quarterly accomplishment report</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">Prepare and submit one college report each quarter, including quarters with no research activities.</p>
+            </div>
+            <a wire:navigate href="{{ route('research_coordinator.reports.index') }}" class="dashboard-action">Quarterly Reports</a>
+        </section>
         <section aria-label="College summary">
             <dl class="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 <x-dashboard-stat label="Awaiting release" :value="$signingProjects->total()" description="Prepare notices and signed documents" href="#notice-release-queue" :priority="$signingProjects->total() > 0" icon="M4 4h10l6 6v10H4V4Zm10 0v6h6M8 14h8M8 17h5" />
@@ -15,6 +22,8 @@
                 <x-dashboard-stat label="College members" :value="$memberCount" description="View your college directory" :href="route('research_coordinator.members.index')" icon="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
             </dl>
         </section>
+
+        <livewire:research-target-board />
 
         <div class="grid items-start gap-5 xl:grid-cols-2" data-dashboard-columns>
         <x-notice-to-proceed-queue :projects="$signingProjects" />

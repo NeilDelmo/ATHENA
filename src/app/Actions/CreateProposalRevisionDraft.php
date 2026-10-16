@@ -71,6 +71,7 @@ class CreateProposalRevisionDraft
                 $draft = ProposalDraft::query()->create([
                     'user_id' => $user->getKey(),
                     'research_call_id' => $topic->research_call_id,
+                    'research_manual_id' => $topic->research_manual_id,
                     'topic_id' => $topic->getKey(),
                     'project_title' => $topic->title,
                     'duration_months' => $duration,

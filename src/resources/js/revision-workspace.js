@@ -762,7 +762,7 @@ export function initializeRevisionPreviews(form, topicId) {
         closeButton.addEventListener('click', close);
         const setExpanded = (expanded) => {
             reference?.classList.toggle('revision-reference-expanded', expanded);
-            fit = expanded ? 'page' : 'width';
+            fit = 'width';
             zoom = 100;
             applyZoom();
             paperTriggers.forEach((trigger) => trigger.setAttribute('aria-expanded', String(expanded)));

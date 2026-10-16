@@ -20,6 +20,7 @@ class ProjectDocumentLibrary
     public function __construct(
         private readonly CommentResponseFeedback $commentResponseFeedback,
         private readonly ProposalSignatureWorkflow $signatureWorkflow,
+        private readonly ProjectReportEvidence $reportEvidence,
     ) {}
 
     public function terminalPosterUrl(ProjectNarrativeReport $report, int $photoIndex): ?string
@@ -94,6 +95,28 @@ class ProjectDocumentLibrary
 
         $this->appendCommentResponsePapers($topic, $viewer, $documents);
         $this->appendReleasedDocuments($topic, $documents, $seenPaths);
+        foreach ($this->reportEvidence->forProject($topic) as $proof) {
+            if ($seenPaths->contains($proof['path'])) {
+                continue;
+            }
+            $seenPaths->push($proof['path']);
+            $isImage = in_array($proof['mime_type'], ['image/jpeg', 'image/png'], true);
+            $documents->push([
+                'key' => 'faculty-report-evidence-'.$proof['source_key'],
+                'category' => ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE,
+                'title' => $proof['original_filename'],
+                'filename' => $proof['original_filename'],
+                'note' => $proof['caption'],
+                'source' => 'Faculty report · '.$proof['reporting_date'],
+                'uploaded_by' => $proof['uploaded_by'],
+                'uploaded_at' => $proof['uploaded_at'],
+                'file_size' => $proof['file_size'],
+                'view_url' => $isImage ? $proof['url'] : null,
+                'download_url' => $proof['download_url'],
+                'official' => false,
+                ...($isImage ? ['preview_kind' => 'image', 'thumbnail_url' => $proof['url']] : []),
+            ]);
+        }
         if (! $viewer->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
             $this->appendMonitoringDocuments($topic, $documents, $seenPaths);
         }
@@ -104,6 +127,7 @@ class ProjectDocumentLibrary
             }
 
             $seenPaths->push($document->file_path);
+            $isImage = in_array($document->mime_type, ['image/jpeg', 'image/png'], true);
             $documents->push([
                 'key' => 'project-document-'.$document->id,
                 'category' => $document->category,
@@ -117,6 +141,7 @@ class ProjectDocumentLibrary
                 'view_url' => route('topics.documents.view', [$topic, $document]),
                 'download_url' => route('topics.documents.download', [$topic, $document]),
                 'official' => false,
+                ...($isImage ? ['preview_kind' => 'image', 'thumbnail_url' => route('topics.documents.view', [$topic, $document])] : []),
             ]);
         });
 
@@ -461,6 +486,7 @@ class ProjectDocumentLibrary
             ProjectDocument::CATEGORY_NOTICE_TO_PROCEED => 'The project’s official authority to begin.',
             ProjectDocument::CATEGORY_MONITORING_REPORTS => 'Progress and terminal reports, with their project posters.',
             ProjectDocument::CATEGORY_SUPPORTING_FILES => 'References and attachments kept with the project.',
+            ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE => 'Proof submitted with faculty reports and college quarterly accomplishment activities.',
             default => 'Additional PDFs kept for the project record.',
         };
     }

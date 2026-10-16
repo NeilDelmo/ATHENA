@@ -45,6 +45,9 @@ afterEach(function () {
     if (is_file($this->manualIndexPath)) {
         unlink($this->manualIndexPath);
     }
+    if (is_file($this->manualIndexPath.'.lock')) {
+        unlink($this->manualIndexPath.'.lock');
+    }
 });
 
 test('manual retrieval selects relevant pages and supplies source metadata without AI', function () {
@@ -63,6 +66,38 @@ test('manual retrieval selects relevant pages and supplies source metadata witho
         ->and($sources[0]['score'])->toBeGreaterThan(0);
     Http::assertNothingSent();
     Process::assertNothingRan();
+});
+
+test('an explicit manual index remains isolated from the configured active index', function () {
+    $editionPath = tempnam(sys_get_temp_dir(), 'athena-manual-edition-');
+    $document = json_decode(file_get_contents($this->manualIndexPath), true, flags: JSON_THROW_ON_ERROR);
+    $document['version'] = hash('sha256', 'older-edition');
+    $document['title'] = 'Previous Research Manual';
+    file_put_contents($editionPath, json_encode($document, JSON_THROW_ON_ERROR));
+
+    try {
+        $retriever = app(ResearchManualRetriever::class);
+        $question = 'What ethics clearance is required before collecting participant data?';
+
+        expect($retriever->retrieve($question, [], $editionPath)[0]['document_version'])->toBe($document['version'])
+            ->and($retriever->retrieve($question)[0]['document_version'])->toBe(hash('sha256', 'manual-v1'))
+            ->and($retriever->retrieve($question, [], $editionPath.'.missing'))->toBe([]);
+    } finally {
+        unlink($editionPath);
+        if (is_file($editionPath.'.lock')) {
+            unlink($editionPath.'.lock');
+        }
+    }
+});
+
+test('manual retrieval refuses to read when its publication lock is unavailable', function () {
+    mkdir($this->manualIndexPath.'.lock');
+
+    try {
+        expect(app(ResearchManualRetriever::class)->retrieve('What ethics clearance is required before collecting participant data?'))->toBe([]);
+    } finally {
+        rmdir($this->manualIndexPath.'.lock');
+    }
 });
 
 test('manual retrieval returns several relevant chunks within the configurable limit', function () {

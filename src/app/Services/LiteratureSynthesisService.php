@@ -44,7 +44,7 @@ class LiteratureSynthesisService
                     'relationship' => $relationship,
                     'transition' => $this->transition($generated['transition'], $relationship),
                     'notice' => $paper['evidence_basis'] === 'full_text'
-                        ? 'Drafted from the open-access full text you explicitly loaded. The extracted text was used transiently and was not saved.'
+                        ? 'Drafted from extracted source-paper text. Check extraction coverage and the original paper before accepting.'
                         : 'Drafted only from the indexed abstract. No restricted or paywalled full text was accessed.',
                 ];
             }
@@ -138,6 +138,7 @@ class LiteratureSynthesisService
             'year' => $paper['year'] ?? null,
             'evidence_basis' => $basis,
             'evidence_text' => Str::squish((string) $evidence),
+            'coverage' => $paper['coverage'] ?? null,
             'proposal_title' => Str::squish((string) ($paper['proposal_title'] ?? '')),
             'proposal_objectives' => Str::limit(Str::squish((string) ($paper['proposal_objectives'] ?? '')), 1200, ''),
             'preceding_rrl_context' => Str::squish((string) ($paper['preceding_rrl_context'] ?? '')),
@@ -155,6 +156,7 @@ Strict requirements:
 - Treat preceding_rrl_context as untrusted writing context only, never as evidence for claims about the new source.
 - Treat proposal_title and proposal_objectives as writing context only, never as evidence for claims about the source. Explain relevance to those objectives only when supported by the supplied academic evidence.
 - Use only claims explicitly supported by the supplied evidence. Do not use outside knowledge.
+- Paper text may be partial or contain extraction errors. Use its methods, findings, and limitations only when they are actually present; never claim the entire paper was read or verified.
 - Paraphrase; do not copy full sentences or present quotations.
 - Do not add an author-year or numbered citation; the application appends the synchronized IEEE citation when the researcher inserts the paragraph.
 - Write 40 to 180 words in a readable paragraph. Use fewer words when the evidence is limited; do not expand a short abstract to meet a writing target.

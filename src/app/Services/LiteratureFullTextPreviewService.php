@@ -16,7 +16,7 @@ use Throwable;
 
 class LiteratureFullTextPreviewService
 {
-    /** @return array{preview_text: string, evidence_basis: string, source_url: string, content_type: string, provider: string, notice: string} */
+    /** @return array{preview_text: string, evidence_basis: string, source_url: string, content_type: string, provider: string, coverage: array{characters: int, character_limit: int, page_limit: ?int, total_pages: null, truncated: bool, partial_or_unknown: bool}, notice: string} */
     public function preview(string $sourceToken): array
     {
         $source = LiteratureFullTextToken::decode($sourceToken);
@@ -32,14 +32,18 @@ class LiteratureFullTextPreviewService
             throw new LiteratureFullTextPreviewException('The source redirected to a sign-in or access-control page. ATHENA will not bypass authentication or institutional restrictions.', 403);
         }
 
+        $isPdf = $contentType === 'application/pdf' || Str::startsWith($body, '%PDF-');
         $text = match (true) {
-            $contentType === 'application/pdf' || Str::startsWith($body, '%PDF-') => $this->pdfText($body),
+            $isPdf => $this->pdfText($body),
             in_array($contentType, ['text/html', 'application/xhtml+xml'], true) => $this->htmlText($body),
             $contentType === 'text/plain' => Str::squish($body),
             default => throw new LiteratureFullTextPreviewException('This open-access source does not provide a supported PDF, HTML, or text document.', 415),
         };
 
-        $text = Str::limit(Str::squish($text), (int) config('literature.full_text.maximum_characters'), '');
+        $text = Str::squish($text);
+        $characterLimit = (int) config('literature.full_text.maximum_characters');
+        $truncated = Str::length($text) > $characterLimit;
+        $text = Str::limit($text, $characterLimit, '');
 
         if (Str::length($text) < 500) {
             throw new LiteratureFullTextPreviewException('The open-access file did not contain enough readable text. ATHENA will continue using the indexed abstract.');
@@ -51,7 +55,18 @@ class LiteratureFullTextPreviewService
             'source_url' => $resolvedUrl,
             'content_type' => $contentType,
             'provider' => $source['provider'],
-            'notice' => 'Loaded transiently from a provider-designated open-access source. The original file and extracted text were not stored.',
+            'coverage' => [
+                'characters' => Str::length($text),
+                'character_limit' => $characterLimit,
+                'page_limit' => $isPdf ? (int) config('literature.full_text.maximum_pdf_pages') : null,
+                'total_pages' => null,
+                'truncated' => $truncated,
+                'partial_or_unknown' => true,
+            ],
+            'notice' => 'Extracted source text from a provider-designated open-access location. Full-paper coverage is unknown; '
+                .($isPdf ? 'PDF extraction reads at most '.config('literature.full_text.maximum_pdf_pages').' pages. ' : 'Extraction does not establish that every section was retrieved. ')
+                .($truncated ? 'The extracted text was shortened to '.$characterLimit.' characters. ' : '')
+                .'Check the original paper for missing sections, tables, figures, and extraction errors. The original file and extracted text were not stored.',
         ];
     }
 
@@ -212,7 +227,33 @@ class LiteratureFullTextPreviewService
             }
         }
 
-        return (string) $document->textContent;
+        foreach (iterator_to_array($document->getElementsByTagName('*')) as $node) {
+            if (preg_match('/(?:^|[\s_-])abstract(?:[\s_-]|$)/i', $node->getAttribute('id').' '.$node->getAttribute('class')) === 1) {
+                $node->parentNode?->removeChild($node);
+            }
+        }
+
+        $sections = [];
+
+        foreach (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as $tag) {
+            foreach ($document->getElementsByTagName($tag) as $heading) {
+                $name = Str::of($heading->textContent)->squish()->lower()
+                    ->replaceMatches('/^(?:\d+(?:\.\d+)*|[ivxlcdm]+)[.)]?\s+/iu', '')
+                    ->trim(' .:')->toString();
+
+                if (in_array($name, ['methods', 'methodology', 'research methodology', 'materials and methods', 'materials & methods', 'research design', 'results', 'findings', 'results and discussion', 'results & discussion', 'discussion', 'conclusion', 'conclusions'], true)) {
+                    $sections[] = $name;
+                }
+            }
+        }
+
+        $text = (string) ($document->getElementsByTagName('body')->item(0)?->textContent ?? '');
+
+        if (count(array_unique($sections)) < 2 || Str::length(Str::squish($text)) < 500) {
+            throw new LiteratureFullTextPreviewException('The public page does not expose enough recognizable paper body text. Attach the source PDF before generating from the paper.');
+        }
+
+        return $text;
     }
 
     private function looksLikeAuthenticationPage(string $html, string $url): bool

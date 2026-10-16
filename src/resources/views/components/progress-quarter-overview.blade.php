@@ -3,7 +3,7 @@
 <section id="progress-reports" class="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900 dark:bg-slate-900" aria-labelledby="progress-reports-heading">
     <header class="border-b border-red-200 bg-red-50 px-5 py-5 dark:border-red-900 dark:bg-red-950/30 sm:px-6">
         <h3 id="progress-reports-heading" class="text-xl font-bold text-red-800 dark:text-red-300">Progress reports</h3>
-        <p class="mt-2 text-base leading-7 text-slate-600 dark:text-slate-300">One Progress Report for each Monitoring Tool quarter, covering the same reporting period. Submit both after the quarter ends.</p>
+        <p class="mt-2 text-base leading-7 text-slate-600 dark:text-slate-300">One Progress Report for each Monitoring Tool quarter, covering the same reporting period. Submit both during the final week. Reports are due on the last day and overdue the next day.</p>
     </header>
     <div class="overflow-x-auto" data-progress-schedule-table>
         <table class="min-w-full divide-y divide-slate-200 text-left dark:divide-slate-800">

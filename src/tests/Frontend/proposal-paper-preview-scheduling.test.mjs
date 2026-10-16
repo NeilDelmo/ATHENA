@@ -15,6 +15,7 @@ function preview(t) {
     let desktop = true;
     const context = vm.createContext({
         proposalPreviewWorkspace,
+        document: { activeElement: null },
         window: { setTimeout, clearTimeout, matchMedia: () => ({ matches: desktop }) },
     });
     vm.runInContext(`${source}\nglobalThis.workspace = proposalPaperPreviewWorkspace();`, context);
@@ -40,6 +41,23 @@ function preview(t) {
         useMobile() { desktop = false; },
     };
 }
+
+test('enlarging a paper opens at readable width instead of fitting its full height', (t) => {
+    const { state } = preview(t);
+    const sheet = { offsetHeight: 1248 };
+    const body = { style: {}, scrollWidth: 864, querySelector: () => sheet };
+    state.$refs.previewFrame = {
+        clientWidth: 1200,
+        clientHeight: 648,
+        contentDocument: { body, documentElement: { style: {} } },
+        contentWindow: { getComputedStyle: () => ({ minHeight: '1248px' }) },
+    };
+    state.expandProposalPaperPreview();
+    assert.equal(state.previewFullscreen, true);
+    assert.equal(body.style.zoom, '1', 'A tall paper should stay readable when the viewer has room for its width');
+    state.fitProposalPreview('page');
+    assert.ok(Number(body.style.zoom) < 0.6, 'Fit page remains available for seeing the entire sheet');
+});
 
 test('editing repeatedly requests one preview after the last debounce delay', (t) => {
     const fixture = preview(t);

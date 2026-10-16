@@ -374,7 +374,14 @@
                         </div>
                     </aside>
                     <div>
-                        <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['literature'] }}</label>
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['literature'] }}</label>
+                            <button type="button" @click="requestRrlRevision()" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked || !relatedLiterature.trim()" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50">
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 5 4 4M5 19l4-1 11-11a2.8 2.8 0 0 0-4-4L5 14l-1 6ZM13 20h7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span x-text="rrlRevisionPending ? 'Preparing review…' : 'Revise RRL'">Revise RRL</span>
+                            </button>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">Suggest clearer wording and paragraph order, then accept or keep your current text. Use full-paper excerpts in Sources when adding evidence.</p>
                         <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources. Write your review, then use <span class="font-semibold text-red-800">Insert citation</span> to cite the sources supporting each claim.</p>
                         <x-proposal-figure-input section="related_literature" compact />
                         <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" data-semantic-editor class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>

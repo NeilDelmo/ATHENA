@@ -53,18 +53,18 @@ class ProjectMonitoringHealth
         }
         if (! $completed) {
             $rows = $hasSchedule ? $this->quarters->summaryRows($topic->progressReports, $topic) : collect();
-            $missing = $rows->filter(fn (array $row): bool => $row['state'] === 'not_submitted');
+            $missing = $rows->filter(fn (array $row): bool => $row['state'] === 'not_submitted' && $row['end']->isPast());
             if ($missing->isNotEmpty()) {
                 $awaiting = true;
-                $attention->push($this->issue($topic, 'quarterly', 'Missing Monitoring Tools: '.$missing->pluck('label')->join(', '), $missing->first()['opens_at'], 'since reporting opened', 'project-monitoring'));
+                $attention->push($this->issue($topic, 'quarterly', 'Missing Monitoring Tools: '.$missing->pluck('label')->join(', '), $missing->first()['end']->addDay()->startOfDay(), 'overdue', 'project-monitoring'));
             }
             $missingProgress = $hasSchedule
                 ? $this->quarters->narrativeProgressPeriods($topic, $topic->narrativeReports)
-                    ->filter(fn (array $row): bool => $row['submission_open'] && $row['report'] === null)
+                    ->filter(fn (array $row): bool => $row['end']->isPast() && $row['report'] === null)
                 : collect();
             if ($missingProgress->isNotEmpty()) {
                 $awaiting = true;
-                $attention->push($this->issue($topic, 'progress_quarterly', 'Missing Progress Reports: '.$missingProgress->pluck('label')->join(', '), $missingProgress->first()['opens_at'], 'since reporting opened', 'project-monitoring'));
+                $attention->push($this->issue($topic, 'progress_quarterly', 'Missing Progress Reports: '.$missingProgress->pluck('label')->join(', '), $missingProgress->first()['end']->addDay()->startOfDay(), 'overdue', 'project-monitoring'));
             }
             $reviewRows = $hasSchedule ? $rows : $this->quarters->summaryRows($topic->progressReports);
             foreach ($reviewRows as $row) {

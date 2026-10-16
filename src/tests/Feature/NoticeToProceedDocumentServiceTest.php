@@ -99,4 +99,14 @@ test('it fills the official notice template with approved project details', func
     }
 
     expect((int) $xpath->evaluate('count(/w:document/w:body/w:p/w:r[w:t]/w:rPr/w:rFonts[@w:ascii="Arial"])'))->toBe(0);
+
+    $this->withoutVite();
+    $preview = new DOMDocument;
+    @$preview->loadHTML((string) $this->view('topics.notice-to-proceed-preview', ['notice' => $values]));
+    $previewXpath = new DOMXPath($preview);
+    $footer = new DOMDocument;
+    $footer->loadXML((string) $footerXml);
+
+    expect(preg_replace('/\s+/u', '', $previewXpath->evaluate('string(//main)')))
+        ->toBe(preg_replace('/\s+/u', '', $xpath->evaluate('string(/w:document/w:body)').$footer->documentElement->textContent));
 });

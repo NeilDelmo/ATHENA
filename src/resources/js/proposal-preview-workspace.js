@@ -210,7 +210,7 @@ export function proposalPreviewWorkspace() {
         toggleProposalPreviewFullscreen() {
             this.stopProposalPreviewDrag();
             this.previewFullscreen = !this.previewFullscreen;
-            this.previewFit = this.previewFullscreen ? 'page' : 'width';
+            this.previewFit = 'width';
             this.previewZoom = 100;
             if (this.previewFullscreen) {
                 this.previewPaneOpen = true;

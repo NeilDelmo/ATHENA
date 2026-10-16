@@ -157,11 +157,11 @@
     </div>
     <ul class="mt-4 divide-y divide-gray-100 rounded-xl border border-gray-200">
         @foreach ($assessmentForms as $item)
-            <li class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+            <li class="grid items-center gap-2 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <span class="font-semibold text-gray-800">{{ $item['paper']['label'] }}</span>
                 <span class="text-xs font-bold {{ $item['complete'] ? 'text-green-700' : 'text-amber-700' }}">{{ $item['complete'] ? 'Included automatically' : 'Waiting for Project Details' }}</span>
                 @php($assessmentPreview = ['label' => $item['paper']['label'], 'previewUrl' => route('faculty.proposal-drafts.'.$item['paper']['slug'].'.preview', $proposalDraft), 'downloadUrl' => route('faculty.proposal-drafts.'.$item['paper']['slug'].'.download', $proposalDraft)])
-                <button type="button" data-assessment-preview-trigger @click="openAssessmentPreview(@js($assessmentPreview))" aria-label="Preview {{ $item['paper']['label'] }}" aria-haspopup="dialog" aria-controls="review-paper-preview-panel" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600">Preview form</button>
+                <button type="button" data-assessment-preview-trigger @click="openAssessmentPreview(@js($assessmentPreview))" aria-label="Preview {{ $item['paper']['label'] }}" aria-haspopup="dialog" aria-controls="review-paper-preview-panel" class="inline-flex min-h-10 items-center justify-self-start rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 sm:justify-self-end">Preview form</button>
             </li>
         @endforeach
     </ul>

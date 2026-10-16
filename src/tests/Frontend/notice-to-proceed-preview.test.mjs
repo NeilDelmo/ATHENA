@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
+import { documentWritingToolbar } from '../../resources/js/document-writing-toolbar.js';
 
 const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
 const source = app.slice(
@@ -31,6 +32,7 @@ function createForm({ response = previewResponse(), valid = true } = {}) {
     runInNewContext(source, {
         Alpine: { data: (name, callback) => { factory = callback; } },
         proposalPreviewWorkspace,
+        documentWritingToolbar,
         FormData,
         HTMLFormElement: Object,
         Error,
