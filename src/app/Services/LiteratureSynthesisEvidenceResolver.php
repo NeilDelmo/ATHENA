@@ -30,48 +30,74 @@ class LiteratureSynthesisEvidenceResolver
         $pages = is_array($document) ? ($document['pages'] ?? []) : [];
         $privateText = collect(is_array($pages) ? $pages : [])->filter(fn (mixed $page): bool => is_array($page) && is_string($page['text'] ?? null))
             ->map(fn (array $page): string => $page['text'])->join("\n\n");
-        $privateText = Str::limit(trim($privateText), (int) config('literature.evidence.maximum_characters', 120000), '');
-
-        if (Str::length($privateText) >= 500) {
+        if ($this->hasCompleteDocument($document) && Str::length($privateText) >= 500) {
             $coverage = is_array($document['coverage'] ?? null) ? $document['coverage'] : [];
 
             return ['evidence_basis' => 'full_text', 'abstract' => $abstract, 'evidence_text' => $privateText,
                 'coverage' => [...$coverage, 'characters' => Str::length($privateText), 'origin' => 'uploaded_pdf'],
-                'notice' => 'Drafted from readable text extracted from this proposal’s attached source PDF. '.($document['notice'] ?? 'Check the original PDF for tables, figures, extraction gaps, and any omitted pages.')];
+                'notice' => 'Drafted from all extractable text across this proposal’s attached source PDF. '.($document['notice'] ?? 'Check the original PDF for tables, figures, and extraction errors.')];
         }
 
         $token = $source['full_text_token'] ?? null;
         if (! is_string($token) || $token === '') {
-            $this->unavailable();
+            $this->unavailable(is_array($document) ? ($document['coverage']['reason'] ?? 'This saved PDF has no verified complete extraction. Reattach it in Sources to process every page.') : null);
         }
 
         try {
             $loaded = $this->preview->preview($token);
-        } catch (LiteratureFullTextPreviewException|ValidationException) {
+        } catch (LiteratureFullTextPreviewException $exception) {
+            $this->unavailable($exception->getMessage());
+        } catch (ValidationException) {
             $this->unavailable();
         }
 
         $text = trim((string) ($loaded['preview_text'] ?? ''));
-        if (Str::length($text) < 500) {
-            $this->unavailable();
+        $coverage = is_array($loaded['coverage'] ?? null) ? $loaded['coverage'] : [];
+        if (Str::length($text) < 500 || ($coverage['complete'] ?? false) !== true
+            || ($coverage['limited'] ?? true) !== false || ($coverage['partial_or_unknown'] ?? true) !== false
+            || ($coverage['truncated'] ?? true) !== false || ($coverage['unreadable_pages'] ?? null) !== []
+            || ! is_int($coverage['total_pages'] ?? null) || $coverage['total_pages'] < 1
+            || ($coverage['extracted_pages'] ?? null) !== $coverage['total_pages']) {
+            $this->unavailable($coverage['reason'] ?? 'The complete paper could not be extracted. Attach its readable PDF in Sources.');
         }
 
         return ['evidence_basis' => 'full_text', 'abstract' => $abstract, 'evidence_text' => $text,
             'coverage' => is_array($loaded['coverage'] ?? null) ? $loaded['coverage'] : null,
-            'notice' => 'Drafted from the source paper text loaded from its provider-designated open-access link. '.($loaded['notice'] ?? 'Check the original paper and extraction coverage before accepting the draft.')];
+            'notice' => 'Drafted from all extractable text across the PDF loaded from its provider-designated open-access link. '.($loaded['notice'] ?? 'Check the original paper for tables, figures, and extraction errors before accepting the draft.')];
     }
 
     /** @param array<string, mixed> $source */
     public function canReadPaper(array $source, ?ProposalDraftLiteratureSource $linkedSource = null): bool
     {
-        $pages = $linkedSource?->evidence_document['pages'] ?? [];
-        $characters = collect(is_array($pages) ? $pages : [])->sum(fn (mixed $page): int => is_array($page) && is_string($page['text'] ?? null) ? Str::length($page['text']) : 0);
-
-        return $characters >= 500 || filled($source['full_text_token'] ?? null);
+        return $this->hasCompleteDocument($linkedSource?->evidence_document) || filled($source['full_text_token'] ?? null);
     }
 
-    private function unavailable(): never
+    /** @param array<string, mixed>|null $document */
+    private function hasCompleteDocument(?array $document): bool
     {
-        throw ValidationException::withMessages(['evidence_basis' => 'The source paper could not be read. Attach a readable PDF in Sources or choose “Use abstracts instead”. No abstract fallback was applied.']);
+        $coverage = $document['coverage'] ?? [];
+        $pages = $document['pages'] ?? [];
+        $total = $coverage['total_pages'] ?? null;
+        if (($coverage['complete'] ?? false) !== true || ($coverage['limited'] ?? true) !== false
+            || ($coverage['partial_or_unknown'] ?? true) !== false
+            || ($coverage['truncated'] ?? true) !== false || ($coverage['unreadable_pages'] ?? null) !== []
+            || ! is_int($total) || $total < 1 || $total > (int) config('literature.evidence.maximum_pdf_pages')
+            || ! is_array($pages) || count($pages) !== $total || ($coverage['extracted_pages'] ?? null) !== $total) {
+            return false;
+        }
+        $characters = 0;
+        foreach ($pages as $index => $page) {
+            if (! is_array($page) || ($page['number'] ?? null) !== $index + 1 || ! is_string($page['text'] ?? null) || trim($page['text']) === '') {
+                return false;
+            }
+            $characters += Str::length($page['text']);
+        }
+
+        return $characters >= 500 && $characters <= (int) config('literature.evidence.maximum_characters');
+    }
+
+    private function unavailable(?string $reason = null): never
+    {
+        throw ValidationException::withMessages(['evidence_basis' => ($reason ? $reason.' ' : '').'The whole source paper could not be read. Attach a complete readable PDF in Sources or choose “Use abstracts instead”. No abstract fallback was applied.']);
     }
 }

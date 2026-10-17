@@ -116,7 +116,7 @@ class ResearchAssistantProposalAssistanceService
         }
 
         return $action === []
-            && (preg_match('/\b(?:improve|rewrite|revise|fix|polish|suggest|draft|write|add|edit|refine|reword|organize|arrange)\b.{0,100}\b(?:proposal|objectives?|methodology|rationale|introduction|executive brief|research design|data analysis|work[ -]?plan|activities|activity|expected outputs?|expense|expenses|budget|curriculum vitae|cv|gad|screening)\b/i', $question) === 1
+            && (preg_match('/\b(?:improve|rewrite|revise|fix|polish|suggest|draft|write|add|edit|refine|reword|organize|arrange)\b.{0,100}\b(?:proposals?|paper|document|attachment|objectives?|methodology|rationale|introduction|executive brief|research design|data analysis|work[ -]?plan|activities|activity|expected outputs?|expense|expenses|budget|curriculum vitae|cv|gad|screening|duties|responsibilities|specific methods)\b/i', $question) === 1
                 || (filled($context['paper_slug'] ?? null) && preg_match('/\b(?:improve|rewrite|revise|fix|polish|edit|refine|reword)\b.{0,30}\b(?:this|it|wording|section|field)\b/i', $question)))
             && preg_match('/\b(?:find|search|suggest|recommend|draft|write|add)\b.{0,60}\b(?:studies|sources|papers|literature|rrl)\b/i', $question) !== 1;
     }
@@ -137,9 +137,10 @@ class ResearchAssistantProposalAssistanceService
         $allFields = Arr::except($this->fieldValues($document->source_data, $paperSlug), ['related_literature']);
         $hasSavedNarrative = collect($allFields)->contains(fn (array $field): bool => $this->plain($field['before']) !== '');
         $requestedField = $this->requestedPaperField($question, $context, $paperSlug);
-        $fields = array_filter($allFields, fn (array $field, string $key): bool => $key !== 'related_literature' && strlen($field['before']) <= 6000 && ($this->plain($field['before']) !== '' || $hasSavedNarrative)
+        $fields = array_filter($allFields, fn (array $field, string $key): bool => $key !== 'related_literature' && strlen($field['before']) <= 6000 && ($this->plain($field['before']) !== '' || ($paperSlug === 'detailed-proposal' && $hasSavedNarrative))
             && ! str_contains($field['before'], 'data-proposal-citation')
-            && ($requestedField === null || Str::startsWith($key, $requestedField)), ARRAY_FILTER_USE_BOTH);
+            && ($requestedField === null || $key === $requestedField || Str::startsWith($key, $requestedField.'.')
+                || ($paperSlug !== 'detailed-proposal' && Str::endsWith($key, '.'.$requestedField))), ARRAY_FILTER_USE_BOTH);
         $fields = array_slice($fields, 0, 6, true);
         $remaining = 12000;
         $fields = array_filter($fields, function (array $field) use (&$remaining): bool {
@@ -198,7 +199,8 @@ class ResearchAssistantProposalAssistanceService
             }
             $value = $this->plain($suggestion['value'], true);
             if ($value === '' || strlen($value) > $this->fieldLimit($paperSlug, $field) || $value === $targets[$field]['before']
-                || $this->addsNumbers($knownProposalText, $value)) {
+                || $this->addsNumbers($paperSlug === 'detailed-proposal' ? $knownProposalText : $targets[$field]['before'], $value)
+                || ($paperSlug !== 'detailed-proposal' && $this->addsNumbers($value, $targets[$field]['before']))) {
                 continue;
             }
             $id = Str::uuid()->toString();
@@ -304,7 +306,7 @@ class ResearchAssistantProposalAssistanceService
         $suggestions = [];
         foreach (array_slice(is_array($packet['suggestions'] ?? null) ? $packet['suggestions'] : [], 0, 3) as $suggestion) {
             $paperSlug = is_array($suggestion) ? ($suggestion['paper_slug'] ?? 'detailed-proposal') : '';
-            if (! is_array($suggestion) || ! is_string($suggestion['field'] ?? null)
+            if (! is_array($suggestion) || ! is_string($paperSlug) || ! is_string($suggestion['field'] ?? null)
                 || ! $this->allowedField($paperSlug, $suggestion['field'])) {
                 continue;
             }
@@ -425,18 +427,134 @@ class ResearchAssistantProposalAssistanceService
                 $fields['specific_objectives.'.$index.'.description'] = 'Specific objective '.($index + 1);
             }
         }
+        foreach (is_array($data['specific_method_objectives'] ?? null) ? $data['specific_method_objectives'] : [] as $index => $group) {
+            if (! is_int($index) || $index < 0 || $index >= 20 || ! is_array($group)) {
+                continue;
+            }
+            if (is_string($group['heading'] ?? null)) {
+                $fields['specific_method_objectives.'.$index.'.heading'] = 'Method group '.($index + 1).' heading';
+            }
+            foreach (is_array($group['methods'] ?? null) ? $group['methods'] : [] as $methodIndex => $method) {
+                if (is_int($methodIndex) && $methodIndex >= 0 && $methodIndex < 20 && is_array($method) && is_string($method['description'] ?? null)) {
+                    $fields['specific_method_objectives.'.$index.'.methods.'.$methodIndex.'.description'] = 'Method '.($methodIndex + 1).' for group '.($index + 1);
+                }
+            }
+        }
+        foreach (array_keys(config('detailed_proposal.expected_outputs', [])) as $key) {
+            foreach (is_array($data['expected_outputs'][$key] ?? null) ? $data['expected_outputs'][$key] : [] as $index => $output) {
+                if (is_int($index) && $index >= 0 && $index < 20 && is_array($output) && is_string($output['description'] ?? null)) {
+                    $fields['expected_outputs.'.$key.'.'.$index.'.description'] = config('detailed_proposal.expected_outputs.'.$key).' output '.($index + 1);
+                }
+            }
+        }
+        foreach (is_array($data['responsibilities'] ?? null) ? $data['responsibilities'] : [] as $index => $responsibility) {
+            if (is_int($index) && $index >= 0 && $index < 30 && is_array($responsibility) && is_string($responsibility['duties'] ?? null)) {
+                $fields['responsibilities.'.$index.'.duties'] = 'Team member '.($index + 1).' duties';
+            }
+        }
 
         return collect($fields)->map(fn (string $label, string $field): array => ['label' => $label, 'before' => is_string(data_get($data, $field)) ? data_get($data, $field) : ''])->all();
     }
 
+    private function requestedPaper(string $question, array $context): string
+    {
+        if ($this->rrlRevision->wantsRevision($question)) {
+            return 'detailed-proposal';
+        }
+        $patterns = [
+            'work-plan' => '/\b(?:work[ -]?plan|attachment\s+a)\b/i',
+            'expense-breakdown' => '/\b(?:expense[ -]?breakdown|estimated\s+expenses?|expenses?)\b/i',
+            'curriculum-vitae' => '/\b(?:curriculum\s+vitae|cv|credentials?)\b/i',
+            'gad-checklist' => '/\b(?:gad|gender\s+checklist)\b/i',
+            'initial-screening-form' => '/\b(?:initial[ -]?screening|screening\s+form|screening)\b/i',
+            'line-item-budget' => '/\b(?:line[ -]?item[ -]?budget|attachment\s+b)\b/i',
+            'detailed-proposal' => '/\b(?:detailed[ -]?(?:research[ -]?)?proposal|research\s+proposal)\b/i',
+        ];
+        $matches = array_keys(array_filter($patterns, fn (string $pattern): bool => preg_match($pattern, $question) === 1));
+        abort_if(count($matches) > 1, 422, 'Choose one proposal paper to revise at a time. No paper was changed.');
+        if ($matches !== []) {
+            return $matches[0];
+        }
+        if (preg_match('/\bbudget\b/i', $question)) {
+            return 'line-item-budget';
+        }
+        if (preg_match('/\b(?:rrl|related\s+literature|rationale|introduction|executive\s+brief|research\s+design|data\s+analysis|methodology|specific\s+methods|method\s+group|duties|responsibilities)\b/i', $question)) {
+            return 'detailed-proposal';
+        }
+
+        return is_string($context['paper_slug'] ?? null) && $context['paper_slug'] !== '' ? $context['paper_slug'] : 'detailed-proposal';
+    }
+
+    private function requestedPaperField(string $question, array $context, string $paperSlug): ?string
+    {
+        $contextField = is_string($context['field'] ?? null) ? $context['field'] : '';
+        $contextField = trim(str_replace(['[', ']'], ['.', ''], $contextField), '.');
+        $contextField = str_replace('-', '_', preg_replace('/^methodology-/', 'methodology.', $contextField) ?? $contextField);
+        $samePaper = ($context['paper_slug'] ?? $paperSlug) === $paperSlug;
+        if ($paperSlug === 'detailed-proposal') {
+            $requested = $this->requestedField($question);
+            if ($requested !== null) {
+                if ($samePaper && $this->allowedField($paperSlug, $contextField)
+                    && ($contextField === $requested || Str::startsWith($contextField, $requested.'.'))) {
+                    return $contextField;
+                }
+
+                return $requested;
+            }
+
+            return $samePaper && $contextField !== '' ? $contextField : null;
+        }
+        if (preg_match('/\b(?:months?|schedules?|timelines?|dates?|amounts?|prices?|costs?|quantit(?:y|ies)|units?|accounts?|objectives?|names?|signatures?)\b/i', $question)
+            && ! preg_match('/\b(?:activity|activities|expected\s+outputs?|description|details|purpose|wording)\b/i', $question)) {
+            return 'unsupported_field';
+        }
+        $terms = $paperSlug === 'work-plan' ? ['expected outputs?' => 'expected_output', 'activit(?:y|ies)' => 'activity'] : ['description|details' => 'details', 'purpose' => 'purpose'];
+        foreach ($terms as $term => $field) {
+            if (preg_match('/\b(?:'.$term.')\b/i', $question)) {
+                $rowKey = $paperSlug === 'work-plan' ? 'entries' : 'items';
+                if (preg_match('/\b(?:row|item|entry|activity|output)\s*(\d+)\b/i', $question, $match)) {
+                    return $rowKey.'.'.((int) $match[1] - 1).'.'.$field;
+                }
+                if ($samePaper && $this->allowedField($paperSlug, $contextField) && Str::endsWith($contextField, '.'.$field)) {
+                    return $contextField;
+                }
+
+                return $field;
+            }
+        }
+
+        return $samePaper && $contextField !== '' ? $contextField : null;
+    }
+
+    private function allowedField(string $paperSlug, string $field): bool
+    {
+        return match ($paperSlug) {
+            'work-plan' => preg_match('/^entries\.(?:[0-9]|1[0-9])\.(?:expected_output|activity)$/', $field) === 1,
+            'expense-breakdown' => preg_match('/^items\.(?:[0-9]|[1-9][0-9])\.(?:details|purpose)$/', $field) === 1,
+            'detailed-proposal' => isset(self::FIELDS[$field])
+                || preg_match('/^specific_objectives\.(?:[0-9]|[1-4][0-9])\.description$|^specific_method_objectives\.(?:[0-9]|1[0-9])\.(?:heading|methods\.(?:[0-9]|1[0-9])\.description)$|^responsibilities\.(?:[0-9]|[12][0-9])\.duties$/', $field) === 1
+                || (preg_match('/^expected_outputs\.([a-z_]+)\.(?:[0-9]|1[0-9])\.description$/', $field, $match) === 1 && array_key_exists($match[1], config('detailed_proposal.expected_outputs', []))),
+            default => false,
+        };
+    }
+
+    private function fieldLimit(string $paperSlug, string $field): int
+    {
+        return $paperSlug === 'work-plan' ? (Str::endsWith($field, '.activity') ? 1500 : 500) : ($paperSlug === 'expense-breakdown' ? 500 : 6000);
+    }
+
     private function requestedField(string $question): ?string
     {
+        if (preg_match('/\bmethod\s+group\s*(\d+)\b/i', $question, $match)) {
+            return 'specific_method_objectives.'.((int) $match[1] - 1);
+        }
         if (preg_match('/\b(?:specific\s+)?objective\s*(\d+)\b/i', $question, $match)) {
             return 'specific_objectives.'.((int) $match[1] - 1).'.description';
         }
         foreach (['related literature' => 'related_literature', 'rrl' => 'related_literature', 'specific objective' => 'specific_objectives',
             'general objective' => 'general_objective', 'objectives' => 'specific_objectives', 'rationale' => 'rationale', 'research design' => 'methodology.research_design',
-            'data analysis' => 'methodology.data_analysis', 'methodology' => 'methodology', 'introduction' => 'introduction', 'executive brief' => 'executive_brief'] as $term => $field) {
+            'specific methods' => 'specific_method_objectives', 'data analysis' => 'methodology.data_analysis', 'methodology' => 'methodology', 'introduction' => 'introduction', 'executive brief' => 'executive_brief',
+            'expected output' => 'expected_outputs', 'responsibilities' => 'responsibilities', 'duties' => 'responsibilities', 'method group' => 'specific_method_objectives'] as $term => $field) {
             if (Str::contains(Str::lower($question), $term)) {
                 return $field;
             }

@@ -39,8 +39,10 @@ beforeEach(function () {
         return ($draft ?? $this->draft)->literatureSources()->create(['fingerprint' => ProposalDraftLiteratureSource::fingerprintFor($this->source['doi'], $this->source['title'], 2024),
             'title' => $this->source['title'], 'authors' => $this->source['authors'], 'publication_year' => 2024,
             'doi' => $this->source['doi'], 'abstract' => $this->abstract, 'provider' => 'fixture',
-            'evidence_document' => ['pages' => [['number' => 1, 'text' => $text ?? $this->fullText]],
-                'coverage' => ['total_pages' => 2, 'extracted_pages' => 1, 'limited' => true], 'notice' => 'Only one extracted page is available.']]);
+            'evidence_document' => ['pages' => [['number' => 1, 'text' => $text ?? $this->fullText],
+                ['number' => 2, 'text' => $text ?? 'FINAL PAGE: Community validation meetings revealed a gap in the reporting protocol.']],
+                'coverage' => ['total_pages' => 2, 'extracted_pages' => 2, 'limited' => false, 'partial_or_unknown' => false,
+                    'complete' => true, 'truncated' => false, 'unreadable_pages' => []], 'notice' => 'All PDF pages were processed.']]);
     };
     $this->actingAs($this->faculty);
 });
@@ -50,10 +52,11 @@ test('primary RRL generation reads the scoped attached paper and ignores forged 
     $before = $this->paper->fresh()->source_data;
     $this->postJson(route('research-support.literature-synthesis'), ['proposal_draft_id' => $this->draft->id, 'source_link_id' => $linked->id,
         'title' => 'FORGED_TITLE', 'authors' => 'FORGED_AUTHOR', 'abstract' => 'FORGED_ABSTRACT'])->assertSuccessful()
-        ->assertJsonPath('basis', 'full_text')->assertJsonPath('coverage.origin', 'uploaded_pdf')->assertJsonPath('coverage.limited', true)
+        ->assertJsonPath('basis', 'full_text')->assertJsonPath('coverage.origin', 'uploaded_pdf')->assertJsonPath('coverage.complete', true)
         ->assertJsonPath('synthesis', $this->paragraph);
     Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'longitudinal matched-village design')
         && str_contains($request['messages'][1]['content'], 'seasonal reporting interruptions')
+        && str_contains($request['messages'][1]['content'], 'FINAL PAGE: Community validation meetings')
         && str_contains($request['messages'][1]['content'], $this->source['title'])
         && ! str_contains($request['messages'][1]['content'], 'FORGED_'));
     expect($this->paper->fresh()->source_data)->toBe($before)
@@ -64,7 +67,8 @@ test('unreadable full-paper requests never silently fall back to an available ab
     $linked = ($this->attachSource)(text: 'Unreadable scan.');
     $this->postJson(route('research-support.literature-synthesis'), ['proposal_draft_id' => $this->draft->id, 'source_link_id' => $linked->id])
         ->assertUnprocessable()->assertJsonValidationErrors('evidence_basis')
-        ->assertJsonPath('errors.evidence_basis.0', 'The source paper could not be read. Attach a readable PDF in Sources or choose “Use abstracts instead”. No abstract fallback was applied.');
+        ->assertJson(fn ($json) => $json->where('errors.evidence_basis.0', fn (string $message): bool => str_contains($message, 'The whole source paper could not be read.')
+            && str_contains($message, 'No abstract fallback was applied.'))->etc());
     Http::assertNothingSent();
 });
 
@@ -100,11 +104,39 @@ test('scoped generation cannot read another proposal source or an inaccessible d
 
 test('standalone generation resolves provider issued full text and reports its coverage', function () {
     $token = LiteratureFullTextToken::issue(['url' => 'https://example.org/study.pdf', 'provider' => 'fixture']);
-    $coverage = ['characters' => mb_strlen($this->fullText), 'character_limit' => 30000, 'page_limit' => 40, 'total_pages' => null, 'truncated' => false, 'partial_or_unknown' => true];
-    mock(LiteratureFullTextPreviewService::class)->shouldReceive('preview')->once()->with($token)->andReturn(['preview_text' => $this->fullText, 'coverage' => $coverage, 'notice' => 'Coverage is unknown.']);
+    $coverage = ['characters' => mb_strlen($this->fullText), 'character_limit' => 120000, 'page_limit' => 200,
+        'total_pages' => 2, 'extracted_pages' => 2, 'truncated' => false, 'limited' => false, 'complete' => true,
+        'partial_or_unknown' => false, 'unreadable_pages' => []];
+    mock(LiteratureFullTextPreviewService::class)->shouldReceive('preview')->once()->with($token)->andReturn(['preview_text' => $this->fullText, 'coverage' => $coverage, 'notice' => 'All PDF pages were processed.']);
     $this->postJson(route('research-support.literature-synthesis'), ['title' => $this->source['title'], 'full_text_token' => $token])
         ->assertSuccessful()->assertJsonPath('basis', 'full_text')->assertJsonPath('coverage', $coverage);
     Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'longitudinal matched-village design'));
+});
+
+test('partial or legacy PDF evidence cannot be presented as whole-paper generation', function (array $coverage) {
+    $linked = ($this->attachSource)();
+    $document = $linked->evidence_document;
+    $document['coverage'] = $coverage;
+    $linked->update(['evidence_document' => $document]);
+    $this->postJson(route('research-support.literature-synthesis'), ['proposal_draft_id' => $this->draft->id, 'source_link_id' => $linked->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('evidence_basis');
+    Http::assertNothingSent();
+})->with([
+    'old preview without coverage' => [[]],
+    'first page only' => [['total_pages' => 2, 'extracted_pages' => 1, 'complete' => false, 'limited' => true]],
+    'unknown total' => [['total_pages' => null, 'extracted_pages' => 2, 'complete' => true, 'limited' => false,
+        'partial_or_unknown' => false, 'truncated' => false, 'unreadable_pages' => []]],
+    'truncated text' => [['total_pages' => 2, 'extracted_pages' => 2, 'complete' => true, 'limited' => false,
+        'partial_or_unknown' => false, 'truncated' => true, 'unreadable_pages' => []]],
+]);
+
+test('provider preview text with unknown coverage cannot silently qualify as a whole paper', function () {
+    mock(LiteratureFullTextPreviewService::class)->shouldReceive('preview')->once()->andReturn([
+        'preview_text' => $this->fullText, 'coverage' => ['total_pages' => null, 'partial_or_unknown' => true],
+    ]);
+    $this->postJson(route('research-support.literature-synthesis'), ['title' => $this->source['title'], 'full_text_token' => 'provider-token'])
+        ->assertUnprocessable()->assertJsonValidationErrors('evidence_basis');
+    Http::assertNothingSent();
 });
 
 test('failed provider paper reads stop before generation instead of silently using abstracts', function () {
@@ -147,4 +179,33 @@ test('chat validates all paper evidence before any generation and never borrows 
     $this->postJson(route('research-support.chat'), ['messages' => [['role' => 'user', 'content' => 'Draft selected papers.']], 'context' => $context,
         'action' => ['type' => 'draft_literature', 'source_tokens' => array_column($results, 'source_token')]])->assertUnprocessable()->assertJsonValidationErrors('evidence_basis');
     Http::assertNothingSent();
+});
+
+test('chat can draft from several complete papers while keeping their evidence separate', function () {
+    $first = ($this->attachSource)();
+    $second = $first->replicate();
+    $second->title = 'Participatory Coastal Reporting';
+    $second->doi = '10.1234/participatory.2024';
+    $second->fingerprint = ProposalDraftLiteratureSource::fingerprintFor($second->doi, $second->title, 2024);
+    $document = $second->evidence_document;
+    $document['pages'][0]['text'] = str_repeat('SECOND PAPER METHODS: Participatory mapping and collective reporting meetings. ', 12);
+    $second->evidence_document = $document;
+    $second->save();
+    mock(LiteratureSearchService::class)->shouldReceive('search')->once()->andReturn([
+        'results' => [$this->source, [...$this->source, 'title' => $second->title, 'doi' => $second->doi]],
+        'provider_notice' => null, 'search_notice' => null,
+    ]);
+    $context = ['proposal_draft_id' => $this->draft->id];
+    $results = $this->postJson(route('research-support.chat'), ['messages' => [['role' => 'user', 'content' => 'Find papers']], 'context' => $context])
+        ->assertSuccessful()->json('literature.results');
+    $this->postJson(route('research-support.chat'), ['messages' => [['role' => 'user', 'content' => 'Draft the selected papers for my RRL.']],
+        'context' => $context, 'action' => ['type' => 'draft_literature', 'source_tokens' => array_column($results, 'source_token')]])
+        ->assertSuccessful()->assertJsonCount(2, 'literature.drafts')
+        ->assertJsonPath('literature.drafts.0.evidence_basis', 'full_text')->assertJsonPath('literature.drafts.1.evidence_basis', 'full_text');
+    Http::assertSentCount(2);
+    Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'longitudinal matched-village design')
+        && ! str_contains($request['messages'][1]['content'], 'SECOND PAPER METHODS'));
+    Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'SECOND PAPER METHODS')
+        && ! str_contains($request['messages'][1]['content'], 'longitudinal matched-village design'));
+    expect($this->paper->fresh()->source_data['related_literature'])->toBe('<p>Keep the saved RRL.</p>');
 });

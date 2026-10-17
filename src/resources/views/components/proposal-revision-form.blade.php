@@ -29,6 +29,8 @@
     aria-labelledby="faculty-revision-heading"
     data-faculty-revision-required
     data-revision-workspace="{{ $topic->id }}"
+    data-assistant-report-type="comment-response"
+    data-assistant-report-key="comment-response:topic:{{ $topic->id }}"
     data-revision-start-step="{{ $metadataHasErrors ? 3 : ($revisionErrors->any() ? 2 : 1) }}"
     data-confirm-title="Submit this revision to the Research Head?"
     data-confirm-text="Edited papers will generate PDFs for the new version. Uploaded replacements and unchanged papers will be included too."
@@ -119,6 +121,11 @@
                 <p role="alert" class="mx-5 mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{{ $feedbackError }}</p>
             @endforeach
         @endforeach
+        @if ($commentResponseRows !== [] && $latestRevisionReview)
+            <div class="border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6">
+                <x-assistant-report-editor :context="['report_type' => 'comment-response', 'topic_id' => $topic->id]" />
+            </div>
+        @endif
         <div id="requested-papers-content" class="space-y-3 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6" data-requested-revision-files>
             @forelse ($revisionGroups as $documentType => $fileRevisions)
                 <x-proposal-revision-document :topic="$topic" :document-type="$documentType" :file-revisions="$fileRevisions" :staged-file="$stagedRevisionFiles->get($documentType)" :required="true" :comment-response-rows="collect($commentResponseRows)->filter(fn ($item) => ($responseDocumentTypes[$item['key']] ?? null) === $documentType)" :document-types="$revisionGroups->keys()" />

@@ -10,31 +10,28 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use Throwable;
 
 class LiteratureFullTextPreviewService
 {
-    /** @return array{preview_text: string, evidence_basis: string, source_url: string, content_type: string, provider: string, coverage: array{characters: int, character_limit: int, page_limit: ?int, total_pages: null, truncated: bool, partial_or_unknown: bool}, notice: string} */
+    public function __construct(private LiteratureDocumentTextExtractor $extractor) {}
+
+    /** @return array{preview_text: string, evidence_basis: string, source_url: string, content_type: string, provider: string, coverage: array<string, mixed>, notice: string} */
     public function preview(string $sourceToken): array
     {
         $source = LiteratureFullTextToken::decode($sourceToken);
-        [$response, $resolvedUrl] = $this->fetch($source['url']);
+        [$response, $resolvedUrl, $body] = $this->fetch($source['url']);
         $contentType = Str::lower(Str::before((string) $response->header('Content-Type'), ';'));
-        $body = $response->body();
-
-        if (strlen($body) > (int) config('literature.full_text.maximum_bytes')) {
-            throw new LiteratureFullTextPreviewException('The open-access file is too large to preview safely.', 413);
-        }
 
         if (in_array($contentType, ['text/html', 'application/xhtml+xml'], true) && $this->looksLikeAuthenticationPage($body, $resolvedUrl)) {
             throw new LiteratureFullTextPreviewException('The source redirected to a sign-in or access-control page. ATHENA will not bypass authentication or institutional restrictions.', 403);
         }
 
         $isPdf = $contentType === 'application/pdf' || Str::startsWith($body, '%PDF-');
+        $pdf = $isPdf ? $this->pdfText($body) : null;
         $text = match (true) {
-            $isPdf => $this->pdfText($body),
+            $isPdf => collect($pdf['pages'])->pluck('text')->join("\n\n"),
             in_array($contentType, ['text/html', 'application/xhtml+xml'], true) => $this->htmlText($body),
             $contentType === 'text/plain' => Str::squish($body),
             default => throw new LiteratureFullTextPreviewException('This open-access source does not provide a supported PDF, HTML, or text document.', 415),
@@ -42,11 +39,13 @@ class LiteratureFullTextPreviewService
 
         $text = Str::squish($text);
         $characterLimit = (int) config('literature.full_text.maximum_characters');
-        $truncated = Str::length($text) > $characterLimit;
-        $text = Str::limit($text, $characterLimit, '');
+        $truncated = ! $isPdf && Str::length($text) > $characterLimit;
+        if (! $isPdf) {
+            $text = Str::limit($text, $characterLimit, '');
+        }
 
         if (Str::length($text) < 500) {
-            throw new LiteratureFullTextPreviewException('The open-access file did not contain enough readable text. ATHENA will continue using the indexed abstract.');
+            throw new LiteratureFullTextPreviewException(($pdf['coverage']['reason'] ?? 'The open-access file did not contain enough readable text.').' Attach a readable source PDF before generating from the whole paper.');
         }
 
         return [
@@ -55,22 +54,25 @@ class LiteratureFullTextPreviewService
             'source_url' => $resolvedUrl,
             'content_type' => $contentType,
             'provider' => $source['provider'],
-            'coverage' => [
+            'coverage' => $pdf['coverage'] ?? [
                 'characters' => Str::length($text),
                 'character_limit' => $characterLimit,
-                'page_limit' => $isPdf ? (int) config('literature.full_text.maximum_pdf_pages') : null,
+                'page_limit' => null,
                 'total_pages' => null,
                 'truncated' => $truncated,
                 'partial_or_unknown' => true,
+                'complete' => false,
+                'limited' => true,
+                'reason' => 'The complete paper coverage of this non-PDF source cannot be verified.',
             ],
-            'notice' => 'Extracted source text from a provider-designated open-access location. Full-paper coverage is unknown; '
-                .($isPdf ? 'PDF extraction reads at most '.config('literature.full_text.maximum_pdf_pages').' pages. ' : 'Extraction does not establish that every section was retrieved. ')
+            'notice' => ($pdf['notice'] ?? 'Extracted source text from a provider-designated open-access location. Full-paper coverage is unknown; extraction does not establish that every section was retrieved. '
                 .($truncated ? 'The extracted text was shortened to '.$characterLimit.' characters. ' : '')
-                .'Check the original paper for missing sections, tables, figures, and extraction errors. The original file and extracted text were not stored.',
+                .'Check the original paper for missing sections, tables, figures, and extraction errors. ')
+                .' The original file and extracted text were not stored.',
         ];
     }
 
-    /** @return array{Response, string} */
+    /** @return array{Response, string, string} */
     private function fetch(string $initialUrl): array
     {
         $url = $initialUrl;
@@ -81,39 +83,78 @@ class LiteratureFullTextPreviewService
 
             try {
                 $response = Http::withoutRedirecting()
+                    ->withOptions(['stream' => true, 'read_timeout' => (int) config('literature.full_text.timeout')])
                     ->withHeaders(['User-Agent' => 'ATHENA Literature Preview ('.config('app.url').')'])
                     ->accept('application/pdf,text/html,application/xhtml+xml,text/plain;q=0.9')
                     ->connectTimeout((int) config('literature.full_text.connect_timeout'))
                     ->timeout((int) config('literature.full_text.timeout'))
                     ->get($url);
             } catch (ConnectionException) {
-                throw new LiteratureFullTextPreviewException('The open-access source could not be reached. ATHENA will continue using the indexed abstract.', 502);
+                throw new LiteratureFullTextPreviewException('The open-access source could not be reached. Attach a complete readable source PDF to generate from the whole paper.', 502);
             }
 
-            $contentLength = (int) $response->header('Content-Length');
+            try {
+                $contentLength = (int) $response->header('Content-Length');
 
-            if ($contentLength > (int) config('literature.full_text.maximum_bytes')) {
-                throw new LiteratureFullTextPreviewException('The open-access file is too large to preview safely.', 413);
-            }
-
-            if (! in_array($response->status(), [301, 302, 303, 307, 308], true)) {
-                if ($response->failed()) {
-                    throw new LiteratureFullTextPreviewException('The open-access source rejected the preview request. ATHENA will continue using the indexed abstract.', 502);
+                if ($contentLength > (int) config('literature.full_text.maximum_bytes')) {
+                    throw new LiteratureFullTextPreviewException('The open-access file is too large to preview safely.', 413);
                 }
 
-                return [$response, $url];
+                if (! in_array($response->status(), [301, 302, 303, 307, 308], true)) {
+                    if ($response->failed()) {
+                        throw new LiteratureFullTextPreviewException('The open-access source rejected the preview request. Attach a complete readable source PDF to generate from the whole paper.', 502);
+                    }
+
+                    return [$response, $url, $this->readBody($response)];
+                }
+
+                $location = $response->header('Location');
+
+                if (! is_string($location) || $location === '' || $redirects === $maximumRedirects) {
+                    throw new LiteratureFullTextPreviewException('The open-access source redirected too many times. Attach a complete readable source PDF to generate from the whole paper.', 502);
+                }
+
+                $url = $this->resolveRedirect($url, $location);
+            } finally {
+                $response->close();
             }
-
-            $location = $response->header('Location');
-
-            if (! is_string($location) || $location === '' || $redirects === $maximumRedirects) {
-                throw new LiteratureFullTextPreviewException('The open-access source redirected too many times. ATHENA will continue using the indexed abstract.', 502);
-            }
-
-            $url = $this->resolveRedirect($url, $location);
         }
 
         throw new LiteratureFullTextPreviewException('The open-access source could not be loaded.', 502);
+    }
+
+    private function readBody(Response $response): string
+    {
+        $stream = $response->toPsrResponse()->getBody();
+        $maximumBytes = (int) config('literature.full_text.maximum_bytes');
+        $deadline = microtime(true) + (int) config('literature.full_text.timeout');
+        $body = '';
+
+        try {
+            while (! $stream->eof()) {
+                if (microtime(true) >= $deadline) {
+                    throw new LiteratureFullTextPreviewException('The open-access source could not be read within the time limit. Attach a readable source PDF instead.', 502);
+                }
+
+                $chunk = $stream->read(min(8192, $maximumBytes - strlen($body) + 1));
+
+                if ($chunk === '' && ! $stream->eof()) {
+                    throw new LiteratureFullTextPreviewException('The open-access source could not be read completely. Attach a readable source PDF instead.', 502);
+                }
+
+                $body .= $chunk;
+
+                if (strlen($body) > $maximumBytes) {
+                    throw new LiteratureFullTextPreviewException('The open-access file is too large to preview safely.', 413);
+                }
+            }
+        } catch (LiteratureFullTextPreviewException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            throw new LiteratureFullTextPreviewException('The open-access source could not be read completely. Attach a readable source PDF instead.', 502);
+        }
+
+        return $body;
     }
 
     private function ensurePublicUrl(string $url): void
@@ -172,38 +213,27 @@ class LiteratureFullTextPreviewService
         return $origin.$directory.'/'.$location;
     }
 
-    private function pdfText(string $contents): string
+    /** @return array{pages: list<array{number: int, text: string}>, coverage: array<string, mixed>, notice: string} */
+    private function pdfText(string $contents): array
     {
         $temporaryDirectory = (string) config('literature.full_text.temporary_directory');
         File::ensureDirectoryExists($temporaryDirectory);
         $inputPath = tempnam($temporaryDirectory, 'athena-literature-');
 
-        if ($inputPath === false || File::put($inputPath, $contents) === false) {
+        if ($inputPath === false) {
             throw new LiteratureFullTextPreviewException('The open-access PDF could not be prepared for preview.', 500);
         }
 
         try {
-            $result = Process::timeout((int) config('literature.full_text.timeout'))->run([
-                (string) config('literature.full_text.pdftotext_binary'),
-                '-f',
-                '1',
-                '-l',
-                (string) config('literature.full_text.maximum_pdf_pages'),
-                '-layout',
-                '-nopgbrk',
-                $inputPath,
-                '-',
-            ]);
-
-            if ($result->failed()) {
-                throw new LiteratureFullTextPreviewException('The open-access PDF could not be converted to readable text. ATHENA will continue using the indexed abstract.');
+            if (File::put($inputPath, $contents) !== strlen($contents)) {
+                throw new LiteratureFullTextPreviewException('The open-access PDF could not be prepared for preview.', 500);
             }
 
-            return $result->output();
+            return $this->extractor->extract($inputPath);
         } catch (LiteratureFullTextPreviewException $exception) {
             throw $exception;
         } catch (Throwable) {
-            throw new LiteratureFullTextPreviewException('PDF text extraction is unavailable on this server. ATHENA will continue using the indexed abstract.', 503);
+            throw new LiteratureFullTextPreviewException('PDF text extraction is unavailable on this server. Attach a readable source PDF before generating from the whole paper.', 503);
         } finally {
             File::delete($inputPath);
         }

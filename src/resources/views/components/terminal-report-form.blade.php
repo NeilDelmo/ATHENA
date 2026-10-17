@@ -45,6 +45,8 @@
         id="terminal-form-{{ $topic->id }}"
         x-ref="form"
         data-narrative-progress-autosave-form
+        data-assistant-report-type="terminal-report"
+        data-assistant-report-key="terminal-report:topic:{{ $topic->id }}"
         method="POST"
         action="{{ route('project-narrative-reports.prepare', $topic) }}"
         enctype="multipart/form-data"
@@ -54,6 +56,7 @@
         @csrf
         <input type="hidden" name="report_type" value="terminal">
         <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
+        <x-assistant-report-editor :context="['report_type' => 'terminal-report', 'topic_id' => $topic->id]" />
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open {{ $submissionOpensAt }}.</p>
 
         <header class="overflow-hidden rounded-3xl border border-red-100 bg-gradient-to-br from-red-50 via-white to-amber-50 shadow-sm dark:border-red-950 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/30">

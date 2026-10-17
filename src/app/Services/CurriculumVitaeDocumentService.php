@@ -18,9 +18,6 @@ class CurriculumVitaeDocumentService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
-    /** @var list<int> */
-    private const NAME_TAB_STOPS = [1946, 5441, 8881];
-
     private int $nextContentControlId = 100000000;
 
     public function __construct(
@@ -158,10 +155,21 @@ class CurriculumVitaeDocumentService
         }
 
         $nameCell = $this->elements($xpath, './w:tc', $rows[3])[0];
-        $this->replaceNameParagraph(
-            $this->firstElement($xpath, './w:p', $nameCell),
-            [$person['last_name'], $person['first_name'], $person['middle_name']],
-        );
+
+        foreach (['last_name', 'first_name', 'middle_name'] as $index => $key) {
+            $cell = $this->elements($xpath, './w:tc', $rows[2])[$index]->cloneNode(true);
+
+            if (! $cell instanceof DOMElement) {
+                throw new RuntimeException('A Curriculum Vitae name cell could not be created.');
+            }
+
+            $this->firstElement($xpath, './w:tcPr/w:tcBorders/w:top', $cell)->setAttributeNS(self::W, 'w:val', 'nil');
+            $this->setCellBorder($xpath, $cell, 'bottom');
+            $this->replaceCellText($xpath, $cell, $person[$key], bold: true);
+            $rows[3]->insertBefore($cell, $nameCell);
+        }
+
+        $rows[3]->removeChild($nameCell);
 
         $personalCells = $this->elements($xpath, './w:tc', $rows[4]);
         $this->replaceCellLabelValue($xpath, $personalCells[0], 'Agency:', $person['agency']);
@@ -183,7 +191,7 @@ class CurriculumVitaeDocumentService
 
         $contactCells = $this->elements($xpath, './w:tc', $rows[8]);
         $this->replaceCellLabelValue($xpath, $contactCells[0], 'Landline no.:', $person['landline']);
-        $this->replaceCellLabelValue($xpath, $contactCells[1], 'Cellphone no.:', '(+63) '.$person['cellphone']);
+        $this->replaceCellLabelValue($xpath, $contactCells[1], 'Cellphone no.:', '(+63) '.substr($person['cellphone'], 1));
         $this->replaceCellLabelValue($xpath, $contactCells[2], 'Email Address:', $person['email']);
 
         $this->replaceRows($xpath, $table, array_slice($rows, 12, 4), $rows[12], $rows[16], $person['academic_background'], [
@@ -279,87 +287,6 @@ class CurriculumVitaeDocumentService
         foreach ($checkboxes as $index => $checkbox) {
             WordCheckbox::setModern($xpath, $checkbox, $selected[$index] ?? false);
         }
-    }
-
-    /**
-     * @param  list<string>  $values
-     */
-    private function replaceNameParagraph(DOMElement $paragraph, array $values): void
-    {
-        $this->clearParagraphContent($paragraph);
-        $this->setParagraphTabStops($paragraph, self::NAME_TAB_STOPS);
-        $document = $paragraph->ownerDocument;
-
-        foreach ($values as $value) {
-            $tabRun = $document->createElementNS(self::W, 'w:r');
-            $runProperties = $this->paragraphRunProperties($paragraph);
-
-            if ($runProperties instanceof DOMElement) {
-                $tabRun->appendChild($runProperties);
-            }
-
-            $tabRun->appendChild($document->createElementNS(self::W, 'w:tab'));
-            $paragraph->appendChild($tabRun);
-            $this->appendRun($paragraph, $value, bold: true);
-        }
-    }
-
-    /** @param list<int> $positions */
-    private function setParagraphTabStops(DOMElement $paragraph, array $positions): void
-    {
-        if ($positions === []) {
-            return;
-        }
-
-        $paragraphProperties = null;
-
-        foreach ($paragraph->childNodes as $child) {
-            if ($child instanceof DOMElement && $child->namespaceURI === self::W && $child->localName === 'pPr') {
-                $paragraphProperties = $child;
-
-                break;
-            }
-        }
-
-        if (! $paragraphProperties instanceof DOMElement) {
-            return;
-        }
-
-        foreach (iterator_to_array($paragraphProperties->childNodes) as $property) {
-            if ($property instanceof DOMElement && $property->namespaceURI === self::W && $property->localName === 'tabs') {
-                $paragraphProperties->removeChild($property);
-            }
-        }
-
-        $document = $paragraph->ownerDocument;
-        $tabs = $document->createElementNS(self::W, 'w:tabs');
-
-        foreach ($positions as $position) {
-            $tab = $document->createElementNS(self::W, 'w:tab');
-            $tab->setAttributeNS(self::W, 'w:val', 'center');
-            $tab->setAttributeNS(self::W, 'w:pos', (string) $position);
-            $tabs->appendChild($tab);
-        }
-
-        $anchor = null;
-
-        foreach ($paragraphProperties->childNodes as $property) {
-            if ($property instanceof DOMElement
-                && $property->namespaceURI === self::W
-                && in_array($property->localName, ['ind', 'jc', 'rPr'], true)) {
-                $anchor = $property;
-
-                break;
-            }
-        }
-
-        if ($anchor instanceof DOMElement) {
-            $paragraphProperties->insertBefore($tabs, $anchor);
-
-            return;
-        }
-
-        $paragraphProperties->appendChild($tabs);
     }
 
     private function replaceCellLabelValue(

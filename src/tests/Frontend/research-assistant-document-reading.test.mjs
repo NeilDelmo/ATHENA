@@ -7,6 +7,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 import { assistantDocumentAction, assistantDocumentQuery, defaultAssistantContextId } from '../../resources/js/research-assistant-context.js';
+import { normalizeAssistantReportChanges, reportContext } from '../../resources/js/research-assistant-report-changes.js';
 
 process.env.ATHENA_TEST_PRESERVE_DATABASE = '1';
 
@@ -32,6 +33,7 @@ function assistant(fetchReply = async () => response({ reply: 'The work plan inc
         document: pageDocument, window: { location: { origin: 'https://athena.test' }, setTimeout() {}, addEventListener() {} },
         fetch: fetchReply, assistantDocumentAction, assistantDocumentQuery, defaultAssistantContextId,
         normalizeAssistantLiterature: () => null, normalizeAssistantProposalChanges: () => null,
+        normalizeAssistantReportChanges, reportContext,
         serializeAssistantLiterature: () => null, serializeAssistantProposalChanges: () => null,
         disseminationAction: () => null, disseminationSearchRequest: () => null, disseminationSearchReply: () => null,
         currentPaperEditor: () => null, paperEditorHasUnsavedChanges: () => false, finishPaperEditorAutoSave: async () => true,

@@ -95,6 +95,7 @@ test('the rendered monitoring form uploads, computes, autosaves and restores evi
             const errors = [];
             page.on('pageerror', error => errors.push(error.message));
             await page.setContent(`<html><style>${styles.css}\n${read('resources/css/proposal-paper-workspace.css')}</style><body><main>${readFileSync(fixture, 'utf8')}</main></body></html>`);
+            await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
             await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
                 window.savedRows=[];window.saveRequests=[];
                 window.fetch=async(url,options)=>{

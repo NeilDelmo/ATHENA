@@ -130,7 +130,7 @@ test('CV editing follows one member while preserving the whole package, autosave
                 assert.equal(await page.evaluate(() => window.cvState.activeCvPersonIndex), revisionTarget ? 1 : 0);
                 assert.equal(await page.locator('[data-proposal-workspace-toolbar]').count(), 1);
                 assert.equal(await page.getByRole('button', { name: 'Review team CVs', exact: true }).count(), 0, 'The toolbar does not duplicate the paper preview');
-                assert.equal(await page.getByRole('button', { name: /^Add (qualification|project)$/ }).isVisible(), false);
+                assert.equal(await page.locator('[data-curriculum-vitae-writing-toolbar]').getByRole('button', { name: /^Add (qualification|project)$/ }).count(), revisionTarget ? 1 : 0);
                 assert.equal(await page.locator('.proposal-preview-dock').isVisible(), width >= 1024, 'The CV opens with the same side preview as the other paper editors');
                 if (width >= 1024) {
                     await page.waitForFunction(() => window.cvState.previewReady&&!window.cvState.previewLoading);
@@ -139,6 +139,18 @@ test('CV editing follows one member while preserving the whole package, autosave
                 if (revisionTarget) assert.equal(await page.evaluate(() => window.cvState.activeCvSection), 'academic_background');
                 const memberIds = await page.evaluate(() => window.cvState.people.map(person=>person.id));
                 await page.locator('#cv-editing-member').selectOption(String(memberIds[0]));
+                const cellphone = page.getByLabel('Cellphone Number', { exact: true }).first();
+                await cellphone.fill('08123456789');
+                assert.equal(await cellphone.evaluate((field) => field.checkValidity()), false);
+                await cellphone.fill('0912345678');
+                assert.equal(await cellphone.evaluate((field) => field.checkValidity()), false);
+                await cellphone.fill('09123456789');
+                await cellphone.press('End');
+                await cellphone.pressSequentially('0');
+                assert.equal(await cellphone.inputValue(), '09123456789');
+                assert.equal(await cellphone.evaluate((field) => field.checkValidity()), true);
+                assert.equal(await cellphone.getAttribute('aria-describedby'), await cellphone.getAttribute('id') + '-hint');
+                assert.equal(await page.evaluate(() => window.cvState.newPerson({ cellphone: '009123456789' }).cellphone), '009123456789', 'Opening a saved CV must not silently truncate an invalid phone number');
                 assert.equal(await page.evaluate(() => window.cvState.validateForm()), false);
                 await page.locator('[name="people[1][last_name]"]').waitFor({ state: 'visible' });
                 await page.waitForFunction(() => document.activeElement?.name === 'people[1][last_name]', null, { timeout: 5000 }).catch(async (error) => {

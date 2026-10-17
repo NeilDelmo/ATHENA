@@ -39,6 +39,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}\n${read('resources/css/proposal-paper-workspace.css')}</style>
                         <body data-app-shell><div style="height:120px">Application header</div>
                         <main class="mx-auto max-w-[90rem] p-4">${readFileSync(resolve(fixtureDirectory, `monitoring-preview-${type}.html`), 'utf8')}</main></body></html>`);
+                    await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
                     await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
                         window.previewRequests=[];window.savedDrafts=[];window.previewFailure=false;window.previewDelay=0;
                         window.fetch=async(url,options)=>{

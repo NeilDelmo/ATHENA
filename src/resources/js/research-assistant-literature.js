@@ -171,7 +171,7 @@ export function researchAssistantLiterature() {
         literatureOperationPending: false,
 
         literatureBusy(message) {
-            return Boolean(this.isLoading || this.retryAfter > 0 || this.literatureOperationPending || message?.literature?.is_working);
+            return Boolean(this.isLoading || this.sendInProgress || this.reportChangesOperationPending || this.retryAfter > 0 || this.literatureOperationPending || message?.literature?.is_working);
         },
 
         literatureEvidenceLabel(source) {

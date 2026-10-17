@@ -7,6 +7,7 @@ return [
     'sections' => [
         'academic_background' => [
             'label' => 'Academic Background',
+            'add_label' => 'Add qualification',
             'default_rows' => 4,
             'fields' => [
                 ['key' => 'degree', 'label' => 'Degree Earned', 'type' => 'text'],
@@ -21,6 +22,7 @@ return [
         ],
         'scholarships' => [
             'label' => 'Scholarship',
+            'add_label' => 'Add scholarship',
             'default_rows' => 5,
             'fields' => [
                 ['key' => 'sponsor', 'label' => 'Sponsor', 'type' => 'text'],
@@ -37,6 +39,7 @@ return [
         ],
         'employment' => [
             'label' => 'Employment',
+            'add_label' => 'Add employment',
             'default_rows' => 5,
             'fields' => [
                 ['key' => 'agency', 'label' => 'Agency', 'type' => 'text'],
@@ -54,6 +57,7 @@ return [
         ],
         'specializations' => [
             'label' => 'Field of Specialization',
+            'add_label' => 'Add specialization',
             'default_rows' => 4,
             'fields' => [
                 ['key' => 'field', 'label' => 'Field of Specialization', 'type' => 'text', 'wide' => true],
@@ -62,6 +66,7 @@ return [
         ],
         'awards' => [
             'label' => 'R&D Awards',
+            'add_label' => 'Add award',
             'default_rows' => 3,
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of R&D Award', 'type' => 'text', 'wide' => true],
@@ -78,6 +83,7 @@ return [
         ],
         'projects' => [
             'label' => 'R&D Projects Headed/Conducted',
+            'add_label' => 'Add project',
             'default_rows' => 5,
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of R&D Project', 'type' => 'text', 'wide' => true],
@@ -106,6 +112,7 @@ return [
         ],
         'publications' => [
             'label' => 'R&D Related Publications (last 3 years)',
+            'add_label' => 'Add publication',
             'default_rows' => 5,
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of R&D Publication', 'type' => 'text', 'wide' => true],
@@ -128,6 +135,7 @@ return [
         ],
         'presentations' => [
             'label' => 'R&D Presentation (last 3 years)',
+            'add_label' => 'Add presentation',
             'default_rows' => 5,
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of Research Paper', 'type' => 'text', 'wide' => true],

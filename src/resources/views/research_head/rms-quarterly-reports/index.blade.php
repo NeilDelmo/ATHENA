@@ -75,11 +75,15 @@
             @foreach ($sections as $section => $label)<a href="#rms-{{ $section }}" class="dashboard-action">{{ $label }} <span class="text-slate-500 dark:text-slate-400">{{ count($reportData[$section]) }}</span></a>@endforeach
         </nav>
 
-        <form method="POST" action="{{ route('research_head.rms-quarterly-reports.store') }}" class="space-y-5" id="rms-report-form" x-data="rmsQuarterlyReportForm" @formdata="serialize($event)">
+        <form method="POST" action="{{ route('research_head.rms-quarterly-reports.store') }}" class="space-y-5" id="rms-report-form" x-data="rmsQuarterlyReportForm" @formdata="serialize($event)"
+            data-assistant-report-type="rms-quarterly" data-assistant-report-key="{{ $report ? 'rms-quarterly:'.$report->id : '' }}" data-assistant-report-save-mode="manual">
             @csrf
             <input type="hidden" name="reporting_year" value="{{ $year }}">
             <input type="hidden" name="reporting_quarter" value="{{ $quarter }}">
             <input type="hidden" name="source_token" value="{{ $reportData['source_token'] }}">
+
+            <x-assistant-report-editor :context="['report_type' => 'rms-quarterly', 'report_id' => $report?->id]" />
+
             <details class="dashboard-panel p-5" @if ($errors->has('campus') || $errors->has('signatories.*')) open @endif>
                 <summary class="cursor-pointer font-bold text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-white">Report details and signatories</summary>
                 <div class="mt-4 space-y-5">

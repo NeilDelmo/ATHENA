@@ -6,6 +6,7 @@ import { chromium } from '@playwright/test';
 import { researchAssistantHistory } from '../../resources/js/research-assistant-history.js';
 import { serializeAssistantLiterature } from '../../resources/js/research-assistant-literature.js';
 import { serializeAssistantProposalChanges } from '../../resources/js/research-assistant-proposal-changes.js';
+import { normalizeAssistantReportChanges } from '../../resources/js/research-assistant-report-changes.js';
 
 const app = readFileSync('resources/js/app.js', 'utf8');
 const methods = ['saveConversation', 'retry', 'hasConversation', 'upsertHistory', 'setError']
@@ -16,8 +17,8 @@ function assistant(fetchHistory) {
     const document = { querySelector: () => ({ content: 'csrf' }) };
     return {
         ...researchAssistantHistory([], fetchHistory),
-        ...new Function('document', 'fetch', 'serializeAssistantLiterature', 'serializeAssistantProposalChanges',
-            `return ({${methods}});`)(document, fetchHistory, serializeAssistantLiterature, serializeAssistantProposalChanges),
+        ...new Function('document', 'fetch', 'serializeAssistantLiterature', 'serializeAssistantProposalChanges', 'normalizeAssistantReportChanges',
+            `return ({${methods}});`)(document, fetchHistory, serializeAssistantLiterature, serializeAssistantProposalChanges, normalizeAssistantReportChanges),
         messages: [{ role: 'user', content: 'How do I prepare a research proposal?' }],
         currentConversationId: null, historySavePromise: null,
         historySearchQuery: '', historySearchResults: [], error: '', errorTitle: '',

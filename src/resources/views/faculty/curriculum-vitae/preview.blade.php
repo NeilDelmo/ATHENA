@@ -45,7 +45,7 @@
                     <table class="cv-table cv-contact-table">
                         <colgroup><col><col><col></colgroup>
                         <tbody>
-                            <tr class="cv-data-row"><td>Landline no.: <strong class="cv-output-value">{{ $person['landline'] }}</strong></td><td>Cellphone no.: <strong class="cv-output-value">(+63) {{ $person['cellphone'] }}</strong></td><td>Email Address: <strong class="cv-output-value">{{ $person['email'] }}</strong></td></tr>
+                            <tr class="cv-data-row"><td>Landline no.: <strong class="cv-output-value">{{ $person['landline'] }}</strong></td><td>Cellphone no.: <strong class="cv-output-value">(+63) {{ substr($person['cellphone'], 1) }}</strong></td><td>Email Address: <strong class="cv-output-value">{{ $person['email'] }}</strong></td></tr>
                         </tbody>
                     </table>
 

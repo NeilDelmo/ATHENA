@@ -21,6 +21,9 @@
         class="work-plan-writing-workspace mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-proposal-paper-workspace
         data-work-plan-workspace
+        data-proposal-draft-id="{{ $proposalDraft->id }}"
+        data-proposal-paper-slug="work-plan"
+        @athena-apply-proposal-change.window="handleAssistantPaperChange($event)"
         @focusin="focusWorkPlanEntry($event)"
         data-paper-editor
         data-paper-draft-save="true"
@@ -30,6 +33,8 @@
         data-paper-edit-url="{{ route('faculty.proposal-drafts.work-plan.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
         x-data="proposalDraftWorkPlan({
+            proposalDraftId: @js($proposalDraft->id),
+            draftVersion: @js($proposalDraft->lock_version),
             initialEntries: @js($initialEntries),
             objectivesLinked: true,
             maxEntries: @js(config('work_plan.max_objectives')),
@@ -57,6 +62,10 @@
         @endif
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
+        <div x-show="proposalChangeNotice || proposalChangeError" x-cloak class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" data-proposal-change-status>
+            <p x-show="proposalChangeNotice" class="text-slate-700 dark:text-slate-200" x-text="proposalChangeNotice"></p>
+            <p x-show="proposalChangeError" role="alert" class="text-red-800 dark:text-red-200" x-text="proposalChangeError"></p>
+        </div>
 
         <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <x-proposal-autosave-status />

@@ -405,6 +405,7 @@ test('the progress preview contains the same filled paper as the official templa
 });
 
 test('quoted tracking numbers remain text in the progress preview and its print style', function () {
+    $this->withoutVite();
     $tracking = 'PR-"26"</style><script>alert(1)</script>\\001';
     $response = $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.preview', $this->topic), ($this->progressReportPayload)(['tracking_number' => $tracking]))

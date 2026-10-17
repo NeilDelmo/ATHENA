@@ -108,6 +108,13 @@ class ResearchCoordinatorReportController extends Controller
                 }
 
                 $evidence = array_values(array_filter($report->evidence ?? [], fn (array $image): bool => ($image['source'] ?? null) !== 'faculty_report'));
+                foreach ($validated['saved_evidence_captions'] ?? [] as $token => $caption) {
+                    $index = is_string($token) ? array_search($token, array_map(fn (array $image): string => hash('sha256', $image['path']), $evidence), true) : false;
+                    if ($index === false) {
+                        throw ValidationException::withMessages(['saved_evidence_captions' => 'A supporting image changed. Reload this report before editing its caption.']);
+                    }
+                    $evidence[$index]['caption'] = $caption ?? '';
+                }
                 $hasHistory = ($validated['remove_evidence'] ?? []) !== []
                     && Schema::hasTable((new CollegeQuarterlyReportSubmission)->getTable()) && $report->submissions()->exists();
                 foreach ($validated['remove_evidence'] ?? [] as $token) {

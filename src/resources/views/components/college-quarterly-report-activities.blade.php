@@ -64,6 +64,10 @@
                         <figure class="space-y-2">
                             <a :href="proof.url" target="_blank" rel="noopener" class="block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img :src="proof.url" :alt="proof.filename" loading="lazy" class="h-36 w-full rounded-lg object-contain"></a>
                             <figcaption class="break-words text-xs text-slate-500 dark:text-slate-400" x-text="proof.filename"></figcaption>
+                            <div>
+                                <label :for="`saved-evidence-caption-${proof.token}`" class="block text-sm font-medium text-gray-700 dark:text-slate-300">Caption</label>
+                                <textarea :id="`saved-evidence-caption-${proof.token}`" :name="`saved_evidence_captions[${proof.token}]`" x-model="proof.caption" rows="2" maxlength="1000" class="{{ $inputClass }}"></textarea>
+                            </div>
                             <label class="inline-flex items-center gap-2 text-sm text-red-700 dark:text-red-300"><input type="checkbox" name="remove_evidence[]" :value="proof.token" x-model="removedProofs" class="rounded border-gray-300 text-brand focus:ring-brand"> Remove proof when saving</label>
                         </figure>
                     </template>

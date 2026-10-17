@@ -28,7 +28,7 @@ export function researchAssistantReview() {
 
         reviewLaunchBusy() {
             return Boolean(this.reviewLaunchPending || this.isLoading || this.sendInProgress
-                || this.retryAfter > 0 || this.literatureOperationPending || this.proposalChangesOperationPending);
+                || this.retryAfter > 0 || this.literatureOperationPending || this.proposalChangesOperationPending || this.reportChangesOperationPending);
         },
 
         reviewTargetLabel(context = this.reviewContext) {

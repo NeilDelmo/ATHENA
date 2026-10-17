@@ -302,6 +302,80 @@ test('faculty update an unseen submitted package repeatedly without replacing it
         ->assertOk()->assertSee('Submission update')->assertViewHas('submissions', fn ($submissions): bool => $submissions->count() === 2);
 });
 
+test('version two submission preserves saved form history when an older recovery PDF is missing', function () {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $originalFiles = $topic->latestVersion->files->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]);
+    $draft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $document = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $history = app(RecordProposalDraftDocumentVersion::class)->handle($document, $this->faculty);
+    $savedSource = $history->source_data;
+    Storage::disk('local')->delete($history->file_path);
+    app(SubmitProposalDraft::class)->prepare($draft, $this->faculty);
+    $preparedFiles = $draft->fresh()->documents->mapWithKeys(fn ($file): array => [$file->document_type => Storage::disk('local')->get($file->file_path)]);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('faculty.dashboard'));
+
+    $history->refresh();
+    expect($topic->versions()->count())->toBe(2)
+        ->and($history->topic_id)->toBe($topic->id)
+        ->and($history->proposal_draft_id)->toBeNull()
+        ->and($history->file_path)->toBeNull()
+        ->and($history->source_data)->toBe($savedSource);
+    foreach ($topic->fresh()->latestVersion->files as $file) {
+        expect(Storage::disk('local')->get($file->file_path))->toBe($preparedFiles[$file->document_type]);
+    }
+    foreach ($originalFiles as $path => $contents) {
+        expect(Storage::disk('local')->get($path))->toBe($contents);
+    }
+});
+
+test('submission still rejects unsafe or unrecoverable history files', function (bool $unsafePath) {
+    Notification::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $document = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $history = app(RecordProposalDraftDocumentVersion::class)->handle($document, $this->faculty);
+    $history->update([
+        'file_path' => $unsafePath ? 'proposal-drafts/another-owner/private.pdf' : $draft->storageDirectory().'/missing.pdf',
+        'source_data' => $unsafePath ? $document->source_data : null,
+    ]);
+    Storage::disk('local')->put('proposal-drafts/another-owner/private.pdf', '%PDF-1.7 private');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertSessionHasErrors('history');
+
+    expect($draft->fresh()->status)->toBe(ProposalDraft::STATUS_DRAFT)
+        ->and(TopicProposal::query()->count())->toBe(0)
+        ->and($history->fresh()->proposal_draft_id)->toBe($draft->id);
+    Storage::disk('local')->assertExists($document->file_path);
+    Storage::disk('local')->assertDirectoryEmpty('proposal-packages/'.$this->faculty->id);
+})->with(['outside the draft' => true, 'missing without saved form data' => false]);
+
+test('replacing a revision PDF retains the earlier file referenced by recovery history', function () {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $topic->update(['status' => 'revision_requested']);
+    $draft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $document = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+
+    foreach (['First revision', 'Second revision'] as $contents) {
+        $this->actingAs($this->faculty)->postJson(route('faculty.proposal-drafts.revision-files.store', $draft), [
+            'document_type' => $document->document_type,
+            'document_version' => $document->fresh()->lock_version,
+            'file' => UploadedFile::fake()->createWithContent('revision.pdf', "%PDF-1.7\n".$contents),
+        ])->assertOk();
+    }
+
+    $versions = $draft->documentVersions()->whereNotNull('file_path')->reorder('id')->get();
+    expect($versions)->toHaveCount(2);
+    expect(Storage::disk('local')->get($versions->first()->file_path))->toBe("%PDF-1.7\nFirst revision")
+        ->and(Storage::disk('local')->get($versions->last()->file_path))->toBe("%PDF-1.7\nSecond revision");
+});
+
 test('generated checkbox marks reach the Research Head through submitted updates and requested revisions', function (bool $revision) {
     Notification::fake();
     Process::fake(['*pdf-section-coordinates*' => Process::result(output: '<document/>')]);

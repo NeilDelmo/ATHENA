@@ -78,6 +78,7 @@
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
                                 <x-research-assistant-literature />
                                 <x-research-assistant-proposal-changes />
+                                <x-research-assistant-report-changes />
                                 <x-research-assistant-dissemination />
                                 <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
                                     <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800">

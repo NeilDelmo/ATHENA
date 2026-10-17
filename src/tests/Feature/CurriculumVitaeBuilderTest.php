@@ -235,7 +235,7 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertDontSee('id="workspace-cv-member"', false)
         ->assertSee('Choose a month or type a year to jump directly.')
         ->assertDontSee('type="date"', false)
-        ->assertSee('The side preview follows the member you are editing.')
+        ->assertSee('Choose a member and section to edit. Click the paper preview to enlarge it.')
         ->assertSee('<option value="Graduated">Graduated</option>', false)
         ->assertSee('<option value="Ongoing">Ongoing</option>', false)
         ->assertSee('<option value="Dropped">Dropped</option>', false)
@@ -441,7 +441,7 @@ test('the preview repeats the complete official CV for every team member', funct
         ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressValueCells)))->toBe(['Rizal Street', 'Barangay 1', 'Nasugbu', 'Batangas'])
         ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressLabelCells)))->toBe(['Street', 'Barangay', 'Municipality', 'Province'])
         ->and($contactOutputs)->toHaveCount(3)
-        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($contactOutputs)))->toBe(['04300000000', '(+63) 09123456789', 'faculty@example.test'])
+        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($contactOutputs)))->toBe(['04300000000', '(+63) 9123456789', 'faculty@example.test'])
         ->and($ongoingAcademicCells)->toHaveCount(8)
         ->and(trim($ongoingAcademicCells->item(4)->textContent))->toBe('Ongoing')
         ->and(trim($ongoingAcademicCells->item(5)->textContent))->toBe('2019')
@@ -513,6 +513,24 @@ test('the first CV draft seeds the project leader cellphone from the profile con
         ->assertSee('cellphone\u0022:\u002209170000099\u0022', false);
 });
 
+test('CV cellphone validation rejects invalid local numbers for every editor action', function (string $cellphone, string $action) {
+    $payload = ($this->payload)();
+    $payload['people'][0]['cellphone'] = $cellphone;
+    $payload['save_as_draft'] = $action === 'autosave';
+    $routeAction = $action === 'autosave' ? 'update' : $action;
+    $method = $routeAction === 'update' ? 'putJson' : 'postJson';
+
+    $this->actingAs($this->faculty)
+        ->{$method}(route('faculty.proposal-drafts.curriculum-vitae.'.$routeAction, $this->draft), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('people.0.cellphone');
+})->with([
+    'extra digit' => '091234567890',
+    'extra leading zero' => '009123456789',
+    'short number' => '0912345678',
+    'wrong prefix' => '08123456789',
+])->with(['update', 'autosave', 'preview', 'download']);
+
 test('the generated Word file preserves the official form and adds one complete block per team member', function () {
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.curriculum-vitae.download', $this->draft), ($this->payload)())
@@ -572,11 +590,10 @@ test('the generated Word file preserves the official form and adds one complete 
 
         $nameLabelCells = $xpath->query('//w:body/w:tbl[1]/w:tr[3]/w:tc');
         $nameCells = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc');
-        $nameParagraph = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:p[1]')->item(0);
         $nameParts = [];
 
-        foreach ($xpath->query('./w:r/w:t', $nameParagraph) as $namePart) {
-            $nameParts[] = $namePart->textContent;
+        foreach ($nameCells as $nameCell) {
+            $nameParts[] = $nameCell->textContent;
         }
 
         expect($xpath->query('//w:body/w:tbl')->length)->toBe(6)
@@ -600,15 +617,14 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[2]/w:tcPr/w:tcBorders/w:left/@w:val)'))->toBe('nil')
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[2]/w:tcPr/w:tcBorders/w:right/@w:val)'))->toBe('nil')
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[3]/w:tcPr/w:tcBorders/w:left/@w:val)'))->toBe('nil')
-            ->and($nameCells)->toHaveCount(1)
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:gridSpan/@w:val)'))->toBe('28')
+            ->and($nameCells)->toHaveCount(3)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:gridSpan/@w:val)'))->toBe('6')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:tcPr/w:gridSpan/@w:val)'))->toBe('10')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:tcPr/w:gridSpan/@w:val)'))->toBe('12')
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:tcBorders/w:top/@w:val)'))->toBe('nil')
-            ->and($xpath->query('./w:r/w:tab', $nameParagraph)->length)->toBe(3)
-            ->and($xpath->query('./w:r[w:t]/w:rPr/w:b', $nameParagraph)->length)->toBe(3)
-            ->and($xpath->query('./w:pPr/w:tabs/w:tab[@w:val="center"]', $nameParagraph)->length)->toBe(3)
-            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[1]/@w:pos)', $nameParagraph))->toBe('1946')
-            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[2]/@w:pos)', $nameParagraph))->toBe('5441')
-            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[3]/@w:pos)', $nameParagraph))->toBe('8881')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[4]//w:r/w:tab')->length)->toBe(0)
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[4]//w:r[w:t]/w:rPr/w:b')->length)->toBe(3)
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[4]//w:pPr/w:jc[@w:val="center"]')->length)->toBe(3)
             ->and($xpath->query('//w:body/w:tbl[1]/w:tr[5]/w:tc[1]//w:r[w:t[contains(., "Batangas State University")]]/w:rPr/w:b')->length)->toBe(1)
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[5]/w:tc[3]//w:r[w:rPr/w:b]/w:t)'))->toBe('   06/15/1990')
             ->and($xpath->query('//w:body/w:tbl[1]/w:tr[7]//w:r[w:t]/w:rPr/w:b')->length)->toBe(4)
@@ -617,6 +633,7 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[7]/w:tc[1]/w:tcPr/w:tcBorders/w:bottom/@w:val)'))->toBe('single')
             ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[8]/w:tc[1]/w:tcPr/w:tcBorders/w:top/@w:val)'))->toBe('single')
             ->and($xpath->query('//w:body/w:tbl[1]/w:tr[9]//w:r[w:rPr/w:b and w:t]')->length)->toBe(3)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[9]/w:tc[2])'))->toContain('(+63) 9123456789')
             ->and(substr_count($documentXml, 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
             ->and(substr_count($documentXml, 'CURRICULUM VITAE'))->toBe(3)
             ->and($documentXml)->toContain('Community Coastal Information Systems')

@@ -64,16 +64,48 @@ test('malformed packets and unsafe draft identifiers cannot offer proposal chang
 test('only approved narrative fields and bounded objective indexes can be changed', () => {
     for (const field of ['executive_brief', 'rationale', 'general_objective', 'introduction',
         'methodology.research_design', 'methodology.data_analysis', 'related_literature',
-        'specific_objectives.0.description', 'specific_objectives.49.description']) {
+        'specific_objectives.0.description', 'specific_objectives.49.description',
+        'specific_method_objectives.0.heading', 'specific_method_objectives.19.methods.19.description',
+        'expected_outputs.publication.0.description', 'expected_outputs.economic_impact.19.description',
+        'responsibilities.29.duties']) {
         assert.equal(allowedProposalChangeField(field), true, field);
     }
     for (const field of ['references', 'methodology.specific_methods',
         'specific_objectives.50.description', 'specific_objectives.-1.description',
         'specific_objectives.01.description', 'specific_objectives.1.description.extra',
+        'specific_method_objectives.20.heading', 'specific_method_objectives.0.methods.20.description',
+        'expected_outputs.made_up.0.description', 'expected_outputs.policy.20.description',
+        'expected_outputs.policy.0.quantity', 'responsibilities.30.duties', 'responsibilities.0.name',
         '__proto__', 'constructor.prototype', ' rationale', {}, null]) {
         assert.equal(allowedProposalChangeField(field), false);
         assert.deepEqual(normalizeAssistantProposalChanges(packet({ suggestions: [candidate({ field })] })).suggestions, []);
     }
+});
+
+test('each paper accepts only its existing narrative field contract and size limits', () => {
+    for (const [paper_slug, field, maximum] of [
+        ['work-plan', 'entries.19.expected_output', 500], ['work-plan', 'entries.0.activity', 1500],
+        ['expense-breakdown', 'items.99.details', 500], ['expense-breakdown', 'items.0.purpose', 500],
+    ]) {
+        assert.equal(allowedProposalChangeField(field, paper_slug), true);
+        const suggestion = candidate({ paper_slug, field, value: 'x'.repeat(maximum) });
+        assert.equal(normalizeAssistantProposalChanges(packet({ suggestions: [suggestion] })).suggestions[0].paper_slug, paper_slug);
+        suggestion.value += 'x';
+        assert.deepEqual(normalizeAssistantProposalChanges(packet({ suggestions: [suggestion] })).suggestions, []);
+    }
+    for (const [paper_slug, field] of [
+        ['work-plan', 'entries.20.activity'], ['work-plan', 'entries.0.objective'], ['work-plan', 'entries.0.months'],
+        ['expense-breakdown', 'items.100.details'], ['expense-breakdown', 'items.0.amount'],
+        ['expense-breakdown', 'items.0.particulars'], ['work-plan', 'rationale'], ['detailed-proposal', 'items.0.details'],
+    ]) {
+        assert.equal(allowedProposalChangeField(field, paper_slug), false);
+    }
+});
+
+test('paper handoffs retain only the supported destination slug with the selection', () => {
+    const handoff = proposalChangeHandoff(storage(), 7, () => 1000);
+    assert.equal(handoff.stage({ proposal_draft_id: 12, token, suggestion_id: 'change-1', paper_slug: 'work-plan' }), true);
+    assert.equal(handoff.read(12).paper_slug, 'work-plan');
 });
 
 test('whole RRL previews are bounded separately from short narrative suggestions', () => {

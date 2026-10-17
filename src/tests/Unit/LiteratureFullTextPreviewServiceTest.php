@@ -3,6 +3,10 @@
 use App\Exceptions\LiteratureFullTextPreviewException;
 use App\Services\LiteratureFullTextPreviewService;
 use App\Support\LiteratureFullTextToken;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Utils;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
@@ -19,25 +23,23 @@ beforeEach(function () {
     $this->sourceToken = LiteratureFullTextToken::issue(['url' => $this->sourceUrl, 'provider' => 'OpenAlex']);
 });
 
-test('public PDF previews disclose unknown coverage and remove the transient source file', function () {
+test('public PDF previews verify every page and remove the transient source file', function () {
     $extracted = str_repeat('The paper describes its methods and reports monitoring outcomes. ', 20);
     Http::fake([$this->sourceUrl => Http::response('%PDF-1.7 source bytes', 200, ['Content-Type' => 'application/pdf'])]);
-    Process::fake(['*' => Process::result(output: $extracted)]);
+    Process::fake(fn (PendingProcess $process) => Process::result(output: Str::contains(implode(' ', $process->command), 'pdfinfo') ? "Pages: 1\n" : $extracted."\f"));
 
     $preview = app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken);
 
     expect($preview['preview_text'])->toBe(Str::squish($extracted))
-        ->and($preview['coverage'])->toBe([
-            'characters' => Str::length(Str::squish($extracted)),
-            'character_limit' => 30000,
-            'page_limit' => 40,
-            'total_pages' => null,
-            'truncated' => false,
-            'partial_or_unknown' => true,
-        ])
-        ->and($preview['notice'])->toContain('Full-paper coverage is unknown', 'at most 40 pages', 'not stored')
+        ->and($preview['coverage']['character_limit'])->toBe(120000)
+        ->and($preview['coverage']['page_limit'])->toBe(200)
+        ->and($preview['coverage']['total_pages'])->toBe(1)
+        ->and($preview['coverage']['extracted_pages'])->toBe(1)
+        ->and($preview['coverage']['complete'])->toBeTrue()
+        ->and($preview['coverage']['partial_or_unknown'])->toBeFalse()
+        ->and($preview['notice'])->toContain('All 1 PDF pages', 'not stored')
         ->and(Storage::disk('local')->allFiles())->toBe([]);
-    Process::assertRan(fn ($process): bool => in_array('-l', $process->command, true) && in_array('40', $process->command, true));
+    Process::assertRan(fn ($process): bool => in_array('-l', $process->command, true) && in_array('200', $process->command, true));
     Http::assertSentCount(1);
 });
 
@@ -86,3 +88,113 @@ test('public HTML paper sections can be extracted while retaining unknown covera
         ->and($preview['notice'])->toContain('does not establish that every section was retrieved', 'Check the original paper', 'not stored')
         ->and(Storage::disk('local')->allFiles())->toBe([]);
 });
+
+test('remote preview reads stop at the byte limit even when the response length is absent or false', function (array $headers) {
+    config(['literature.full_text.maximum_bytes' => 1024]);
+    $underlying = Utils::streamFor(str_repeat('Source text. ', 300));
+    $readBytes = 0;
+    $closed = false;
+    $stream = FnStream::decorate($underlying, [
+        '__toString' => function () use ($underlying, &$readBytes): string {
+            $text = (string) $underlying;
+            $readBytes += strlen($text);
+
+            return $text;
+        },
+        'read' => function (int $length) use ($underlying, &$readBytes): string {
+            $text = $underlying->read($length);
+            $readBytes += strlen($text);
+
+            return $text;
+        },
+        'close' => function () use ($underlying, &$closed): void {
+            $closed = true;
+            $underlying->close();
+        },
+    ]);
+    Http::fake(function ($request, array $options) use ($stream, $headers) {
+        expect($options['stream'] ?? false)->toBeTrue()
+            ->and($options['read_timeout'] ?? null)->toBe(18);
+
+        return Http::response($stream, 200, ['Content-Type' => 'text/plain', ...$headers]);
+    });
+
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken))
+        ->toThrow(LiteratureFullTextPreviewException::class, 'too large');
+    expect($readBytes)->toBeLessThanOrEqual(1025)
+        ->and($closed)->toBeTrue();
+})->with([
+    'missing content length' => [[]],
+    'false small content length' => [['Content-Length' => '1']],
+]);
+
+test('oversized advertised downloads are closed without reading their body', function () {
+    config(['literature.full_text.maximum_bytes' => 1024]);
+    $underlying = Utils::streamFor('An oversized source response.');
+    $closed = false;
+    $stream = FnStream::decorate($underlying, [
+        'read' => fn (): string => throw new RuntimeException('The rejected body must not be read.'),
+        'close' => function () use ($underlying, &$closed): void {
+            $closed = true;
+            $underlying->close();
+        },
+    ]);
+    Http::fake([$this->sourceUrl => Http::response($stream, 200, ['Content-Length' => '1025'])]);
+
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken))
+        ->toThrow(LiteratureFullTextPreviewException::class, 'too large');
+    expect($closed)->toBeTrue();
+});
+
+test('redirect and successful preview response bodies are closed', function () {
+    $redirect = Utils::streamFor('Redirect bodies are not paper content.');
+    $paper = Utils::streamFor(str_repeat('The source paper methods and results are readable. ', 20));
+    Http::fake([
+        $this->sourceUrl => Http::response($redirect, 302, ['Location' => '/paper.txt']),
+        'https://93.184.216.34/paper.txt' => Http::response($paper, 200, ['Content-Type' => 'text/plain']),
+    ]);
+
+    $preview = app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken);
+
+    expect($preview['preview_text'])->toContain('methods and results are readable')
+        ->and($redirect->isReadable())->toBeFalse()
+        ->and($paper->isReadable())->toBeFalse();
+    Http::assertSentCount(2);
+});
+
+test('remote previews accept a source exactly at the byte limit and close its stream', function () {
+    config(['literature.full_text.maximum_bytes' => 1024]);
+    $stream = Utils::streamFor(str_repeat('a', 1024));
+    Http::fake([$this->sourceUrl => Http::response($stream, 200, ['Content-Type' => 'text/plain'])]);
+
+    $preview = app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken);
+
+    expect($preview['preview_text'])->toHaveLength(1024)
+        ->and($stream->isReadable())->toBeFalse();
+});
+
+test('stream read failures close the response and provide a useful preview error', function (bool $emptyRead) {
+    $underlying = Utils::streamFor('Unavailable remote body.');
+    $stream = FnStream::decorate($underlying, [
+        'read' => fn (): string => $emptyRead ? '' : throw new RuntimeException('The remote read timed out.'),
+    ]);
+    Http::fake([$this->sourceUrl => Http::response($stream, 200, ['Content-Type' => 'text/plain'])]);
+
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken))
+        ->toThrow(LiteratureFullTextPreviewException::class, 'could not be read');
+    expect($underlying->isReadable())->toBeFalse();
+})->with(['read throws' => false, 'read stalls before EOF' => true]);
+
+test('failed temporary PDF writes remove the created file', function (bool $throws) {
+    Http::fake([$this->sourceUrl => Http::response('%PDF-1.7 source bytes', 200, ['Content-Type' => 'application/pdf'])]);
+    $write = File::partialMock()->shouldReceive('put')->once();
+    if ($throws) {
+        $write->andThrow(new RuntimeException('Temporary storage is unavailable.'));
+    } else {
+        $write->andReturn(false);
+    }
+
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken))
+        ->toThrow(LiteratureFullTextPreviewException::class);
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+})->with(['write returns false' => false, 'write throws' => true]);

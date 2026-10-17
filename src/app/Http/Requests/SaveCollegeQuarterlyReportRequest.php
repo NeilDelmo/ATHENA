@@ -42,6 +42,8 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
             'evidence_images.*' => ['required', 'image', 'mimetypes:image/jpeg,image/png', 'max:5120'],
             'evidence_captions' => ['nullable', 'array', 'max:10'],
             'evidence_captions.*' => ['nullable', 'string', 'max:1000'],
+            'saved_evidence_captions' => ['nullable', 'array', 'max:1510'],
+            'saved_evidence_captions.*' => ['nullable', 'string', 'max:1000'],
             'remove_evidence' => ['nullable', 'array', 'max:1510'],
             'remove_evidence.*' => ['required', 'string', 'regex:/\A[a-f0-9]{64}\z/', 'distinct'],
             'row_evidence' => ['nullable', 'array:presentations,publications,seminars'],

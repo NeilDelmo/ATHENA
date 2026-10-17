@@ -10,6 +10,7 @@
     $rowProofs = collect($report?->evidence ?? [])->map(fn (array $image, int $index): array => [
         'section' => $image['section'] ?? null, 'row_id' => $image['row_id'] ?? null,
         'token' => hash('sha256', $image['path']), 'filename' => $image['original_filename'] ?? basename($image['path']),
+        'caption' => old('saved_evidence_captions.'.hash('sha256', $image['path']), $image['caption'] ?? ''),
         'url' => route('research_coordinator.reports.evidence', ['report' => $report, 'index' => $index]),
     ])->values()->all();
     $nextQuarter = $period['end']->addDay()->startOfDay();
@@ -100,11 +101,14 @@
 
         <form id="quarterly-report-form" method="POST" action="{{ route('research_coordinator.reports.store') }}" enctype="multipart/form-data" class="space-y-6"
             data-proposal-paper-workspace data-document-writing-workspace
+            data-assistant-report-type="college-quarterly" data-assistant-report-key="{{ $report ? 'college-quarterly:'.$report->id : '' }}" data-assistant-report-save-mode="manual"
             x-data="quarterlyReportForm({{ Illuminate\Support\Js::from([...$activities, 'rowProofs' => $rowProofs, 'removedProofs' => old('remove_evidence', [])]) }})"
             @focusin="focusWritingField($event)">
             @csrf
             <input type="hidden" name="reporting_year" value="{{ $year }}">
             <input type="hidden" name="reporting_quarter" value="{{ $quarter }}">
+
+            <x-assistant-report-editor :context="['report_type' => 'college-quarterly', 'report_id' => $report?->id]" :editable="! $submitted" />
 
             @unless ($submitted)
                 <x-quarterly-report-writing-toolbar :period="$period" :returned="$returned" />
@@ -188,6 +192,12 @@
                             <p class="text-xs text-slate-500 dark:text-slate-400">Evidence folder: {{ $evidence['folder'] }} / {{ $year }} / Q{{ $quarter }}</p>
                         @endif
                         @if (! $submitted && ($evidence['source'] ?? null) !== 'faculty_report')
+                            @php($evidenceCaptionToken = hash('sha256', $evidence['path']))
+                            <div>
+                                <label for="saved-evidence-caption-{{ $evidenceCaptionToken }}" class="block text-sm font-medium text-gray-700 dark:text-slate-300">Caption</label>
+                                <textarea id="saved-evidence-caption-{{ $evidenceCaptionToken }}" name="saved_evidence_captions[{{ $evidenceCaptionToken }}]" rows="2" maxlength="1000" class="{{ $inputClass }} mt-1">{{ old('saved_evidence_captions.'.$evidenceCaptionToken, $evidence['caption'] ?? '') }}</textarea>
+                                <x-input-error :messages="$errors->get('saved_evidence_captions.'.$evidenceCaptionToken)" class="mt-1" />
+                            </div>
                             <label class="inline-flex items-center gap-2 text-sm text-red-700 dark:text-red-300"><input type="checkbox" name="remove_evidence[]" value="{{ hash('sha256', $evidence['path']) }}" class="rounded border-gray-300 text-brand focus:ring-brand"> Remove photo when saving</label>
                         @endif
                     </figure>

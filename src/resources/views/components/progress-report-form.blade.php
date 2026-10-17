@@ -131,10 +131,11 @@
 
     <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
     <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
-    <form id="progress-form-{{ $topic->id }}" x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitNarrativeReport($event)">
+    <form id="progress-form-{{ $topic->id }}" x-ref="form" data-narrative-progress-autosave-form data-assistant-report-type="progress-report" data-assistant-report-key="progress-report:topic:{{ $topic->id }}" method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitNarrativeReport($event)">
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
+        <x-assistant-report-editor :context="['report_type' => 'progress-report', 'topic_id' => $topic->id]" />
         <div class="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
             <label for="progress-reporting-date" class="block text-base font-semibold text-gray-950 dark:text-white">Reporting quarter</label>
             <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-slate-300">Use the same three-month period as the Monitoring Tool. Submit during the final week, by the period's last day; the final period may be shorter.</p>

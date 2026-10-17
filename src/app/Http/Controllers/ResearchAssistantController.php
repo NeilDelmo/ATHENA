@@ -16,6 +16,7 @@ use App\Services\ResearchAssistantLiteratureService;
 use App\Services\ResearchAssistantPaperReader;
 use App\Services\ResearchAssistantProposalAssistanceService;
 use App\Services\ResearchAssistantProposalReviewService;
+use App\Services\ResearchAssistantReportAssistanceService;
 use App\Services\ResearchAssistantWorkflowContextService;
 use App\Services\ResearchKnowledgeService;
 use Illuminate\Http\Client\ConnectionException;
@@ -25,6 +26,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class ResearchAssistantController extends Controller
@@ -44,6 +46,7 @@ class ResearchAssistantController extends Controller
         private ResearchAssistantProposalReviewService $proposalReview,
         private ResearchAssistantProposalAssistanceService $proposalAssistance,
         private ResearchAssistantPaperReader $paperReader,
+        private ResearchAssistantReportAssistanceService $reportAssistance,
     ) {}
 
     public function history(Request $request): JsonResponse
@@ -104,6 +107,7 @@ class ResearchAssistantController extends Controller
             'messages.*.sources' => ['nullable', 'array', 'max:20'],
             ...$this->proposalReview->historyRules('messages.*.review'),
             ...$this->proposalAssistance->historyRules('messages.*.proposal_changes'),
+            ...$this->reportAssistance->historyRules('messages.*.report_changes'),
             'messages.*.document_reading' => ['nullable', 'array:label,filename,format,basis,version,coverage'],
             'messages.*.document_reading.label' => ['required_with:messages.*.document_reading', 'string', 'max:300'],
             'messages.*.document_reading.filename' => ['nullable', 'string', 'max:300'],
@@ -124,7 +128,10 @@ class ResearchAssistantController extends Controller
             'messages.*.literature.results' => ['nullable', 'array', 'max:5'],
             'messages.*.literature.drafts' => ['nullable', 'array', 'max:3'],
             'messages.*.literature.sources' => ['nullable', 'array', 'max:3'],
-            'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope,review_focus,review_label,assistance_mode'],
+            'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope,review_focus,review_label,assistance_mode,report_type,report_id,source_key'],
+            'context.report_type' => ['nullable', Rule::in(ResearchAssistantReportAssistanceService::TYPES)],
+            'context.report_id' => ['nullable', 'integer', 'min:1'],
+            'context.source_key' => ['nullable', 'string', 'max:80'],
             'context.topic_id' => ['nullable', 'integer'],
             'context.proposal_draft_id' => ['nullable', 'integer'],
             'context.paper_slug' => ['nullable', 'string', 'max:80'],
@@ -179,7 +186,7 @@ class ResearchAssistantController extends Controller
             'conversation_id' => ['nullable', 'integer'],
             'action' => ['nullable', 'array:type,document_token,query,source_tokens,drafts,review_focus,evidence_basis'],
             'action.evidence_basis' => ['nullable', 'string', 'in:full_text,abstract'],
-            'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_literature,confirm_literature,review_proposal,suggest_proposal_changes'],
+            'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_literature,confirm_literature,review_proposal,suggest_proposal_changes,suggest_report_changes,review_report'],
             'action.review_focus' => ['required_if:action.type,review_proposal', 'string', 'in:consistency,revision_response'],
             'action.document_token' => ['required_if:action.type,analyze_document', 'string', 'max:4096'],
             'action.query' => ['nullable', 'string', 'max:500'],
@@ -189,7 +196,12 @@ class ResearchAssistantController extends Controller
             'action.drafts.*' => ['required', 'array:draft_token,paragraph'],
             'action.drafts.*.draft_token' => ['required', 'string', 'size:64', 'distinct'],
             'action.drafts.*.paragraph' => ['required', 'string', 'min:40', 'max:5000'],
-            'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope,form,review_focus,review_label,assistance_mode'],
+            'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope,form,review_focus,review_label,assistance_mode,report_type,report_id,source_key,response_values'],
+            'context.report_type' => ['nullable', Rule::in(ResearchAssistantReportAssistanceService::TYPES)],
+            'context.report_id' => ['nullable', 'integer', 'min:1'],
+            'context.source_key' => ['nullable', 'string', 'max:80'],
+            'context.response_values' => ['nullable', 'array', 'max:20'],
+            'context.response_values.*' => ['nullable', 'string', 'max:5000'],
             'context.topic_id' => ['nullable', 'integer'],
             'context.proposal_draft_id' => ['required_if:action.type,suggest_proposal_changes', 'nullable', 'integer'],
             'context.paper_slug' => ['nullable', 'string', 'max:80'],
@@ -268,6 +280,10 @@ class ResearchAssistantController extends Controller
             $messages->last()['content'],
         );
         $canSearchLiterature = $request->user()->isUsingWorkspace([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
+
+        if ($this->reportAssistance->handles($validated['action'] ?? [], $validated['context'] ?? [])) {
+            return response()->json($this->reportAssistance->respond($request->user(), $validated['context'] ?? [], $messages->last()['content'], $validated['action'] ?? []));
+        }
 
         if ($this->proposalAssistance->wantsSuggestions($validated['action'] ?? [], $validated['context'] ?? [], $messages->last()['content'])) {
             if (! $this->canAccessContext($request->user(), $validated['context'] ?? [])) {
@@ -608,6 +624,9 @@ class ResearchAssistantController extends Controller
 
     private function canAccessContext(User $user, array $context, bool $requireRelated = true): bool
     {
+        if ($requireRelated && isset($context['report_type'])) {
+            return $this->reportAssistance->canAccess($user, $context);
+        }
         $topic = isset($context['topic_id']) ? TopicProposal::query()->find($context['topic_id']) : null;
         if (isset($context['topic_id']) && (! $topic || Gate::forUser($user)->denies('view', $topic))) {
             return false;
@@ -630,6 +649,13 @@ class ResearchAssistantController extends Controller
         return response()->json(['proposal_change' => $this->proposalAssistance->resolve(
             $request->user(), $draft, $validated['token'], $validated['suggestion_id'],
         )]);
+    }
+
+    public function resolveReportChange(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['token' => ['required', 'string', 'size:64'], 'suggestion_id' => ['required', 'string', 'max:80']]);
+
+        return response()->json(['report_change' => $this->reportAssistance->resolve($request->user(), $validated['token'], $validated['suggestion_id'])]);
     }
 
     private function canAccessConversation(User $user, ResearchAssistantConversation $conversation): bool
@@ -825,6 +851,9 @@ PROMPT;
                         : []),
                     ...($message['role'] === 'assistant' && isset($message['document_reading']) && is_array($message['document_reading'])
                         ? ['document_reading' => $this->historyDocumentReading($message['document_reading'])]
+                        : []),
+                    ...($message['role'] === 'assistant' && isset($message['report_changes']) && is_array($message['report_changes'])
+                        ? ['report_changes' => $this->reportAssistance->historyPacket($message['report_changes'])]
                         : []),
                 ];
             })

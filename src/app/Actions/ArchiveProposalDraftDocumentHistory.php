@@ -46,6 +46,16 @@ class ArchiveProposalDraftDocumentHistory
 
         $sourcePath = $version->file_path;
 
+        // Older revision replacements deleted recovery PDFs while retaining their saved form data.
+        if (
+            $version->action !== ProposalDraftDocumentVersion::ACTION_SUBMITTED
+            && filled($version->source_data)
+            && Str::startsWith($sourcePath, $draft->storageDirectory().'/')
+            && ! Storage::disk('local')->exists($sourcePath)
+        ) {
+            return null;
+        }
+
         if (
             ! Str::startsWith($sourcePath, $draft->storageDirectory().'/')
             || ! Storage::disk('local')->exists($sourcePath)

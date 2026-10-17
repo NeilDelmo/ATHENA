@@ -33,6 +33,7 @@ test('the real monitoring deadline alert fits both themes and activity warnings 
                 const errors = [];
                 page.on('pageerror', error => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}\n${read('resources/css/proposal-paper-workspace.css')}</style><body data-app-shell><main class="mx-auto max-w-[90rem] p-4">${readFileSync(resolve(fixtureDirectory, 'monitoring-objective-alert.html'), 'utf8')}</main></body></html>`);
+                await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
                 await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
                     window.fetch=async()=>({ok:true,status:200,json:async()=>({draft_version:1})});
                     document.addEventListener('alpine:init',()=>{${datePicker}\n${controllers}});` });

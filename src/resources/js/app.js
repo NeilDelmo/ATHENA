@@ -7,6 +7,9 @@ import { normalizeAssistantLiterature, researchAssistantLiterature, serializeAss
 import { disseminationAction, disseminationSearchRequest, disseminationSearchReply, researchAssistantDissemination } from './research-assistant-dissemination';
 import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from './research-assistant-paper-insertion';
 import { allowedProposalChangeField, normalizeAssistantProposalChanges, proposalChangeHandoff, proposalChangeRichTextValue, researchAssistantProposalChanges, serializeAssistantProposalChanges } from './research-assistant-proposal-changes';
+import { proposalPaperAssistantChanges } from './proposal-paper-assistant-changes';
+import { assistantReportEditor } from './assistant-report-editor';
+import { currentPageReportContext, normalizeAssistantReportChanges, reportChangeHandoff, reportContext, researchAssistantReportChanges } from './research-assistant-report-changes';
 import { createManilaClock } from './manila-clock';
 import { initializeWorkspaceSwitching } from './workspace-switching';
 import { journalFinder } from './journal-finder';
@@ -89,6 +92,9 @@ window.Alpine = Alpine;
 Alpine.data('documentWritingToolbar', (config = {}) => ({ ...documentWritingToolbar(), ...config }));
 Alpine.data('quarterlyReportForm', quarterlyReportForm);
 Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm);
+Alpine.data('assistantReportEditor', (config) => assistantReportEditor(config, {
+    sanitizeHtml: sanitizedSemanticHtml, resolveChange: resolveAssistantReportChange, handoff: assistantReportChangeHandoff,
+}));
 
 const sidebarStorageKey = 'athena-sidebar-open';
 
@@ -1062,6 +1068,12 @@ async function navigateFromPaperEditor(editor, destination, message) {
 }
 
 async function finishPendingNavigationChanges() {
+    const reportNavigation = { allowed: true };
+    window.dispatchEvent(new CustomEvent('athena-report-navigation', { detail: reportNavigation }));
+    if (!reportNavigation.allowed) {
+        window.Alpine?.store('researchAssistant')?.setError('Report edits not saved', 'Save your current report edits before opening another report.');
+        return false;
+    }
     const editor = currentPaperEditor();
     const hasPaperChanges = paperEditorHasUnsavedChanges(editor);
     const hasBackgroundChanges = backgroundAutoSaveHasPendingChanges();
@@ -1807,6 +1819,38 @@ function assistantProposalChangeHandoff() {
     return proposalChangeHandoff(storage, Number(document.body.dataset.authUserId));
 }
 
+function assistantReportChangeHandoff() {
+    let storage = null;
+    try { storage = window.sessionStorage; } catch { /* The report remains editable without browser storage. */ }
+    return reportChangeHandoff(storage, Number(document.body.dataset.authUserId));
+}
+
+async function resolveAssistantReportChange(selection) {
+    const url = sameOriginPaperUrl(document.body.dataset.researchAssistantReportChangesUrl, window.location.origin);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (!url || !csrfToken) throw new Error('Refresh this page before applying a report change.');
+    const response = await fetch(url, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+        body: JSON.stringify({ token: selection.token, suggestion_id: String(selection.suggestion_id) }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const error = new Error(Object.values(payload.errors || {}).flat()[0] || payload.message || 'This suggestion expired. Request new suggestions.');
+        error.status = response.status;
+        throw error;
+    }
+    const candidate = payload.report_change;
+    const packet = normalizeAssistantReportChanges({ ...candidate, suggestions: [{ ...candidate, token: selection.token }] });
+    const suggestion = packet?.suggestions[0];
+    if (!suggestion || packet.report_key !== selection.report_key || suggestion.id !== String(selection.suggestion_id)
+        || !(candidate.draft_version === null || (Number.isSafeInteger(candidate.draft_version) && candidate.draft_version >= 0))
+        || typeof candidate.baseline_hash !== 'string' || !/^[a-f0-9]{64}$/.test(candidate.baseline_hash)) {
+        throw new Error('Athena returned an invalid report change. Request a new suggestion.');
+    }
+    return { ...packet, ...suggestion, draft_version: candidate.draft_version, baseline_hash: candidate.baseline_hash };
+}
+
 async function resolveAssistantProposalChange(selection, endpoint, csrfToken) {
     const url = sameOriginPaperUrl(endpoint, window.location.origin);
     if (!url || !csrfToken) throw new Error('Refresh this page before applying a proposal change.');
@@ -1869,6 +1913,8 @@ Alpine.store('researchAssistant', {
     ...researchAssistantDissemination(),
     ...researchAssistantReview(),
     ...researchAssistantProposalChanges(),
+    ...researchAssistantReportChanges({ resolveChange: resolveAssistantReportChange, handoff: assistantReportChangeHandoff,
+        safeUrl: (url) => sameOriginPaperUrl(url, window.location.origin), finishNavigation: finishPendingNavigationChanges }),
     currentConversationId: null,
     historySearchOpen: false,
     historySearchQuery: '',
@@ -1930,6 +1976,7 @@ Alpine.store('researchAssistant', {
         this.proposalDraftId = Number(document.body.dataset.researchAssistantProposalDraftId || 0);
         this.liveFormContextEnabled = Boolean(this.paperContext || activeContextId);
         this.activePaperField = null;
+        this.reportContext = null;
         this.pageActions = Array.isArray(window.athenaResearchAssistantPageActions) ? window.athenaResearchAssistantPageActions : [];
         this.pageScope = assistantPageScope();
         this.restoreReviewContext(this.reviewContext);
@@ -2254,6 +2301,7 @@ Alpine.store('researchAssistant', {
     selectProjectContext(contextId) {
         if (this.activeDocument || this.documentAnalysisPending) this.clearActiveDocument();
         this.reviewContext = null;
+        this.reportContext = false;
         this.proposalHelpOpen = false;
         const context = this.contextOptions.find((option) => Number(option.id) === Number(contextId));
         this.selectedContextId = context?.id || 0;
@@ -2267,6 +2315,8 @@ Alpine.store('researchAssistant', {
 
     contextPayload(includeForm = true) {
         if (this.reviewContext) return { ...this.reviewContext };
+        const report = this.reportContext === false ? null : this.reportContext || currentPageReportContext();
+        if (report) return { ...report };
         const context = {};
 
         if (this.contextEnabled && this.selectedContextId) {
@@ -2557,6 +2607,7 @@ Alpine.store('researchAssistant', {
                 ...message,
                 literature: serializeAssistantLiterature(message.literature),
                 proposal_changes: serializeAssistantProposalChanges(message.proposal_changes),
+                report_changes: normalizeAssistantReportChanges(message.report_changes),
                 document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
             })),
             context: this.contextPayload(false),
@@ -2659,6 +2710,7 @@ Alpine.store('researchAssistant', {
                     review: message.review && typeof message.review === 'object' ? message.review : null,
                     literature: normalizeAssistantLiterature(message.literature),
                     proposal_changes: normalizeAssistantProposalChanges(message.proposal_changes),
+                    report_changes: normalizeAssistantReportChanges(message.report_changes),
                     document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
                 }));
             this.currentConversationId = conversation.id;
@@ -2669,6 +2721,7 @@ Alpine.store('researchAssistant', {
             this.contextEnabled = Boolean(contextId && this.contextOptions.some((context) => Number(context.id) === contextId));
             if (this.contextEnabled) this.selectedContextId = contextId;
             this.restoreReviewContext(conversation.context);
+            this.reportContext = reportContext(conversation.context) || false;
             this.error = '';
             this.errorTitle = '';
             this.historySearchOpen = false;
@@ -2690,7 +2743,7 @@ Alpine.store('researchAssistant', {
 
     proposalChangesBusy() {
         return Boolean(this.isLoading || this.sendInProgress || this.retryAfter > 0 || this.proposalChangesOperationPending
-            || this.literatureOperationPending || this.reviewLaunchPending || this.documentAnalysisPending || this.disseminationSaving);
+            || this.reportChangesOperationPending || this.literatureOperationPending || this.reviewLaunchPending || this.documentAnalysisPending || this.disseminationSaving);
     },
 
     proposalChangeBeforeText(suggestion) {
@@ -2745,7 +2798,8 @@ Alpine.store('researchAssistant', {
             ? 'Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.'
             : 'Read the current saved proposal and prepare updated, precise improvements for my review. Check the Research Manual requirements and preserve existing evidence.';
         return this.sendPrompt(prompt,
-            { type: 'suggest_proposal_changes' }, { proposal_draft_id: packet.proposal_draft_id });
+            { type: 'suggest_proposal_changes' }, { proposal_draft_id: packet.proposal_draft_id,
+                paper_slug: packet.suggestions[0]?.paper_slug || 'detailed-proposal' });
     },
 
     async applyProposalChange(message, suggestion) {
@@ -2758,7 +2812,9 @@ Alpine.store('researchAssistant', {
         suggestion.error = '';
         const sequence = this.requestSequence;
         try {
-            const editor = document.querySelector('[data-detailed-proposal-workspace]');
+            const selector = { 'detailed-proposal': '[data-detailed-proposal-workspace]',
+                'work-plan': '[data-work-plan-workspace]', 'expense-breakdown': '[data-expense-breakdown-workspace]' }[selected.paper_slug];
+            const editor = document.querySelector(selector);
             const activeEditor = editor && Number(editor.dataset.proposalDraftId) === packet.proposal_draft_id ? editor : null;
             if (activeEditor && !await finishPaperEditorAutoSave(activeEditor)) {
                 throw new Error('Finish saving your current edits before applying this suggestion.');
@@ -2770,7 +2826,7 @@ Alpine.store('researchAssistant', {
             if (activeEditor) {
                 const detail = { ...candidate, handled: false, promise: null };
                 window.dispatchEvent(new CustomEvent('athena-apply-proposal-change', { detail }));
-                if (!detail.handled || !detail.promise) throw new Error('Open the detailed proposal editor to apply this suggestion.');
+                if (!detail.handled || !detail.promise) throw new Error('Open the matching proposal document to apply this suggestion.');
                 const result = await detail.promise;
                 suggestion.applied = result.applied === true;
                 suggestion.saved = result.saved === true;
@@ -2790,8 +2846,8 @@ Alpine.store('researchAssistant', {
             if (!await finishPendingNavigationChanges()) return false;
             if (this.hasConversation() && !await this.saveConversation()) return false;
             if (sequence !== this.requestSequence) return false;
-            if (!assistantProposalChangeHandoff().stage(selection)) {
-                throw new Error('Browser storage could not prepare this change. Open the detailed proposal and apply it there.');
+            if (!assistantProposalChangeHandoff().stage({ ...selection, paper_slug: candidate.paper_slug })) {
+                throw new Error('Browser storage could not prepare this change. Open the matching proposal document and apply it there.');
             }
             const destination = new URL(url);
             destination.hash = selected.field.replaceAll('_', '-');
@@ -2850,7 +2906,7 @@ Alpine.store('researchAssistant', {
 
     async send(action = null, contextOverride = null) {
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
-        if (!content || this.isLoading || this.sendInProgress || this.documentAnalysisPending || this.disseminationSaving || this.proposalChangesOperationPending || this.retryAfter > 0) return;
+        if (!content || this.isLoading || this.sendInProgress || this.documentAnalysisPending || this.disseminationSaving || this.proposalChangesOperationPending || this.reportChangesOperationPending || this.retryAfter > 0) return;
         if (this.reviewLaunchPending && !['review_proposal', 'suggest_proposal_changes'].includes(action?.type)) return;
 
         if (!action && this.reviewContext) {
@@ -2859,6 +2915,25 @@ Alpine.store('researchAssistant', {
         this.proposalHelpOpen = false;
         this.sendInProgress = true;
         const sendSequence = this.requestSequence;
+        try {
+            const context = contextOverride || this.contextPayload();
+            if (reportContext(context)) {
+                contextOverride = await this.prepareReportContext(context, !action || action.type === 'review_report');
+                if (this.draft.trim().slice(0, researchAssistantMessageLimit) !== content) {
+                    throw new Error('Your message changed while the report was saving. Send it again when ready.');
+                }
+            }
+            if (sendSequence !== this.requestSequence) {
+                this.sendInProgress = false;
+                return null;
+            }
+            const preparedReport = reportContext(contextOverride);
+            if (preparedReport) this.reportContext = preparedReport;
+        } catch (error) {
+            this.sendInProgress = false;
+            this.setError('Save report first', error.message);
+            return null;
+        }
         this.retryAction = action;
         this.retryContext = contextOverride;
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
@@ -3003,6 +3078,7 @@ Alpine.store('researchAssistant', {
                 review: payload.review && typeof payload.review === 'object' ? payload.review : null,
                 literature: normalizeAssistantLiterature(payload.literature),
                 proposal_changes: normalizeAssistantProposalChanges(payload.proposal_changes),
+                report_changes: normalizeAssistantReportChanges(payload.report_changes),
                 dissemination: payload.dissemination || null,
                 document_reading: payload.document_reading ? this.documentReadingMetadata(payload.document_reading) : null,
             };
@@ -3153,6 +3229,7 @@ Alpine.store('researchAssistant', {
     clearConversation() {
         this.stop();
         this.reviewContext = null;
+        this.reportContext = null;
         this.proposalHelpOpen = false;
         this.messages = [];
         this.currentConversationId = null;
@@ -6656,6 +6733,9 @@ Alpine.data('commentResponsePaperPreview', commentResponsePaperPreview);
 
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     ...proposalPaperPreviewWorkspace(),
+    ...(config.proposalDraftId ? proposalPaperAssistantChanges({ paperSlug: 'work-plan', proposalDraftId: config.proposalDraftId, draftVersion: config.draftVersion,
+        resolveChange: (selection) => resolveAssistantProposalChange(selection, document.body.dataset.researchAssistantProposalChangesUrl, config.csrfToken),
+        changeHandoff: assistantProposalChangeHandoff(), finishSave: finishPaperEditorAutoSave }) : {}),
     objectivesLinked: Boolean(config.objectivesLinked),
     nextEntryId: 0,
     entries: [],
@@ -6698,6 +6778,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.$nextTick(() => {
             this.startWorkPlanAutoSave();
             this.initializeProposalPaperPreview();
+            void this.applyPendingAssistantPaperChange?.();
         });
     },
 
@@ -7920,6 +8001,9 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
 Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     ...proposalPaperPreviewWorkspace({ initiallyOpen: true, workspaceSelector: '[data-expense-breakdown-workspace]' }),
+    ...(config.proposalDraftId ? proposalPaperAssistantChanges({ paperSlug: 'expense-breakdown', proposalDraftId: config.proposalDraftId, draftVersion: config.draftVersion,
+        resolveChange: (selection) => resolveAssistantProposalChange(selection, document.body.dataset.researchAssistantProposalChangesUrl, config.csrfToken),
+        changeHandoff: assistantProposalChangeHandoff(), finishSave: finishPaperEditorAutoSave }) : {}),
     nextId: 0,
     items: [],
     expandedItemId: null,
@@ -7955,6 +8039,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         this.$nextTick(() => {
             this.startExpenseBreakdownAutoSave();
             this.initializeProposalPaperPreview();
+            void this.applyPendingAssistantPaperChange?.();
         });
     },
 
@@ -8586,7 +8671,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             municipality: String(values.municipality ?? ''),
             province: String(values.province ?? ''),
             landline: this.normalizeContactNumber(values.landline),
-            cellphone: this.normalizeContactNumber(values.cellphone),
+            cellphone: String(values.cellphone ?? ''),
             email: String(values.email ?? ''),
         };
 
@@ -9239,6 +9324,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.expectedOutputs = Object.fromEntries(
             (config.expectedOutputKeys || []).map((key) => [key, this.normalizedExpectedOutputs(data.expected_outputs?.[key])]),
         );
+        this.autoSaveInitialContent = this.nestedProposalFieldsNeedSave(data);
         this.introduction = String(data.introduction ?? '');
         this.relatedLiterature = String(data.related_literature ?? '');
         this.literatureSources = Array.isArray(config.literatureSources)
@@ -9329,16 +9415,48 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             return objective ? String(objective.description ?? '') : null;
         }
         if (field.startsWith('methodology.')) return String(this.methodology[field.split('.')[1]] ?? '');
+        const parts = field.split('.');
+        if (parts[0] === 'specific_method_objectives') {
+            const group = this.specificMethodGroups?.[Number(parts[1])];
+            return group ? (parts[2] === 'heading' ? String(group.heading ?? '')
+                : group.methods?.[Number(parts[3])] ? String(group.methods[Number(parts[3])].description ?? '') : null) : null;
+        }
+        if (parts[0] === 'expected_outputs') {
+            const output = this.expectedOutputs?.[parts[1]]?.[Number(parts[2])];
+            return output ? String(output.description ?? '') : null;
+        }
+        if (parts[0] === 'responsibilities') {
+            const responsibility = this.responsibilities?.[Number(parts[1])];
+            return responsibility ? String(responsibility.duties ?? '') : null;
+        }
         const property = { executive_brief: 'executiveBrief', rationale: 'rationale', general_objective: 'generalObjective', introduction: 'introduction', related_literature: 'relatedLiterature' }[field];
         return property ? String(this[property] ?? '') : null;
     },
 
     setProposalChangeFieldValue(field, value) {
         if (!allowedProposalChangeField(field)) return false;
+        const parts = field.split('.');
         if (field.startsWith('specific_objectives.')) {
             const objective = this.specificObjectives[Number(field.split('.')[1])];
             if (!objective) return false;
             objective.description = value;
+        } else if (parts[0] === 'specific_method_objectives') {
+            const group = this.specificMethodGroups?.[Number(parts[1])];
+            if (!group) return false;
+            if (parts[2] === 'heading') group.heading = value;
+            else {
+                const method = group.methods?.[Number(parts[3])];
+                if (!method) return false;
+                method.description = value;
+            }
+        } else if (parts[0] === 'expected_outputs') {
+            const output = this.expectedOutputs?.[parts[1]]?.[Number(parts[2])];
+            if (!output) return false;
+            output.description = value;
+        } else if (parts[0] === 'responsibilities') {
+            const responsibility = this.responsibilities?.[Number(parts[1])];
+            if (!responsibility) return false;
+            responsibility.duties = value;
         } else if (field.startsWith('methodology.')) {
             this.methodology[field.split('.')[1]] = value;
         } else {
@@ -9359,7 +9477,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         }
         this.rrlRevisionPending = true;
         try {
-            if (!await finishPaperEditorAutoSave(this.$el)) {
+            if (!await finishPaperEditorAutoSave(this.$el.closest('[data-detailed-proposal-workspace]'))) {
                 throw new Error('Save your current paper edits before requesting an RRL revision.');
             }
             if (assistant.proposalChangesBusy() || assistant.draft.trim()) {
@@ -9388,7 +9506,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async applyAssistantProposalChange(packet) {
-        if (Number(packet?.proposal_draft_id) !== Number(config.proposalDraftId)) return { applied: false, saved: false };
+        if (Number(packet?.proposal_draft_id) !== Number(config.proposalDraftId)
+            || packet?.paper_slug !== 'detailed-proposal') return { applied: false, saved: false };
         packet.handled = true;
         const normalized = normalizeAssistantProposalChanges({ proposal_draft_id: config.proposalDraftId, suggestions: [packet] });
         const suggestion = normalized?.suggestions[0];
@@ -9459,12 +9578,13 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     async applyPendingAssistantProposalChange() {
         const handoff = assistantProposalChangeHandoff();
         const selection = handoff.read(config.proposalDraftId);
-        if (!selection) return;
-        handoff.clear(config.proposalDraftId);
+        if (!selection || (selection.paper_slug && selection.paper_slug !== 'detailed-proposal')) return;
         try {
             if (!await finishPaperEditorAutoSave(this.$el)) throw new Error('Finish saving this proposal before applying the prepared suggestion.');
             const candidate = await resolveAssistantProposalChange(selection,
                 config.proposalChangesUrl || document.body.dataset.researchAssistantProposalChangesUrl, config.csrfToken);
+            if (candidate.paper_slug !== 'detailed-proposal') return;
+            handoff.clear(config.proposalDraftId);
             await this.applyAssistantProposalChange(candidate);
         } catch (error) {
             this.proposalChangeError = error instanceof Error ? error.message : 'The prepared change is unavailable. Request new suggestions.';
@@ -10621,6 +10741,32 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         template.innerHTML = String(value ?? '').replace(/<(?:br\s*\/?>|\/p|\/div|\/li)>/gi, '\n');
 
         return (template.content.textContent || '').trim();
+    },
+
+    nestedProposalFieldsNeedSave(data) {
+        const descriptions = (rows) => Array.isArray(rows)
+            ? rows.map((row) => typeof row === 'string' ? row : { description: String(row?.description ?? '') }) : rows;
+        const hasDescriptions = (rows) => Array.isArray(rows) && rows.some((row) => this.plainText(typeof row === 'string' ? row : row?.description));
+        const groups = (rows) => Array.isArray(rows) ? rows.map((group) => ({
+            heading: String(group?.heading ?? ''), methods: hasDescriptions(group?.methods) ? descriptions(group.methods) : [],
+        })) : rows;
+        const differs = (saved, current) => JSON.stringify(saved) !== JSON.stringify(current);
+        const savedObjectives = Array.isArray(data.specific_objectives) ? data.specific_objectives : data.objectives;
+        if ((this.plainText(data.general_objective) || hasDescriptions(savedObjectives) || (typeof savedObjectives === 'string' && this.plainText(savedObjectives)))
+            && (String(data.general_objective ?? '') !== this.generalObjective
+                || ((hasDescriptions(savedObjectives) || (typeof savedObjectives === 'string' && this.plainText(savedObjectives)))
+                    && differs(descriptions(savedObjectives), descriptions(this.specificObjectives))))) return true;
+
+        const savedGroups = data.specific_method_objectives;
+        const hasGroups = Array.isArray(savedGroups) && savedGroups.some((group) => this.plainText(group?.heading) || hasDescriptions(group?.methods));
+        if ((hasGroups || (!savedGroups?.length && this.plainText(data.methodology?.specific_methods)))
+            && differs(groups(savedGroups), groups(this.specificMethodGroups))) return true;
+
+        return Object.entries(this.expectedOutputs).some(([key, rows]) => {
+            const saved = data.expected_outputs?.[key];
+            return (hasDescriptions(saved) || (typeof saved === 'string' && this.plainText(saved)))
+                && differs(descriptions(saved), descriptions(rows));
+        });
     },
 
     normalizedObjectives(generalValue, value, legacyValue = '') {

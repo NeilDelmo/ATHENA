@@ -165,8 +165,8 @@ PROMPT],
     /** @return list<string> */
     private function numbers(string $text): array
     {
-        preg_match_all('/\b(?:\d+(?:[.,]\d+)*|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|hundred|thousand|million|billion)\b/i', $text, $matches);
-        $numbers = array_map(Str::lower(...), $matches[0]);
+        preg_match_all('/(?<![\pL\pN])(?:[+\-\x{2212}]\s*)?\d+(?:[.,]\d+)*(?:\s*%)?(?![\pL\pN])|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|hundred|thousand|million|billion)\b/iu', $text, $matches);
+        $numbers = array_map(fn (string $number): string => str_replace('−', '-', preg_replace('/\s+/u', '', Str::lower($number))), $matches[0]);
         sort($numbers);
 
         return $numbers;

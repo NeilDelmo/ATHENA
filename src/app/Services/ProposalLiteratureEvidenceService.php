@@ -8,7 +8,6 @@ use App\Models\ProposalDraftLiteratureSource;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +15,7 @@ use Throwable;
 
 class ProposalLiteratureEvidenceService
 {
-    public function __construct(private AiChatCompletionService $ai) {}
+    public function __construct(private AiChatCompletionService $ai, private LiteratureDocumentTextExtractor $extractor) {}
 
     /** @return array<string, mixed> */
     public function payload(ProposalDraftLiteratureSource $source): array
@@ -46,7 +45,7 @@ class ProposalLiteratureEvidenceService
         }
 
         try {
-            $extracted = $this->extract(Storage::disk('local')->path($path));
+            $extracted = $this->extractor->extract(Storage::disk('local')->path($path));
             $oldPath = DB::transaction(function () use ($draft, $source, $file, $user, $path, $extracted): ?string {
                 $draft->ensureEditable();
                 $locked = $draft->literatureSources()->lockForUpdate()->findOrFail($source->getKey());
@@ -78,80 +77,6 @@ class ProposalLiteratureEvidenceService
         }
 
         return $this->payload($source->fresh());
-    }
-
-    /** @return array{pages: list<array{number: int, text: string}>, coverage: array<string, mixed>, notice: string} */
-    private function extract(string $path): array
-    {
-        $pageLimit = (int) config('literature.evidence.maximum_pdf_pages');
-        $characterLimit = (int) config('literature.evidence.maximum_characters');
-        $pages = [];
-        $totalPages = null;
-        $characters = 0;
-        $truncated = false;
-        $notice = 'The private PDF is available to read. Text extraction is unavailable; you can save clearly labelled manual quotations and reading notes.';
-
-        try {
-            $info = Process::timeout(10)->run([(string) config('literature.evidence.pdfinfo_binary'), $path]);
-
-            if ($info->successful() && preg_match('/^Pages:\s+(\d+)/m', $info->output(), $match) === 1) {
-                $totalPages = (int) $match[1];
-            }
-        } catch (Throwable) {
-            $totalPages = null;
-        }
-
-        try {
-            $result = Process::timeout((int) config('literature.evidence.extraction_timeout'))->run([
-                (string) config('literature.full_text.pdftotext_binary'), '-f', '1', '-l', (string) $pageLimit, '-layout', '-enc', 'UTF-8', $path, '-',
-            ]);
-
-            if ($result->successful()) {
-                $pageTexts = explode("\f", $result->output());
-
-                if (trim((string) end($pageTexts)) === '') {
-                    array_pop($pageTexts);
-                }
-
-                foreach (array_slice($pageTexts, 0, $pageLimit) as $index => $text) {
-                    $text = trim($text);
-                    $remaining = $characterLimit - $characters;
-
-                    if ($remaining <= 0) {
-                        $truncated = true;
-
-                        break;
-                    }
-
-                    if (Str::length($text) > $remaining) {
-                        $text = Str::substr($text, 0, $remaining);
-                        $truncated = true;
-                    }
-
-                    $characters += Str::length($text);
-                    $pages[] = ['number' => $index + 1, 'text' => $text];
-                }
-
-                $notice = $characters > 0
-                    ? 'This text preview is bounded to '.$pageLimit.' pages and '.$characterLimit.' characters. Page numbers follow the uploaded PDF. Read the original PDF to check tables, figures, and extraction errors.'
-                    : 'The private PDF is available to read, but no readable text was extracted. Scanned PDFs need manual quotations or reading notes; ATHENA does not perform OCR.';
-            }
-        } catch (Throwable) {
-            $pages = [];
-        }
-
-        return [
-            'pages' => $pages,
-            'coverage' => [
-                'total_pages' => $totalPages,
-                'extracted_pages' => count($pages),
-                'characters' => $characters,
-                'page_limit' => $pageLimit,
-                'character_limit' => $characterLimit,
-                'limited' => $truncated || $totalPages === null || $totalPages > count($pages),
-            ],
-            'notice' => $notice,
-        ];
     }
 
     /** @param array{quote?: ?string, note?: ?string, page?: ?int, kind: string} $data

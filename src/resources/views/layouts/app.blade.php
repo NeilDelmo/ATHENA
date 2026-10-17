@@ -39,6 +39,7 @@
             data-research-assistant-history-url="{{ route('research-support.history') }}"
             data-research-assistant-documents-url="{{ route('research-support.documents') }}"
             data-research-assistant-proposal-changes-url="{{ route('research-support.proposal-changes.resolve') }}"
+            data-research-assistant-report-changes-url="{{ route('research-support.report-changes.resolve') }}"
             @if ($researchAssistantPaperContext ?? null)
                 data-research-assistant-paper-slug="{{ $researchAssistantPaperContext['paper_slug'] }}"
                 data-research-assistant-paper-label="{{ $researchAssistantPaperContext['paper_label'] }}"

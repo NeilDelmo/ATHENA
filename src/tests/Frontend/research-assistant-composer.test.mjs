@@ -8,7 +8,7 @@ const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url
 function storeMethod(name) {
     const match = source.match(new RegExp(`    ${name}\\(([^)]*)\\) \\{([\\s\\S]*?)\\n    \\},`));
     assert.ok(match, `Missing assistant method: ${name}`);
-    return new Function(match[1], match[2]);
+    return new Function('currentPageReportContext', `return function(${match[1]}) {${match[2]}}`)(() => null);
 }
 
 test('project chips enable only available projects and discard stale document choices', () => {
@@ -129,10 +129,10 @@ test('the shared composer sends on Enter and preserves multiline and IME input',
 test('source counts safely handle a newly sent user message without source metadata', () => {
     for (const surface of ['workspace', 'drawer']) {
         const view = readFileSync(new URL(`../../resources/views/components/research-assistant-${surface}.blade.php`, import.meta.url), 'utf8');
-        const expression = view.match(/x-text="(message\.sources[^"]+)"/)[1];
+        const expression = view.match(/x-text="([^"]*message\.sources[^\"]+)"/)[1];
         const count = new Function('message', `return ${expression}`);
-        assert.equal(count({ role: 'user', content: 'My question' }), 0);
-        assert.equal(count({ role: 'assistant', sources: [{ reference: '[1]' }] }), 1);
+        assert.equal(count({ role: 'user', content: 'My question' }), '(0)');
+        assert.equal(count({ role: 'assistant', sources: [{ reference: '[1]' }] }), '(1)');
     }
 });
 

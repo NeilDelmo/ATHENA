@@ -58,29 +58,32 @@ test('expired and stale server selections retain a useful error for the user', a
     await assert.rejects(resolve(selection, '/resolve', 'csrf'), /paper or manual changed/);
 });
 
-function proposalStore({ active = false, saveCurrent = true, navigate = true, saveConversation = true, applyResult = { applied: true, saved: true, notice: 'Saved.' } } = {}) {
+function proposalStore({ active = false, saveCurrent = true, navigate = true, saveConversation = true,
+    paper = 'detailed-proposal', field = 'rationale', applyResult = { applied: true, saved: true, notice: 'Saved.' } } = {}) {
+    const current = { ...candidate, paper_slug: paper, field };
     const packet = normalizeAssistantProposalChanges({ proposal_draft_id: 12, editor_url: candidate.editor_url,
-        suggestions: [candidate, { ...candidate, id: 'second', token: 'b'.repeat(64), field: 'executive_brief' }] });
+        suggestions: [current, { ...current, id: 'second', token: 'b'.repeat(64) }] });
     const message = { id: 1, proposal_changes: packet };
     const staged = [];
     const requests = [];
     const editor = active ? { dataset: { proposalDraftId: '12' } } : null;
+    const selectors = [];
     const document = { body: { dataset: { researchAssistantProposalChangesUrl: '/resolve' } },
-        querySelector: (selector) => selector.startsWith('meta') ? { content: 'csrf' } : editor };
+        querySelector: (selector) => { selectors.push(selector); return selector.startsWith('meta') ? { content: 'csrf' } : editor; } };
     const window = { location: { origin: 'https://athena.test', assign(value) { this.destination = value; } },
         dispatchEvent(event) { event.detail.handled = true; event.detail.promise = Promise.resolve(applyResult); } };
     const source = ['proposalChangesBusy', 'applyProposalChange', 'keepCurrentProposalText', 'findProposalStudies', 'refreshProposalChanges', 'proposalRrlAssessmentText', 'proposalRrlRequirementSource'].map(methodSource).join('\n');
     const methods = new Function('document', 'window', 'normalizeAssistantProposalChanges', 'sameOriginPaperUrl',
         'resolveAssistantProposalChange', 'finishPaperEditorAutoSave', 'finishPendingNavigationChanges', 'assistantProposalChangeHandoff', 'CustomEvent', `return ({${source}});`)(
         document, window, normalizeAssistantProposalChanges, sameOriginPaperUrl,
-        async (selected) => { requests.push(selected); return { ...candidate }; },
+        async (selected) => { requests.push(selected); return { ...current }; },
         async () => saveCurrent, async () => navigate, () => ({ stage(value) { staged.push(value); return true; } }),
         class { constructor(type, { detail }) { this.type = type; this.detail = detail; } },
     );
     return { ...methods, messages: [message], message, requestSequence: 0, draft: '',
         isLoading: false, sendInProgress: false, retryAfter: 0, proposalChangesOperationPending: false,
         hasConversation: () => true, saveConversation: async () => saveConversation ? { id: 1 } : null,
-        sendPrompt: async (...args) => { requests.push(args); return true; }, staged, requests, window };
+        sendPrompt: async (...args) => { requests.push(args); return true; }, staged, requests, selectors, window };
 }
 
 test('Apply waits for current saves and never stages navigation after an interrupted save', async () => {
@@ -99,7 +102,7 @@ test('Apply waits for current saves and never stages navigation after an interru
 test('cross-page Apply stages only the bound token and opens the authorized same-origin editor', async () => {
     const state = proposalStore();
     assert.equal(await state.applyProposalChange(state.message, state.message.proposal_changes.suggestions[0]), true);
-    assert.deepEqual(state.staged, [selection]);
+    assert.deepEqual(state.staged, [{ ...selection, paper_slug: 'detailed-proposal' }]);
     assert.equal(state.window.location.destination, `${candidate.editor_url}#rationale`);
     assert.equal(JSON.stringify(state.staged).includes('Existing rationale'), false);
     assert.equal(state.proposalChangesOperationPending, false);
@@ -114,12 +117,28 @@ test('successful Apply invalidates sibling suggestions and refresh keeps the sel
     assert.match(suggestions[1].error, /Request updated suggestions/);
     assert.equal(await state.applyProposalChange(state.message, suggestions[1]), false);
     await state.refreshProposalChanges(state.message);
-    assert.deepEqual(state.requests.at(-1).slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12 }]);
+    assert.deepEqual(state.requests.at(-1).slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12, paper_slug: 'detailed-proposal' }]);
     state.draft = 'A message still being written.';
     const requests = state.requests.length;
     assert.equal(await state.refreshProposalChanges(state.message), false);
     assert.equal(state.requests.length, requests);
     assert.equal(state.draft, 'A message still being written.');
+});
+
+test('Apply and refresh use the selected work-plan or expense document', async () => {
+    for (const [paper, field, selector] of [
+        ['work-plan', 'entries.0.activity', '[data-work-plan-workspace]'],
+        ['expense-breakdown', 'items.0.purpose', '[data-expense-breakdown-workspace]'],
+    ]) {
+        const state = proposalStore({ active: true, paper, field });
+        assert.equal(await state.applyProposalChange(state.message, state.message.proposal_changes.suggestions[0]), true);
+        assert.equal(state.selectors[0], selector);
+        await state.refreshProposalChanges(state.message);
+        assert.equal(state.requests.at(-1)[2].paper_slug, paper);
+        const elsewhere = proposalStore({ paper, field });
+        await elsewhere.applyProposalChange(elsewhere.message, elsewhere.message.proposal_changes.suggestions[0]);
+        assert.equal(elsewhere.staged[0].paper_slug, paper);
+    }
 });
 
 test('partial literature counts retain the manual minimum without inventing a numeric shortfall', () => {
@@ -180,6 +199,9 @@ function editor({ field = 'rationale', before = candidate.before, save = true, r
         proposalChangeNotice: '', proposalChangeError: '', autoSaveBlocked: false, autoSaveInFlight: false,
         rationale: before, relatedLiterature: before, executiveBrief: '<p>Keep executive brief.</p>', generalObjective: 'Keep objective.', introduction: 'Keep introduction.',
         methodology: { research_design: before, data_analysis: 'Keep analysis.' }, specificObjectives: [{ id: 19, description: before }],
+        specificMethodGroups: [{ id: 21, heading: before, methods: [{ id: 22, description: before }] }],
+        expectedOutputs: { publication: [{ id: 23, description: before, quantity: 2, unit: 'articles' }] },
+        responsibilities: [{ id: 24, name: 'Researcher', percentage: 25, duties: before }],
         references: 'Keep references.', literatureCitations: [{ source_link_id: 42 }],
         lastSavedDetailedProposal: 'saved', detailedProposalFingerprint: () => 'saved',
         detailedProposalAutoSaveForm: () => form, markProposalPreviewStale() { this.previewMarked = true; },
@@ -233,7 +255,7 @@ test('RRL revision launch saves first and preserves an unfinished assistant mess
     let canSave = true;
     const methods = new Function('Alpine', 'config', 'finishPaperEditorAutoSave', `return ({${methodSource('requestRrlRevision')}});`)(
         { store: () => assistant }, { proposalDraftId: 12 }, async () => { saves++; return canSave; });
-    const state = { ...methods, $el: {}, rrlRevisionPending: false, proposalChangeError: '' };
+    const state = { ...methods, $el: { closest: () => ({}) }, rrlRevisionPending: false, proposalChangeError: '' };
     assistant.draft = 'Unfinished message';
     assert.equal(await state.requestRrlRevision(), false);
     assert.equal(assistant.draft, 'Unfinished message');
@@ -248,6 +270,56 @@ test('RRL revision launch saves first and preserves an unfinished assistant mess
     assert.match(requests[1][0], /saved RRL/);
     assert.deepEqual(requests[1].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12 }]);
     assert.equal(state.rrlRevisionPending, false);
+});
+
+test('the actual Revise RRL button finishes its containing editor save before requesting a review', async () => {
+    const blade = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php', import.meta.url), 'utf8');
+    const button = blade.match(/<button\b[^>]*@click="requestRrlRevision\(\)"[\s\S]*?<\/button>/)?.[0];
+    assert.ok(button, 'The RRL revision launch button exists.');
+    const saveHelpers = readFileSync(new URL('../../resources/js/proposal-paper-autosave.js', import.meta.url), 'utf8').replace(/^export /gm, '');
+    const finishSave = app.slice(app.indexOf('async function finishPaperEditorAutoSave('), app.indexOf('function backgroundAutoSaveContexts('));
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        const errors = [];
+        page.on('pageerror', (error) => errors.push(error.message));
+        await page.setContent(`<main x-data="revisionLaunch" data-detailed-proposal-workspace data-detailed-proposal-autosave="true" data-paper-editor>
+            <form x-ref="form" data-paper-form><textarea name="related_literature" x-model="relatedLiterature"></textarea>${button}</form>
+            <p role="alert" x-text="proposalChangeError"></p>
+        </main>`);
+        await page.addScriptTag({ content: `${saveHelpers}\n${finishSave}
+            const config = { proposalDraftId: 12 };
+            window.launchEvents = [];
+            document.addEventListener('alpine:init', () => {
+                Alpine.store('researchAssistant', { draft: '', proposalChangesBusy(){return false;},
+                    openDrawer(){window.launchEvents.push('open');},
+                    async sendPrompt(...args){window.launchEvents.push(args);},
+                });
+                Alpine.data('revisionLaunch', () => ({
+                    ${methodSource('requestRrlRevision')}
+                    relatedLiterature: 'Saved RRL.', rrlRevisionPending: false, proposalChangeApplying: false,
+                    proposalChangeError: '', autoSaveBlocked: false, autoSaveInFlight: false,
+                    init(){this.$nextTick(() => {this.lastSavedDetailedProposal = this.detailedProposalFingerprint(this.$refs.form);});},
+                    detailedProposalFingerprint(form){return JSON.stringify([...new FormData(form)]);},
+                    async saveDetailedProposalNow(){window.launchEvents.push('saved');this.lastSavedDetailedProposal = this.detailedProposalFingerprint(this.$refs.form);},
+                }));
+            });
+        ` });
+        await page.addScriptTag({ path: resolvePath('node_modules/alpinejs/dist/cdn.js') });
+        await page.locator('textarea').fill('Edited RRL waiting to save.');
+        await page.getByRole('button', { name: 'Revise RRL', exact: true }).click();
+        await expect.poll(() => page.evaluate(() => window.launchEvents.length)).toBe(3);
+        const events = await page.evaluate(() => window.launchEvents);
+        assert.deepEqual(events.slice(0, 2), ['saved', 'open']);
+        assert.deepEqual(events[2].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12 }]);
+        await expect(page.getByRole('alert')).toBeEmpty();
+
+        await page.evaluate(() => { Alpine.$data(document.querySelector('main')).autoSaveBlocked = true; });
+        await expect(page.getByRole('button', { name: 'Revise RRL', exact: true })).toBeDisabled();
+        assert.deepEqual(errors, []);
+    } finally {
+        await browser.close();
+    }
 });
 
 test('the real resolve wrapper without a token still reaches the guarded editor', async () => {
@@ -301,12 +373,33 @@ test('wrong proposal, forbidden paths and cited text preserve the current editor
     const other = { ...candidate, proposal_draft_id: 13 };
     assert.deepEqual(await state.applyAssistantProposalChange(other), { applied: false, saved: false });
     assert.equal(other.handled, undefined);
+    const wrongPaper = { ...candidate, paper_slug: 'work-plan', field: 'entries.0.activity' };
+    assert.deepEqual(await state.applyAssistantProposalChange(wrongPaper), { applied: false, saved: false });
+    assert.equal(wrongPaper.handled, undefined);
     await assert.rejects(state.applyAssistantProposalChange({ ...candidate, field: 'references' }), /invalid/);
     const before = '<p>Claim <span data-proposal-citation="42">[1]</span></p>';
     const cited = editor({ before });
     await assert.rejects(cited.applyAssistantProposalChange({ ...candidate, before }), /linked citations/);
     assert.equal(cited.rationale, before);
     assert.equal(cited.savesScheduled, undefined);
+});
+
+test('nested detailed-proposal edits preserve row identities and factual fields', async () => {
+    for (const field of ['specific_method_objectives.0.heading', 'specific_method_objectives.0.methods.0.description',
+        'expected_outputs.publication.0.description', 'responsibilities.0.duties']) {
+        const before = 'Existing narrative.';
+        const state = editor({ field, before, rich: false });
+        const unchanged = JSON.parse(JSON.stringify({ groups: state.specificMethodGroups, outputs: state.expectedOutputs, people: state.responsibilities }));
+        await state.applyAssistantProposalChange({ ...candidate, field, before, value: 'Clearer narrative.' });
+        assert.equal(state.proposalChangeFieldValue(field), 'Clearer narrative.');
+        assert.equal(state.specificMethodGroups[0].id, unchanged.groups[0].id);
+        assert.equal(state.specificMethodGroups[0].methods[0].id, unchanged.groups[0].methods[0].id);
+        assert.equal(state.expectedOutputs.publication[0].quantity, 2);
+        assert.equal(state.expectedOutputs.publication[0].unit, 'articles');
+        assert.equal(state.responsibilities[0].name, 'Researcher');
+        assert.equal(state.responsibilities[0].percentage, 25);
+        assert.equal(state.setProposalChangeFieldValue(field.replace('.0.', '.1.'), 'Missing row'), false);
+    }
 });
 
 test('specific-objective changes target an existing row without changing its identity or siblings', async () => {
@@ -460,7 +553,7 @@ test('the compiled preview applies, saves, reports save failure and refreshes st
             });
             await expect(panel).toContainText('Saved proposal check');
             await expect(panel.getByRole('button', { name: 'Apply to proposal', exact: true })).toHaveCount(0);
-            await expect(panel.getByText('Review each suggestion before applying it to your detailed proposal.', { exact: true })).toBeHidden();
+            await expect(panel.getByText('Review each suggestion before applying it to your proposal document.', { exact: true })).toBeHidden();
             await panel.getByRole('button', { name: 'Find additional studies', exact: true }).click();
             assert.equal(await page.evaluate(() => window.refreshRequests.at(-1)[1].type), 'search_literature');
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

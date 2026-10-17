@@ -3,7 +3,7 @@
 return [
     'evidence' => [
         'maximum_pdf_kilobytes' => 8 * 1024,
-        'maximum_pdf_pages' => 40,
+        'maximum_pdf_pages' => 200,
         'maximum_characters' => 120000,
         'maximum_passages' => 100,
         'maximum_selected_passages' => 12,
@@ -34,7 +34,6 @@ return [
     'full_text' => [
         'maximum_bytes' => (int) env('LITERATURE_FULL_TEXT_MAX_BYTES', 8 * 1024 * 1024),
         'maximum_characters' => (int) env('LITERATURE_FULL_TEXT_MAX_CHARACTERS', 30000),
-        'maximum_pdf_pages' => (int) env('LITERATURE_FULL_TEXT_MAX_PDF_PAGES', 40),
         'connect_timeout' => (int) env('LITERATURE_FULL_TEXT_CONNECT_TIMEOUT', 5),
         'timeout' => (int) env('LITERATURE_FULL_TEXT_TIMEOUT', 18),
         'maximum_redirects' => (int) env('LITERATURE_FULL_TEXT_MAX_REDIRECTS', 3),

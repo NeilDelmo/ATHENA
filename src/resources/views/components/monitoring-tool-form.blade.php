@@ -150,6 +150,8 @@
         id="monitoring-form-{{ $topic->id }}"
         x-ref="form"
         data-monitoring-tool-autosave-form
+        data-assistant-report-type="monitoring-tool"
+        data-assistant-report-key="monitoring-tool:topic:{{ $topic->id }}:{{ $revisionReport ? 'revision:'.$revisionReport->id : 'new' }}"
         method="POST"
         action="{{ route('project-progress.prepare', $topic) }}"
         enctype="multipart/form-data"
@@ -162,6 +164,7 @@
         @endif
         <input type="hidden" name="draft_version" value="{{ $monitoringDraft?->lock_version ?? 0 }}">
         <input type="hidden" name="progress_mode" value="evidence">
+        <x-assistant-report-editor :context="['report_type' => 'monitoring-tool', 'topic_id' => $topic->id, 'source_key' => $revisionReport ? 'revision:'.$revisionReport->id : 'new']" />
 
         @if ($errors->any())
             <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">

@@ -332,10 +332,6 @@ class ProposalDraftController extends Controller
             throw $exception;
         }
 
-        if ($document?->file_path && $document->file_path !== $savedDocument->file_path) {
-            Storage::disk('local')->delete($document->file_path);
-        }
-
         return response()->json([
             'filename' => $savedDocument->original_filename,
             'draft_id' => $proposalDraft->id,

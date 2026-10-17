@@ -4,7 +4,7 @@
             <header class="border-b border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800">
                 <h4 class="font-semibold text-stone-950 dark:text-stone-100" x-text="message.proposal_changes.suggestions.length ? 'Review proposal changes' : 'Saved proposal check'"></h4>
                 <p class="mt-1 break-words text-xs text-stone-600 dark:text-stone-300" x-text="message.proposal_changes.proposal_title"></p>
-                <p x-show="message.proposal_changes.suggestions.length" class="mt-1 text-xs text-stone-600 dark:text-stone-300">Review each suggestion before applying it to your detailed proposal.</p>
+                <p x-show="message.proposal_changes.suggestions.length" class="mt-1 text-xs text-stone-600 dark:text-stone-300">Review each suggestion before applying it to your proposal document.</p>
             </header>
             <div x-show="message.proposal_changes.assessment?.rrl" class="border-b border-stone-200 px-4 py-3 dark:border-stone-700">
                 <p class="text-stone-800 dark:text-stone-200" x-text="$store.researchAssistant.proposalRrlAssessmentText(message)"></p>

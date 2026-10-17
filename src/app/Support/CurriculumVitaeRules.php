@@ -101,7 +101,7 @@ class CurriculumVitaeRules
             'people.*.municipality' => ['nullable', 'string', 'max:120'],
             'people.*.province' => ['nullable', 'string', 'max:120'],
             'people.*.landline' => ['nullable', 'digits:11'],
-            'people.*.cellphone' => ['nullable', 'digits:11'],
+            'people.*.cellphone' => ['nullable', 'digits:11', 'regex:/^09[0-9]{9}$/'],
             'people.*.email' => ['nullable', 'email', 'max:255'],
         ];
 
@@ -142,6 +142,7 @@ class CurriculumVitaeRules
             'people.*.middle_name' => 'middle name',
             'people.*.birthday' => 'birthday',
             'people.*.email' => 'email address',
+            'people.*.cellphone' => 'cellphone number',
         ];
     }
 }

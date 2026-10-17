@@ -5,6 +5,9 @@ const narrativeFields = new Set([
     'executive_brief', 'rationale', 'general_objective', 'introduction',
     'methodology.research_design', 'methodology.data_analysis', 'related_literature',
 ]);
+const expectedOutputKeys = new Set(['publication', 'patent', 'product', 'people_service',
+    'place_partnership', 'policy', 'social_impact', 'economic_impact']);
+const editablePapers = new Set(['detailed-proposal', 'work-plan', 'expense-breakdown']);
 
 function plainRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -69,9 +72,17 @@ function normalizeRrlAssessment(value) {
     };
 }
 
-export function allowedProposalChangeField(field) {
-    return typeof field === 'string' && (narrativeFields.has(field)
-        || /^specific_objectives\.([0-9]|[1-4][0-9])\.description$/.test(field));
+export function allowedProposalChangeField(field, paperSlug = 'detailed-proposal') {
+    if (typeof field !== 'string') return false;
+    if (paperSlug === 'work-plan') return /^entries\.([0-9]|1[0-9])\.(expected_output|activity)$/.test(field);
+    if (paperSlug === 'expense-breakdown') return /^items\.([0-9]|[1-9][0-9])\.(details|purpose)$/.test(field);
+    if (paperSlug !== 'detailed-proposal') return false;
+    const output = field.match(/^expected_outputs\.([a-z_]+)\.([0-9]|1[0-9])\.description$/);
+    return narrativeFields.has(field)
+        || /^specific_objectives\.([0-9]|[1-4][0-9])\.description$/.test(field)
+        || /^specific_method_objectives\.([0-9]|1[0-9])\.(heading|methods\.([0-9]|1[0-9])\.description)$/.test(field)
+        || /^responsibilities\.([0-9]|[12][0-9])\.duties$/.test(field)
+        || Boolean(output && expectedOutputKeys.has(output[1]));
 }
 
 export function normalizeAssistantProposalChanges(packet) {
@@ -83,9 +94,10 @@ export function normalizeAssistantProposalChanges(packet) {
     const suggestions = [];
 
     for (const candidate of Array.isArray(packet.suggestions) ? packet.suggestions : []) {
-        const limit = candidate?.field === 'related_literature' ? 30000 : 6000;
+        const limit = candidate?.paper_slug === 'work-plan' ? (candidate.field?.endsWith('.activity') ? 1500 : 500)
+            : candidate?.paper_slug === 'expense-breakdown' ? 500 : candidate?.field === 'related_literature' ? 30000 : 6000;
         if (!plainRecord(candidate) || !suggestionIdentifier(candidate.id) || !safeToken(candidate.token)
-            || candidate.paper_slug !== 'detailed-proposal' || !allowedProposalChangeField(candidate.field)
+            || !allowedProposalChangeField(candidate.field, candidate.paper_slug)
             || typeof candidate.before !== 'string' || candidate.before.length > limit
             || typeof candidate.value !== 'string' || !candidate.value.trim() || candidate.value.length > limit
             || identifiers.has(String(candidate.id)) || tokens.has(candidate.token)) continue;
@@ -93,7 +105,7 @@ export function normalizeAssistantProposalChanges(packet) {
         identifiers.add(String(candidate.id));
         tokens.add(candidate.token);
         suggestions.push({
-            id: candidate.id, token: candidate.token, paper_slug: 'detailed-proposal',
+            id: candidate.id, token: candidate.token, paper_slug: candidate.paper_slug,
             field: candidate.field, label: displayText(candidate.label, 160),
             before: candidate.before, value: candidate.value, reason: displayText(candidate.reason, 1000),
         });
@@ -134,6 +146,7 @@ export function proposalChangeHandoff(storage, accountId, now = () => Date.now()
                 storage.setItem(keyFor(proposalId), JSON.stringify({
                     proposal_draft_id: proposalId, token: packet.token,
                     suggestion_id: packet.suggestion_id, created_at: timestamp,
+                    ...(editablePapers.has(packet.paper_slug) ? { paper_slug: packet.paper_slug } : {}),
                 }));
                 return true;
             } catch {
@@ -151,11 +164,13 @@ export function proposalChangeHandoff(storage, accountId, now = () => Date.now()
                 if (!plainRecord(packet) || packet.proposal_draft_id !== proposal || !safeToken(packet.token)
                     || !suggestionIdentifier(packet.suggestion_id) || !Number.isSafeInteger(packet.created_at)
                     || packet.created_at < 0 || !Number.isSafeInteger(timestamp)
-                    || timestamp - packet.created_at >= maximumHandoffAge || packet.created_at > timestamp) {
+                    || timestamp - packet.created_at >= maximumHandoffAge || packet.created_at > timestamp
+                    || (packet.paper_slug !== undefined && !editablePapers.has(packet.paper_slug))) {
                     this.clear(proposal);
                     return null;
                 }
-                return { proposal_draft_id: proposal, token: packet.token, suggestion_id: packet.suggestion_id, created_at: packet.created_at };
+                return { proposal_draft_id: proposal, token: packet.token, suggestion_id: packet.suggestion_id, created_at: packet.created_at,
+                    ...(packet.paper_slug ? { paper_slug: packet.paper_slug } : {}) };
             } catch {
                 this.clear(proposal);
                 return null;
