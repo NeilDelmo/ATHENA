@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\PrepareProjectProgressReport;
 use App\Actions\SaveProjectMonitoringDraft;
 use App\Contracts\DocumentPdfConverter;
+use App\Http\Requests\ReviewImplementationReportRequest;
 use App\Http\Requests\SaveProjectProgressReportDraftRequest;
 use App\Http\Requests\StoreProjectProgressReportRequest;
 use App\Http\Requests\SubmitPreparedProjectProgressReportRequest;
@@ -20,6 +21,7 @@ use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use App\Services\ProjectDocumentLibrary;
 use App\Services\ProjectMonitoringFormDataService;
+use App\Services\ProjectReportReviewService;
 use App\Services\SidebarAttentionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -50,7 +52,7 @@ class ProjectMonitoringController extends Controller
         $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
         $quarterService = app(MonitoringQuarterService::class);
         $quarters = $quarterService->summaryRows($topic->progressReports()->get([
-            'id', 'topic_id', 'reporting_date', 'version_number', 'submission_status', 'review_status',
+            'id', 'topic_id', 'reporting_date', 'version_number', 'submission_status', 'review_status', 'review_stage',
         ]), $topic);
         $requestedDate = $request->input('reporting_date');
         $data = $formData->monitoringTool($request->user(), $topic, $request->integer('revise_monitoring_report'), $requestedDate);
@@ -148,10 +150,10 @@ class ProjectMonitoringController extends Controller
             'delayed' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_DELAYED)->withoutCompletionPending()->count(),
             'completion_pending' => TopicProposal::withIssuedNotice()->completionPending()->count(),
             'completed' => TopicProposal::completedProject()->count(),
-            'pending_reports' => ProjectProgressReport::submitted()->where('review_status', 'pending')
+            'pending_reports' => ProjectProgressReport::submitted()->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', 'pending')
                 ->whereHas('topic', fn (Builder $query): Builder => $query->withIssuedNotice())
                 ->count()
-                + ProjectNarrativeReport::submitted()->where('review_status', ProjectNarrativeReport::STATUS_PENDING)
+                + ProjectNarrativeReport::submitted()->visibleToResearchHead()->where('review_status', ProjectNarrativeReport::STATUS_PENDING)
                     ->whereHas('topic', fn (Builder $query): Builder => $query->withIssuedNotice())
                     ->count(),
         ];
@@ -163,14 +165,14 @@ class ProjectMonitoringController extends Controller
                 'user:id,name',
                 'researchSecretary:id,name,avatar',
                 'researchCall:id,title',
-                'latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,project_progress_reports.progress_percentage,project_progress_reports.reporting_date',
-                'latestNarrativeReport:project_narrative_reports.id,project_narrative_reports.topic_id,project_narrative_reports.submission_date',
+                'latestProgressReportForResearchHead' => fn ($query) => $query->select(['project_progress_reports.id', 'project_progress_reports.topic_id', 'project_progress_reports.progress_percentage', 'project_progress_reports.reporting_date']),
+                'latestNarrativeReportForResearchHead' => fn ($query) => $query->select(['project_narrative_reports.id', 'project_narrative_reports.topic_id', 'project_narrative_reports.submission_date']),
             ])
             ->withCount([
-                'progressReports',
-                'progressReports as pending_reports_count' => fn (Builder $query): Builder => $query->where('review_status', 'pending'),
-                'narrativeReports',
-                'narrativeReports as pending_narrative_reports_count' => fn (Builder $query): Builder => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
+                'progressReports' => fn (Builder $query): Builder => $query->visibleToResearchHead(),
+                'progressReports as pending_reports_count' => fn (Builder $query): Builder => $query->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', 'pending'),
+                'narrativeReports' => fn (Builder $query): Builder => $query->visibleToResearchHead(),
+                'narrativeReports as pending_narrative_reports_count' => fn (Builder $query): Builder => $query->visibleToResearchHead()->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
             ])
             ->when($completedOnly, fn (Builder $query): Builder => $query->where('project_status', TopicProposal::PROJECT_STATUS_COMPLETED));
 
@@ -191,15 +193,15 @@ class ProjectMonitoringController extends Controller
             ->when(in_array($attention, $allowedAttention, true), function (Builder $query) use ($attention): void {
                 if ($attention === 'pending_reports') {
                     $query->where(function (Builder $query): void {
-                        $query->whereHas('progressReports', fn (Builder $query): Builder => $query->where('review_status', 'pending'))
-                            ->orWhereHas('narrativeReports', fn (Builder $query): Builder => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
+                        $query->whereHas('progressReports', fn (Builder $query): Builder => $query->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', 'pending'))
+                            ->orWhereHas('narrativeReports', fn (Builder $query): Builder => $query->visibleToResearchHead()->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
                     });
                 } else {
                     $query->where(function (Builder $query): void {
                         $query->where('project_status', 'delayed')
                             ->orWhere(fn (Builder $query): Builder => $query->completionPending())
-                            ->orWhereHas('progressReports', fn (Builder $query): Builder => $query->where('review_status', 'pending'))
-                            ->orWhereHas('narrativeReports', fn (Builder $query): Builder => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
+                            ->orWhereHas('progressReports', fn (Builder $query): Builder => $query->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', 'pending'))
+                            ->orWhereHas('narrativeReports', fn (Builder $query): Builder => $query->visibleToResearchHead()->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
                     });
                 }
             })
@@ -210,11 +212,16 @@ class ProjectMonitoringController extends Controller
                 });
             })
             ->orderByRaw(
-                "CASE WHEN project_status = 'delayed' OR EXISTS (SELECT 1 FROM project_progress_reports WHERE project_progress_reports.topic_id = topics.id AND review_status = 'pending' AND submission_status = ?) THEN 0 ELSE 1 END",
+                "CASE WHEN project_status = 'delayed' OR EXISTS (SELECT 1 FROM project_progress_reports WHERE project_progress_reports.topic_id = topics.id AND review_status = 'pending' AND (review_stage IS NULL OR review_stage = 'head') AND submission_status = ?) THEN 0 ELSE 1 END",
                 [ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED],
             )
             ->latest('updated_at')
             ->get();
+
+        $allProjects->each(function (TopicProposal $project): void {
+            $project->setRelation('latestProgressReport', $project->latestProgressReportForResearchHead);
+            $project->setRelation('latestNarrativeReport', $project->latestNarrativeReportForResearchHead);
+        });
 
         $fileProjects = $hasMonitoringFilters ? (clone $projectQuery)->latest('updated_at')->get() : $allProjects;
         $fileProjects = $fileProjects->filter(fn (TopicProposal $project): bool => Gate::forUser($request->user())->allows('view', $project))->values();
@@ -256,7 +263,7 @@ class ProjectMonitoringController extends Controller
             ));
         }
         $workspaceProjects = $fileProjects->map(function (TopicProposal $project) use ($posterUrls): array {
-            $progress = $project->latestProgressReport?->progress_percentage;
+            $progress = $project->latestProgressReportForResearchHead?->progress_percentage;
             $date = $project->notice_to_proceed_issued_at ?? $project->created_at;
             $secretary = $project->researchSecretary?->name;
             $completed = $project->isCompletedProject();
@@ -271,9 +278,9 @@ class ProjectMonitoringController extends Controller
                 'year' => (int) $date->year,
                 'date' => $date->toDateString(),
                 'progress' => $progress,
-                'latest_label' => $project->latestProgressReport
-                    ? 'Tool · '.$project->latestProgressReport->reporting_date->format('M d, Y')
-                    : ($project->latestNarrativeReport ? 'Progress report · '.$project->latestNarrativeReport->submission_date->format('M d, Y') : 'No report yet'),
+                'latest_label' => $project->latestProgressReportForResearchHead
+                    ? 'Tool · '.$project->latestProgressReportForResearchHead->reporting_date->format('M d, Y')
+                    : ($project->latestNarrativeReportForResearchHead ? 'Progress report · '.$project->latestNarrativeReportForResearchHead->submission_date->format('M d, Y') : 'No report yet'),
                 'secretary' => $secretary,
                 'secretary_initials' => collect(explode(' ', $secretary ?? ''))->filter()
                     ->map(fn (string $part): string => mb_substr($part, 0, 1))->take(2)->implode(''),
@@ -303,6 +310,7 @@ class ProjectMonitoringController extends Controller
         MonitoringQuarterService $monitoringQuarterService,
     ): RedirectResponse {
         $validated = $request->validated();
+        $validated['review_stage'] = 'secretary';
         $sourceReport = $this->revisionSourceReport($request, $topic);
         $period = $monitoringQuarterService->forDate($validated['reporting_date'], $topic);
         $savedDraft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->forSource($sourceReport)->first();
@@ -381,7 +389,7 @@ class ProjectMonitoringController extends Controller
             'revise_monitoring_report' => $sourceReport?->id,
         ])->with(
             'success',
-            $report->quarter_label.' '.$report->version_label.' PDF prepared. Review it, then submit the exact file to the Research Head.',
+            $report->quarter_label.' '.$report->version_label.' PDF prepared. Review it, then submit the exact file to the Research Office Secretary.',
         );
     }
 
@@ -429,22 +437,13 @@ class ProjectMonitoringController extends Controller
                 'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED,
                 'submitted_by' => $request->user()->id,
                 'submitted_at' => now(),
+                'review_stage' => 'secretary',
             ]);
         });
 
-        User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            title: $report->version_number > 1
-                ? $report->quarter_label.' Monitoring Tool Resubmitted'
-                : 'New '.$report->quarter_label.' Monitoring Tool Submitted',
-            message: 'Project: '.$topic->title."\nResearcher: ".$request->user()->name."\nReporting Period: ".$report->reporting_period_label,
-            url: route('topics.show', $topic).'#monitoring-tool-'.$report->id,
-            level: 'info',
-            topicId: $topic->id,
-            workspace: 'research_head',
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
-        ));
+        app(ProjectReportReviewService::class)->notifySecretarySubmission($report);
 
-        return redirect()->to(route('topics.show', $topic).'#monitoring-tool-'.$report->id)->with('success', 'Monitoring Tool submitted for Research Head review.');
+        return redirect()->to(route('topics.show', $topic).'#monitoring-tool-'.$report->id)->with('success', 'Monitoring Tool submitted for Research Office Secretary review.');
     }
 
     public function discardPrepared(
@@ -481,6 +480,7 @@ class ProjectMonitoringController extends Controller
         $validated['period_start'] = $period['start']->toDateString();
         $validated['period_end'] = $period['end']->toDateString();
         $validated['version_number'] = 1;
+        $validated['review_stage'] = 'secretary';
         $validated['progress_percentage'] = (int) round($workPlan->sum(
             fn (array $entry): float => (float) $entry['accomplished_percentage'],
         ));
@@ -497,17 +497,9 @@ class ProjectMonitoringController extends Controller
 
         $report = ProjectProgressReport::create($validated);
 
-        User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            'Monitoring tool submitted',
-            $request->user()->name.' submitted a monitoring tool for “'.$topic->title.'”.',
-            route('topics.show', $topic).'#project-monitoring',
-            'info',
-            $topic->id,
-            workspace: User::WORKSPACE_RESEARCH_HEAD,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
-        ));
+        app(ProjectReportReviewService::class)->notifySecretarySubmission($report);
 
-        return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
+        return back()->with('success', 'Official monitoring tool submitted for Research Office Secretary review.');
     }
 
     public function preview(StoreProjectProgressReportRequest $request, TopicProposal $topic): View
@@ -539,18 +531,13 @@ class ProjectMonitoringController extends Controller
         abort_unless($report->topic->isMonitoringAvailable(), 404);
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
         abort_unless($report->isSubmitted(), 404);
-        abort_if($report->nextVersion()->exists(), 404);
 
         $validated = $request->validate([
             'review_status' => ['required', Rule::in(['reviewed', 'revision_requested'])],
             'research_head_remarks' => ['nullable', 'required_if:review_status,revision_requested', 'string', 'max:5000'],
         ]);
 
-        $report->update([
-            ...$validated,
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
+        app(ProjectReportReviewService::class)->reviewByHead($report, $request->user(), $validated['review_status'], $validated['research_head_remarks'] ?? null);
 
         $sidebarAttention->markTopicAsRead(
             $request->user(),
@@ -558,20 +545,16 @@ class ProjectMonitoringController extends Controller
             $report->topic_id,
         );
 
-        $report->load(['topic.user', 'submitter']);
-        $report->submitter->notify(new ProposalActivityNotification(
-            title: $validated['review_status'] === 'reviewed'
-                ? $report->quarter_label.' Monitoring Tool Reviewed'
-                : $report->quarter_label.' Monitoring Tool Corrections Requested',
-            message: 'Project: '.$report->topic->title."\nReporting Period: ".$report->reporting_period_label,
-            url: route('topics.show', $report->topic).'#monitoring-tool-'.$report->id,
-            level: $validated['review_status'] === 'reviewed' ? 'success' : 'warning',
-            topicId: $report->topic_id,
-            workspace: 'faculty_researcher',
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
-        ));
+        return back()->with('success', $validated['review_status'] === 'reviewed' ? 'Monitoring Tool accepted.' : 'Concerns returned to the Research Office Secretary.');
+    }
 
-        return back()->with('success', 'Monitoring tool review saved.');
+    public function secretaryReview(ReviewImplementationReportRequest $request, ProjectProgressReport $report, ProjectReportReviewService $reviews, SidebarAttentionService $sidebarAttention): RedirectResponse
+    {
+        $validated = $request->validated();
+        $reviews->reviewBySecretary($report, $request->user(), $validated['decision'], $validated['secretary_remarks'] ?? null);
+        $sidebarAttention->markTopicAsRead($request->user(), ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING, $report->topic_id);
+
+        return back()->with('success', $validated['decision'] === 'forward' ? 'Monitoring Tool forwarded to the Research Head.' : 'Monitoring Tool corrections requested from the researcher.');
     }
 
     public function updateProjectStatus(Request $request, TopicProposal $topic): RedirectResponse
@@ -594,8 +577,14 @@ class ProjectMonitoringController extends Controller
             abort_unless($topic->isMonitoringAvailable(), 404);
 
             if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
-                && ($topic->latestProgressReport()->value('progress_percentage') ?? 0) < 100) {
+                && ($topic->latestProgressReportForResearchHead()->value('progress_percentage') ?? 0) < 100) {
                 throw ValidationException::withMessages(['project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.']);
+            }
+
+            if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+                && ($topic->progressReports()->latestSubmittedVersion()->where('review_stage', 'secretary')->exists()
+                    || $topic->narrativeReports()->where('report_type', 'progress')->latestSubmittedVersion()->where('review_stage', 'secretary')->exists())) {
+                throw ValidationException::withMessages(['project_status' => 'Wait for the Research Office Secretary to resolve and forward all current Monitoring Tools and Progress Reports before completing the project.']);
             }
 
             $terminalReport = $topic->narrativeReports()
@@ -664,11 +653,17 @@ class ProjectMonitoringController extends Controller
             }
         }
         if (! $file) {
-            foreach (ProjectProgressReport::query()->whereBelongsTo($topic, 'topic')->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'work_plan']) as $report) {
+            foreach (ProjectProgressReport::query()->whereBelongsTo($topic, 'topic')
+                ->when($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), fn (Builder $query): Builder => $query->visibleToResearchHead())
+                ->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'review_stage', 'work_plan']) as $report) {
                 $candidate = collect($report->work_plan ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
                 if ($candidate) {
                     if ($report->isSubmitted()) {
-                        Gate::forUser($request->user())->authorize('view', $topic);
+                        if ($request->user()->isUsingWorkspace([User::WORKSPACE_RESEARCH_HEAD, User::WORKSPACE_RESEARCH_SECRETARY])) {
+                            $this->authorizeViewer($request, $report);
+                        } else {
+                            Gate::forUser($request->user())->authorize('view', $topic);
+                        }
                     } else {
                         abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
                             && $topic->isAccessibleTo($request->user()), 403);
@@ -733,19 +728,28 @@ class ProjectMonitoringController extends Controller
     {
         if ($report->isPrepared()) {
             abort_unless(
-                ($request->user()->isUsingWorkspace('faculty_researcher')
-                    && $report->topic->isAccessibleTo($request->user()))
-                    || ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
-                        && $report->topic->research_secretary_id === $request->user()->id),
+                $request->user()->isUsingWorkspace('faculty_researcher')
+                    && $report->topic->isAccessibleTo($request->user()),
                 403,
             );
 
             return;
         }
 
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            abort_unless($report->isAvailableToResearchHead(), 403);
+
+            return;
+        }
+
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
+            abort_unless($report->topic->canReviewImplementationReports($request->user()), 403);
+
+            return;
+        }
+
         abort_unless(
-            $request->user()->isUsingWorkspace('research_head')
-                || $report->topic->isAccessibleTo($request->user()),
+            $report->topic->isAccessibleTo($request->user()),
             403,
         );
     }

@@ -32,7 +32,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .monitoring-report-control {
-        @apply relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800;
+        @apply relative inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-3 text-base font-semibold text-red-800 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-red-900 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-red-950/40;
     }
 
     .monitoring-report-control[aria-expanded="true"] {
@@ -48,19 +48,23 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarterly-reports [data-report-controls] .monitoring-report-control {
-        @apply h-11 w-11 max-w-full border-slate-200 bg-white p-0 dark:border-slate-600 dark:bg-slate-900;
+        @apply max-w-full;
     }
 
     .quarterly-reports [data-report-controls] {
-        @apply min-h-11 items-start;
+        @apply min-h-11 w-full flex-nowrap items-center gap-0 rounded-lg border border-red-200 bg-white dark:border-red-900 dark:bg-slate-900;
+    }
+
+    .quarterly-reports [data-report-controls]:has([aria-disabled="true"]) {
+        @apply border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-950;
     }
 
     .quarterly-reports [data-report-controls] .monitoring-report-control > span:not(.monitoring-report-dot):not(.report-review-status) {
-        @apply sr-only;
+        @apply text-base font-semibold;
     }
 
     .quarterly-reports [data-report-controls] .monitoring-report-control[aria-disabled="true"] {
-        @apply border-slate-200 opacity-100 dark:border-slate-600;
+        @apply border-slate-200 bg-slate-50 text-slate-600 opacity-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-300;
     }
 
     .quarterly-reports .monitoring-report-control[aria-disabled="true"] svg {
@@ -76,31 +80,79 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarterly-report-quarter {
-        @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand font-semibold text-white;
+        @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-700 text-base font-bold text-white;
     }
 
     .quarterly-report-mobile-label {
-        @apply mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-200 sm:hidden;
+        @apply mb-1 hidden text-sm font-semibold text-slate-700 dark:text-slate-200;
     }
 
     .quarterly-report-rail {
-        @apply mx-auto block w-36 max-w-full text-left;
+        @apply block w-full max-w-full text-left;
     }
 
     .quarterly-reports [data-report-controls] .quarterly-report-primary {
-        @apply w-full justify-start gap-2 px-3;
+        @apply inline-flex h-11 min-h-11 min-w-0 flex-1 items-center justify-start gap-2 whitespace-nowrap rounded-lg border-0 px-3 py-2 text-left;
+    }
+
+    .quarterly-report-primary > svg {
+        @apply order-1 ml-auto h-5 w-5;
     }
 
     .quarterly-reports [data-report-controls] .quarterly-report-primary > .report-review-status {
-        @apply not-sr-only static m-0 inline-flex h-auto w-auto min-w-0 rounded-none border-0 bg-transparent p-0 text-inherit dark:bg-transparent;
+        @apply static m-0 inline-flex h-auto w-auto min-w-0 gap-1 rounded-none border-0 bg-transparent p-0 text-base font-normal leading-6 text-slate-600 dark:bg-transparent dark:text-slate-300;
+    }
+
+    .quarterly-reports [data-report-controls] .quarterly-report-primary[aria-disabled="true"] > .report-review-status {
+        @apply text-base;
+    }
+
+    .quarterly-reports .quarterly-report-secondary {
+        @apply h-11 min-h-11 w-11 min-w-11 shrink-0 rounded-none rounded-r-lg border-0 border-l border-red-200 p-2 dark:border-red-900;
+    }
+
+    .quarterly-report-primary > span:first-child:not(.report-review-status),
+    .quarterly-report-secondary > span {
+        @apply sr-only;
+    }
+
+    .quarterly-reports [data-report-controls]:has(.quarterly-report-secondary) .quarterly-report-primary > svg {
+        @apply hidden;
+    }
+
+    .quarterly-reports .quarterly-report-primary > .report-review-status[data-status="reviewed"] {
+        @apply text-emerald-800 dark:text-emerald-200;
+    }
+
+    .quarterly-reports .quarterly-report-primary > .report-review-status[data-status="revision_requested"] {
+        @apply text-red-800 dark:text-red-200;
     }
 
     .quarterly-report-primary > .report-review-status > svg {
         @apply hidden;
     }
 
+    @media (min-width: 1280px) {
+        .quarterly-reports [data-report-controls] {
+            @apply flex-nowrap;
+        }
+
+        .quarterly-reports [data-reporting-period] > span:last-child,
+        .quarterly-reports [data-quarter-targets] > .report-review-status {
+            @apply whitespace-nowrap;
+        }
+    }
+
     .report-review-status {
-        @apply inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium leading-4 text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300;
+        @apply inline-flex max-w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-medium leading-5 text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300;
+    }
+
+    .report-review-status[data-status="reviewed"] {
+        @apply border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200;
+    }
+
+    .report-review-status[data-status="revision_requested"] {
+        @apply border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200;
     }
 
     .monitoring-secondary-action {
@@ -112,7 +164,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarter-report-document {
-        @apply min-w-0 space-y-3;
+        @apply min-w-0 space-y-5 rounded-xl border border-red-100 border-l-4 border-l-red-700 bg-white p-5 dark:border-slate-700 dark:border-l-red-500 dark:bg-slate-900 sm:p-6;
     }
 
     .quarter-report-heading {
@@ -132,18 +184,18 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarter-report-layout {
-        @apply grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:gap-4;
+        @apply grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_16rem];
     }
 
     .quarter-report-layout > [data-submitted-report-paper] {
-        @apply w-full;
+        @apply w-full max-w-[16rem];
     }
 
     .quarter-report-download {
-        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 sm:px-3 sm:text-sm;
+        @apply inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
     }
 
-    @media (max-width: 639px) {
+    @media (max-width: 1279px) {
         .quarterly-reports table,
         .quarterly-reports tbody {
             @apply block w-full;
@@ -154,15 +206,27 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         }
 
         .quarterly-reports tr[data-reporting-quarter] {
-            @apply grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-4;
+            @apply grid grid-cols-2 gap-3 px-3 py-3;
         }
 
         .quarterly-reports tr[data-reporting-quarter] > th {
-            @apply col-span-2 p-0 pb-2;
+            @apply col-span-2 p-0;
         }
 
         .quarterly-reports tr[data-reporting-quarter] > td {
-            @apply min-w-0 p-0 text-center;
+            @apply min-w-0 p-0 text-left;
+        }
+
+        .quarterly-report-mobile-label {
+            @apply block;
+        }
+
+        .quarterly-reports [data-report-controls] .quarterly-report-primary {
+            @apply flex h-auto min-h-11 flex-wrap whitespace-normal;
+        }
+
+        .quarterly-reports [data-report-controls] .quarterly-report-primary > .report-review-status {
+            overflow-wrap: anywhere;
         }
 
         .quarterly-reports tr:not([data-reporting-quarter]) > td {
@@ -171,6 +235,12 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 
         .quarterly-reports tr:not([data-reporting-quarter]) {
             @apply block w-full;
+        }
+    }
+
+    @media (max-width: 359px) {
+        .quarterly-reports tr[data-reporting-quarter] > :is([data-monitoring-quarter], [data-progress-quarter]) {
+            @apply col-span-2;
         }
     }
 

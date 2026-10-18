@@ -89,6 +89,8 @@ ATHENA retrieved only the saved workflow sections relevant to the current page a
 {$contextJson}
 
 Use only the included sections when describing saved ATHENA records. Distinguish saved private drafts from submitted reports and unsaved browser form values. For delay questions, lead with the relevant calculated calendar-day count and its comparison dates. Separate activity slippage, the approved project end, and report submission lateness. Quarterly Monitoring Tools and Progress Reports open during the final seven calendar days of their reporting period, are due on its last day, and become overdue the next day. Submission opening is not the deadline. Report lateness uses the initial submission date; a revision request or later correction is not proof of late initial submission. If the deadline or initial submission date is unavailable, say briefly that report lateness cannot be established, then give the available activity calculation. Milestone counts describe incomplete work as of the latest submitted report, not verified completion status today. Cite this saved packet as [Project record]; field guides do not substantiate project-specific dates. The project_completion.remaining_record_items list is derived from saved statuses and record availability; do not describe it as an institutional requirement unless an approved ATHENA knowledge excerpt separately establishes that rule.
+
+For a simple report-status question, use the exact quarterly table label from report_review_workflow.table_labels, explain whose turn it is and the next available decision in two to four sentences unless more detail is requested. The keys in table_labels are longer saved-record labels; the values are the text displayed in the quarterly table. Never describe a longer saved-record label as the displayed table label. This packet takes precedence over manual form excerpts for current application routing and button labels. Describe the normal secretary-forwarding route without claiming specific checks, signatures, or approvals occurred unless the saved record establishes them. Do not add unrelated manual signature or budget procedures to a status definition. Head review is awaiting a decision; it does not mean the report is accepted or the project is completed. Research Head concerns go to the Research Office Secretary, who decides whether the Faculty Researcher needs to submit corrections.
 PROMPT;
     }
 
@@ -309,6 +311,7 @@ PROMPT;
             ->first();
         $progressReports = ProjectProgressReport::query()
             ->submitted()
+            ->when($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), fn ($query) => $query->visibleToResearchHead())
             ->whereBelongsTo($topic, 'topic')
             ->whereDoesntHave('nextVersion', fn ($query) => $query->submitted())
             ->latest('reporting_date')
@@ -317,12 +320,33 @@ PROMPT;
             ->get();
         $narrativeReports = ProjectNarrativeReport::query()
             ->submitted()
+            ->when($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), fn ($query) => $query->visibleToResearchHead())
             ->whereBelongsTo($topic, 'topic')
             ->latest('submission_date')
             ->limit(self::REPORT_LIMIT)
             ->get();
 
         return [
+            'report_review_workflow' => [
+                'applies_to' => ['Quarterly Monitoring Tool', 'Quarterly Progress Report'],
+                'normal_route' => ['Faculty Researcher', 'Research Office Secretary', 'Research Head'],
+                'table_labels' => [
+                    'Awaiting Research Office Secretary review' => 'Office review',
+                    'Awaiting Research Head review' => 'Head review',
+                    'Accepted by Research Head' => 'Accepted',
+                    'Reviewed' => 'Accepted',
+                ],
+                'status_meanings' => [
+                    'Office review' => 'Awaiting Research Office Secretary review: the office checks the report before forwarding it or requesting corrections.',
+                    'Head review' => 'The submitted report is waiting for the Research Head decision.',
+                    'Accepted' => 'The Research Head accepted this report. Report acceptance is separate from project completion.',
+                ],
+                'head_review_actions' => [
+                    'Accept report' => 'Accepted',
+                    'Return concerns to Research Office Secretary' => 'Office review',
+                ],
+                'corrections_route' => 'The Research Office Secretary handles returned concerns and requests corrections from the Faculty Researcher when needed. The project secretary who helps with the budget is a separate team role.',
+            ],
             'delay_assessment' => $this->delayAssessment($user, $topic, $progressReports->first()),
             'private_saved_drafts' => [
                 'monitoring' => $monitoringDrafts->map(fn (ProjectMonitoringDraft $draft): array => [
@@ -436,7 +460,7 @@ PROMPT;
             $topic->progress_reports_count === 0 ? 'No submitted monitoring report is recorded.' : null,
             $topic->narrative_reports_count === 0 ? 'No submitted narrative progress report is recorded.' : null,
             ($topic->pending_progress_reports_count + $topic->pending_narrative_reports_count) > 0
-                ? 'One or more submitted reports are still pending Research Head review.'
+                ? 'One or more submitted reports are still awaiting report review.'
                 : null,
             ($topic->revision_progress_reports_count + $topic->revision_narrative_reports_count) > 0
                 ? 'One or more submitted reports still have a revision request.'
@@ -520,6 +544,8 @@ PROMPT;
             'version' => $report->version_number,
             'progress_percentage' => $report->progress_percentage,
             'review_status' => str_replace('_', ' ', $report->review_status),
+            'review_status_label' => $report->review_status_label,
+            'secretary_remarks' => $report->secretary_remarks,
             'accomplishments' => $report->accomplishments,
             'issues_or_delays' => $report->issues,
             'work_plan' => array_slice(Arr::wrap($report->work_plan), 0, 3),
@@ -545,6 +571,8 @@ PROMPT;
             'budget' => $report->budget,
             'funding_agency' => $report->funding_agency,
             'review_status' => str_replace('_', ' ', $report->review_status),
+            'review_status_label' => $report->review_status_label,
+            'secretary_remarks' => $report->secretary_remarks,
             'accomplishment_summary' => $report->accomplishment_summary,
             'accomplishments' => array_slice(Arr::wrap($report->accomplishments), 0, 3),
             'objectives' => $report->objectives,

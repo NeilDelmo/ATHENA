@@ -20,10 +20,13 @@ beforeEach(function () {
     Storage::fake('local');
     Role::findOrCreate('faculty_researcher', 'web');
     Role::findOrCreate('research_head', 'web');
-    $this->researcher = User::factory()->create();
+    Role::findOrCreate('research_secretary', 'web');
+    $this->researcher = User::factory()->create(['college' => 'College of Engineering']);
     $this->researcher->assignRole('faculty_researcher');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
+    $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
+    $this->officeSecretary->assignRole('research_secretary');
     $this->topic = TopicProposal::create([
         'user_id' => $this->researcher->id, 'title' => 'Narrative evidence project',
         'status' => 'approved', 'project_status' => 'ongoing',
@@ -227,12 +230,17 @@ test('narrative proof stays outside paper previews and generated documents and r
     $this->get(route('project-narrative-reports.download', $report))->assertSuccessful()->assertDownload($report->official_pdf_filename)
         ->assertStreamedContent('%PDF-1.7 Narrative progress report');
     $url = route('project-narrative-reports.evidence', ['topic' => $this->topic, 'evidence' => $file['id']]);
-    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->get($url)->assertForbidden();
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->get($url)->assertNotFound();
     $other = User::factory()->create();
     $other->assignRole('faculty_researcher');
     $this->actingAs($other)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])->get($url)->assertForbidden();
     $this->actingAs($this->researcher);
     $this->post(route('project-narrative-reports.submit-prepared', ['topic' => $this->topic, 'report' => $report]))->assertSessionHasNoErrors();
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get($url)->assertNotFound();
+    $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get($url)->assertSuccessful()->assertDownload('proof-only.png');
+    $this->patch(route('research_secretary.narrative-reports.review', $report), ['decision' => 'forward'])->assertRedirect()->assertSessionHasNoErrors();
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get($url)->assertSuccessful()->assertDownload('proof-only.png');
     $this->get(route('project-narrative-reports.show', $report))->assertSuccessful()->assertSee('proof-only.png');

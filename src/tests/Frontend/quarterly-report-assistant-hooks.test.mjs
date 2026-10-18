@@ -26,8 +26,8 @@ test('RMS assistant uses its own saved report identity without changing save and
     assert.match(form, /data-assistant-report-key="\{\{ \$report \? 'rms-quarterly:'\.\$report->id : '' \}\}"/);
     assert.match(form, /data-assistant-report-save-mode="manual"/);
     assert.match(form, /<x-assistant-report-editor[^>]*:context="\['report_type' => 'rms-quarterly', 'report_id' => \$report\?->id\]"/);
-    assert.match(form, /name="intent" value="save"/);
-    assert.match(form, /name="intent" value="download"/);
+    assert.match(source, /<button[^>]*type="submit"[^>]*form="rms-report-form"[^>]*name="intent" value="save"/);
+    assert.match(source, /<button[^>]*type="submit"[^>]*form="rms-report-form"[^>]*name="intent" value="download"/);
     assert.match(form, /name="row_details\[\{\{ \$key \}\}\]\[\{\{ \$field \}\}\]"/);
 });
 

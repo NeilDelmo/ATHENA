@@ -55,7 +55,7 @@ test('overview prioritizes reviews and preserves compact independently paginated
 
     $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
         ->assertSet('overview', true)->assertSet('pipeline', 'awaiting_review')
-        ->assertSee('Proposal reviews')->assertSee('View all proposals')->assertSee('View analytics')
+        ->assertSee('Proposal reviews')->assertSee('View all proposals')->assertSee('Analytics')
         ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Overview filters', 'id="received-proposals"', 'id="dashboard-report-reviews"', 'id="needs-attention"', 'Upcoming deadlines', 'data-dashboard-reporting-links'], false)
         ->assertDontSeeHtml('<table')->assertDontSee('Monthly submission trend')
         ->assertViewHas('topics', fn ($items): bool => $items->total() === 9 && $items->count() === 4)
@@ -180,7 +180,7 @@ test('calendar and analytics have separate protected routes and grouped function
         ->assertSee('Monthly submission trend')->assertDontSeeHtml('id="research-calendar"');
 
     $response = $this->get(route('research_head.dashboard'))->assertOk()
-        ->assertSeeInOrder(['aria-label="Overview"', 'aria-label="Submission"', 'aria-label="Review"', 'aria-label="Monitoring"', 'aria-label="Resources"'], false)
+        ->assertSeeInOrder(['aria-label="Overview"', 'aria-label="Research workflow"', 'aria-label="Projects"', 'aria-label="Planning &amp; reports"', 'aria-label="Resources"'], false)
         ->assertSeeHtml('data-sidebar-account')->assertSee('Account Profile')
         ->assertSeeHtml('data-sidebar-attention-url="'.route('sidebar-attention.open', 'proposal_submissions').'"')
         ->assertSeeHtml('data-sidebar-attention-url="'.route('sidebar-attention.open', 'project_monitoring').'"')
@@ -247,9 +247,9 @@ test('overview carries the selected academic year and date range to its analytic
         ->assertSee('Date range applied')
         ->assertSeeHtml('data-dashboard-date-filters  open')
         ->assertDontSee('0 / 4')->assertDontSee('0 / 2')->assertDontSee('0 / 6')
-        ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-08-01', 'toDate' => '2027-07-31'])).'#annual-targets"')
+        ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-08-01', 'toDate' => '2027-07-31'])).'"')
         ->set('fromDate', '2026-09-01')
-        ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-09-01', 'toDate' => '2027-07-31'])).'#annual-targets"');
+        ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-09-01', 'toDate' => '2027-07-31'])).'"');
 });
 
 test('the pipeline reuses workflow statuses and review KPIs exclude external review stages', function () {

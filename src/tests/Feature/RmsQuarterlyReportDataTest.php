@@ -5,6 +5,27 @@ use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\User;
 use App\Services\RmsQuarterlyReportData;
 
+test('RMS carries exact activity proof from the immutable college submission without replacing a supplied link', function () {
+    $report = CollegeQuarterlyReport::factory()->create(['college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now()]);
+    $submission = CollegeQuarterlyReportSubmission::factory()->for($report, 'report')->create(['snapshot' => [
+        'manual_presentations' => [['id' => 'presentation-one', 'research_title' => 'Coastal sensors']],
+        'manual_publications' => [['id' => 'publication-one', 'research_title' => 'Sensor paper']],
+        'evidence' => [
+            ['section' => 'seminars', 'row_id' => 'presentation-one', 'path' => 'unrelated.png'],
+            ['section' => 'presentations', 'row_id' => 'presentation-one', 'path' => 'presentation.png'],
+            ['section' => 'publications', 'row_id' => 'publication-one', 'path' => 'publication.png'],
+        ],
+    ]]);
+    $service = app(RmsQuarterlyReportData::class);
+    $data = $service->build(2026, 3);
+    expect($data['presentations'][0]['values']['evidence_url'])->toBe(route('college-quarterly-submissions.evidence', [$submission, 1]))
+        ->and($data['publications'][0]['values']['evidence_url'])->toBe(route('college-quarterly-submissions.evidence', [$submission, 2]))
+        ->and($data['presentations'][0]['values']['source_of_fund'])->toBe('');
+    $key = $data['presentations'][0]['key'];
+    expect($service->build(2026, 3, [$key => ['evidence_url' => 'https://example.com/verified']])['presentations'][0]['values']['evidence_url'])->toBe('https://example.com/verified')
+        ->and($service->build(2026, 3, [$key => ['evidence_url' => '']])['presentations'][0]['values']['evidence_url'])->toBe(route('college-quarterly-submissions.evidence', [$submission, 1]));
+});
+
 test('RMS combines only current submitted college snapshots for the selected quarter', function () {
     $college = User::COLLEGES['CICS'];
     $report = CollegeQuarterlyReport::factory()->create([

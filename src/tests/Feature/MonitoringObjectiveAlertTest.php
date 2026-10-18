@@ -8,6 +8,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\MonitoringQuarterService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
@@ -145,6 +146,54 @@ test('a later submitted report can resolve an earlier overdue activity and legac
         'reporting_date' => '2026-07-14', 'period_start' => '2026-04-15',
     ]);
     expect(collect($this->workPlan->overdueActivities($this->topic))->pluck('source_work_plan_index')->all())->toBe([1, 2]);
+});
+
+test('quarter target warnings clear when a later submitted report completes the activities', function () {
+    $this->travelTo('2026-10-15');
+    $earlierReport = ($this->makeReport)([
+        ['source_work_plan_index' => 0, 'accomplished_percentage' => 8],
+        ['source_work_plan_index' => 1, 'accomplished_percentage' => 25],
+    ], ['period_end' => '2026-04-14', 'progress_percentage' => 35]);
+    ($this->makeReport)([
+        ['source_work_plan_index' => 0, 'accomplished_percentage' => 16.67],
+        ['source_work_plan_index' => 1, 'accomplished_percentage' => 50],
+        ['source_work_plan_index' => 2, 'accomplished_percentage' => 33.33],
+    ], ['reporting_date' => '2026-07-14', 'period_start' => '2026-04-15', 'period_end' => '2026-07-14', 'progress_percentage' => 100]);
+    $response = $this->actingAs($this->leader)->get(route('topics.show', $this->topic))->assertOk();
+    $firstQuarter = $response->viewData('monitoringQuarterRows')->first();
+    expect($firstQuarter['has_overdue_targets'] ?? true)->toBeFalse()
+        ->and($firstQuarter['quarter_completion'])->toBeLessThan(100);
+    $response->assertSee('Targets completed');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $quarter = $xpath->query('//*[@data-reporting-quarter="1"]')->item(0);
+    $snapshot = $xpath->query('//*[@id="monitoring-tool-'.$earlierReport->id.'"]')->item(0);
+    expect($xpath->query('.//*[@role="progressbar"]', $quarter)->length)->toBe(0)
+        ->and($quarter->textContent)->toContain('Targets completed')->not->toContain('%', 'at submission')
+        ->and($snapshot->textContent)->toContain('Recorded project progress', 'As of Apr 14, 2026')
+        ->and($xpath->query('.//*[@role="progressbar"]', $snapshot)->item(0)->getAttribute('aria-valuenow'))->toBe('35')
+        ->and($earlierReport->fresh()->progress_percentage)->toBe(35);
+});
+
+test('legacy progress reports with a reporting date fill their quarter without clearing missing quarters', function () {
+    $this->travelTo('2026-10-15');
+    $report = $this->topic->narrativeReports()->create([
+        'submitted_by' => $this->leader->id, 'report_type' => 'progress',
+        'submission_date' => '2026-04-15', 'reporting_date' => '2026-04-14',
+        'researchers' => $this->leader->name, 'implementation_start' => '2026-01-15', 'implementation_end' => '2026-10-14',
+        'budget' => 50000, 'funding_agency' => 'University', 'accomplishment_summary' => 'Submitted first quarter report.',
+        'introduction' => 'Background.', 'objectives' => 'Assess outcomes.', 'methodology' => 'Field observations.',
+        'results_discussion' => 'First quarter findings.', 'photos' => [], 'review_status' => 'reviewed',
+    ]);
+    $rows = app(MonitoringQuarterService::class)->narrativeProgressPeriods($this->topic);
+    expect($rows[0]['report']?->id)->toBe($report->id)
+        ->and($rows[0]['status'])->toBe('Reviewed')
+        ->and($rows[1]['report'])->toBeNull()->and($rows[1]['status'])->toBe('Overdue');
+    $report->update(['reporting_date' => null]);
+    $legacyRows = app(MonitoringQuarterService::class)->narrativeProgressPeriods($this->topic);
+    expect($legacyRows[0]['report'])->toBeNull()
+        ->and($legacyRows[1]['report'])->toBeNull();
 });
 
 test('altered report targets cannot postpone the approved deadline', function () {

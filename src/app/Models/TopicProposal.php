@@ -305,13 +305,13 @@ class TopicProposal extends Model
                 self::PROJECT_STATUS_ONGOING,
                 self::PROJECT_STATUS_DELAYED,
             ])
-            ->whereHas('progressReports', fn (Builder $query): Builder => $query
+            ->whereHas('latestProgressReportForResearchHead', fn (Builder $query): Builder => $query
                 ->where('progress_percentage', '>=', 100));
     }
 
     public function scopeWithoutCompletionPending(Builder $query): Builder
     {
-        return $query->whereDoesntHave('progressReports', fn (Builder $query): Builder => $query
+        return $query->whereDoesntHave('latestProgressReportForResearchHead', fn (Builder $query): Builder => $query
             ->where('progress_percentage', '>=', 100));
     }
 
@@ -385,6 +385,22 @@ class TopicProposal extends Model
 
         return (filled($user->college) && $this->user?->college === $user->college)
             || ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $this->research_secretary_id === $user->getKey());
+    }
+
+    public function scopeForImplementationReportReview(Builder $query, User $user): Builder
+    {
+        if (! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) || blank($user->college)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $user->college));
+    }
+
+    public function canReviewImplementationReports(User $user): bool
+    {
+        return $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
+            && filled($user->college)
+            && $this->user?->college === $user->college;
     }
 
     public function scopeAwaitingDocumentRelease(Builder $query): Builder
@@ -622,6 +638,22 @@ class TopicProposal extends Model
                 'id' => 'max',
             ],
             fn (Builder $query): Builder => $query->submitted(),
+        );
+    }
+
+    public function latestProgressReportForResearchHead(): HasOne
+    {
+        return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany(
+            ['reporting_date' => 'max', 'id' => 'max'],
+            fn (Builder $query): Builder => $query->submitted()->visibleToResearchHead(),
+        );
+    }
+
+    public function latestNarrativeReportForResearchHead(): HasOne
+    {
+        return $this->hasOne(ProjectNarrativeReport::class, 'topic_id')->ofMany(
+            ['submission_date' => 'max', 'id' => 'max'],
+            fn (Builder $query): Builder => $query->submitted()->visibleToResearchHead(),
         );
     }
 }

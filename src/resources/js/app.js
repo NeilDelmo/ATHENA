@@ -24,11 +24,14 @@ import { proposalPaperPreviewWorkspace } from './proposal-paper-workspace';
 import { documentWritingToolbar } from './document-writing-toolbar';
 import { quarterlyReportForm } from './quarterly-report-form';
 import { rmsQuarterlyReportForm } from './rms-quarterly-report-form';
+import { reportLibrary } from './report-library';
+import { researchManualReader } from './research-manual-reader';
 import { proposalAssessmentPreview } from './proposal-assessment-preview';
 import { curriculumVitaePaperWorkspace } from './curriculum-vitae-workspace';
 import { commentResponsePaperPreview } from './comment-response-paper-preview';
 import '../css/proposal-paper-workspace.css';
 import '../css/project-workspace.css';
+import '../css/report-library.css';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import { projectDocumentDrawer } from './project-document-drawer';
 import { projectStatusManager } from './project-status-manager';
@@ -92,6 +95,8 @@ window.Alpine = Alpine;
 Alpine.data('documentWritingToolbar', (config = {}) => ({ ...documentWritingToolbar(), ...config }));
 Alpine.data('quarterlyReportForm', quarterlyReportForm);
 Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm);
+Alpine.data('reportLibrary', reportLibrary);
+Alpine.data('researchManualReader', researchManualReader);
 Alpine.data('assistantReportEditor', (config) => assistantReportEditor(config, {
     sanitizeHtml: sanitizedSemanticHtml, resolveChange: resolveAssistantReportChange, handoff: assistantReportChangeHandoff,
 }));
@@ -1909,7 +1914,12 @@ Alpine.store('researchAssistant', {
     pageActions: assistantPageActions,
     pageScope: assistantPageScope(),
     ...researchAssistantHistory(assistantHistory),
-    ...researchAssistantLiterature(),
+    ...researchAssistantLiterature({
+        savePaper: async (proposalDraftId) => {
+            const editor = document.querySelector('[data-detailed-proposal-workspace]');
+            return !editor || Number(editor.dataset.proposalDraftId) !== proposalDraftId || finishPaperEditorAutoSave(editor);
+        },
+    }),
     ...researchAssistantDissemination(),
     ...researchAssistantReview(),
     ...researchAssistantProposalChanges(),

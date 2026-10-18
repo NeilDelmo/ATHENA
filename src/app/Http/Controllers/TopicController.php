@@ -214,6 +214,8 @@ class TopicController extends Controller
         $topic->load([
             'user', 'noticeIssuer', 'researchSecretary', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'preparedProgressReports.submitter', 'preparedProgressReports.budgetPreparer', 'progressReports.submitter', 'progressReports.reviewer', 'progressReports.supersedes', 'progressReports.nextVersion', 'narrativeReports.submitter', 'narrativeReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations.reviewer'])->oldest(),
+            'progressReports.secretaryReviewer',
+            'narrativeReports.secretaryReviewer',
         ]);
 
         if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
@@ -224,7 +226,10 @@ class TopicController extends Controller
         $projectHealth = null;
         if ($topic->hasIssuedNoticeToProceed()) {
             $topic->loadMissing('latestProgressReport');
-            $projectHealth = $this->projectMonitoringHealth->assess($topic);
+            $projectHealth = $this->projectMonitoringHealth->assess($topic, $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD));
+        }
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            $topic->setRelation('progressReports', $topic->progressReports->filter->isAvailableToResearchHead());
         }
         $approvedWorkPlan = app(ApprovedWorkPlanMonitoringService::class);
         $overdueWorkPlanActivities = $approvedWorkPlan->overdueActivities($topic);
@@ -232,15 +237,29 @@ class TopicController extends Controller
 
         $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic)
             ->map(fn (array $row): array => [...$row,
+                'has_submitted_report' => $row['report']?->isSubmitted() ?? false,
                 'has_approved_work_plan' => $hasApprovedWorkPlan,
                 'quarter_completion' => $row['report'] ? $approvedWorkPlan->quarterCompletionPercentage($topic, $row['report']) : null,
+                'has_overdue_targets' => collect($overdueWorkPlanActivities)->contains(fn (array $activity): bool => $activity['target_completion_date'] >= $row['start']->toDateString()
+                    && $activity['target_completion_date'] <= $row['end']->toDateString()),
             ]);
         $progressReports = $topic->narrativeReports;
         if (! $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && $topic->isAccessibleTo($request->user())) {
             $progressReports = $progressReports->merge(ProjectNarrativeReport::query()
                 ->prepared()->whereBelongsTo($topic, 'topic')->where('report_type', 'progress')->get());
         }
-        $progressQuarterRows = $this->monitoringQuarterService->narrativeProgressPeriods($topic, $progressReports);
+        $progressQuarterRows = $this->monitoringQuarterService->narrativeProgressPeriods($topic, $progressReports)
+            ->map(fn (array $row): array => [...$row, 'has_submitted_report' => $row['report']?->isSubmitted() ?? false]);
+
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            $monitoringQuarterRows = $monitoringQuarterRows->map(fn (array $row): array => $row['report'] && ! $row['report']->isAvailableToResearchHead()
+                ? [...$row, 'report' => null, 'quarter_completion' => null]
+                : $row);
+            $progressQuarterRows = $progressQuarterRows->map(fn (array $row): array => $row['report'] && ! $row['report']->isAvailableToResearchHead()
+                ? [...$row, 'report' => null]
+                : $row);
+            $topic->setRelation('narrativeReports', $topic->narrativeReports->filter->isAvailableToResearchHead());
+        }
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
         $previousVersion = $topic->versions

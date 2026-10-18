@@ -117,7 +117,7 @@ class User extends Authenticatable
             ],
             self::WORKSPACE_RESEARCH_SECRETARY => [
                 'label' => 'Research Office Secretary',
-                'description' => 'Prepare Notices to Proceed, release signed documents, and complete assigned project budgets.',
+                'description' => 'Review implementation reports, prepare Notices to Proceed, and release signed documents.',
                 'route' => 'research_secretary.dashboard',
             ],
             self::WORKSPACE_FACULTY_RESEARCHER => [

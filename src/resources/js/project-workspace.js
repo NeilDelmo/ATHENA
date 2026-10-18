@@ -1,4 +1,7 @@
+import { reportLibrary } from './report-library.js';
+
 export function projectWorkspace(config = {}) {
+    const display = reportLibrary(config.displayStorageKey);
     const copy = (value) => JSON.parse(JSON.stringify(value));
     const preferences = {
         view: ['grid', 'list'],
@@ -31,6 +34,7 @@ export function projectWorkspace(config = {}) {
     };
 
     return {
+        ...display,
         projects: config.projects || [],
         workspace: initialWorkspace,
         location: 'all',
@@ -62,8 +66,15 @@ export function projectWorkspace(config = {}) {
         undoWorkspace: null,
 
         init() {
+            display.init();
+            this.size = display.size;
             this.$watch?.('query', () => { this.page = 1; this.clearSelection(); });
             this.$watch?.('statusFilter', () => { this.page = 1; this.clearSelection(); });
+        },
+
+        setItemSize(size) {
+            display.setPreference('size', size);
+            this.size = display.size;
         },
 
         get folders() { return this.workspace.folders; },

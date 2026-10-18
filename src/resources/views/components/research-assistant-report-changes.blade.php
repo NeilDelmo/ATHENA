@@ -4,7 +4,7 @@
             <header class="border-b border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800">
                 <h4 class="font-semibold text-stone-950 dark:text-stone-100">Review report changes</h4>
                 <p class="mt-1 text-xs text-stone-600 dark:text-stone-300" x-text="message.report_changes.title"></p>
-                <p class="mt-1 text-xs text-stone-600 dark:text-stone-300">Accept changes individually. Check the wording against your supporting evidence.</p>
+                <p class="mt-1 text-xs text-stone-600 dark:text-stone-300">Revisions change written content only. Names, dates, amounts, signatures, and approvals stay unchanged. Accept changes individually and check the wording against your supporting evidence.</p>
             </header>
             <div class="divide-y divide-stone-200 dark:divide-stone-700">
                 <template x-for="suggestion in message.report_changes.suggestions" :key="suggestion.id">

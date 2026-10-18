@@ -55,6 +55,9 @@
                 @endif
             </div>
             <p class="mt-5 border-t border-slate-100 pt-4 text-sm leading-6 text-slate-500 dark:border-slate-800 dark:text-slate-400">Activating a new edition updates general guidance. Existing proposals keep the manual edition assigned to them.</p>
+            @if ($manualReader ?? null)
+                <x-research-manual-reader :reader="$manualReader" class="mt-5" />
+            @endif
         </section>
 
         <section id="upload-manual" class="scroll-mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="upload-manual-heading">

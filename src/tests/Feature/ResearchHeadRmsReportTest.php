@@ -143,6 +143,32 @@ test('research head can download the original Excel report format with a partial
     expect(substr($response->getContent(), 0, 2))->toBe('PK');
 });
 
+test('invalid input reopens its report folder and preserves the saved draft', function () {
+    $source = CollegeQuarterlyReport::factory()->create([
+        'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
+    ]);
+    CollegeQuarterlyReportSubmission::factory()->for($source, 'report')->create(['snapshot' => ['manual_publications' => [[
+        'id' => 'publication-row', 'event' => 'Research Journal', 'research_title' => 'Study', 'personnel' => 'Ana Researcher', 'date' => '2026-09-03',
+    ]]]]);
+    $row = app(RmsQuarterlyReportData::class)->build(2026, 3)['publications'][0];
+    $saved = RmsQuarterlyReport::factory()->create(['reporting_year' => 2026, 'reporting_quarter' => 3, 'campus' => 'Saved campus']);
+    $workspace = route('research_head.rms-quarterly-reports.index', $this->period);
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($workspace)->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(),
+        'row_details_json' => json_encode([$row['key'] => ['evidence_url' => 'not-a-link']], JSON_THROW_ON_ERROR),
+    ])->assertRedirect($workspace)->assertSessionHasErrors('row_details.'.$row['key'].'.evidence_url');
+    expect($saved->fresh()->campus)->toBe('Saved campus');
+    $response = $this->get($workspace)->assertOk()->assertSee('not-a-link');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $form = $xpath->query('//form[@id="rms-report-form"]')->item(0);
+    expect($form->hasAttribute('novalidate'))->toBeTrue()
+        ->and($form->getAttribute('x-init'))->toContain('publications')
+        ->and($xpath->query('//*[@id="rms-publications"]//details[@open]')->length)->toBe(1)
+        ->and($xpath->query('//*[@id="'.$row['key'].'-evidence_url"]')->item(0)->getAttribute('aria-invalid'))->toBe('true');
+});
+
 test('JSON submissions save every row from a large college consolidation', function () {
     $source = CollegeQuarterlyReport::factory()->create([
         'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
@@ -187,7 +213,7 @@ test('college report inbox exposes current and previous submitted versions while
     $first = CollegeQuarterlyReportSubmission::factory()->for($report, 'report')->create(['version_number' => 1, 'returned_at' => now(), 'return_reason' => 'Missing proof']);
     $latest = CollegeQuarterlyReportSubmission::factory()->for($report, 'report')->create(['version_number' => 2]);
     CollegeQuarterlyReport::factory()->create(['college' => 'Private unfinished college', 'reporting_year' => 2026, 'reporting_quarter' => 3]);
-    $this->get(route('research_head.quarterly-reports.index', ['year' => 2026]))
+    $this->get(route('research_head.quarterly-reports.index', ['year' => 2026, 'college' => User::COLLEGES['CICS'], 'quarter' => 3]))
         ->assertOk()->assertSeeText(User::COLLEGES['CICS'])->assertDontSeeText('Private unfinished college')
         ->assertSeeText('Return for correction')->assertSeeText('Version 1')->assertSeeText('Version 2')
         ->assertSee(route('college-quarterly-submissions.print', $first))

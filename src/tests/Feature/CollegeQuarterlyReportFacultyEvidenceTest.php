@@ -81,6 +81,16 @@ test('submitted faculty image proof appears in accomplishment form print and Wor
     }
 });
 
+test('college report evidence imports wait for office secretary forwarding', function () {
+    $proof = ($this->proof)('awaiting-office.png');
+    $report = ($this->monitoring)([$proof], ['review_stage' => 'secretary']);
+    $service = app(CollegeQuarterlyReportFacultyEvidence::class);
+
+    expect($service->forQuarter($this->coordinator, 2026, 3))->toBe([]);
+    $report->update(['review_stage' => 'head', 'forwarded_at' => now()]);
+    expect(array_column($service->forQuarter($this->coordinator, 2026, 3), 'path'))->toBe([$proof['path']]);
+});
+
 test('faculty evidence collection respects college notice and calendar quarter', function () {
     ($this->monitoring)([($this->proof)('inside.png')]);
     ($this->monitoring)([($this->proof)('previous.png')], ['reporting_date' => '2026-06-30', 'reporting_quarter' => 2]);

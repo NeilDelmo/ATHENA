@@ -58,6 +58,7 @@ test('the existing chatbot sends relevant manual passages once and exposes page 
         ->assertJsonPath('sources.0.type', 'Official Research Manual')
         ->assertJsonPath('sources.0.page_start', 62)
         ->assertJsonPath('sources.0.page_end', 63)
+        ->assertJsonPath('sources.0.url', route('research-manuals.read', ['version' => hash('sha256', 'manual-fixture-v1')]).'#page=62')
         ->assertJsonPath('sources.0.document_version', hash('sha256', 'manual-fixture-v1'));
 
     expect($response->json('sources.0.title'))->toContain('Approved Research Manual (2023)', '8.1 Ethics clearance');

@@ -7,6 +7,7 @@ use App\Models\ResearchManual;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Closure;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -51,11 +52,57 @@ class ResearchManualLibrary
     {
         $index = $this->readIndex($manual->indexPath());
 
-        if ($index === null || $index['version'] !== $manual->version || ! is_file($manual->pdfPath())) {
+        if ($index === null || $index['version'] !== $manual->version || ! is_file($manual->pdfPath()) || ! is_readable($manual->pdfPath())) {
             throw new RuntimeException('The saved research manual files are missing or do not match this edition.');
         }
 
         return $index;
+    }
+
+    /** @return array{manual: ?ResearchManual, index: array<string, mixed>, pdf_path: string, pdf_content?: string}|null */
+    public function resolveVersion(string $version): ?array
+    {
+        if (! preg_match('/^[a-f0-9]{64}$/', $version)) {
+            return null;
+        }
+
+        return $this->withLock(function () use ($version): ?array {
+            $manual = ResearchManual::where('version', $version)->first();
+
+            if ($manual !== null) {
+                return ['manual' => $manual, 'index' => $this->index($manual), 'pdf_path' => $manual->pdfPath()];
+            }
+
+            $index = $this->activeIndex();
+
+            if ($index === null || $index['version'] !== $version) {
+                return null;
+            }
+
+            $pdfPath = dirname($this->activeIndexPath()).'/manual.pdf';
+
+            if (! is_file($pdfPath) || ! is_readable($pdfPath)) {
+                throw new RuntimeException('This research manual PDF is unavailable. Contact the research office for a restored copy.');
+            }
+
+            // Activation can replace the legacy file after the shared lock is released.
+            return ['manual' => null, 'index' => $index, 'pdf_path' => $pdfPath, 'pdf_content' => File::get($pdfPath)];
+        }, LOCK_SH);
+    }
+
+    /**
+     * @param  array<string, mixed>  $index
+     * @return array{title: string, edition: ?string, version: string, page_count: int, pdf_url: string, read_url: string, guidance_url: ?string, unindexed_pages: list<int>}
+     */
+    public function readerConfig(array $index, ?ResearchManual $manual, bool $canCheckGuidance = false): array
+    {
+        return [
+            'title' => $index['title'], 'edition' => $manual?->edition, 'version' => $index['version'],
+            'page_count' => $index['page_count'], 'unindexed_pages' => $index['unindexed_pages'],
+            'pdf_url' => route('research-manuals.file', ['version' => $index['version']]),
+            'read_url' => route('research-manuals.read', ['version' => $index['version']]),
+            'guidance_url' => $manual !== null && $canCheckGuidance ? route('research-manuals.guidance-check', $manual) : null,
+        ];
     }
 
     public function importLegacy(): ?ResearchManual
@@ -161,7 +208,7 @@ class ResearchManualLibrary
 
         try {
             $index = json_decode(File::get($path), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
+        } catch (JsonException|FileNotFoundException $exception) {
             throw new RuntimeException('The research manual index is unreadable. The active manual has not been changed.', 0, $exception);
         }
 
@@ -247,7 +294,7 @@ class ResearchManualLibrary
     {
         $path = $this->activeIndexPath();
         File::ensureDirectoryExists(dirname($path));
-        $lock = fopen($path.'.lock', 'c');
+        $lock = @fopen($path.'.lock', 'c');
 
         if ($lock === false) {
             throw new RuntimeException('The research manual library could not be locked.');

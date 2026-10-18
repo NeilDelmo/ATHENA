@@ -1,0 +1,347 @@
+ATHENA: HOW THE RESEARCH REVIEW PROCESS WORKS
+Based on the local application's current implementation, 18 October 2026.
+
+This guide explains who acts, what they do, and who receives the work next.
+It describes the app as it works today. The clarity suggestions near the end
+are suggestions, not changes already made to the app.
+
+
+1. THE OVERALL FLOW
+
+Proposal:
+Faculty -> Research Head -> GAD assessment -> Co-evaluator review ->
+LREC presentation/review -> Final signing -> Signed Notice to Proceed
+
+Quarterly project reports:
+Faculty Researcher -> Research Office Secretary -> Research Head
+
+Campus reporting:
+Eligible faculty evidence -> Coordinator's College Accomplishment Report ->
+Research Head's consolidated RMS Excel report
+
+These are connected processes, but they have different review rules.
+A proposal clearance, a report acceptance, and project completion are three
+different decisions.
+
+
+2. WHO DOES WHAT
+
+Faculty / project owner:
+Creates the proposal, works with collaborators, and submits the package.
+After document release, uses the Faculty Researcher workspace to report on
+the approved project. The owner submits the prepared project reports.
+
+Research Head:
+Reviews proposals, records assessment results, requests revisions, rejects
+proposals, and clears them for signing. Reviews project reports, records
+project completion, reviews submitted college reports, and prepares RMS.
+
+Research Coordinator:
+Handles the college's LREC feedback and College Accomplishment Report.
+Can also help prepare and release signing documents for eligible projects.
+The Coordinator does not replace the Head's proposal decision.
+
+Research Office Secretary:
+Checks quarterly project reports before forwarding them to the Head.
+Requests researcher corrections when needed. Can also prepare and release
+eligible signed proposal documents and Notices to Proceed.
+
+Project secretary:
+A member of the research team who helps prepare the monitoring budget.
+This is a different responsibility from Research Office Secretary. Being
+assigned as project secretary does not grant office report-review powers.
+
+GAD Office, co-evaluator, committee members, and signatories:
+Supply assessments, comments, or signatures. The current app records their
+work through the authorized Head/office actions; it does not give every
+external assessor a separate review workspace.
+
+An account can have several roles. Its selected workspace determines which
+actions are available. College and project access restrictions still apply.
+
+
+3. PROPOSAL REVIEW, STEP BY STEP
+
+Step 1: The Faculty owner prepares the proposal.
+Complete the project details and these five papers:
+  - Detailed Research Proposal
+  - Work Plan
+  - Line-Item Budget
+  - Expense Breakdown
+  - Curriculum Vitae for the team
+
+ATHENA also generates the GAD Checklist and Initial Screening Form.
+Use "Prepare seven PDFs", inspect them, then "Turn in proposal".
+Preparing or downloading PDFs does not submit the proposal. Submission
+creates a numbered submitted version. Only the draft owner can submit it.
+Readiness checks and configured project-capacity limits can block submission.
+
+Step 2: The Research Head checks the submitted version.
+The Head reads the papers and can annotate them. The main choices are:
+  - Request revisions
+  - Reject proposal
+  - Clear for GAD assessment
+
+Saving a comment alone does not send a revision request. The Head must
+record/send the decision. Opening the proposal as Head also ends the owner's
+unrestricted ability to update it before review has started.
+
+Step 3: The Head records the GAD assessment.
+The GAD Office supplies the completed assessment. The Head uploads it,
+records or reads its score, and confirms the project and verifier signature.
+The current scoring outcomes are:
+  - Below 4: returned
+  - 4 to below 8: conditional pass, requiring revision
+  - 8 to below 15: passed
+  - 15 to 20: commended
+
+A conditional pass does not unlock the next review. The current version
+needs a passing assessment and signature confirmation to proceed.
+
+Step 4: The Head records the co-evaluator's evaluation.
+This uses the completed Initial Screening Form, including its Narrative
+Evaluation and recommendation: For Endorsement, Minor Revision, or Major
+Revision. A passing GAD assessment plus For Endorsement allows the Head to
+queue the proposal for LREC. Minor/Major Revision needs correction and a
+new endorsed evaluation. Recording an assessment alone does not send the
+proposal onward or send it back to the owner; the decision is separate.
+
+Step 5: The proposal goes through LREC presentation and review.
+"For email to LREC" places it in "Awaiting LREC presentation". That action
+queues the proposal; it does not itself send an email to LREC.
+
+After the presentation, the Coordinator or Head records that it is complete.
+The Coordinator can record/send committee comments for their college.
+The Head decides whether to request revisions, reject, or clear for signing.
+
+Step 6: Revisions return to the stage that requested them.
+The owner reads each requested change, edits the requested papers, and
+answers the comments. A change response needs its location in the paper;
+leaving a requested paper unchanged requires an explanation.
+
+Submitting the revision creates the next version. Earlier versions remain
+available, and unchanged papers can carry forward. A private edited draft
+is not yet the submitted revision. GAD-stage revisions require reassessment;
+eligible assessments can carry forward for an LREC revision.
+
+Rejection closes the proposal. A revision request gives the owner a chance
+to correct it. These outcomes should not be treated as interchangeable.
+
+Step 7: The Head clears the latest version for final signing.
+Office staff collect the required signed proposal papers and prepare the
+Notice to Proceed. The signing package checks the Detailed Proposal, Work
+Plan, Line-Item Budget, GAD Checklist, and Initial Screening Form. Valid GAD
+and co-evaluator assessment copies can satisfy their corresponding papers.
+
+The office saves the Notice details, downloads the unsigned notice, obtains
+the required signatures, and uploads/releases the signed copy. The required
+signed proposal papers must be complete before this release succeeds.
+
+Release records the proposal as Approved, issues the Notice to Proceed,
+and opens project monitoring. "Final signing" alone does not open monitoring.
+If signing is returned for revision, the old final signed copies are
+superseded. The Detailed Proposal, Work Plan, and Line-Item Budget must
+be signed again.
+
+
+4. QUARTERLY PROJECT REPORT REVIEW
+
+For each project reporting period, there are two separate reports:
+  - Monitoring Tool: approved Work Plan activities, accomplishment, progress,
+    supporting evidence, and budget use.
+  - Progress Report: narrative explanation and structured accomplishments.
+
+They describe the same project period but do not replace each other.
+
+Project periods run in three-month blocks from the later of the approved
+start date and Notice issue date. The final period can be shorter.
+For example, if both dates allow a February 1 start, project Q1 runs from
+February 1 through April 30. Always read the displayed date range.
+
+Drafting and previewing can happen early. Official quarterly preparation
+and submission open during the final seven days of the period. The last
+day is the deadline; overdue submission remains possible afterward.
+
+The team fills the report and supplies the required accomplishment proof.
+The owner prepares the official PDF, reviews it, and submits it. If a project
+secretary is assigned, the Monitoring Tool's budget must also be prepared.
+Authorized team members can help complete that budget.
+
+The review handoff is:
+  1. Submitted report waits with the college's Research Office Secretary.
+  2. The Secretary forwards the same report to the Head, or requests
+     corrections from the researcher with remarks.
+  3. The Head accepts the forwarded report, or returns concerns to the
+     Research Office Secretary.
+  4. When concerns return, the Secretary decides whether to request
+     researcher corrections or forward it again.
+  5. A researcher correction produces a replacement version for that same
+     reporting period and goes through the Secretary again.
+
+Earlier submitted versions and their official PDFs remain in history.
+
+The quarterly table's main labels mean:
+  Office review: the Research Office Secretary acts next.
+  Head review: the Research Head acts next; it is not accepted yet.
+  Corrections requested: the researcher must prepare the requested revision.
+  Accepted: the Head accepted that report; the project is not thereby complete.
+
+A Head return does not immediately unlock researcher editing. The Secretary
+must first turn the concerns into a researcher correction request.
+
+
+5. TERMINAL REPORT AND PROJECT COMPLETION
+
+The Terminal Report is the end-of-project report. Its official preparation
+and submission open the day after the project ends. Required quarterly
+Monitoring Tools and Progress Reports must have been submitted without
+outstanding researcher correction requests.
+
+The Terminal Report goes directly to the Research Head, bypassing the
+Secretary forwarding stage. The Head can review it or request researcher
+corrections directly. After reviewing the latest submitted Terminal Report,
+the Head uploads its fully signed PDF.
+
+The Head then explicitly marks the project Completed and confirms that
+completion is final. The app checks:
+  - The project end has passed.
+  - The latest Head-visible Monitoring Tool shows 100% progress.
+  - All required quarterly report pairs have been submitted without
+    outstanding researcher corrections.
+  - No current quarterly report is still at the Secretary stage.
+  - The latest Terminal Report has been reviewed.
+  - Its fully signed PDF is stored.
+
+100% alone produces "Completion pending"; it does not close the project.
+Completed projects keep their records, but monitoring becomes read-only.
+
+Current-rule detail: the completion gate does not separately require every
+quarterly report to have been Head-accepted. A quarterly report pending at
+the Head stage can satisfy the quarterly submission checks. The Terminal
+Report itself must be reviewed and signed. This is an app rule to discuss
+if the intended policy is that every quarterly report must be accepted first.
+
+
+6. COLLEGE REPORTS AND THE CAMPUS RMS REPORT
+
+The Coordinator prepares one College Accomplishment Report per college per
+calendar quarter. Calendar Q1 is January-March, Q2 April-June, Q3 July-
+September, and Q4 October-December. These can differ from project periods.
+
+Project research rows and eligible faculty proof appear automatically.
+The Coordinator enters activity rows such as presentations, publications,
+and seminars, and can add supported manual/external research or IP entries.
+Presentation, publication, and seminar rows need their own proof image.
+
+Faculty proof is eligible when it comes from a submitted Monitoring/Progress
+Report visible to the Head, belongs to that college, and the report's reporting
+date falls within the selected calendar quarter. This uses the reporting date,
+not the upload or submission date. Private drafts and reports still at the
+Secretary stage do not feed this evidence. Forwarded does not mean accepted.
+
+College submission opens after the calendar quarter ends. It freezes a
+numbered snapshot and preserves copies of its evidence. Submitted reports
+are locked for editing. The Head can return the latest submission with a
+reason; the Coordinator corrects it and resubmits a new version. Earlier
+submitted versions and proof remain available. There is no separate College
+"Approve" action in the current implementation.
+
+For RMS, the Head consolidates the latest submitted, unreturned College
+snapshots into three output categories:
+  - Paper presentations
+  - Publications
+  - Intellectual property assets
+
+The Head reviews missing fields, evidence links, campus information and
+signatories, saves a draft, and exports the Excel workbook. General research
+lists, seminars, and generic proof do not automatically become RMS rows.
+RMS record rows come from the corresponding College activity/IP entries.
+
+A returned College report is excluded until resubmitted. If College sources
+change while the Head edits RMS, the app blocks saving the stale form until
+it is refreshed. Partial drafts and partial Excel exports are allowed, so a
+successful download does not mean all fields are complete or approved.
+RMS currently has no further submission or approval stage.
+
+
+7. A SHORT EXAMPLE TO TEST UNDERSTANDING
+
+Imagine a fictional project called Clean Water Research.
+
+Its owner prepares seven PDFs and turns in the proposal. The Head requests
+a clearer method. The owner submits Version 2 with an answer to that comment.
+The Head clears it for GAD. A passing signed GAD assessment and an endorsed
+co-evaluator evaluation allow LREC presentation/review. After committee
+comments are resolved, the Head clears signing. The office releases the
+required signed papers and signed Notice; monitoring now opens.
+
+At the end of its first project period, the owner submits the Monitoring
+Tool and Progress Report. The Secretary forwards them. The Head returns a
+budget concern to the Secretary. The researcher cannot revise that report
+yet. The Secretary requests correction, the owner submits the revised
+version, the Secretary forwards it again, and the Head accepts it.
+
+The Coordinator can use eligible submitted, Head-visible evidence in the
+appropriate calendar-quarter College report. A presentation must still have
+its own College activity row and proof to become an RMS presentation row.
+The Head can return the College report; it then stays out of RMS until the
+Coordinator resubmits it.
+
+Finally, the project reaches 100%. It still needs the remaining completion
+checks, including a reviewed Terminal Report and its signed PDF. The Head's
+explicit completion action moves it into Completed Projects.
+
+
+8. IS THE SYSTEM EASY TO UNDERSTAND?
+
+The main sequence can be understood, but these distinctions need clear UI
+wording. They are clarity recommendations, not workflow changes made here:
+
+  - Always show "Waiting for [role]" and the next action beside a status.
+  - Keep Research Coordinator, Research Office Secretary, and project
+    secretary clearly distinguished.
+  - Explain why both a Monitoring Tool and Progress Report are required.
+  - Display report dates beside Q1/Q2 so project and calendar quarters are
+    not confused.
+  - Explain that a Head concern returns to the Secretary before the
+    researcher can revise a quarterly report.
+  - Replace "For email to LREC" with wording that does not suggest an email
+    was sent automatically.
+  - Distinguish initial Head checking from the co-evaluator's form named
+    Initial Screening Form.
+  - Keep Draft, Prepared PDF, Submitted, Accepted, and Completed separate.
+  - Decide whether project completion should require acceptance of every
+    quarterly report, rather than the current submission-based checks.
+
+The Research Assistant can explain records and suggest wording. Applying
+AI suggestions is separate from submitting work. It does not replace a
+reviewer's decision or grant approval. The current app also does not expose
+a separate similarity-check review stage.
+
+Folders help people find records; changing icon size, switching Details
+view, or arranging personal folders does not change a review decision.
+
+
+9. BASIS AND LIMITS OF THIS GUIDE
+
+Checked against the current local source and existing workflow tests,
+including these areas under src/:
+  app/Models/User.php and TopicProposal.php
+  app/Policies/TopicProposalPolicy.php
+  app/Actions/SubmitProposalDraft.php
+  app/Http/Controllers/ResearchHeadTopicController.php
+  app/Http/Controllers/ResearchOfficeLrecFeedbackController.php
+  app/Services/ProposalSignatureWorkflow.php
+  app/Http/Controllers/NoticeToProceedController.php
+  app/Services/ProjectReportReviewService.php
+  app/Services/MonitoringQuarterService.php
+  app/Http/Controllers/ProjectMonitoringController.php
+  app/Http/Controllers/ProjectNarrativeReportController.php
+  app/Services/CollegeQuarterlyReportFacultyEvidence.php
+  app/Http/Controllers/ResearchCoordinatorReportController.php
+  app/Services/RmsQuarterlyReportData.php
+
+The described rules are application behavior, not an independent statement
+of university policy. Older records can have legacy review routing.
+This was a source inspection, not a fresh end-to-end role-by-role browser
+test. No application workflow or database records were changed for this guide.

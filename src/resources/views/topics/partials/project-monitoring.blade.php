@@ -3,33 +3,53 @@
         $storedProjectStatus = $topic->project_status ?: 'ongoing';
         $latestProgressPercentage = $projectHealth ? $projectHealth['progress'] : $topic->progressReports->first()?->progress_percentage;
         $projectStatus = $projectHealth['status'] ?? $topic->monitoringStatusForProgress($latestProgressPercentage);
-        $projectStatusLabel = match ($projectStatus) {
-            'delayed' => 'Delayed / overdue',
-            'awaiting' => 'Awaiting required report / review',
-            'completed' => 'Completed',
-            'ongoing' => 'Ongoing',
-            default => $topic->monitoringStatusLabelForProgress($latestProgressPercentage),
+        $monitoringIssues = $projectHealth['issues'] ?? collect();
+        if ($monitoringIssues->whereIn('type', ['quarterly', 'progress_quarterly', 'report_review', 'narrative_review', 'terminal', 'terminal_review'])->isNotEmpty()) {
+            $monitoringIssues = $monitoringIssues->reject(fn ($issue) => $issue['type'] === 'completion');
+        }
+        $reviewIssues = $monitoringIssues->whereIn('type', ['report_review', 'narrative_review', 'terminal_review']);
+        $reviewGroups = $reviewIssues->groupBy(fn ($issue) => $issue['review_status'] === 'revision_requested'
+            ? 'Corrections needed'
+            : (($issue['review_stage'] ?? 'head') === 'secretary' ? 'Office review' : 'Head review'));
+        $otherIssues = $monitoringIssues->whereNotIn('type', ['report_review', 'narrative_review', 'terminal_review']);
+        $projectStatusLabel = match (true) {
+            $projectStatus === 'completed' => 'Completed',
+            $projectStatus === 'delayed' => 'Delayed / overdue',
+            $otherIssues->whereIn('type', ['quarterly', 'progress_quarterly'])->isNotEmpty() => 'Reports overdue',
+            $reviewGroups->has('Corrections needed') => 'Corrections needed',
+            $reviewGroups->isNotEmpty() => 'Review pending',
+            $projectStatus === 'awaiting' => 'Closeout pending',
+            default => 'Ongoing',
         };
         $schedule = app(\App\Services\MonitoringQuarterService::class);
         $window = $schedule->reportingWindow($topic);
         $terminalDate = $schedule->terminalOpensAt($topic);
         $terminalOpen = $schedule->canSubmitTerminal($topic);
+        $latestTerminalReport = $topic->narrativeReports->where('report_type', 'terminal')->sortByDesc('id')->first();
         $nextPeriod = $monitoringQuarterRows->first(function ($row) use ($progressQuarterRows) {
             $progressReport = $progressQuarterRows->firstWhere('quarter', $row['quarter'])['report'] ?? null;
 
-            return $row['report'] === null
-                || $row['report']->review_status === 'revision_requested'
-                || $progressReport === null
-                || $progressReport->isPrepared()
-                || $progressReport->review_status === 'revision_requested';
+            $progressRow = $progressQuarterRows->firstWhere('quarter', $row['quarter']);
+
+            return ! ($row['has_submitted_report'] ?? $row['report']?->isSubmitted())
+                || $row['report']?->review_status === 'revision_requested'
+                || ! ($progressRow['has_submitted_report'] ?? $progressReport?->isSubmitted())
+                || $progressReport?->review_status === 'revision_requested';
         });
+        $nextProgressRow = $nextPeriod ? $progressQuarterRows->firstWhere('quarter', $nextPeriod['quarter']) : null;
+        $nextPeriodHasMissingReport = $nextPeriod && (! ($nextPeriod['has_submitted_report'] ?? $nextPeriod['report']?->isSubmitted())
+            || ! ($nextProgressRow['has_submitted_report'] ?? $nextProgressRow['report']?->isSubmitted()));
         $nextSubmission = match (true) {
             $topic->isCompletedProject() => 'Reporting closed',
             $projectHealth && ! $projectHealth['has_schedule'] => 'Schedule not recorded',
-            $nextPeriod !== null => $nextPeriod['label'].' · '.($nextPeriod['reporting_date'] ? 'Open now' : $nextPeriod['opens_at']->format('M j, Y')),
-            default => 'Terminal Report',
+            $nextPeriod && ! $nextPeriodHasMissingReport => $nextPeriod['label'].' · Corrections needed',
+            $nextPeriod && $nextPeriod['end']->isPast() => $nextPeriod['label'].' · Overdue',
+            $nextPeriod !== null => $nextPeriod['label'].' · '.($nextPeriod['reporting_date'] ? 'Open now' : 'Opens '.$nextPeriod['opens_at']->format('M j, Y')),
+            $latestTerminalReport?->review_status === 'revision_requested' => 'Terminal · Corrections needed',
+            $latestTerminalReport !== null => 'No submissions pending',
+            default => $terminalOpen ? 'Terminal Report' : 'Terminal · Opens '.$terminalDate->format('M j, Y'),
         };
-        $canReport = ! Auth::user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(Auth::user());
+        $canReport = Auth::user()->isUsingWorkspace('faculty_researcher') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(Auth::user());
         $canAssignProjectSecretary = Auth::id() === $topic->user_id
             && ! Auth::user()->isUsingWorkspace('research_head')
             && $topic->isMonitoringAvailable();
@@ -45,7 +65,6 @@
                 'college' => $user->college,
             ])
             ->values();
-        $latestTerminalReport = $topic->narrativeReports->where('report_type', 'terminal')->sortByDesc('id')->first();
         $currentProgressReportIds = $progressQuarterRows->pluck('report')->filter()->pluck('id');
         $currentMonitoringReportIds = $monitoringQuarterRows->map(function ($row) use ($topic, $canReport) {
             $preparedReport = $canReport ? $topic->preparedProgressReports->first(fn ($report) => $report->reporting_date->betweenIncluded($row['start'], $row['end'])) : null;
@@ -64,29 +83,54 @@
     <header data-monitoring-overview class="rounded-xl border border-t-4 border-slate-200 border-t-brand bg-white px-5 py-5 dark:border-slate-700 dark:border-t-brand-soft dark:bg-slate-900 sm:px-6">
         <div data-project-monitoring-heading class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h3 class="text-xl font-bold tracking-tight text-slate-950 dark:text-white">{{ $topic->isCompletedProject() ? 'Project archive' : 'Project monitoring' }}</h3>
+                <h3 class="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">{{ $topic->isCompletedProject() ? 'Project archive' : 'Project monitoring' }}</h3>
                 <p class="mt-1 text-base leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Completed project archive. Reports are read-only.' : 'Track quarterly submissions and prepare the final project report.' }}</p>
             </div>
-            <span class="rounded-lg px-3 py-1.5 text-sm font-semibold border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">{{ $projectStatusLabel }}</span>
+            <span @class(['rounded-lg border px-3 py-1.5 text-base font-semibold', 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' => in_array($projectStatusLabel, ['Reports overdue', 'Delayed / overdue', 'Corrections needed']), 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' => ! in_array($projectStatusLabel, ['Reports overdue', 'Delayed / overdue', 'Corrections needed'])])>{{ $projectStatusLabel }}</span>
         </div>
         <dl data-project-monitoring-details class="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-4">
-            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
-            <div><dt class="text-sm text-slate-500 dark:text-slate-400">Overall project progress</dt><dd class="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
+            <div><dt class="text-base text-slate-500 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-base text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-base text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
+            <div><dt class="text-base text-slate-500 dark:text-slate-400">Latest reported project progress</dt><dd class="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
         </dl>
         @if ($projectHealth && ! $projectHealth['has_schedule'])
-            <p class="mt-4 text-sm text-amber-800 dark:text-amber-300">No project schedule recorded. Project deadline checks are unavailable.</p>
+            <p class="mt-4 text-base text-amber-800 dark:text-amber-300">No project schedule recorded. Project deadline checks are unavailable.</p>
         @endif
-        @if ($projectHealth && $projectHealth['issues']->isNotEmpty())
-            <ul class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300" aria-label="Project monitoring issues">
-                @foreach ($projectHealth['issues'] as $issue)
-                    <li><a href="{{ $issue['url'] }}" class="font-semibold hover:text-brand">{{ $issue['issue'] }}</a> <span class="text-slate-500 dark:text-slate-400">· {{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></li>
+        @if ($monitoringIssues->isNotEmpty())
+            <div data-monitoring-attention class="mt-4 grid min-w-0 gap-x-6 gap-y-2 rounded-lg border border-red-100 bg-red-50/50 px-3 py-2 dark:border-red-900 dark:bg-red-950/20 xl:grid-cols-2" aria-label="Pending project tasks">
+                @foreach ($otherIssues as $issue)
+                    @php
+                        $taskUrl = match ($issue['type']) {
+                            'quarterly', 'progress_quarterly', 'delayed' => '#progress-reports',
+                            'terminal', 'completion' => '#terminal-reports',
+                            'budget' => '#monitoring-tool-'.$projectHealth['report_id'],
+                            default => $issue['url'],
+                        };
+                    @endphp
+                    <a data-monitoring-task-link href="{{ $taskUrl }}" class="flex min-h-11 min-w-0 items-center gap-3 rounded-md py-1 text-base text-red-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-200">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v6m0 4h.01"/></svg>
+                        <span class="min-w-0"><span class="block font-semibold">{{ $issue['issue'] }}</span><span class="block text-base font-normal text-slate-600 dark:text-slate-300">{{ in_array($issue['type'], ['quarterly', 'progress_quarterly']) ? 'Oldest missing report · ' : '' }}{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></span>
+                    </a>
                 @endforeach
-            </ul>
+                @foreach ($reviewGroups as $label => $issues)
+                    <details data-monitoring-review-group="{{ $label }}" class="monitoring-disclosure group min-w-0">
+                        <summary>
+                            <span class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><span>{{ $label }}</span><span class="font-normal text-slate-600 dark:text-slate-300">{{ $issues->count() }} {{ str('report')->plural($issues->count()) }}</span></span>
+                            <svg class="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                        </summary>
+                        <ul class="divide-y divide-red-100 border-t border-red-100 dark:divide-red-900 dark:border-red-900">
+                            @foreach ($issues as $issue)
+                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? '#progress-reports' : $issue['url'] }}" class="flex min-h-11 flex-col justify-center gap-1 rounded-md py-2 text-base hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
+                            @endforeach
+                        </ul>
+                    </details>
+                @endforeach
+            </div>
         @endif
+        <div data-monitoring-actions class="mt-4 flex flex-wrap items-start gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
         @if ($topic->hasIssuedNoticeToProceed())
-            <a data-monitoring-notice-link href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="monitoring-secondary-action mt-4">
+            <a data-monitoring-notice-link href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="monitoring-secondary-action">
                 <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 15l2 2 5-5" /></svg>
                 Notice to Proceed &amp; signed papers
             </a>
@@ -96,7 +140,7 @@
             x-data="projectStatusManager(@js(old('project_status', $storedProjectStatus)), @js($errors->has('project_status') || $errors->has('completion_confirmed')))"
             x-cloak
             x-on:keydown.escape.window="if (statusManagerOpen) { statusManagerOpen = false; $refs.statusTrigger.focus() }"
-            class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700 print:hidden"
+            class="contents print:hidden"
             data-project-status-manager
         >
             <div class="flex items-center">
@@ -122,7 +166,7 @@
                 x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
                 x-transition:leave-start="translate-y-0 opacity-100"
                 x-transition:leave-end="translate-y-3 opacity-0"
-                class="mt-3 rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-600 dark:bg-slate-900"
+                class="basis-full rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-600 dark:bg-slate-900"
                 role="region"
                 aria-labelledby="project-status-manager-heading-{{ $topic->id }}"
             >
@@ -158,7 +202,7 @@
 
         </div>
     @endif
-
+        </div>
     </header>
 
     <x-monitoring-work-plan-alert :activities="$overdueWorkPlanActivities ?? []" />

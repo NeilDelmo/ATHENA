@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use Carbon\CarbonImmutable;
 use Carbon\Exceptions\InvalidFormatException;
@@ -16,17 +17,22 @@ class ProjectMonitoringHealth
     /**
      * @return array{status: string, delayed: bool, has_schedule: bool, progress: ?int, deadline: ?string, delay_reason: ?string, delay_days: ?int, report_id: ?int, report_date: ?string, budget: ?float, budget_source: ?string, budget_availability: string, utilized: ?float, percentage: ?float, issues: Collection}
      */
-    public function assess(TopicProposal $topic): array
+    public function assess(TopicProposal $topic, bool $forResearchHead = false): array
     {
         $attention = collect();
         $completed = $topic->project_status === TopicProposal::PROJECT_STATUS_COMPLETED;
         $hasSchedule = $this->hasSchedule($topic);
         $window = $hasSchedule ? $this->quarters->reportingWindow($topic) : null;
-        $latest = $topic->latestProgressReport;
+        $visibleReports = $forResearchHead
+            ? $topic->progressReports->filter(fn (ProjectProgressReport $report): bool => $report->isSubmitted() && $report->isAvailableToResearchHead())
+            : $topic->progressReports;
+        $latest = $forResearchHead
+            ? $visibleReports->sortByDesc(fn (ProjectProgressReport $report): string => $report->reporting_date->format('Y-m-d').sprintf('-%010d', $report->id))->first()
+            : $topic->latestProgressReport;
         $completionPending = ! $completed && ((int) $latest?->progress_percentage >= 100 || $topic->project_status === TopicProposal::PROJECT_STATUS_COMPLETION_PENDING);
         $ended = $window && $window['end']->isPast();
         $delaySince = $ended ? $window['end']->addDay()->startOfDay() : null;
-        $milestones = collect($topic->progressReports)->sortBy(fn ($report): string => $report->reporting_date->format('Y-m-d').sprintf('-%05d-%010d', $report->version_number, $report->id))->flatMap(fn ($report) => collect($report->work_plan ?? [])
+        $milestones = $visibleReports->sortBy(fn ($report): string => $report->reporting_date->format('Y-m-d').sprintf('-%05d-%010d', $report->version_number, $report->id))->flatMap(fn ($report) => collect($report->work_plan ?? [])
             ->filter(fn ($row): bool => is_array($row) && isset($row['source_work_plan_index'])))->keyBy('source_work_plan_index');
         foreach ($milestones as $milestone) {
             $deadline = data_get($milestone, 'target_completion_date');
@@ -48,7 +54,7 @@ class ProjectMonitoringHealth
             if (! $terminal) {
                 $attention->push($this->issue($topic, 'terminal', 'Completed project has no terminal report recorded', null, 'completion date not recorded', 'project-monitoring'));
             } elseif ($terminal->review_status !== 'reviewed') {
-                $attention->push($this->issue($topic, 'terminal_review', 'Terminal report '.($terminal->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $terminal->submitted_at ?? $terminal->created_at, 'waiting', 'project-monitoring'));
+                $attention->push($this->reportReviewIssue($topic, $terminal, 'terminal_review', 'Terminal Report'));
             }
         }
         if (! $completed) {
@@ -70,9 +76,7 @@ class ProjectMonitoringHealth
             foreach ($reviewRows as $row) {
                 if ($row['report'] && in_array($row['report']->review_status, ['pending', 'revision_requested'], true)) {
                     $awaiting = true;
-                    $attention->push([...$this->issue($topic, 'report_review', $row['label'].' Monitoring Tool '.($row['report']->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $row['report']->submitted_at ?? $row['report']->created_at, 'waiting', 'project-monitoring'),
-                        'review_status' => $row['report']->review_status, 'report_id' => $row['report']->id,
-                        'url' => route('topics.show', $topic).'#monitoring-tool-'.$row['report']->id]);
+                    $attention->push($this->reportReviewIssue($topic, $row['report'], 'report_review', $row['label'].' Monitoring Tool'));
                 }
             }
             $terminal = $topic->narrativeReports->where('report_type', 'terminal')->sortByDesc('id')->first();
@@ -82,9 +86,7 @@ class ProjectMonitoringHealth
             }
             if ($terminal && $terminal->review_status !== 'reviewed') {
                 $awaiting = true;
-                $attention->push([...$this->issue($topic, 'terminal_review', 'Terminal report '.($terminal->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $terminal->submitted_at ?? $terminal->created_at, 'waiting', 'project-monitoring'),
-                    'review_status' => $terminal->review_status, 'report_id' => $terminal->id,
-                    'url' => route('topics.show', $topic).'#narrative-report-'.$terminal->id]);
+                $attention->push($this->reportReviewIssue($topic, $terminal, 'terminal_review', 'Terminal Report'));
             }
             $progressNarratives = $topic->narrativeReports->where('report_type', 'progress')
                 ->sortByDesc(fn (ProjectNarrativeReport $report): string => sprintf('%010d-%010d', $report->version_number, $report->id))
@@ -95,12 +97,11 @@ class ProjectMonitoringHealth
                         : 'legacy-'.$report->id));
             foreach ($progressNarratives->where('review_status', '!=', 'reviewed') as $narrative) {
                 $awaiting = true;
-                $attention->push([...$this->issue($topic, 'narrative_review', 'Progress report '.($narrative->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $narrative->submitted_at ?? $narrative->created_at, 'waiting', 'project-monitoring'),
-                    'review_status' => $narrative->review_status, 'report_id' => $narrative->id,
-                    'url' => route('topics.show', $topic).'#narrative-report-'.$narrative->id]);
+                $quarter = $narrative->reporting_quarter > 0 ? 'Q'.$narrative->reporting_quarter.' ' : '';
+                $attention->push($this->reportReviewIssue($topic, $narrative, 'narrative_review', $quarter.'Progress Report'));
             }
             if ((int) $latest?->progress_percentage >= 100) {
-                $attention->push($this->issue($topic, 'completion', 'Reported 100% — completion decision needed', $latest->submitted_at ?? $latest->created_at, 'waiting', 'project-monitoring'));
+                $attention->push($this->issue($topic, 'completion', 'Project closeout pending', $latest->submitted_at ?? $latest->created_at, 'since 100% report', 'project-monitoring'));
             }
         }
         $entries = collect($latest?->budget_utilization ?? [])->filter(fn ($entry): bool => is_array($entry)
@@ -168,6 +169,23 @@ class ProjectMonitoringHealth
         } catch (InvalidFormatException) {
             return null;
         }
+    }
+
+    private function reportReviewIssue(TopicProposal $topic, ProjectProgressReport|ProjectNarrativeReport $report, string $type, string $label): array
+    {
+        $stage = $report->review_stage ?? 'head';
+        $corrections = $report->review_status === 'revision_requested';
+        $status = $corrections ? 'Corrections needed' : ($stage === 'secretary' ? 'Office review' : 'Head review');
+        $since = match (true) {
+            $corrections && $stage === 'secretary' => $report->secretary_reviewed_at,
+            $corrections || $stage === 'secretary' => $report->reviewed_at,
+            default => $report->forwarded_at,
+        };
+        $basis = $corrections ? 'since corrections requested' : ($stage === 'secretary' ? 'with Research Office Secretary' : 'with Research Head');
+        $anchor = $report instanceof ProjectProgressReport ? 'monitoring-tool-' : 'narrative-report-';
+
+        return [...$this->issue($topic, $type, $label.' · '.$status, $since ?? $report->submitted_at ?? $report->created_at, $basis, $anchor.$report->id),
+            'review_status' => $report->review_status, 'review_stage' => $stage, 'report_id' => $report->id];
     }
 
     private function issue(TopicProposal $topic, string $type, string $label, mixed $since, string $basis, string $anchor): array

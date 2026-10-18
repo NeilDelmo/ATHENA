@@ -93,6 +93,27 @@ test('the faculty proof source rejects missing altered unsafe or mismatched sour
     expect(array_column(app(ProjectReportEvidence::class)->forProject($this->topic), 'path'))->toBe([$valid['path']]);
 })->with(['monitoring', 'narrative']);
 
+test('report evidence reaches the head only after office secretary forwarding', function (string $kind) {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $proof = ($this->proof)($kind);
+    $report = ($this->report)($kind, [$proof], ['review_stage' => 'secretary']);
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $service = app(ProjectReportEvidence::class);
+
+    expect($service->forProject($this->topic, viewer: $head))->toBe([])
+        ->and(app(ProjectDocumentLibrary::class)->build($this->topic, $head)['documents']->where('category', ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE))->toHaveCount(0);
+    $this->get(route($kind === 'monitoring' ? 'project-progress.evidence' : 'project-narrative-reports.evidence', [$this->topic, $proof['id']]))->assertNotFound();
+
+    $this->topic->update(['user_id' => $head->id]);
+    $this->get(route($kind === 'monitoring' ? 'project-progress.evidence' : 'project-narrative-reports.evidence', [$this->topic, $proof['id']]))->assertNotFound();
+
+    $report->update(['review_stage' => 'head', 'forwarded_at' => now()]);
+    $this->topic->unsetRelation('progressReports')->unsetRelation('narrativeReports');
+    expect($service->forProject($this->topic, viewer: $head))->toHaveCount(1);
+    $this->get(route($kind === 'monitoring' ? 'project-progress.evidence' : 'project-narrative-reports.evidence', [$this->topic, $proof['id']]))->assertOk();
+})->with(['monitoring', 'narrative']);
+
 test('project files show submitted images and download only office evidence', function () {
     $image = ($this->proof)('monitoring');
     $office = ($this->proof)('narrative', 'responses.docx');
@@ -107,6 +128,20 @@ test('project files show submitted images and download only office evidence', fu
     expect($photo['preview_kind'])->toBe('image')->and($photo['thumbnail_url'])->toBe($photo['view_url'])
         ->and($document['view_url'])->toBeNull()->and($document['download_url'])->toContain($office['id']);
 });
+
+test('a new report awaiting office review does not hide proof already forwarded in an earlier quarter', function (string $kind) {
+    $proof = ($this->proof)($kind, 'already-forwarded.png');
+    ($this->report)($kind, [$proof], ['review_stage' => 'head']);
+    ($this->report)($kind, [$proof], [
+        'review_stage' => 'secretary', 'reporting_date' => '2026-08-14', 'reporting_quarter' => 2,
+        'period_start' => '2026-05-15', 'period_end' => '2026-08-14',
+    ]);
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route($kind === 'monitoring' ? 'project-progress.evidence' : 'project-narrative-reports.evidence', [$this->topic, $proof['id']]))
+        ->assertOk()->assertDownload('already-forwarded.png');
+})->with(['monitoring', 'narrative']);
 
 test('submitted faculty proof is available to project file viewers while prepared proof stays private', function (string $kind) {
     $submitted = ($this->proof)($kind, 'shared.png');

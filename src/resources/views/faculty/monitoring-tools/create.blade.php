@@ -15,10 +15,10 @@
             <div class="px-5 py-5 sm:px-6">
                 <h3 class="text-lg font-black text-gray-950 dark:text-white">{{ $revisionReport ? 'Correct '.$revisionReport->quarter_label.' Monitoring Tool' : 'Submit monitoring tool' }}</h3>
                 <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">Record your activities, accomplishments, and spending for this quarter. Your draft saves automatically and you can preview it now. Official PDF preparation and submission open during the final week. Submit by the quarter's last day.</p>
-                @if ($revisionReport?->research_head_remarks)
+                @if ($revisionReport?->secretary_remarks || $revisionReport?->research_head_remarks)
                     <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-800 dark:border-red-950 dark:bg-red-950/40 dark:text-red-100">
-                        <p class="font-black">Research Head revision remarks</p>
-                        <p class="mt-1">{{ $revisionReport->research_head_remarks }}</p>
+                        <p class="font-black">{{ $revisionReport->secretary_remarks ? 'Research Office Secretary correction instructions' : 'Research Head revision remarks' }}</p>
+                        <p class="mt-1">{{ $revisionReport->secretary_remarks ?: $revisionReport->research_head_remarks }}</p>
                     </div>
                 @endif
             </div>

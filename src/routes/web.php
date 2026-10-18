@@ -54,6 +54,7 @@ use App\Http\Controllers\ResearchHeadReportReviewController;
 use App\Http\Controllers\ResearchHeadRmsReportController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchManualController;
+use App\Http\Controllers\ResearchManualReaderController;
 use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RevisionPaperPreviewController;
@@ -102,6 +103,10 @@ Route::get('/dashboard', function () {
 })->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/research-manuals/{version}', [ResearchManualReaderController::class, 'show'])
+        ->where('version', '[a-f0-9]{64}')->name('research-manuals.read');
+    Route::get('/research-manuals/{version}/file', [ResearchManualReaderController::class, 'file'])
+        ->where('version', '[a-f0-9]{64}')->name('research-manuals.file');
     Route::get('/select-role', [RoleSelectionController::class, 'show'])->name('role-selection.show');
     Route::post('/select-role', [RoleSelectionController::class, 'store'])->name('role-selection.store');
     Route::get('/choose-workspace', [WorkspaceController::class, 'index'])->name('workspace.select');
@@ -359,6 +364,8 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-secretary')->name('research_secretary.')->group(function () {
+    Route::patch('/monitoring-reports/{report}/review', [ProjectMonitoringController::class, 'secretaryReview'])->name('monitoring-reports.review');
+    Route::patch('/narrative-reports/{report}/review', [ProjectNarrativeReportController::class, 'secretaryReview'])->name('narrative-reports.review');
     Route::get('/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('topics.comment-response-form.pdf');
     Route::get('/projects', [ProjectBudgetUtilizationController::class, 'index'])->name('dashboard');
     Route::get('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'edit'])->name('projects.budget.edit');
@@ -503,6 +510,8 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
         Route::get('/{researchManual}', [ResearchManualController::class, 'show'])->whereNumber('researchManual')->name('show');
         Route::get('/{researchManual}/download', [ResearchManualController::class, 'download'])->whereNumber('researchManual')->name('download');
         Route::post('/{researchManual}/activate', [ResearchManualController::class, 'activate'])->whereNumber('researchManual')->middleware('throttle:6,1')->name('activate');
+        Route::post('/{researchManual}/guidance-check', [ResearchManualReaderController::class, 'check'])
+            ->whereNumber('researchManual')->middleware('throttle:10,1')->name('guidance-check');
     });
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
     Route::view('/research-head/research-targets', 'research_head.research-targets')->name('research_head.targets.index');

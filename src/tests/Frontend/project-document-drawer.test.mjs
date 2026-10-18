@@ -2,6 +2,42 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { acceptedProjectPdfFiles, projectDocumentDrawer } from '../../resources/js/project-document-drawer.js';
 
+test('project file layout restores per-account preferences without losing category selection or queued uploads', (t) => {
+    const originalStorage = globalThis.localStorage;
+    const values = new Map([['athena-report-library:42', '{"view":"list","size":"small"}']]);
+    globalThis.localStorage = {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, value),
+    };
+    t.after(() => { globalThis.localStorage = originalStorage; });
+
+    const files = projectDocumentDrawer({ inline: true, uploadOpen: true, displayStorageKey: 'athena-report-library:42' });
+    files.init();
+    assert.equal(files.view, 'list');
+    assert.equal(files.size, 'small');
+    files.openCategory('signed_papers');
+    files.selectItem('signed-copy');
+    files.selectedFiles = [{ name: 'support.pdf' }];
+
+    files.setPreference('size', 'large');
+    files.setPreference('view', 'grid');
+    assert.equal(files.activeCategory, 'signed_papers');
+    assert.equal(files.selectedItem, 'signed-copy');
+    assert.deepEqual(files.selectedFiles, [{ name: 'support.pdf' }]);
+    assert.equal(files.open, true);
+    assert.equal(files.uploadOpen, true);
+    assert.deepEqual(JSON.parse(values.get('athena-report-library:42')), { view: 'grid', size: 'large' });
+
+    const restored = projectDocumentDrawer({ inline: true, displayStorageKey: 'athena-report-library:42' });
+    restored.init();
+    assert.equal(restored.view, 'grid');
+    assert.equal(restored.size, 'large');
+    const separateAccount = projectDocumentDrawer({ inline: true, displayStorageKey: 'athena-report-library:43' });
+    separateAccount.init();
+    assert.equal(separateAccount.view, 'grid');
+    assert.equal(separateAccount.size, 'medium');
+});
+
 test('signing shortcut opens signed papers and the Files button returns to all documents', () => {
     const drawer = projectDocumentDrawer();
     drawer.openDrawer('signed_papers');

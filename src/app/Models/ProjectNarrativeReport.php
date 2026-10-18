@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 class ProjectNarrativeReport extends Model
 {
@@ -55,6 +56,11 @@ class ProjectNarrativeReport extends Model
         'research_head_remarks',
         'reviewed_by',
         'reviewed_at',
+        'review_stage',
+        'secretary_remarks',
+        'secretary_reviewed_by',
+        'secretary_reviewed_at',
+        'forwarded_at',
     ];
 
     protected $attributes = [
@@ -81,6 +87,8 @@ class ProjectNarrativeReport extends Model
             'prepared_at' => 'datetime',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'secretary_reviewed_at' => 'datetime',
+            'forwarded_at' => 'datetime',
             'official_pdf_size' => 'integer',
         ];
     }
@@ -100,6 +108,11 @@ class ProjectNarrativeReport extends Model
         return $this->belongsTo(User::class, 'reviewed_by');
     }
 
+    public function secretaryReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'secretary_reviewed_by');
+    }
+
     public function scopePrepared(Builder $query): Builder
     {
         return $query->where('submission_status', self::SUBMISSION_STATUS_PREPARED);
@@ -108,6 +121,52 @@ class ProjectNarrativeReport extends Model
     public function scopeSubmitted(Builder $query): Builder
     {
         return $query->where('submission_status', self::SUBMISSION_STATUS_SUBMITTED);
+    }
+
+    public function scopeVisibleToResearchHead(Builder $query): Builder
+    {
+        $stage = $query->qualifyColumn('review_stage');
+        $type = $query->qualifyColumn('report_type');
+
+        return $query->where(fn (Builder $query): Builder => $query->where($type, 'terminal')->orWhereNull($stage)->orWhere($stage, 'head'));
+    }
+
+    public function scopeLatestSubmittedVersion(Builder $query): Builder
+    {
+        return $query->whereNotExists(function (QueryBuilder $newer): void {
+            $newer->selectRaw('1')->from('project_narrative_reports as newer_report')
+                ->whereColumn('newer_report.topic_id', 'project_narrative_reports.topic_id')
+                ->whereColumn('newer_report.report_type', 'project_narrative_reports.report_type')
+                ->whereColumn('newer_report.id', '>', 'project_narrative_reports.id')
+                ->where(function (QueryBuilder $period): void {
+                    $period->whereColumn('newer_report.reporting_quarter', 'project_narrative_reports.reporting_quarter')
+                        ->orWhere(function (QueryBuilder $legacy): void {
+                            $legacy->whereNull('project_narrative_reports.reporting_quarter')
+                                ->where(function (QueryBuilder $dates): void {
+                                    $dates->whereColumn('newer_report.period_start', 'project_narrative_reports.period_start')
+                                        ->orWhere(function (QueryBuilder $date): void {
+                                            $date->whereNull('project_narrative_reports.period_start')
+                                                ->whereColumn('newer_report.reporting_date', 'project_narrative_reports.reporting_date');
+                                        });
+                                });
+                        });
+                });
+        });
+    }
+
+    public function isLatestSubmittedVersion(): bool
+    {
+        return self::query()->whereKey($this->id)->latestSubmittedVersion()->exists();
+    }
+
+    public function isAvailableToResearchHead(): bool
+    {
+        return $this->report_type === 'terminal' || $this->review_stage === null || $this->review_stage === 'head';
+    }
+
+    public function isAwaitingSecretaryReview(): bool
+    {
+        return $this->report_type === 'progress' && $this->isSubmitted() && $this->review_stage === 'secretary' && $this->review_status === self::STATUS_PENDING;
     }
 
     public function isPrepared(): bool
@@ -149,6 +208,16 @@ class ProjectNarrativeReport extends Model
 
     public function getReviewStatusLabelAttribute(): string
     {
+        if ($this->report_type === 'progress' && $this->review_stage === 'secretary') {
+            return $this->review_status === self::STATUS_REVISION_REQUESTED
+                ? 'Corrections requested by Research Office Secretary'
+                : 'Awaiting Research Office Secretary review';
+        }
+
+        if ($this->report_type === 'progress' && $this->review_stage === 'head') {
+            return $this->review_status === self::STATUS_REVIEWED ? 'Accepted by Research Head' : 'Awaiting Research Head review';
+        }
+
         return match ($this->review_status) {
             self::STATUS_REVISION_REQUESTED => 'Corrections requested by Research Head',
             self::STATUS_REVIEWED => 'Reviewed by Research Head',

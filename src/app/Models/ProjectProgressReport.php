@@ -24,6 +24,7 @@ class ProjectProgressReport extends Model
         'official_pdf_path', 'official_pdf_filename', 'official_pdf_checksum', 'official_pdf_size',
         'prepared_at', 'submitted_at', 'review_status',
         'research_head_remarks', 'reviewed_by', 'reviewed_at',
+        'review_stage', 'secretary_remarks', 'secretary_reviewed_by', 'secretary_reviewed_at', 'forwarded_at',
     ];
 
     protected $attributes = [
@@ -42,6 +43,8 @@ class ProjectProgressReport extends Model
             'prepared_at' => 'datetime',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'secretary_reviewed_at' => 'datetime',
+            'forwarded_at' => 'datetime',
             'progress_percentage' => 'integer',
             'reporting_year' => 'integer',
             'reporting_quarter' => 'integer',
@@ -72,6 +75,11 @@ class ProjectProgressReport extends Model
         return $this->belongsTo(User::class, 'budget_prepared_by');
     }
 
+    public function secretaryReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'secretary_reviewed_by');
+    }
+
     public function hasPreparedBudget(): bool
     {
         return $this->budget_prepared_by !== null
@@ -96,6 +104,33 @@ class ProjectProgressReport extends Model
     public function scopeSubmitted(Builder $query): Builder
     {
         return $query->where('submission_status', self::SUBMISSION_STATUS_SUBMITTED);
+    }
+
+    public function scopeVisibleToResearchHead(Builder $query): Builder
+    {
+        $stage = $query->qualifyColumn('review_stage');
+
+        return $query->where(fn (Builder $query): Builder => $query->whereNull($stage)->orWhere($stage, 'head'));
+    }
+
+    public function scopeLatestSubmittedVersion(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('nextVersion');
+    }
+
+    public function isLatestSubmittedVersion(): bool
+    {
+        return $this->relationLoaded('nextVersion') ? $this->nextVersion === null : ! $this->nextVersion()->exists();
+    }
+
+    public function isAvailableToResearchHead(): bool
+    {
+        return $this->review_stage === null || $this->review_stage === 'head';
+    }
+
+    public function isAwaitingSecretaryReview(): bool
+    {
+        return $this->isSubmitted() && $this->review_stage === 'secretary' && $this->review_status === 'pending';
     }
 
     public function scopeForQuarter(Builder $query, int $year, int $quarter): Builder
@@ -144,6 +179,16 @@ class ProjectProgressReport extends Model
 
     public function getReviewStatusLabelAttribute(): string
     {
+        if ($this->review_stage === 'secretary') {
+            return $this->review_status === 'revision_requested'
+                ? 'Corrections requested by Research Office Secretary'
+                : 'Awaiting Research Office Secretary review';
+        }
+
+        if ($this->review_stage === 'head') {
+            return $this->review_status === 'reviewed' ? 'Accepted by Research Head' : 'Awaiting Research Head review';
+        }
+
         return match ($this->review_status) {
             'revision_requested' => 'Report corrections requested',
             'reviewed' => 'Reviewed',

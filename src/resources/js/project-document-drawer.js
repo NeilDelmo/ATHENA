@@ -1,3 +1,5 @@
+import { reportLibrary } from './report-library.js';
+
 export function acceptedProjectPdfFiles(files, limit = 10) {
     const uniqueFiles = [];
     const seen = new Set();
@@ -19,7 +21,10 @@ export function acceptedProjectPdfFiles(files, limit = 10) {
 }
 
 export function projectDocumentDrawer(config = {}) {
+    const display = reportLibrary(config.displayStorageKey);
+
     return {
+        ...display,
         inline: Boolean(config.inline),
         open: Boolean(config.inline || config.initialOpen),
         uploadOpen: Boolean(config.uploadOpen),
@@ -29,6 +34,7 @@ export function projectDocumentDrawer(config = {}) {
         selectedFiles: [],
         fileError: '',
         init() {
+            display.init.call(this);
             if (this.inline) return;
             this.$watch('open', (isOpen) => {
                 document.body.classList.toggle('overflow-hidden', isOpen);

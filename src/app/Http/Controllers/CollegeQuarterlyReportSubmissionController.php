@@ -25,7 +25,7 @@ class CollegeQuarterlyReportSubmissionController extends Controller
             'report' => $report, 'submission' => $submission, 'year' => $year, 'quarter' => $quarter,
             'coordinator' => $submission->submittedBy, 'period' => $quarters->forYearAndQuarter($year, $quarter), 'reportData' => $submission->snapshot,
             'backUrl' => $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
-                ? route('research_head.quarterly-reports.index', ['year' => $year])
+                ? route('research_head.quarterly-reports.index', ['year' => $year, 'college' => $report->college, 'quarter' => $quarter])
                 : route('research_coordinator.reports.index', ['year' => $year, 'quarter' => $quarter]),
         ]);
     }

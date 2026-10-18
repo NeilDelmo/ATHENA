@@ -95,7 +95,7 @@ class ProjectDocumentLibrary
 
         $this->appendCommentResponsePapers($topic, $viewer, $documents);
         $this->appendReleasedDocuments($topic, $documents, $seenPaths);
-        foreach ($this->reportEvidence->forProject($topic) as $proof) {
+        foreach ($this->reportEvidence->forProject($topic, viewer: $viewer) as $proof) {
             if ($seenPaths->contains($proof['path'])) {
                 continue;
             }
@@ -117,8 +117,10 @@ class ProjectDocumentLibrary
                 ...($isImage ? ['preview_kind' => 'image', 'thumbnail_url' => $proof['url']] : []),
             ]);
         }
-        if (! $viewer->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
-            $this->appendMonitoringDocuments($topic, $documents, $seenPaths);
+        if ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
+            ? $topic->canReviewImplementationReports($viewer)
+            : ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $topic->isAccessibleTo($viewer))) {
+            $this->appendMonitoringDocuments($topic, $viewer, $documents, $seenPaths);
         }
 
         $topic->projectDocuments->each(function (ProjectDocument $document) use ($topic, $documents, $seenPaths): void {
@@ -370,17 +372,25 @@ class ProjectDocumentLibrary
     /** @param Collection<int, array<string, mixed>> $documents */
     private function appendMonitoringDocuments(
         TopicProposal $topic,
+        User $viewer,
         Collection $documents,
         Collection $seenPaths,
     ): void {
-        $topic->progressReports->each(function ($report) use ($documents, $seenPaths): void {
-            if (! filled($report->official_pdf_path)
-                || ! Storage::disk('local')->exists($report->official_pdf_path)
-                || $seenPaths->contains($report->official_pdf_path)) {
+        $topic->progressReports->each(function ($report) use ($viewer, $documents, $seenPaths): void {
+            if ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $report->isAvailableToResearchHead()) {
                 return;
             }
 
-            $seenPaths->push($report->official_pdf_path);
+            $hasStoredPdf = filled($report->official_pdf_path);
+            if (($hasStoredPdf && (! Storage::disk('local')->exists($report->official_pdf_path)
+                || $seenPaths->contains($report->official_pdf_path)))
+                || (! $hasStoredPdf && (! is_array($report->work_plan) || ! is_array($report->budget_utilization)))) {
+                return;
+            }
+
+            if ($hasStoredPdf) {
+                $seenPaths->push($report->official_pdf_path);
+            }
             $documents->push([
                 'key' => 'monitoring-report-'.$report->id,
                 'category' => ProjectDocument::CATEGORY_MONITORING_REPORTS,
@@ -390,15 +400,17 @@ class ProjectDocumentLibrary
                 'source' => $report->reporting_period_label,
                 'uploaded_by' => $report->submitter?->name,
                 'uploaded_at' => $report->submitted_at ?? $report->created_at,
-                'file_size' => $report->official_pdf_size,
+                'file_size' => $hasStoredPdf ? $report->official_pdf_size : null,
                 'view_url' => route('project-progress.monitoring-tool.view', $report),
                 'download_url' => route('project-progress.monitoring-tool', $report),
                 'official' => true,
             ]);
         });
 
-        $topic->narrativeReports->each(function ($report) use ($documents, $seenPaths): void {
-            if (! $report->isSubmitted()) {
+        $topic->narrativeReports->each(function ($report) use ($viewer, $documents, $seenPaths): void {
+            if (! $report->isSubmitted()
+                || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $report->isAvailableToResearchHead())
+                || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $report->report_type !== 'progress')) {
                 return;
             }
 
@@ -430,10 +442,13 @@ class ProjectDocumentLibrary
                 }
             }
 
-            if (filled($report->official_pdf_path)
-                && Storage::disk('local')->exists($report->official_pdf_path)
-                && ! $seenPaths->contains($report->official_pdf_path)) {
-                $seenPaths->push($report->official_pdf_path);
+            $hasStoredPdf = filled($report->official_pdf_path);
+            if (($hasStoredPdf && Storage::disk('local')->exists($report->official_pdf_path)
+                && ! $seenPaths->contains($report->official_pdf_path))
+                || (! $hasStoredPdf && $report->report_type === 'progress')) {
+                if ($hasStoredPdf) {
+                    $seenPaths->push($report->official_pdf_path);
+                }
                 $documents->push([
                     'key' => 'narrative-report-'.$report->id,
                     'category' => ProjectDocument::CATEGORY_MONITORING_REPORTS,
@@ -443,8 +458,8 @@ class ProjectDocumentLibrary
                     'source' => $report->submission_date?->format('M j, Y'),
                     'uploaded_by' => $report->submitter?->name,
                     'uploaded_at' => $report->submitted_at ?? $report->created_at,
-                    'file_size' => $report->official_pdf_size,
-                    'view_url' => null,
+                    'file_size' => $hasStoredPdf ? $report->official_pdf_size : null,
+                    'view_url' => route('project-narrative-reports.view', $report),
                     'download_url' => route('project-narrative-reports.download', $report),
                     'official' => true,
                 ]);
@@ -484,7 +499,7 @@ class ProjectDocumentLibrary
             ProjectDocument::CATEGORY_SIGNED_PAPERS => 'Signed PDFs, including accepted copies from GAD and initial screening reviews.',
             ProjectDocument::CATEGORY_REVIEWS_RESPONSES => 'Assessments, evaluations, and comment-response papers.',
             ProjectDocument::CATEGORY_NOTICE_TO_PROCEED => 'The project’s official authority to begin.',
-            ProjectDocument::CATEGORY_MONITORING_REPORTS => 'Progress and terminal reports, with their project posters.',
+            ProjectDocument::CATEGORY_MONITORING_REPORTS => 'Monitoring Tools, Progress Reports, and terminal reports, with their project posters.',
             ProjectDocument::CATEGORY_SUPPORTING_FILES => 'References and attachments kept with the project.',
             ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE => 'Proof submitted with faculty reports and college quarterly accomplishment activities.',
             default => 'Additional PDFs kept for the project record.',

@@ -66,10 +66,59 @@ function fixture(t, options = {}) {
         globalThis.document = originalDocument;
     });
     return {
-        state: projectWorkspace({ projects: projects(options.count), workspace: workspace(), saveUrl: '/projects/workspace' }),
+        state: projectWorkspace({ projects: projects(options.count), workspace: workspace(), saveUrl: '/projects/workspace', displayStorageKey: options.displayStorageKey }),
         requests,
     };
 }
+
+test('item sizing persists without changing the project view selections or workspace records', (t) => {
+    const originalStorage = globalThis.localStorage;
+    const values = new Map([['browser-account-1', JSON.stringify({ view: 'list', size: 'small' })]]);
+    globalThis.localStorage = {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, value),
+    };
+    t.after(() => { globalThis.localStorage = originalStorage; });
+    const { state, requests } = fixture(t, { displayStorageKey: 'browser-account-1' });
+    state.init();
+    assert.equal(state.size, 'small');
+    assert.equal(state.view, 'grid');
+    state.selectProject(2);
+    const previous = structuredClone(state.workspace);
+    state.setItemSize('large');
+    state.setItemSize('tiny');
+    assert.equal(state.size, 'large');
+    assert.deepEqual(state.selectedIds, [2]);
+    assert.deepEqual(state.workspace, previous);
+    assert.equal(requests.length, 0);
+    assert.deepEqual(JSON.parse(values.get('browser-account-1')), { view: 'list', size: 'large' });
+    const restored = projectWorkspace({ displayStorageKey: 'browser-account-1' });
+    restored.init();
+    assert.equal(restored.size, 'large');
+    const separate = projectWorkspace({ displayStorageKey: 'browser-account-2' });
+    separate.init();
+    assert.equal(separate.size, 'medium');
+});
+
+test('Explorer view gestures preserve selection and save only layout preferences', async (t) => {
+    const { state, requests } = fixture(t);
+    state.init();
+    state.selectProject(2);
+    const officialProjects = structuredClone(state.projects);
+    const assignments = structuredClone(state.workspace.assignments);
+    let prevented = false;
+    state.resizeWithWheel({ ctrlKey: true, deltaY: -120, deltaX: 0, deltaMode: 0, preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(state.size, 'large');
+    assert.equal(state.view, 'grid');
+    assert.equal(requests.length, 0);
+    await state.chooseViewOption('list');
+    assert.equal(state.view, 'list');
+    assert.equal(requests.length, 1);
+    assert.deepEqual(state.selectedIds, [2]);
+    assert.deepEqual(state.projects, officialProjects);
+    assert.deepEqual(state.workspace.assignments, assignments);
+});
 
 test('automatic year and personal folder locations include every project beyond a server page', (t) => {
     const { state } = fixture(t, { count: 31 });

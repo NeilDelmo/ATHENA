@@ -69,7 +69,11 @@ class ResearchManualRetriever
             return $index ? $this->rank($index, $terms, $requestedSections, $maximumChunks, $minimumScore, $prefersForms) : [];
         };
 
-        return $seconds > 0 ? Cache::remember($key, $seconds, $retrieve) : $retrieve();
+        $sources = $seconds > 0 ? Cache::remember($key, $seconds, $retrieve) : $retrieve();
+
+        return array_map(fn (array $source): array => [...$source,
+            'url' => route('research-manuals.read', ['version' => $source['document_version']]).'#page='.$source['page_start'],
+        ], $sources);
     }
 
     /** @param list<array{role?: string, content?: string}> $recentMessages */

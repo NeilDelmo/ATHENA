@@ -32,6 +32,16 @@ class LiteratureSearchService
         'we', 'our', 'they', 'these', 'those', 'their', 'its', 'will', 'would',
         'can', 'could', 'should', 'has', 'have', 'had', 'been', 'do', 'does', 'did',
         'which', 'through', 'across', 'into', 'use', 'used',
+        'evaluate', 'assess', 'determine',
+        'investigate', 'examine', 'analyze', 'analyse', 'compare', 'identify',
+    ];
+
+    private const QUERY_ABBREVIATIONS = [
+        'iot' => 'internet of things',
+        'nlp' => 'natural language processing',
+        'llm' => 'large language model',
+        'wsn' => 'wireless sensor network',
+        'gis' => 'geographic information system',
     ];
 
     /**
@@ -76,7 +86,7 @@ class LiteratureSearchService
         $queryTerms = $this->queryTerms($query);
         $queryGuidance = $this->queryGuidance($query, $queryTerms);
 
-        if (count($queryTerms) < 2) {
+        if (count($queryTerms) < 2 && ! isset(self::QUERY_ABBREVIATIONS[$queryTerms[0] ?? ''])) {
             return [
                 'results' => [],
                 'failed_sources' => [],
@@ -217,7 +227,7 @@ class LiteratureSearchService
         }
 
         $semanticScholarParameters = [
-            'query' => $focusedQuery,
+            'query' => $this->expandAbbreviations($focusedQuery),
             'limit' => self::PROVIDER_RESULT_LIMIT,
             'fields' => 'paperId,title,abstract,authors,year,venue,url,externalIds,citationCount,openAccessPdf,publicationTypes,publicationDate,journal',
         ];
@@ -257,6 +267,27 @@ class LiteratureSearchService
             $requests['openalex:expanded'] = [
                 'url' => 'https://api.openalex.org/works',
                 'parameters' => [...$openAlexParameters, 'search' => $expandedQuery],
+            ];
+        }
+
+        $fullPhraseQuery = $this->expandAbbreviations($focusedQuery);
+        if ($fullPhraseQuery !== $focusedQuery) {
+            $requests['openalex:abbreviations'] = [
+                'url' => 'https://api.openalex.org/works',
+                'parameters' => [...$openAlexParameters, 'search' => $fullPhraseQuery],
+            ];
+        }
+
+        $contextTerms = array_values(array_diff($this->queryTerms($context), $terms));
+        $subtopicTerms = count($terms) > 4
+            ? [$terms[0], ...array_slice($terms, 4, 4)]
+            : [...array_slice($terms, 0, 2), ...array_slice($contextTerms, 0, 2)];
+        $subtopicQuery = $this->expandAbbreviations(implode(' ', $subtopicTerms));
+        if ((count($terms) > 4 || $contextTerms !== [])
+            && ! in_array($subtopicQuery, [$focusedQuery, $fullPhraseQuery], true)) {
+            $requests['openalex:subtopic'] = [
+                'url' => 'https://api.openalex.org/works',
+                'parameters' => [...$openAlexParameters, 'search' => $subtopicQuery],
             ];
         }
 
@@ -330,7 +361,9 @@ class LiteratureSearchService
     /** @param list<string> $terms */
     private function expandedQuery(array $terms, string $prefix = ''): string
     {
-        $terms = array_map(fn (string $term): string => $prefix.$term, array_slice($terms, 0, 12));
+        $terms = array_map(fn (string $term): string => isset(self::QUERY_ABBREVIATIONS[$term])
+            ? '('.$prefix.$term.' OR '.$prefix.'"'.self::QUERY_ABBREVIATIONS[$term].'")'
+            : $prefix.$term, array_slice($terms, 0, 12));
 
         if (count($terms) <= 4) {
             return implode(' AND ', $terms);
@@ -552,7 +585,9 @@ class LiteratureSearchService
                     'pages' => $paper['pageInfo'] ?? null,
                     'publisher' => null,
                     'doi' => $paper['doi'] ?? null,
-                    'url' => $identifier ? 'https://europepmc.org/article/'.($paper['source'] ?? 'MED').'/'.$identifier : null,
+                    'url' => filled($paper['pmcid'] ?? null)
+                        ? 'https://europepmc.org/articles/'.$paper['pmcid']
+                        : ($identifier ? 'https://europepmc.org/article/'.($paper['source'] ?? 'MED').'/'.$identifier : null),
                     'full_text_url' => $fullTextUrl,
                     'provider_identifier' => $identifier,
                     'source' => $this->providers['europe_pmc'],
@@ -1047,7 +1082,9 @@ class LiteratureSearchService
             'is_broad' => $isBroad,
             'term_count' => count($terms),
             'message' => $isBroad
-                ? '“'.Str::limit(Str::squish($query), 60).'” is too broad.'
+                ? (isset(self::QUERY_ABBREVIATIONS[$terms[0] ?? ''])
+                    ? 'This is a broad research topic. Add an application, population, or setting to narrow the results.'
+                    : '“'.Str::limit(Str::squish($query), 60).'” is too broad.')
                 : null,
             'suggestion' => $isBroad
                 ? 'Add a subject, place, or time period.'
@@ -1058,7 +1095,7 @@ class LiteratureSearchService
     /** @return list<string> */
     private function queryTerms(string $query): array
     {
-        return collect(explode(' ', $this->normalizeSearchText($query)))
+        return collect(explode(' ', $this->normalizeConcepts($this->normalizeSearchText($query))))
             ->filter(fn (string $term): bool => Str::length($term) >= 2)
             ->reject(fn (string $term): bool => in_array($term, self::QUERY_STOP_WORDS, true))
             ->unique()
@@ -1073,7 +1110,7 @@ class LiteratureSearchService
      */
     private function matchedTerms(array $terms, string $haystack): array
     {
-        $haystackTerms = collect(explode(' ', $haystack))
+        $haystackTerms = collect(explode(' ', $this->normalizeConcepts($haystack)))
             ->filter()
             ->unique()
             ->all();
@@ -1083,6 +1120,21 @@ class LiteratureSearchService
                 ->contains(fn (string $haystackTerm): bool => $this->termsBelongToSameFamily($term, $haystackTerm)))
             ->values()
             ->all();
+    }
+
+    private function normalizeConcepts(string $text): string
+    {
+        foreach (self::QUERY_ABBREVIATIONS as $abbreviation => $phrase) {
+            $text = preg_replace('/\b'.preg_quote($phrase, '/').'s?\b/u', $abbreviation, $text) ?? $text;
+        }
+
+        return preg_replace('/\b('.implode('|', array_keys(self::QUERY_ABBREVIATIONS)).')s\b/u', '$1', $text) ?? $text;
+    }
+
+    private function expandAbbreviations(string $query): string
+    {
+        return preg_replace_callback('/\b('.implode('|', array_keys(self::QUERY_ABBREVIATIONS)).')\b/u',
+            fn (array $match): string => self::QUERY_ABBREVIATIONS[$match[1]], $query) ?? $query;
     }
 
     private function termsBelongToSameFamily(string $left, string $right): bool
@@ -1169,6 +1221,10 @@ class LiteratureSearchService
             ->filter(fn (string $reason): bool => $reason === 'HTTP 429')
             ->keys()
             ->join(', ', ' and ');
+        $otherFailedSources = collect($this->failureReasons)
+            ->reject(fn (string $reason): bool => $reason === 'HTTP 429')
+            ->keys()
+            ->join(', ', ' and ');
         $resultLabel = $resultCount === 1 ? 'result' : 'results';
 
         if ($resultCount === 0) {
@@ -1176,7 +1232,8 @@ class LiteratureSearchService
         }
 
         if ($rateLimitedSources !== '') {
-            return "Showing {$resultCount} {$resultLabel} from {$availableSources}. {$rateLimitedSources} temporarily rate-limited this search.";
+            return "Showing {$resultCount} {$resultLabel} from {$availableSources}. {$rateLimitedSources} temporarily rate-limited this search."
+                .($otherFailedSources !== '' ? " {$otherFailedSources} did not respond this time." : '');
         }
 
         return "Showing {$resultCount} {$resultLabel} from {$availableSources}. ".collect($this->failedSources)->join(', ', ' and ').' did not respond this time.';

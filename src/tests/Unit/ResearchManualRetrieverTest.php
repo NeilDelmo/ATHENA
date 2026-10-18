@@ -62,7 +62,7 @@ test('manual retrieval selects relevant pages and supplies source metadata witho
         ->and($sources[0]['page_start'])->toBe(28)
         ->and($sources[0]['page_end'])->toBe(28)
         ->and($sources[0]['document_version'])->toBe(hash('sha256', 'manual-v1'))
-        ->and($sources[0]['url'])->toBeNull()
+        ->and($sources[0]['url'])->toBe(url('/research-manuals/'.hash('sha256', 'manual-v1')).'#page=28')
         ->and($sources[0]['score'])->toBeGreaterThan(0);
     Http::assertNothingSent();
     Process::assertNothingRan();
@@ -79,7 +79,8 @@ test('an explicit manual index remains isolated from the configured active index
         $retriever = app(ResearchManualRetriever::class);
         $question = 'What ethics clearance is required before collecting participant data?';
 
-        expect($retriever->retrieve($question, [], $editionPath)[0]['document_version'])->toBe($document['version'])
+        expect($retriever->retrieve($question, [], $editionPath)[0]['url'])->toBe(url('/research-manuals/'.$document['version']).'#page=28')
+            ->and($retriever->retrieve($question, [], $editionPath)[0]['document_version'])->toBe($document['version'])
             ->and($retriever->retrieve($question)[0]['document_version'])->toBe(hash('sha256', 'manual-v1'))
             ->and($retriever->retrieve($question, [], $editionPath.'.missing'))->toBe([]);
     } finally {
@@ -306,6 +307,7 @@ test('benefit passages include the conditions from the same section within the c
 
     expect($sources)->toHaveCount(2)
         ->and(array_column($sources, 'page_start'))->toContain(46)
+        ->and(collect($sources)->firstWhere('page_start', 46)['url'])->toBe(url('/research-manuals/'.hash('sha256', 'manual-v1')).'#page=46')
         ->and(collect($sources)->pluck('content')->join(' '))->toContain('Only approved requests qualify.');
 });
 

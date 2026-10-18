@@ -182,12 +182,21 @@ class MonitoringQuarterService
 
         return $this->projectPeriods($topic)->map(function (array $period) use ($reports): array {
             $report = $reports->first(fn (ProjectNarrativeReport $report): bool => $report->reporting_quarter === $period['quarter']);
+            $report ??= $reports->first(function (ProjectNarrativeReport $report) use ($period): bool {
+                if ($report->reporting_quarter !== null) {
+                    return false;
+                }
+                $date = $report->reporting_date ?? $report->period_end;
+
+                return $date !== null && $date->betweenIncluded($period['start'], $period['end']);
+            });
             $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
             $editable = $report === null || $report->isPrepared() || $report->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED;
             $status = match (true) {
                 $report?->isPrepared() => 'PDF prepared'.($report->version_number <= 1 && $period['end']->isPast() ? ' · Overdue' : ''),
                 $report?->review_status === ProjectNarrativeReport::STATUS_REVIEWED => 'Reviewed',
                 $report?->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED => 'Corrections requested',
+                $report?->review_stage !== null => $report->review_status_label,
                 $report !== null => 'Submitted – awaiting review',
                 $open => CarbonImmutable::now()->greaterThan($period['end']) ? 'Overdue' : 'Due '.$period['end']->format('M j, Y'),
                 default => 'Upcoming',
@@ -281,7 +290,7 @@ class MonitoringQuarterService
             'revision_requested' => ['revision_required', 'Report corrections requested'],
             default => [
                 $report->version_number > 1 ? 'resubmitted' : 'submitted',
-                $report->version_number > 1 ? 'Resubmitted – awaiting review' : 'Submitted – awaiting review',
+                $report->review_stage !== null ? $report->review_status_label : ($report->version_number > 1 ? 'Resubmitted – awaiting review' : 'Submitted – awaiting review'),
             ],
         };
     }

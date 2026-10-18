@@ -96,6 +96,13 @@ class RmsQuarterlyReportData
                     $values = [...$values, ...$this->sourceValues($section, $row),
                         ...Arr::except(Arr::only($details[$key] ?? [], array_keys($fields)), ['college']), 'college' => $college];
                     $values = array_map(fn (mixed $value): string => (string) ($value ?? ''), $values);
+                    if (blank($values['evidence_url']) && $submission !== null && filled($row['id'] ?? null)) {
+                        $proofIndex = collect($snapshot['evidence'] ?? [])->search(fn (array $proof): bool => ($proof['section'] ?? null) === $section
+                            && ($proof['row_id'] ?? null) === $row['id']);
+                        if ($proofIndex !== false) {
+                            $values['evidence_url'] = route('college-quarterly-submissions.evidence', [$submission, $proofIndex]);
+                        }
+                    }
                     if (($values['source_of_fund'] ?? '') === 'Non-funded') {
                         $values['project_status'] = '';
                         if ($section === 'presentations') {

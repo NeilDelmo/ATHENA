@@ -1,5 +1,11 @@
 export function rmsQuarterlyReportForm() {
     return {
+        section: null,
+        openSection(section) {
+            if (section === null || ['presentations', 'publications', 'ip_assets'].includes(section)) {
+                this.section = section;
+            }
+        },
         serialize(event) {
             const rows = {};
             for (const input of event.currentTarget.elements) {

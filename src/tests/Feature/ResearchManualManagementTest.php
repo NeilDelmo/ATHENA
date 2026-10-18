@@ -105,7 +105,9 @@ test('research heads can upload preview and privately download staged editions',
     ])->assertRedirect();
     $manual = ResearchManual::sole();
     $this->get(route('research-manuals.index'))->assertOk()->assertSee('Research Manual')->assertSee(route('research-manuals.index'));
-    $this->get(route('research-manuals.show', $manual))->assertOk()->assertSee('Ethics approval');
+    $this->get(route('research-manuals.show', $manual))->assertOk()
+        ->assertViewHas('manualReader', fn (array $reader): bool => $reader['version'] === $manual->version
+            && $reader['guidance_url'] === route('research-manuals.guidance-check', $manual));
     $this->get(route('research-manuals.download', $manual))->assertOk()->assertHeader('content-type', 'application/pdf');
     expect(app(ResearchManualLibrary::class)->active())->toBeNull();
 });

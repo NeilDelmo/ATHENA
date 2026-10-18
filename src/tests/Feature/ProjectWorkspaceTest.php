@@ -237,6 +237,34 @@ test('monitoring filters do not restrict the file library', function () {
         ->assertViewHas('workspaceProjects', fn (array $projects): bool => count($projects) === 2);
 });
 
+test('project libraries expose a view context menu and wheel sizing for folders and files', function (string $routeName) {
+    $this->project->update(['project_status' => 'completed']);
+    $response = $this->get(route($routeName))->assertSuccessful()
+        ->assertSee('@wheel="resizeWithWheel($event)"', false)
+        ->assertSee('@contextmenu="openViewMenu($event)"', false)
+        ->assertDontSee('aria-label="Item size"', false);
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $surfaces = $xpath->query('//*[@data-project-workspace]//*[@data-library-view-surface]');
+    expect($surfaces->length)->toBeGreaterThan(0);
+    foreach ($surfaces as $surface) {
+        expect($surface->getAttribute('tabindex'))->toBe('0');
+    }
+    $menu = $xpath->query('//*[@data-project-workspace]//*[@role="menu" and @aria-label="View"]')->item(0);
+    expect($menu)->not->toBeNull();
+    expect($menu->hasAttribute('x-cloak'))->toBeTrue()
+        ->and($menu->hasAttribute('x-show'))->toBeTrue()
+        ->and($xpath->query('.//button[@role="menuitemradio"]', $menu)->length)->toBe(4)
+        ->and($xpath->query('//*[@data-project-workspace]//button[not(@role="menuitemradio") and (normalize-space(.)="Icons" or normalize-space(.)="Details")]')->length)->toBe(0);
+    foreach (['small' => 'Small icons', 'medium' => 'Medium icons', 'large' => 'Large icons', 'list' => 'Details'] as $option => $label) {
+        $button = $xpath->query('.//button[@type="button" and @role="menuitemradio" and @data-view-option="'.$option.'"]', $menu)->item(0);
+        expect($button)->not->toBeNull();
+        expect(trim($button->textContent))->toBe($label)
+            ->and($button->hasAttribute('aria-checked') || $button->hasAttribute(':aria-checked') || $button->hasAttribute('x-bind:aria-checked'))->toBeTrue();
+    }
+})->with(['research_head.projects.index', 'research_head.completed-projects.index']);
+
 test('completed project controls are scoped to monitoring and preserve the completed library', function () {
     $this->project->update(['project_status' => 'completed']);
     $ongoing = $this->project->replicate();

@@ -43,14 +43,20 @@ beforeEach(function () {
     };
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
-    foreach (['faculty_researcher', 'research_head'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
-    $this->researcher = User::factory()->create();
+    $this->researcher = User::factory()->create(['college' => 'College of Engineering']);
     $this->researcher->assignRole('faculty_researcher');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
+    $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
+    $this->officeSecretary->assignRole('research_secretary');
+    $this->forwardReport = function (ProjectNarrativeReport $report): void {
+        $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+            ->patch(route('research_secretary.narrative-reports.review', $report), ['decision' => 'forward'])->assertRedirect()->assertSessionHasNoErrors();
+    };
     $call = ResearchCall::create([
         'title' => 'Narrative Progress Test Call',
         'academic_year' => '2026-2027',
@@ -120,7 +126,7 @@ test('Progress Reports use the Monitoring Tool periods including a shorter final
     $report = ProjectNarrativeReport::sole();
     expect($report->reporting_quarter)->toBe(3)->and($report->period_start->toDateString())->toBe('2026-07-15')
         ->and($report->period_end->toDateString())->toBe('2026-08-20')->and($report->version_number)->toBe(1);
-    $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee($report->reporting_period_label)->assertSee('Submit to Research Head');
+    $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee($report->reporting_period_label)->assertSee('Submit to Research Office Secretary');
     $path = tempnam(sys_get_temp_dir(), 'quarterly-progress-');
     file_put_contents($path, $this->pdfConverter->sourceDocument);
     $archive = new ZipArchive;
@@ -194,18 +200,18 @@ test('accepted collaborators share prepared Progress Reports but only the projec
         $archive->close();
         unlink($path);
     }
-    $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
+    $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Office Secretary');
     $this->get(route('project-narrative-reports.view', $report))->assertOk();
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertForbidden();
     expect($report->fresh()->isPrepared())->toBeTrue();
-    $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Submit to Research Head');
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Submit to Research Office Secretary');
     $this->get(route('project-narrative-reports.view', $report))->assertOk();
     ($this->attachSubmissionProof)($report);
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
     expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id);
 });
 
-test('a project owner prepares an official progress-report PDF before submitting it to the Research Head', function () {
+test('a project owner prepares an official progress-report PDF before submitting it to the Research Office Secretary', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
         ->assertRedirect()
@@ -237,10 +243,11 @@ test('a project owner prepares an official progress-report PDF before submitting
     expect($report->fresh()->submission_status)->toBe(ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED)
         ->and($this->pdfConverter->conversionCount)->toBe(1);
     Notification::assertSentTo(
-        $this->head,
+        $this->officeSecretary,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Progress report submitted',
+        fn (ProposalActivityNotification $notification): bool => $notification->workspace === User::WORKSPACE_RESEARCH_SECRETARY,
     );
+    Notification::assertNotSentTo($this->head, ProposalActivityNotification::class);
 
     $this->topic->update(['notice_to_proceed_issued_at' => null]);
     $this->actingAs($this->researcher)
@@ -406,6 +413,7 @@ test('the progress preview contains the same filled paper as the official templa
 
 test('quoted tracking numbers remain text in the progress preview and its print style', function () {
     $this->withoutVite();
+    app('livewire')->flushState();
     $tracking = 'PR-"26"</style><script>alert(1)</script>\\001';
     $response = $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.preview', $this->topic), ($this->progressReportPayload)(['tracking_number' => $tracking]))
@@ -414,7 +422,7 @@ test('quoted tracking numbers remain text in the progress preview and its print 
     @$document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent());
     $xpath = new DOMXPath($document);
 
-    expect($xpath->query('//script')->length)->toBe(0)
+    expect($xpath->query('//script[not(@id="browser-logger-active")]')->length)->toBe(0)
         ->and($xpath->evaluate('string(//html/@style)'))->toContain('PR-\\"26\\"</style><script>alert(1)</script>\\\\001')
         ->and($xpath->evaluate('string(//div[@class="progress-report-paper-footer"])'))->toBe('Tracking No.'.$tracking);
 });
@@ -471,6 +479,9 @@ test('the owner and Research Head can download the official report as a PDF and 
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
+    $this->actingAs($this->head)->get(route('project-narrative-reports.download', $report))->assertForbidden();
+    $this->get(route('project-narrative-reports.photos.view', [$report, 0]))->assertForbidden();
+    ($this->forwardReport)($report);
     $this->actingAs($this->head)
         ->get(route('project-narrative-reports.download', $report))
         ->assertOk();
@@ -583,7 +594,7 @@ test('a researcher can discard a prepared progress report and its stored files',
         ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
         ->assertSee('Progress report PDF prepared')
-        ->assertSee('Submit to Research Head')
+        ->assertSee('Submit to Research Office Secretary')
         ->assertSee('data-monitoring-action-dock-fixed', false);
     $this->actingAs($this->researcher)
         ->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))
@@ -594,7 +605,7 @@ test('a researcher can discard a prepared progress report and its stored files',
     Storage::disk('local')->assertMissing([$pdfPath, $photoPath]);
 });
 
-test('the Research Head can request progress report corrections only with remarks', function () {
+test('the Research Head returns progress report concerns to the office only with remarks', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
         ->assertSessionHasNoErrors();
@@ -604,6 +615,8 @@ test('the Research Head can request progress report corrections only with remark
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
         ->assertSessionHasNoErrors();
+    ($this->forwardReport)($report);
+    Notification::fake();
     $notification = $this->head->notifications()->create([
         'id' => (string) Str::uuid(),
         'type' => ProposalActivityNotification::class,
@@ -629,15 +642,17 @@ test('the Research Head can request progress report corrections only with remark
         ])
         ->assertRedirect();
 
-    expect($report->fresh()->review_status)->toBe(ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
-        ->and($report->fresh()->review_status_label)->toBe('Corrections requested by Research Head')
+    expect($report->fresh()->review_status)->toBe(ProjectNarrativeReport::STATUS_PENDING)
+        ->and($report->fresh()->review_stage)->toBe('secretary')
+        ->and($report->fresh()->review_status_label)->toBe('Awaiting Research Office Secretary review')
         ->and($report->fresh()->reviewed_by)->toBe($this->head->id)
         ->and($notification->fresh()->read_at)->not->toBeNull();
     Notification::assertSentTo(
-        $this->researcher,
+        $this->officeSecretary,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Progress report corrections requested',
+        fn (ProposalActivityNotification $notification): bool => $notification->workspace === User::WORKSPACE_RESEARCH_SECRETARY,
     );
+    Notification::assertNotSentTo($this->researcher, ProposalActivityNotification::class);
 });
 
 test('progress defaults reuse approved proposal narratives and work plan outputs without truncating objectives', function () {

@@ -34,6 +34,10 @@ class TopicProposalPolicy
             return true;
         }
 
+        if ($topicProposal->hasIssuedNoticeToProceed() && $topicProposal->canReviewImplementationReports($user)) {
+            return true;
+        }
+
         if ($this->isResearchOfficeLrecProposal($user, $topicProposal)) {
             return true;
         }

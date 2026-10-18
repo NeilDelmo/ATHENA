@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SaveRmsQuarterlyReportRequest;
+use App\Models\CollegeQuarterlyReport;
 use App\Models\RmsQuarterlyReport;
 use App\Models\User;
 use App\Services\MonitoringQuarterService;
@@ -19,6 +20,15 @@ class ResearchHeadRmsReportController extends Controller
     public function index(Request $request, RmsQuarterlyReportData $data, MonitoringQuarterService $quarters): View
     {
         [$year, $quarter] = $this->reportingPeriod($request);
+        if (! $request->filled('quarter')) {
+            $years = CollegeQuarterlyReport::whereNotNull('submitted_at')->distinct()->pluck('reporting_year')
+                ->merge(RmsQuarterlyReport::distinct()->pluck('reporting_year'))->push(now()->year)->unique()->sortDesc()->values();
+            $drafts = RmsQuarterlyReport::where('reporting_year', $year)->get(['reporting_quarter'])->keyBy('reporting_quarter');
+            $collegeReports = CollegeQuarterlyReport::where('reporting_year', $year)->whereNotNull('submitted_at')->get(['reporting_quarter'])->groupBy('reporting_quarter');
+            $browsingYears = ! $request->filled('year');
+
+            return view('research_head.rms-quarterly-reports.library', compact('year', 'years', 'drafts', 'collegeReports', 'browsingYears'));
+        }
         $report = RmsQuarterlyReport::where('reporting_year', $year)->where('reporting_quarter', $quarter)->first();
         $reportData = $data->build($year, $quarter, $report?->row_details ?? []);
         $period = $quarters->forYearAndQuarter($year, $quarter);

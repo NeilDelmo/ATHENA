@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
+use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -19,8 +20,12 @@ class ProjectReportEvidence
     ];
 
     /** @return list<array<string, mixed>> */
-    public function forProject(TopicProposal $topic, ?CarbonInterface $start = null, ?CarbonInterface $end = null): array
+    public function forProject(TopicProposal $topic, ?CarbonInterface $start = null, ?CarbonInterface $end = null, ?User $viewer = null): array
     {
+        if ($viewer?->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && ! $topic->canReviewImplementationReports($viewer)) {
+            return [];
+        }
+
         $topic->loadMissing(['progressReports.submitter', 'narrativeReports.submitter']);
         $sources = [
             'monitoring' => $topic->progressReports->sortByDesc(fn (ProjectProgressReport $report): string => sprintf('%010d-%020d', $report->version_number, $report->id)),
@@ -29,6 +34,7 @@ class ProjectReportEvidence
         $entries = [];
         foreach ($sources as $kind => $reports) {
             $reports = $reports->filter(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => $report->isSubmitted()
+                && (! $viewer?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $report->isAvailableToResearchHead())
                 && ($start === null || $report->reporting_date?->toDateString() >= $start->toDateString())
                 && ($end === null || $report->reporting_date?->toDateString() <= $end->toDateString()))
                 ->unique(fn (ProjectProgressReport|ProjectNarrativeReport $report): ?string => $report->reporting_date?->toDateString());

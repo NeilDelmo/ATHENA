@@ -106,7 +106,11 @@
                 <div class="flex flex-col items-start gap-3 px-4 py-4">
                     <p class="text-sm font-bold text-gray-900 dark:text-white" x-text="message.literature.applied ? 'RRL added to your paper' : 'Reviewed RRL is ready for your paper'"></p>
                     <p x-show="message.literature.notice" class="text-xs leading-5 text-gray-600 dark:text-slate-300" x-text="message.literature.notice"></p>
-                    <button x-show="message.literature.editor_url" type="button" @click="$store.researchAssistant.openLiteraturePaper(message)" :disabled="$store.researchAssistant.isLoading" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-40 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800" x-text="message.literature.applied ? 'View in paper' : 'Open paper'"></button>
+                    <p x-show="!message.literature.applied" class="text-xs leading-5 text-gray-500 dark:text-slate-400">After adding the text, use Revise RRL in the paper to review paragraph flow.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button x-show="message.literature.editor_url" type="button" @click="$store.researchAssistant.openLiteraturePaper(message)" :disabled="$store.researchAssistant.isLoading" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-40 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800" x-text="message.literature.applied ? 'View in paper' : 'Open paper'"></button>
+                        <button x-show="message.literature.applied" type="button" @click="$store.researchAssistant.reviewLiteratureFlow(message)" :disabled="!$store.researchAssistant.canReviewLiteratureFlow(message)" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50">Review RRL flow</button>
+                    </div>
                 </div>
             </template>
 

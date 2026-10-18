@@ -6,6 +6,7 @@ use App\Models\ResearchCall;
 use App\Models\User;
 use App\Services\ResearchAssistantProposalAssistanceService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -195,21 +196,61 @@ test('plain proposal edit requests are recognized while literature evidence requ
     ['Suggest literature sources for my methodology', false],
 ]);
 
-test('a missing section can reuse numerical facts already supplied in connected saved text', function () {
+test('wording revisions cannot transfer numerical facts from another saved section', function () {
     $this->document->update(['source_data' => ['methodology' => ['data_analysis' => ''], 'specific_objectives' => [['description' => 'Compare monitoring measurements across 12 sites.']]]]);
     ($this->fakeSuggestions)([['field' => 'methodology.data_analysis', 'before' => '',
         'value' => 'Compare monitoring measurements across the 12 sites.', 'reason' => 'Uses the comparison already described in the saved objective.']]);
     $response = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Draft my data analysis');
-    expect($response['proposal_changes']['suggestions'])->toHaveCount(1)
-        ->and($response['proposal_changes']['suggestions'][0]['before'])->toBe('')
+    expect($response['proposal_changes']['suggestions'])->toBe([])
         ->and($this->document->fresh()->source_data['methodology']['data_analysis'])->toBe('');
 });
+
+test('proposal wording suggestions preserve facts inside narrative fields', function (string $before, string $value, int $count) {
+    $this->document->update(['source_data' => ['rationale' => $before]]);
+    ($this->fakeSuggestions)([['field' => 'rationale', 'before' => $before, 'value' => $value, 'reason' => 'Revises wording.']]);
+
+    $response = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Revise my rationale.');
+
+    expect($response['proposal_changes']['suggestions'])->toHaveCount($count)
+        ->and($this->document->fresh()->source_data['rationale'])->toBe($before);
+})->with([
+    'removed number' => ['Survey 12 sites.', 'Survey the sites.', 0],
+    'negative percentage' => ['The change was -12.5%.', 'The change was 12.5%.', 0],
+    'date parts' => ['Visit on 10/11/2026.', 'Visit on 11/10/2026.', 0],
+    'month' => ['Visit in May.', 'Visit in June.', 0],
+    'currency' => ['Materials cost PHP 500.', 'Materials cost USD 500.', 0],
+    'name' => ['Dr. Maria Santos coordinates monitoring.', 'Dr. Juan Cruz coordinates monitoring.', 0],
+    'approval' => ['The protocol is not approved.', 'The protocol is approved.', 0],
+    'valid wording' => ['Survey 12 sites in May.', 'In May, survey 12 sites.', 1],
+]);
 
 test('proposal replacements preserve paragraph breaks in the reviewed text and history', function () {
     ($this->fakeSuggestions)([[...$this->suggestion, 'value' => "Assess community monitoring needs.\n\nDescribe the needs for community monitoring."]]);
     $packet = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Improve my rationale')['proposal_changes'];
     expect($packet['suggestions'][0]['value'])->toBe("Assess community monitoring needs.\n\nDescribe the needs for community monitoring.")
         ->and($this->assistance->historyPacket($packet)['suggestions'][0]['value'])->toBe($packet['suggestions'][0]['value']);
+});
+
+test('safe wording around protected approval paragraphs can be suggested and resolved', function () {
+    $before = '<p>The protocol is not approved.</p><p>The design needs further explanation.</p>';
+    $value = "The protocol is not approved.\n\nThe design requires further explanation.";
+    $this->document->update(['source_data' => ['rationale' => $before]]);
+    ($this->fakeSuggestions)([['field' => 'rationale', 'before' => "The protocol is not approved.\nThe design needs further explanation.",
+        'value' => $value, 'reason' => 'Clarifies the design wording.']]);
+
+    $suggestion = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Revise my rationale.')['proposal_changes']['suggestions'][0];
+    expect($this->assistance->resolve($this->faculty, $this->draft, $suggestion['token'], $suggestion['id'])['value'])->toBe($value)
+        ->and($this->document->fresh()->source_data['rationale'])->toBe($before);
+});
+
+test('older cached proposal suggestions cannot bypass current factual protections', function () {
+    ($this->fakeSuggestions)([$this->suggestion]);
+    $suggestion = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Improve my rationale.')['proposal_changes']['suggestions'][0];
+    $key = 'assistant-proposal-changes:'.hash('sha256', $suggestion['token']);
+    Cache::put($key, [...Cache::get($key), 'value' => 'Assess needs at 99 sites.'], now()->addMinutes(30));
+
+    expect(fn () => $this->assistance->resolve($this->faculty, $this->draft, $suggestion['token'], $suggestion['id']))->toThrow(HttpException::class);
+    expect($this->document->fresh()->source_data['rationale'])->toBe('<p>Assess community monitoring needs.</p>');
 });
 
 test('objective suggestions target existing rows and do not invent a new row', function () {

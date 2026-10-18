@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\AssignProjectResearchSecretaryRequest;
 use App\Http\Requests\UpdateProjectBudgetUtilizationRequest;
+use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringToolDocumentService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,8 +35,32 @@ class ProjectBudgetUtilizationController extends Controller
             ->withIssuedNotice()
             ->latest('updated_at')
             ->get();
+        $reviewableProject = fn (Builder $query): Builder => $query
+            ->forImplementationReportReview($request->user())
+            ->withIssuedNotice()
+            ->whereIn('project_status', [TopicProposal::PROJECT_STATUS_ONGOING, TopicProposal::PROJECT_STATUS_DELAYED]);
+        $monitoringReports = ProjectProgressReport::query()
+            ->submitted()
+            ->latestSubmittedVersion()
+            ->where('review_stage', 'secretary')
+            ->where('review_status', 'pending')
+            ->whereHas('topic', $reviewableProject)
+            ->with(['topic.user:id,name,college', 'submitter:id,name'])
+            ->get();
+        $progressReports = ProjectNarrativeReport::query()
+            ->submitted()
+            ->latestSubmittedVersion()
+            ->where('report_type', 'progress')
+            ->where('review_stage', 'secretary')
+            ->where('review_status', 'pending')
+            ->whereHas('topic', $reviewableProject)
+            ->with(['topic.user:id,name,college', 'submitter:id,name'])
+            ->get();
+        $reportReviewTasks = $monitoringReports->toBase()->concat($progressReports)
+            ->sortBy(fn (ProjectProgressReport|ProjectNarrativeReport $report) => $report->submitted_at ?? $report->created_at)
+            ->values();
 
-        return view('research_secretary.projects.index', compact('projects', 'signingProjects'));
+        return view('research_secretary.projects.index', compact('projects', 'signingProjects', 'reportReviewTasks'));
     }
 
     public function edit(Request $request, TopicProposal $topic, ProjectProgressReport $report): View

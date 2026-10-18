@@ -25,13 +25,18 @@ class ResearchManualController extends Controller
         $current = $this->library->active();
         $legacy = null;
         $manualError = null;
+        $manualReader = null;
 
-        if ($current === null) {
-            try {
+        try {
+            if ($current === null) {
                 $legacy = $this->library->activeIndex();
-            } catch (RuntimeException $exception) {
-                $manualError = $exception->getMessage();
             }
+
+            $version = $current?->version ?? $legacy['version'] ?? null;
+            $resolved = $version !== null ? $this->library->resolveVersion($version) : null;
+            $manualReader = $resolved !== null ? $this->library->readerConfig($resolved['index'], $resolved['manual'], true) : null;
+        } catch (RuntimeException $exception) {
+            $manualError = $exception->getMessage();
         }
 
         return view('research-manuals.index', [
@@ -39,6 +44,7 @@ class ResearchManualController extends Controller
             'currentManual' => $current,
             'legacyManual' => $legacy,
             'manualError' => $manualError,
+            'manualReader' => $manualReader,
         ]);
     }
 
@@ -72,6 +78,7 @@ class ResearchManualController extends Controller
             'manual' => $researchManual->load('uploadedBy'),
             'index' => $index,
             'isActive' => $this->library->active()?->is($researchManual) ?? false,
+            'manualReader' => $this->library->readerConfig($index, $researchManual, true),
         ]);
     }
 

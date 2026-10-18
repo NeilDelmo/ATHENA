@@ -192,8 +192,13 @@ html.dark .proposal-preview-error { color: #fda4af; }
 :is([data-editable-proposal-papers], [data-automatic-assessment-preview]) .proposal-preview-dock :is(.proposal-preview-dock-heading p, .proposal-preview-zoom output) { font-size: .875rem; }
 .proposal-preview-dock-expanded { display: block; position: fixed; inset: 0; z-index: 85; height: auto; padding: 1rem; background: rgb(15 23 42 / .6); }
 .proposal-preview-dock-expanded > section { width: min(72rem, 100%); margin-inline: auto; }
-.submitted-report-preview.proposal-preview-dock-expanded { position: relative; inset: auto; z-index: auto; height: calc(100dvh - 3rem); padding: 0; background: transparent; }
-.submitted-report-preview .proposal-preview-dock-heading { flex-wrap: nowrap; }
+.submitted-report-preview.proposal-preview-dock-expanded { position: relative; inset: auto; z-index: auto; height: min(48rem, 85dvh); padding: 0; background: transparent; }
+.submitted-report-preview .proposal-preview-dock-heading { flex-wrap: nowrap; background: var(--proposal-writing-wash); }
+.submitted-report-preview .proposal-preview-dock-heading h3 { font-size: 1.25rem; }
+.submitted-report-preview .proposal-preview-dock-heading p { font-size: .875rem; }
+.submitted-report-preview .proposal-preview-dock-actions { background: var(--proposal-writing-wash); }
+.submitted-report-preview :is(button:not(.proposal-preview-paper-open), .proposal-preview-download) { font-size: 1rem; }
+.submitted-report-preview .proposal-preview-zoom output { font-size: .875rem; }
 .submitted-report-preview .proposal-preview-paper { overflow: hidden; }
 .submitted-report-preview .revision-pdf-pages { align-items: safe center; }
 .submitted-report-preview .proposal-preview-zoom button { min-height: 2.75rem; }
@@ -201,12 +206,18 @@ html.dark .proposal-preview-error { color: #fda4af; }
 .submitted-report-preview.proposal-preview-dock-expanded .proposal-preview-paper { min-height: 0; }
 .submitted-report-preview.proposal-preview-dock-expanded .proposal-preview-dock-footer { flex-direction: column; align-items: center; gap: .375rem; }
 .submitted-report-wheel-hint { margin: 0; color: var(--proposal-writing-muted); font-size: .75rem; }
-.submitted-report-preview-thumbnail { display: block; position: relative; width: min(100%, 12rem); }
+.submitted-report-preview-thumbnail { display: block; position: relative; width: min(100%, 16rem); }
 .submitted-report-preview-thumbnail > section { height: auto; border-radius: .5rem; }
-.submitted-report-preview-thumbnail .proposal-preview-paper { flex: none; aspect-ratio: var(--submitted-paper-ratio, .707); min-height: 0; max-height: 14.5rem; background: #dce2eb; }
+.submitted-report-preview-thumbnail .proposal-preview-paper { flex: none; aspect-ratio: var(--submitted-paper-ratio, .707); min-height: 0; max-height: 23rem; background: #fef2f2; }
 .submitted-report-preview-thumbnail .revision-pdf-pages { overflow: hidden; padding: .5rem; scrollbar-gutter: auto; pointer-events: none; }
 .submitted-report-preview-thumbnail .proposal-preview-paper-open:hover { background: rgb(127 29 29 / .04); }
 html.dark .submitted-report-preview-thumbnail .proposal-preview-paper { background: #080f1d; }
+@media (max-height: 500px) {
+    .submitted-report-preview.proposal-preview-dock-expanded { height: 90dvh; }
+    .submitted-report-preview .proposal-preview-dock-heading { padding-block: .5rem; }
+    .submitted-report-preview.proposal-preview-dock-expanded .proposal-preview-dock-footer { padding: .375rem; }
+    .submitted-report-preview .submitted-report-wheel-hint { display: none; }
+}
 .proposal-writing-preview-launcher { position: fixed; right: var(--athena-page-action-right, 5.75rem); bottom: calc(var(--athena-floating-control-edge, 1rem) + 3.5rem + env(safe-area-inset-bottom)); z-index: 40; padding: .75rem 1rem; border: 1px solid var(--proposal-writing-accent); border-radius: .625rem; background: var(--proposal-writing-surface); color: var(--proposal-writing-accent); box-shadow: 0 6px 20px rgb(15 23 42 / .16); font-size: .875rem; font-weight: 600; }
 .revision-embedded [data-paper-editor] { --proposal-writing-sticky-top: 0rem; }
 .revision-embedded .proposal-writing-toolbar { top: 0; margin-top: -.75rem !important; margin-inline: -.75rem; border-top: 0; border-inline: 0; border-radius: 0; }

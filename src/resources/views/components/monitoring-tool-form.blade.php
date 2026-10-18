@@ -28,7 +28,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <p class="text-sm font-black text-gray-950 dark:text-white">{{ $preparedReport->quarter_label }} {{ $preparedReport->version_label }} Monitoring Tool PDF prepared</p>
-                <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents, discard it and prepare a new file.</p>
+                <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Office Secretary. The secretary checks it and handles corrections before forwarding it to the Research Head. To change its contents, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
                 @if ($topic->research_secretary_id)
                     @if ($preparedReport->hasPreparedBudget())
@@ -49,7 +49,7 @@
                 @if (Auth::id() === $topic->user_id)
                 <form method="POST" action="{{ route('project-progress.submit-prepared', [$topic, $preparedReport]) }}">
                     @csrf
-                    <button @disabled($topic->research_secretary_id && ! $preparedReport->hasPreparedBudget()) class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Submit to Research Head</button>
+                    <button @disabled($topic->research_secretary_id && ! $preparedReport->hasPreparedBudget()) class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Submit to Research Office Secretary</button>
                 </form>
                 @else
                     <p class="text-sm font-semibold text-red-700 dark:text-red-300">Only the project leader can submit this report.</p>

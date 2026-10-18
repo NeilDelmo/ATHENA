@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\PrepareProjectNarrativeReport;
 use App\Actions\SaveProjectNarrativeReportDraft;
 use App\Contracts\DocumentPdfConverter;
+use App\Http\Requests\ReviewImplementationReportRequest;
 use App\Http\Requests\SaveProjectNarrativeReportDraftRequest;
 use App\Http\Requests\StoreProjectNarrativeReportRequest;
 use App\Http\Requests\StoreSignedTerminalReportRequest;
@@ -18,6 +19,7 @@ use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
 use App\Services\ProgressReportEvidenceService;
 use App\Services\ProjectMonitoringFormDataService;
+use App\Services\ProjectReportReviewService;
 use App\Services\SidebarAttentionService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
@@ -144,7 +146,7 @@ class ProjectNarrativeReportController extends Controller
         try {
             $evidenceService->store(
                 $topic,
-                app(TerminalReportData::class)->normalize($topic, $request->validated()),
+                [...app(TerminalReportData::class)->normalize($topic, $request->validated()), 'review_stage' => $request->input('report_type', 'progress') === 'progress' ? 'secretary' : null],
                 $request->file('accomplishment_evidence', []),
                 fn (array $data): ProjectNarrativeReport => $prepareProjectNarrativeReport->handle(
                     $topic, $request->user(), $data, $request->allFiles(),
@@ -169,7 +171,7 @@ class ProjectNarrativeReportController extends Controller
             ->delete();
         $evidenceService->deleteUnreferenced($topic, $request->attributes->get('progress_report_evidence_paths', []));
 
-        return back()->with('success', ($request->input('report_type') === 'terminal' ? 'Terminal Report' : 'Progress Report').' PDF prepared. Review it, then submit the exact file to the Research Head.');
+        return back()->with('success', ($request->input('report_type') === 'terminal' ? 'Terminal Report' : 'Progress Report').' PDF prepared. Review it, then submit the exact file to the '.($request->input('report_type') === 'terminal' ? 'Research Head' : 'Research Office Secretary').'.');
     }
 
     public function saveDraft(
@@ -219,20 +221,25 @@ class ProjectNarrativeReportController extends Controller
                 'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
                 'submitted_by' => $request->user()->id,
                 'submitted_at' => now(),
+                'review_stage' => $lockedReport->report_type === 'progress' ? 'secretary' : null,
             ]);
         });
 
-        User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            ucfirst($report->report_label).' submitted',
-            $request->user()->name.' submitted a '.strtolower($report->report_label).' for '.$topic->title.'.',
-            route('topics.show', $topic).'#project-monitoring',
-            'info',
-            $topic->id,
-            workspace: User::WORKSPACE_RESEARCH_HEAD,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
-        ));
+        if ($report->report_type === 'progress') {
+            app(ProjectReportReviewService::class)->notifySecretarySubmission($report);
+        } else {
+            User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
+                ucfirst($report->report_label).' submitted',
+                $request->user()->name.' submitted a '.strtolower($report->report_label).' for '.$topic->title.'.',
+                route('topics.show', $topic).'#project-monitoring',
+                'info',
+                $topic->id,
+                workspace: User::WORKSPACE_RESEARCH_HEAD,
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+            ));
+        }
 
-        return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for Research Head review.');
+        return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for '.($report->report_type === 'terminal' ? 'Research Head' : 'Research Office Secretary').' review.');
     }
 
     public function discardPrepared(
@@ -310,6 +317,7 @@ class ProjectNarrativeReportController extends Controller
                     ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
                     'topic_id' => $topic->id,
                     'submitted_by' => $request->user()->id,
+                    'review_stage' => ($validated['report_type'] ?? 'progress') === 'progress' ? 'secretary' : null,
                     'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
                     'accomplishment_summary' => collect($validated['accomplishments'])
                         ->pluck('actual')
@@ -323,24 +331,28 @@ class ProjectNarrativeReportController extends Controller
             throw $exception;
         }
 
-        User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            ucfirst($report->report_label).' submitted',
-            $request->user()->name.' submitted a progress report for “'.$topic->title.'”.',
-            route('topics.show', $topic).'#project-monitoring',
-            'info',
-            $topic->id,
-            workspace: User::WORKSPACE_RESEARCH_HEAD,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
-        ));
+        if ($report->report_type === 'progress') {
+            app(ProjectReportReviewService::class)->notifySecretarySubmission($report);
+        } else {
+            User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
+                ucfirst($report->report_label).' submitted',
+                $request->user()->name.' submitted a terminal report for “'.$topic->title.'”.',
+                route('topics.show', $topic).'#project-monitoring',
+                'info',
+                $topic->id,
+                workspace: User::WORKSPACE_RESEARCH_HEAD,
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+            ));
+        }
 
-        return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for Research Head review.');
+        return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for '.($report->report_type === 'terminal' ? 'Research Head' : 'Research Office Secretary').' review.');
     }
 
     public function show(Request $request, ProjectNarrativeReport $report): View
     {
         $this->authorizeViewer($request, $report);
         abort_unless($report->isSubmitted(), 404);
-        $report->loadMissing(['topic', 'submitter', 'reviewer']);
+        $report->loadMissing(['topic', 'submitter', 'reviewer', 'secretaryReviewer']);
         $topic = $report->topic;
         $isLatestTerminal = $report->report_type === 'terminal'
             && $topic->narrativeReports()->where('report_type', 'terminal')->reorder()->latest('id')->value('id') === $report->id;
@@ -351,7 +363,10 @@ class ProjectNarrativeReportController extends Controller
 
         return view('faculty.progress-reports.show', [
             'report' => $report, 'topic' => $topic,
-            'canReview' => $canManage && $report->review_status !== ProjectNarrativeReport::STATUS_REVIEWED,
+            'canReview' => $canManage && $report->isAvailableToResearchHead() && ($report->report_type === 'terminal'
+                ? $report->review_status !== ProjectNarrativeReport::STATUS_REVIEWED
+                : $report->isLatestSubmittedVersion() && $report->review_status === ProjectNarrativeReport::STATUS_PENDING),
+            'canSecretaryReview' => $topic->canReviewImplementationReports($request->user()) && $topic->isMonitoringAvailable() && $report->isAwaitingSecretaryReview() && $report->isLatestSubmittedVersion(),
             'canRecordSignedCopy' => $canManage && $isLatestTerminal && $report->review_status === ProjectNarrativeReport::STATUS_REVIEWED,
         ]);
     }
@@ -372,6 +387,13 @@ class ProjectNarrativeReportController extends Controller
             ])],
             'research_head_remarks' => ['nullable', 'required_if:review_status,'.ProjectNarrativeReport::STATUS_REVISION_REQUESTED, 'string', 'max:5000'],
         ]);
+
+        if ($report->report_type === 'progress') {
+            app(ProjectReportReviewService::class)->reviewByHead($report, $request->user(), $validated['review_status'], $validated['research_head_remarks'] ?? null);
+            $sidebarAttention->markTopicAsRead($request->user(), ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING, $report->topic_id);
+
+            return back()->with('success', $validated['review_status'] === 'reviewed' ? 'Progress Report accepted.' : 'Concerns returned to the Research Office Secretary.');
+        }
 
         $reviewAttributes = [
             ...$validated,
@@ -415,6 +437,15 @@ class ProjectNarrativeReportController extends Controller
         ));
 
         return back()->with('success', 'Progress report review saved.');
+    }
+
+    public function secretaryReview(ReviewImplementationReportRequest $request, ProjectNarrativeReport $report, ProjectReportReviewService $reviews, SidebarAttentionService $sidebarAttention): RedirectResponse
+    {
+        $validated = $request->validated();
+        $reviews->reviewBySecretary($report, $request->user(), $validated['decision'], $validated['secretary_remarks'] ?? null);
+        $sidebarAttention->markTopicAsRead($request->user(), ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING, $report->topic_id);
+
+        return back()->with('success', $validated['decision'] === 'forward' ? 'Progress Report forwarded to the Research Head.' : 'Progress Report corrections requested from the researcher.');
     }
 
     public function download(
@@ -461,11 +492,17 @@ class ProjectNarrativeReportController extends Controller
             }
         }
         if (! $file) {
-            foreach (ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'accomplishments']) as $report) {
+            foreach (ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')
+                ->when($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), fn ($query) => $query->visibleToResearchHead())
+                ->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'report_type', 'review_stage', 'accomplishments']) as $report) {
                 $candidate = collect($report->accomplishments ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
                 if ($candidate) {
                     if ($report->isSubmitted()) {
-                        Gate::forUser($request->user())->authorize('view', $topic);
+                        if ($request->user()->isUsingWorkspace([User::WORKSPACE_RESEARCH_HEAD, User::WORKSPACE_RESEARCH_SECRETARY])) {
+                            $this->authorizeViewer($request, $report);
+                        } else {
+                            Gate::forUser($request->user())->authorize('view', $topic);
+                        }
                     } else {
                         abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
                             && $topic->isAccessibleTo($request->user()), 403);
@@ -582,9 +619,20 @@ class ProjectNarrativeReportController extends Controller
             return;
         }
 
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            abort_unless($report->isAvailableToResearchHead(), 403);
+
+            return;
+        }
+
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
+            abort_unless($report->report_type === 'progress' && $report->topic->canReviewImplementationReports($request->user()), 403);
+
+            return;
+        }
+
         abort_unless(
-            $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
-                || $report->topic->isAccessibleTo($request->user()),
+            $report->topic->isAccessibleTo($request->user()),
             403,
         );
     }

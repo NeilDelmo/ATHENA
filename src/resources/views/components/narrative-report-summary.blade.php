@@ -1,7 +1,7 @@
 @props(['report', 'headingId' => null])
 
 @php
-    $compactStatus = match ($report->review_status) {
+    $compactStatus = $report->review_stage !== null ? $report->review_status_label : match ($report->review_status) {
         'reviewed' => 'Reviewed',
         'revision_requested' => 'Corrections requested',
         default => 'Awaiting review',

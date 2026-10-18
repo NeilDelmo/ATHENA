@@ -92,7 +92,7 @@ class ResearchHeadAnalytics
         $counts = ['review' => 0, 'active' => 0, 'delayed' => 0, 'completed' => 0];
 
         foreach ((clone $base)->with(['user:id,name', 'researchCall:id,paper_revisions_end_date',
-            'collaborators:id,topic_id,user_id,email,accepted_at,project_role', 'latestProgressReport', 'progressReports', 'narrativeReports'])
+            'collaborators:id,topic_id,user_id,email,accepted_at,project_role', 'progressReports', 'narrativeReports'])
             ->withMin('versions', 'created_at')->lazyById(100) as $topic) {
             $stage = $this->stage($topic);
             if ($stage !== null) {
@@ -123,7 +123,7 @@ class ResearchHeadAnalytics
                     ...$participant, 'project' => ['id' => $topic->id, 'title' => $topic->title, 'role' => $participant['role']],
                 ]));
             }
-            $health = $this->projectHealth->assess($topic);
+            $health = $this->projectHealth->assess($topic, forResearchHead: true);
             $unknownSchedules += ! $completed && ! $health['has_schedule'] ? 1 : 0;
             $counts['delayed'] += $health['delayed'] ? 1 : 0;
             $attention = $attention->merge($health['issues']);

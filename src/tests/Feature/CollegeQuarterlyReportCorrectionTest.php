@@ -27,7 +27,7 @@ test('research head receives submitted college reports while unfinished drafts s
     $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
     CollegeQuarterlyReport::factory()->create(['college' => 'Private unfinished college', 'reporting_year' => 2026, 'reporting_quarter' => 3]);
     ($this->asHead)();
-    $this->get('/research-head/quarterly-accomplishment-reports')->assertOk()
+    $this->get(route('research_head.quarterly-reports.index', ['year' => 2026, 'college' => $this->coordinator->college, 'quarter' => 3]))->assertOk()
         ->assertSeeText($this->coordinator->college)->assertSeeText('Return for correction')
         ->assertDontSeeText('Private unfinished college');
 });

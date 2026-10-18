@@ -604,6 +604,12 @@ class SampleProposalDraftsSeeder extends Seeder
      */
     private function seedLiterature(ProposalDraft $draft, array $project): void
     {
+        if ($project['title'] === VerifiedFloodLiteratureSeeder::TITLE) {
+            $this->call(VerifiedFloodLiteratureSeeder::class);
+
+            return;
+        }
+
         $entries = [
             [
                 'title' => 'A systematic review of '.$project['domain'].' interventions',

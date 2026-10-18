@@ -2,6 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rmsQuarterlyReportForm } from '../../resources/js/rms-quarterly-report-form.js';
 
+test('section folders open only known categories and keep all report fields in the form', () => {
+    const state = rmsQuarterlyReportForm();
+    assert.equal(state.section, null);
+    state.openSection('publications');
+    assert.equal(state.section, 'publications');
+    state.openSection('unknown');
+    assert.equal(state.section, 'publications');
+    state.openSection(null);
+    assert.equal(state.section, null);
+});
+
 test('all college rows submit as one JSON value without exhausting PHP input variables', () => {
     const fields = ['presentation_title', 'presenter', 'project_title', 'authors', 'source_of_fund', 'project_status', 'sdgs', 'support_requested', 'event_title', 'theme', 'date', 'venue', 'classification', 'organizer', 'website', 'evidence_url'];
     const elements = Array.from({ length: 80 }, (_, row) => fields.map(field => ({

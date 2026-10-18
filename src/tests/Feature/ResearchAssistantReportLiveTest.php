@@ -143,3 +143,32 @@ test('configured live provider reviews fictional RMS records without preparing o
         'action' => ['type' => 'review_report'], 'context' => $context])->assertSuccessful()->assertJsonCount(0, 'report_changes.suggestions');
     expect(($this->snapshotRecords)())->toBe($baseline);
 });
+
+test('configured live provider explains Head review using the current secretary routing', function () {
+    $report = $this->liveTopic->progressReports()->create([
+        'submitted_by' => $this->liveResearcher->id, 'reporting_date' => '2026-08-31',
+        'period_start' => '2026-06-01', 'period_end' => '2026-08-31', 'reporting_quarter' => 3,
+        'version_number' => 1, 'progress_percentage' => 70, 'accomplishments' => 'Fictional records were checked.',
+        'review_stage' => 'head', 'review_status' => 'pending', 'submitted_at' => now()->subDays(2),
+        'secretary_reviewed_at' => now()->subDay(), 'forwarded_at' => now()->subDay(),
+    ]);
+    $this->recordModels[] = $report;
+    $baseline = ($this->snapshotRecords)();
+    $response = $this->actingAs($this->liveHead)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'wht does the head review means in this monitoring tool as a status?']],
+            'context' => ['topic_id' => $this->liveTopic->id, 'workflow_scope' => 'monitoring'],
+        ])->assertSuccessful();
+    $reply = $response->json('reply');
+    ($this->captureLiveResult)(['case' => 'head-review-status', 'reply' => $reply]);
+
+    expect($reply)->toMatch('/Head review/i')
+        ->toMatch('/(?:await|wait|pending)/i')
+        ->toMatch('/Research Office Secretary/i')
+        ->toMatch('/accept/i')
+        ->toMatch('/(?:return|send|refer|route|back).{0,150}(?:secretary|office)|(?:secretary|office).{0,150}(?:concerns|clarifications)/is')
+        ->not->toMatch('/Monitored by|REC-RES-04/i')
+        ->not->toMatch('/(?:displayed|shown|labelled|labeled)\s+as\s+["\x{201c}*]*(?:Awaiting Research Head review|Accepted by Research Head)/iu')
+        ->and(str_word_count(strip_tags($reply)))->toBeLessThanOrEqual(150)
+        ->and(($this->snapshotRecords)())->toBe($baseline);
+});

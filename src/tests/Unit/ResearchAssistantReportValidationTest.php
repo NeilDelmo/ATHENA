@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\ResearchAssistantProposalAssistanceService;
 use App\Services\ResearchAssistantReportAssistanceService;
 use App\Services\ResearchAssistantRrlRevisionService;
 use Illuminate\Support\Facades\Http;
@@ -93,3 +94,43 @@ test('public literature revision preserves signed percentages and citation ident
     expect($result['value'])->toBe(str_replace('observed', 'recorded', $html));
     Http::assertSentCount(1);
 });
+
+test('public literature revisions reject changes to names dates amounts and approvals', function (string $before, string $after) {
+    Http::fake(['generativelanguage.googleapis.com/*' => function ($request) use ($after) {
+        $payload = json_decode($request['messages'][1]['content'], true, flags: JSON_THROW_ON_ERROR);
+        $blocks = $payload['blocks'];
+        $blocks[0]['text'] = $after;
+
+        return Http::response(['choices' => [['message' => ['content' => json_encode(['summary' => 'Attempted factual change.', 'blocks' => $blocks])], 'finish_reason' => 'stop']]]);
+    }]);
+
+    expect(fn () => app(ResearchAssistantRrlRevisionService::class)->revise('<p>'.$before.'</p>', [], 'Revise the wording.'))
+        ->toThrow(HttpException::class);
+    Http::assertSentCount(1);
+})->with([
+    'name' => ['Dr. Maria Santos described the findings.', 'Dr. Juan Cruz described the findings.'],
+    'written date' => ['The observations were recorded in May.', 'The observations were recorded in June.'],
+    'numeric date' => ['The observations were recorded on 10/11/2026.', 'The observations were recorded on 11/10/2026.'],
+    'currency' => ['The materials cost PHP 500.', 'The materials cost USD 500.'],
+    'approval' => ['The board has not approved the protocol.', 'The board has approved the protocol.'],
+]);
+
+test('literature revisions preserve narrative author-year citations as a whole', function (string $author) {
+    Http::fake(['generativelanguage.googleapis.com/*' => function ($request) {
+        $payload = json_decode($request['messages'][1]['content'], true, flags: JSON_THROW_ON_ERROR);
+        $blocks = $payload['blocks'];
+        $blocks[0]['text'] = str_replace(['Santos', 'Cruz', 'Reyes'], ['Garcia', 'Lim', 'Young'], $blocks[0]['text']);
+
+        return Http::response(['choices' => [['message' => ['content' => json_encode(['summary' => 'Clarified the wording.', 'blocks' => $blocks])], 'finish_reason' => 'stop']]]);
+    }]);
+    $html = '<p>'.$author.' (2024) explains coastal monitoring.</p>';
+
+    expect(app(ResearchAssistantRrlRevisionService::class)->revise($html, [], 'Revise the wording.')['value'])->toBe($html);
+    Http::assertSentCount(1);
+})->with(['Santos', 'Dela Cruz', 'Santos et al.', 'Santos and Cruz', 'Santos, Cruz, and Reyes']);
+
+test('ordinary paper revision requests reach the reviewed changes flow', function (string $question) {
+    expect(app(ResearchAssistantProposalAssistanceService::class)->wantsSuggestions([], ['proposal_draft_id' => 1, 'paper_slug' => 'detailed-proposal'], $question))->toBeTrue();
+    Http::assertNothingSent();
+})->with(['Revise this paper.', 'Rewrite my methodology.', 'Update the wording of this section.', 'Change my proposal wording.',
+    'Update my project leader.', 'Change the price.', 'Change my credentials.', 'Update the quantity.']);

@@ -82,6 +82,39 @@ test('chat searches a numbered saved objective with recent filters even without 
     Http::assertNothingSent();
 });
 
+test('chat and the literature workspace use the same abbreviation aware academic search', function () {
+    config(['literature.web_harvest.enabled' => false, 'services.openalex.semantic_search' => false]);
+    Http::fake([
+        'api.semanticscholar.org/*' => Http::response(['data' => [[
+            'title' => 'Internet of Things for Flood Monitoring',
+            'abstract' => 'The researchers evaluated connected water level sensors for flood monitoring. Measurements were compared with reference readings to assess their reliability in changing water conditions.',
+            'authors' => [['name' => 'Public Researcher']], 'year' => 2024,
+            'externalIds' => ['DOI' => '10.1234/flood-monitoring'],
+            'url' => 'https://example.org/flood-monitoring',
+        ]]]),
+        'api.crossref.org/*' => Http::response(['message' => ['items' => []]]),
+        'api.openalex.org/*' => Http::response(['results' => []]),
+        'www.ebi.ac.uk/*' => Http::response(['resultList' => ['result' => []]]),
+        'api.ies.ed.gov/*' => Http::response(['response' => ['docs' => []]]),
+        'doaj.org/*' => Http::response(['results' => []]),
+        'export.arxiv.org/*' => Http::response('<feed xmlns="http://www.w3.org/2005/Atom"/>'),
+    ]);
+
+    $workspace = $this->postJson(route('research-support.literature-search'), [
+        'query' => 'IoT flood monitoring',
+    ])->assertOk()->json('results');
+    $chat = $this->postJson(route('research-support.chat'), literatureChatPayload(
+        $this->draft, 'Find studies about IoT flood monitoring',
+    ))->assertOk()->json('literature.results');
+
+    expect($workspace)->toHaveCount(1)
+        ->and($chat)->toHaveCount(1)
+        ->and($chat[0]['title'])->toBe($workspace[0]['title'])
+        ->and($chat[0]['doi'])->toBe($workspace[0]['doi'])
+        ->and($chat[0]['relevance']['matched_terms'])->toContain('iot', 'flood', 'monitoring')
+        ->and($chat[0]['evidence_basis'])->toBe('abstract');
+});
+
 test('chat uses current browser objectives and explicitly labels unsaved context', function () {
     mock(LiteratureSearchService::class)->shouldReceive('search')->once()->withArgs(fn (string $query, array $filters, string $context): bool => $query === 'Evaluate mobile tools for coastal reporting.' && str_contains($context, 'mobile tools'))->andReturn(literatureSearchPayload([$this->source]));
     $payload = literatureChatPayload($this->draft);

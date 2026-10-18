@@ -63,11 +63,13 @@ function draftMessage(overrides = {}) {
     };
 }
 
-function assistant(overrides = {}) {
+function assistant(overrides = {}, savePaper = async () => true) {
     return {
-        ...researchAssistantLiterature(),
+        ...researchAssistantLiterature({ savePaper }),
         isLoading: false,
         retryAfter: 0,
+        draft: '',
+        requestSequence: 1,
         proposalDraftId: 99,
         sendPrompt: async () => null,
         ...overrides,
@@ -320,6 +322,86 @@ test('failed or unrelated responses leave drafts available for a deliberate retr
     }
 });
 
+test('RRL flow review is optional after insertion and stays bound to its original proposal', async () => {
+    const events = [];
+    const message = { literature: normalizeAssistantLiterature({ kind: 'insertion', proposal_draft_id: 42, applied: false }) };
+    const store = assistant({ sendPrompt: async (...args) => events.push(args) }, async (id) => {
+        events.push(['saved', id]);
+        return true;
+    });
+
+    assert.equal(store.canReviewLiteratureFlow(message), false);
+    assert.equal(await store.reviewLiteratureFlow(message), false);
+    assert.deepEqual(events, []);
+    message.literature.applied = true;
+    assert.equal(store.canReviewLiteratureFlow(message), true);
+    assert.deepEqual(events, []);
+    assert.equal(await store.reviewLiteratureFlow(message), true);
+    assert.deepEqual(events[0], ['saved', 42]);
+    assert.match(events[1][0], /paragraph flow/);
+    assert.deepEqual(events[1].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 42 }]);
+    assert.equal(store.proposalDraftId, 99);
+    assert.equal(message.literature.is_working, false);
+    assert.equal(store.literatureOperationPending, false);
+});
+
+test('RRL flow review preserves unfinished messages and waits for other assistant operations', async () => {
+    const message = { literature: normalizeAssistantLiterature({ kind: 'insertion', proposal_draft_id: 42, applied: true }) };
+    for (const state of [{ draft: 'My unfinished question' }, { isLoading: true }, { sendInProgress: true },
+        { retryAfter: 2 }, { literatureOperationPending: true }, { proposalChangesBusy: () => true }]) {
+        let saved = false;
+        let requested = false;
+        const store = assistant({ ...state, sendPrompt: async () => { requested = true; } }, async () => { saved = true; return true; });
+        assert.equal(store.canReviewLiteratureFlow(message), false);
+        assert.equal(await store.reviewLiteratureFlow(message), false);
+        assert.equal(store.draft, state.draft || '');
+        assert.equal(saved, false);
+        assert.equal(requested, false);
+    }
+    assert.equal(assistant().canReviewLiteratureFlow(draftMessage()), false);
+    assert.equal(assistant().canReviewLiteratureFlow({ literature: { kind: 'insertion', applied: true, proposal_draft_id: 0 } }), false);
+});
+
+test('RRL flow review stops after a failed save, cancellation, or a newly typed message', async () => {
+    for (const scenario of ['failed save', 'cancelled', 'new message', 'network failure']) {
+        const message = { literature: normalizeAssistantLiterature({ kind: 'insertion', proposal_draft_id: 42, applied: true }) };
+        let requests = 0;
+        const store = assistant({ sendPrompt: async () => {
+            requests++;
+            if (scenario === 'network failure') throw new Error('Network interrupted');
+        } }, async () => {
+            if (scenario === 'cancelled') store.requestSequence++;
+            if (scenario === 'new message') store.draft = 'Keep my new question';
+            assert.equal(message.literature.is_working, true);
+            assert.equal(store.literatureOperationPending, true);
+            assert.equal(await store.reviewLiteratureFlow(message), false);
+            return scenario !== 'failed save';
+        });
+        assert.equal(await store.reviewLiteratureFlow(message), false);
+        assert.equal(requests, scenario === 'network failure' ? 1 : 0);
+        assert.equal(message.literature.is_working, false);
+        assert.equal(store.literatureOperationPending, false);
+        if (['failed save', 'network failure'].includes(scenario)) assert.ok(message.literature.error);
+        if (scenario === 'new message') assert.equal(store.draft, 'Keep my new question');
+    }
+});
+
+test('RRL flow review saves only the paper matching the insertion proposal', async () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const factory = app.slice(app.indexOf('...researchAssistantLiterature(') + 3, app.indexOf('...researchAssistantDissemination(')).trim().replace(/,$/, '');
+    for (const activeId of [42, 99, null]) {
+        const activeEditor = activeId ? { dataset: { proposalDraftId: String(activeId) } } : null;
+        const saves = [];
+        const methods = new Function('researchAssistantLiterature', 'document', 'finishPaperEditorAutoSave', `return ${factory};`)(
+            researchAssistantLiterature, { querySelector: () => activeEditor }, async (editor) => { saves.push(editor); return true; },
+        );
+        const store = { ...assistant(), ...methods };
+        const message = { literature: normalizeAssistantLiterature({ kind: 'insertion', proposal_draft_id: 42, applied: true }) };
+        assert.equal(await store.reviewLiteratureFlow(message), true);
+        assert.deepEqual(saves, activeId === 42 ? [activeEditor] : []);
+    }
+});
+
 test('the shared component renders editable review and source content as plain text', async () => {
     const view = await readFile(new URL('../../resources/views/components/research-assistant-literature.blade.php', import.meta.url), 'utf8');
 
@@ -374,7 +456,7 @@ test('compiled literature cards support selection, edited confirmation, and both
                     document.addEventListener('alpine:init', () => {
                         Alpine.data('literatureFixture', () => ({ message: ${JSON.stringify(message)} }));
                         Alpine.store('researchAssistant', {
-                            ...researchAssistantLiterature(), isLoading: false, retryAfter: 0,
+                            ...researchAssistantLiterature({ savePaper: async (id) => { window.literatureSaveId = id; return true; } }), isLoading: false, retryAfter: 0, draft: '', requestSequence: 1,
                             async sendPrompt(...args) {
                                 window.literatureCalls.push(args);
                                 return { literature: { kind: 'insertion', proposal_draft_id: 42 } };
@@ -427,8 +509,25 @@ test('compiled literature cards support selection, edited confirmation, and both
                 await expect(paragraph).toBeDisabled();
 
                 await page.evaluate((packet) => { Alpine.$data(document.querySelector('main')).message = { id: 8, literature: packet }; }, normalizeAssistantLiterature({ kind: 'insertion', proposal_draft_id: 42, editor_url: 'https://athena.test/proposals/42/paper', notice: 'Open the paper to see the reviewed paragraphs.' }));
+                await expect(page.getByRole('button', { name: 'Review RRL flow', exact: true })).toBeHidden();
+                await expect(page.getByText('After adding the text, use Revise RRL in the paper to review paragraph flow.', { exact: true })).toBeVisible();
                 await page.getByRole('button', { name: 'Open paper', exact: true }).click();
                 assert.equal(await page.evaluate(() => window.openedLiteratureProposal), 42);
+                await page.evaluate(() => { Alpine.$data(document.querySelector('main')).message.literature.applied = true; });
+                const reviewFlow = page.getByRole('button', { name: 'Review RRL flow', exact: true });
+                await expect(reviewFlow).toBeVisible();
+                assert.equal(await page.evaluate(() => window.literatureCalls.length), 2);
+                await page.evaluate(() => { Alpine.store('researchAssistant').isLoading = true; });
+                await expect(reviewFlow).toBeDisabled();
+                await page.evaluate(() => { Alpine.store('researchAssistant').isLoading = false; Alpine.store('researchAssistant').draft = 'My unfinished question'; });
+                await expect(reviewFlow).toBeDisabled();
+                await page.evaluate(() => { Alpine.store('researchAssistant').draft = ''; });
+                await reviewFlow.click();
+                await expect.poll(() => page.evaluate(() => window.literatureCalls.length)).toBe(3);
+                assert.equal(await page.evaluate(() => window.literatureSaveId), 42);
+                const reviewingCall = await page.evaluate(() => window.literatureCalls[2]);
+                assert.deepEqual(reviewingCall.slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 42 }]);
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
 
                 await page.evaluate((empty) => { Alpine.$data(document.querySelector('main')).message = empty; }, resultsMessage({ results: [], notice: 'Try a more specific research term.' }));
                 await expect(page.getByText('Try a more specific research term.', { exact: true })).toBeVisible();

@@ -53,7 +53,7 @@ beforeEach(function () {
         Role::firstOrCreate(['name' => $role]);
     }
 
-    $this->researcher = User::factory()->create();
+    $this->researcher = User::factory()->create(['college' => 'College of Engineering']);
     $this->researcher->assignRole('faculty_researcher');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
@@ -63,6 +63,13 @@ beforeEach(function () {
         'avatar' => 'https://example.com/marina-secretary.jpg',
     ]);
     $this->secretary->assignRole('research_secretary');
+    $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
+    $this->officeSecretary->assignRole('research_secretary');
+    $this->forwardReport = function (ProjectProgressReport|ProjectNarrativeReport $report): void {
+        $route = $report instanceof ProjectProgressReport ? 'research_secretary.monitoring-reports.review' : 'research_secretary.narrative-reports.review';
+        $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+            ->patch(route($route, $report), ['decision' => 'forward'])->assertRedirect()->assertSessionHasNoErrors();
+    };
     $call = ResearchCall::create([
         'title' => 'Monitoring Test Call',
         'academic_year' => '2026-2027',
@@ -304,9 +311,11 @@ test('three quarterly report pairs preserve approved values and editable results
             ->and($progress->introduction)->toBe('Q'.$quarter.' editable introduction.');
         ($this->attachSubmissionProof)($progress);
         $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $progress]))->assertSessionHasNoErrors();
+        ($this->forwardReport)($monitoring);
+        ($this->forwardReport)($progress);
         $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
-        $this->patch(route('research_head.progress-reports.review', $monitoring), ['review_status' => 'reviewed'])->assertSessionHasNoErrors();
-        $this->patch(route('research_head.narrative-progress-reports.review', $progress), ['review_status' => 'reviewed'])->assertSessionHasNoErrors();
+        $this->patch(route('research_head.progress-reports.review', $monitoring), ['review_status' => 'reviewed'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->patch(route('research_head.narrative-progress-reports.review', $progress), ['review_status' => 'reviewed'])->assertRedirect()->assertSessionHasNoErrors();
     }
     expect($this->topic->progressReports()->submitted()->count())->toBe(3)
         ->and($this->topic->narrativeReports()->submitted()->where('report_type', 'progress')->count())->toBe(3);
@@ -612,7 +621,10 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
 
     expect($tabs->item(0)->getAttribute('id'))->toBe('project-monitoring-tab-button')
         ->and($quarter)->not->toBeNull()
-        ->and($quarter->textContent)->toContain('Reviewed', 'View tool', 'Open report')
+        ->and($quarter->textContent)->toContain('Reviewed', 'View')
+        ->and($xpath->query('./th | ./td', $quarter)->length)->toBe(5)
+        ->and($xpath->query('.//*[@data-quarter-deadline]', $quarter)->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-quarter-targets]', $quarter)->length)->toBe(1)
         ->and($xpath->query('.//*[@data-monitoring-report-status]', $quarter)->item(0)->getAttribute('class'))->not->toContain('sr-only')
         ->and($xpath->query('.//button[@data-monitoring-action]/*[local-name()="svg"]', $quarter)->length)->toBe(1)
         ->and($xpath->query('.//button[@data-monitoring-action]', $quarter)->item(0)->getAttribute('title'))->toContain('Reviewed')
@@ -636,7 +648,7 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         ->and($xpath->query('//*[@data-progress-report-detail]//*[@data-submitted-report-paper]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-monitoring-report-detail]//*[@data-submitted-report-paper]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-progress-report-detail]//*[@role="progressbar"]')->item(0)?->getAttribute('aria-valuenow'))->toBe('25')
-        ->and($xpath->query('//*[@data-reporting-quarter="1"]//*[@role="progressbar"]')->item(0)?->getAttribute('aria-valuenow'))->toBe('25')
+        ->and($xpath->query('//*[@data-reporting-quarter="1"]//*[@role="progressbar"]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-progress-report-detail]')->item(0)->textContent)->not->toContain('Pilot complete.', 'Validated maintenance records.')
         ->and($terminalSection)->not->toBeNull()
         ->and($terminalSection->textContent)->toContain('Reviewed', 'Signed terminal PDF uploaded')
@@ -668,7 +680,8 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         $badge = $xpath->query('.//*[@'.$attribute.']', $quarter)->item(0);
         expect($badge->getAttribute('class'))->toContain('report-review-status')
             ->and($xpath->query('./*[local-name()="svg"]', $badge)->length)->toBe(1)
-            ->and(trim($badge->textContent))->toBe('Reviewed');
+            ->and($badge->getAttribute('title'))->toContain('Reviewed')
+            ->and($xpath->query('./span[@aria-hidden="true"]', $badge)->item(0)->textContent)->toBe('Accepted');
     }
     expect($xpath->query('//*[@data-monitoring-report-detail]')->item(0)->textContent)->not->toContain('From this submitted Monitoring Tool.');
 
@@ -700,7 +713,7 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
     $this->get(route('project-narrative-reports.show', $progress))->assertForbidden();
 })->with(['faculty_researcher', 'research_head']);
 
-test('quarter progress uses the latest submitted tool from the matching period including zero and missing values', function (string $workspace) {
+test('historical progress stays inside its matching report including zero and missing values', function (string $workspace) {
     $this->withoutVite();
     $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 9]);
     $this->travelTo('2026-10-15 10:00:00');
@@ -744,8 +757,9 @@ test('quarter progress uses the latest submitted tool from the matching period i
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
     foreach ([1 => '0', 2 => '60'] as $quarter => $percentage) {
-        expect($xpath->query('//*[@data-reporting-quarter="'.$quarter.'"]//*[@role="progressbar"]')->item(0)?->getAttribute('aria-valuenow'))->toBe($percentage)
-            ->and($xpath->query('//*[@id="narrative-report-'.$reports[$quarter]->id.'"]//*[@role="progressbar"]')->item(0)?->getAttribute('aria-valuenow'))->toBe($percentage);
+        expect($xpath->query('//*[@data-reporting-quarter="'.$quarter.'"]//*[@role="progressbar"]')->length)->toBe(0)
+            ->and($xpath->query('//*[@id="narrative-report-'.$reports[$quarter]->id.'"]//*[@role="progressbar"]')->item(0)?->getAttribute('aria-valuenow'))->toBe($percentage)
+            ->and($xpath->query('//*[@id="narrative-report-'.$reports[$quarter]->id.'"]')->item(0)->textContent)->toContain('Recorded project progress', 'From the Q'.$quarter.' Monitoring Tool');
     }
     $missing = $xpath->query('//*[@id="narrative-report-'.$reports[3]->id.'"]')->item(0);
     expect($xpath->query('//*[@data-reporting-quarter="3"]//*[@role="progressbar"]')->length)->toBe(0)
@@ -781,11 +795,26 @@ test('progress quarter rows keep reviewed reports and revision actions in their 
         ->and($xpath->query('//*[@data-progress-quarter="2"]')->item(0)->textContent)->toContain('Corrections requested', 'Revise report')
         ->and($xpath->query('//*[@data-progress-quarter="2"]//a[contains(., "Revise report")]')->item(0)->getAttribute('href'))
         ->toBe(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'progress', 'reporting_date' => '2026-07-14']))
-        ->and($xpath->query('//*[@data-progress-quarter="3"]')->item(0)->textContent)->toContain('Overdue', 'Start report');
+        ->and($xpath->query('//*[@data-progress-quarter="3"]')->item(0)->textContent)->toContain('Overdue', 'Start');
+
+    foreach ([1, 2, 3] as $quarter) {
+        expect($xpath->query('//*[@data-reporting-quarter="'.$quarter.'"]//*[@data-quarter-overdue]')->length)->toBe(1);
+    }
+    expect($xpath->query('//*[@data-progress-quarter="3"]//*[@data-narrative-report-status]/span[@aria-hidden="true"]')->item(0)?->textContent)->toBe('Missing');
 
     if (getenv('ATHENA_EXPORT_MONITORING_LAYOUT') === '1') {
         file_put_contents(storage_path('framework/testing/monitoring-active.html'), $response->getContent());
     }
+
+    $this->topic->progressReports()->create([
+        'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-04-14',
+        'progress_percentage' => 25, 'accomplishments' => 'First-quarter activities.',
+    ]);
+    $completePair = $this->get(route('topics.show', $this->topic))->assertOk();
+    @$document->loadHTML($completePair->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-reporting-quarter="1"]//*[@data-quarter-overdue]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-reporting-quarter="3"]//*[@data-quarter-overdue]')->length)->toBe(1);
 
     $prepared = $this->topic->narrativeReports()->first()->replicate();
     $prepared->fill(['reporting_quarter' => 3, 'reporting_date' => '2026-10-14', 'submission_status' => 'prepared', 'review_status' => 'pending'])->save();
@@ -809,8 +838,9 @@ test('prepared monitoring tools keep budget actions with their reporting quarter
     $quarter = $xpath->query('//*[@data-reporting-quarter="1"]')->item(0);
 
     expect($quarter)->not->toBeNull()
-        ->and($quarter->textContent)->toContain('PDF prepared', 'Complete budget', 'Review and submit')
-        ->and($xpath->query('.//a[contains(., "Complete budget")]', $quarter)->item(0)->getAttribute('href'))
+        ->and($quarter->textContent)->toContain('PDF prepared', 'Budget', 'Submit')
+        ->and($xpath->query('.//*[@data-monitoring-report-status]/span[@aria-hidden="true"]', $quarter)->item(0)->textContent)->toBe('Prepared')
+        ->and($xpath->query('.//a[@aria-label="Complete budget"]', $quarter)->item(0)->getAttribute('href'))
         ->toBe(route('project-budget.edit', [$this->topic, $report]))
         ->and($xpath->query('//*[@data-monitoring-budget-section]')->item(0)->textContent)->toContain('completes and confirms budget utilization')
         ->and($xpath->query('//*[@data-monitoring-budget-task="'.$report->id.'"]')->item(0)->getAttribute('href'))
@@ -879,13 +909,15 @@ test('quarterly report rows show the deadline and distinguish due reports from o
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
 
-    expect($xpath->query('//*[@data-reporting-quarter="1"]//*[@data-reporting-deadline]')->item(0)->textContent)->toBe('Due Mar 31, 2026');
+    expect($xpath->query('//*[@data-reporting-quarter="1"]//*[@data-reporting-deadline]')->item(0)->textContent)->toBe('Deadline Mar 31, 2026');
     foreach (['data-monitoring-quarter', 'data-progress-quarter'] as $attribute) {
         expect($xpath->query('//*[@'.$attribute.'="1"]')->item(0)->textContent)->toContain($status);
+        expect($xpath->query('//*[@'.$attribute.'="1"]//*[contains(@class, "report-review-status")]/span[@aria-hidden="true"]')->item(0)?->textContent)->toBe($prepared ? 'Prepared' : 'Missing');
         if ($correction) {
             expect($xpath->query('//*[@'.$attribute.'="1"]')->item(0)->textContent)->not->toContain('Overdue');
         }
     }
+    expect($xpath->query('//*[@data-reporting-quarter="1"]//*[@data-quarter-overdue]')->length)->toBe(str_contains($status, 'Overdue') ? 1 : 0);
 })->with([
     'submission week' => ['2026-03-25', 'Due Mar 31, 2026'],
     'deadline day' => ['2026-03-31 23:59:59', 'Due Mar 31, 2026'],
@@ -910,7 +942,8 @@ test('researchers can fill and save all three report drafts before submission op
     $terminal = $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertOk()
         ->assertSee('terminal_data[abstract]', false)->assertSee('Save draft')->assertSee('Jul 15, 2026');
     foreach ([$monitoring, $progress, $terminal] as $response) {
-        $response->assertSee('submissionOpen: false', false)->assertDontSee('Submit to Research Head');
+        $response->assertSee('submissionOpen: false', false)
+            ->assertDontSee('Submit to Research Office Secretary')->assertDontSee('Submit to Research Head');
     }
 
     $this->postJson(route('project-progress.draft', $this->topic), ['draft_version' => 0, 'reporting_date' => '2026-04-14', 'tracking_number' => 'Early monitoring draft'])
@@ -992,7 +1025,7 @@ test('unfinished quarterly drafts reopen and cannot be replaced with another qua
         ->and(ProjectProgressReport::count())->toBe(0);
 });
 
-test('a researcher prepares an official monitoring PDF before submitting it to the Research Head', function () {
+test('a researcher prepares an official monitoring PDF before submitting it to the Research Office Secretary', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertRedirect()
@@ -1019,11 +1052,12 @@ test('a researcher prepares an official monitoring PDF before submitting it to t
     expect($report->fresh()->submission_status)->toBe(ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED)
         ->and($this->pdfConverter->conversionCount)->toBe(1);
     Notification::assertSentTo(
-        $this->head,
+        $this->officeSecretary,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'New '.$report->quarter_label.' Monitoring Tool Submitted'
+        fn (ProposalActivityNotification $notification): bool => $notification->workspace === User::WORKSPACE_RESEARCH_SECRETARY
             && $notification->url === route('topics.show', $this->topic).'#monitoring-tool-'.$report->id,
     );
+    Notification::assertNotSentTo($this->head, ProposalActivityNotification::class);
 });
 
 test('the project header highlights journal search without repeating the monitoring status', function () {
@@ -1059,7 +1093,7 @@ test('the faculty project page opens the monitoring tool in a focused form page'
             'data-project-monitoring-details', 'Monitoring starts', 'Project ends', 'Next submission',
         ], false)
         ->assertSee('Monitoring Tool')
-        ->assertSee('Submit both reports during the final week of each quarter.')
+        ->assertSee('Submit both documents each quarter.')
         ->assertSee('Progress Report')
         ->assertDontSee('Quarterly progress reports.')
         ->assertSee('Start tool')
@@ -1347,7 +1381,7 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
         ->assertDontSee('<details class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">', false)
         ->assertSee('data-monitoring-schedule-table', false)
         ->assertSee('data-monitoring-action', false)
-        ->assertSee('View tool');
+        ->assertSee('View');
 
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
@@ -1518,10 +1552,10 @@ test('an accepted collaborator can access the same active project monitoring wor
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk();
     $this->get(route('project-progress.create', $this->topic))->assertOk()
-        ->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
+        ->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Office Secretary');
     $this->post(route('project-progress.submit-prepared', [$this->topic, $report]))->assertForbidden();
     expect($report->fresh()->isPrepared())->toBeTrue();
-    $this->actingAs($this->researcher)->get(route('project-progress.create', $this->topic))->assertOk()->assertSee('Submit to Research Head');
+    $this->actingAs($this->researcher)->get(route('project-progress.create', $this->topic))->assertOk()->assertSee('Submit to Research Office Secretary');
     $this->get(route('project-progress.monitoring-tool', $report))->assertOk();
     ($this->attachSubmissionProof)($report);
     $this->post(route('project-progress.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
@@ -1541,7 +1575,7 @@ test('a researcher can discard a prepared monitoring tool and its stored PDF', f
         ->get(route('project-progress.create', $this->topic))
         ->assertOk()
         ->assertSee('Monitoring Tool PDF prepared')
-        ->assertSee('Submit to Research Head')
+        ->assertSee('Submit to Research Office Secretary')
         ->assertSee('data-monitoring-action-dock-fixed', false);
     $this->actingAs($this->researcher)
         ->delete(route('project-progress.discard-prepared', [$this->topic, $report]))
@@ -1608,9 +1642,8 @@ test('a research head can review a report and update project status', function (
         ->assertSee('x-show="openReportId === \'monitoring-tool-'.$report->id.'\'"', false)
         ->assertSee('data-monitoring-schedule-table', false)
         ->assertSee('x-bind:aria-expanded="openReportId === \'monitoring-tool-'.$report->id.'\'"', false)
-        ->assertSee('View tool')
-        ->assertSee('x-bind:rows="remarksExpanded ? Math.max(3, Math.ceil(remarksText.length / 75)) : 1"', false)
-        ->assertSee('id="research-head-remarks-'.$report->id.'"', false)
+        ->assertSee('View')
+        ->assertDontSee('name="research_head_remarks"', false)
         ->assertSee('Progress is acceptable.')
         ->assertDontSee('Monitoring tool versions')
         ->assertDontSee('<input name="research_head_remarks"', false);
@@ -1652,7 +1685,8 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
     $this->actingAs($this->researcher)
         ->post(route('project-progress.submit-prepared', [$this->topic, $original]))
         ->assertSessionHasNoErrors();
-
+    ($this->forwardReport)($original);
+    Notification::fake();
     $this->actingAs($this->head)
         ->patch(route('research_head.progress-reports.review', $original), [
             'review_status' => 'revision_requested',
@@ -1660,17 +1694,18 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
         ])
         ->assertSessionHasNoErrors();
 
-    Notification::assertSentTo(
-        $this->researcher,
-        ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === $original->quarter_label.' Monitoring Tool Corrections Requested',
-    );
-
-    $this->actingAs($this->head)
+    Notification::assertSentTo($this->officeSecretary, ProposalActivityNotification::class);
+    Notification::assertNotSentTo($this->researcher, ProposalActivityNotification::class);
+    expect($original->fresh()->review_status)->toBe('pending')->and($original->fresh()->review_stage)->toBe('secretary');
+    $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->patch(route('research_secretary.monitoring-reports.review', $original), [
+            'decision' => 'revision_requested', 'secretary_remarks' => 'Please correct the accomplishment data.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+    Notification::assertSentTo($this->researcher, ProposalActivityNotification::class);
+    $this->actingAs($this->researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
         ->get(route('topics.show', $this->topic))
         ->assertSuccessful()
-        ->assertSee('Report corrections requested')
-        ->assertSee('Request report corrections')
+        ->assertSee('Corrections requested by Research Office Secretary')
         ->assertDontSee('Revision required');
 
     $this->actingAs($this->researcher)
@@ -1705,20 +1740,23 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
         ->assertSessionHasNoErrors();
 
     Notification::assertSentTo(
-        $this->head,
+        $this->officeSecretary,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === $replacement->quarter_label.' Monitoring Tool Resubmitted'
+        fn (ProposalActivityNotification $notification): bool => $notification->workspace === User::WORKSPACE_RESEARCH_SECRETARY
             && $notification->url === route('topics.show', $this->topic).'#monitoring-tool-'.$replacement->id,
     );
-
-    $historyResponse = $this->actingAs($this->head)
+    Notification::assertNotSentTo($this->head, ProposalActivityNotification::class);
+    $historyResponse = $this->actingAs($this->researcher)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Monitoring Tool')
         ->assertSee($replacement->quarter_label.' Monitoring Tool · Version 2')
-        ->assertSee('Report corrections requested')
+        ->assertSee('Corrections requested by Research Office Secretary')
         ->assertSee('Historical version')
         ->assertSee('Current submission');
+    ($this->forwardReport)($replacement);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('topics.show', $this->topic))->assertOk()->assertSee($replacement->quarter_label.' Monitoring Tool · Version 2');
 
     if (getenv('ATHENA_EXPORT_MONITORING_LAYOUT') === '1') {
         file_put_contents(storage_path('framework/testing/monitoring-history.html'), $historyResponse->getContent());
@@ -1985,7 +2023,8 @@ test('the owner and Research Head can download the filled official monitoring to
         ->post(route('project-progress.submit-prepared', [$this->topic, $report]))
         ->assertRedirect()
         ->assertSessionHasNoErrors();
-
+    $this->actingAs($this->head)->get(route('project-progress.monitoring-tool', $report))->assertForbidden();
+    ($this->forwardReport)($report);
     $this->actingAs($this->head)
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk();
@@ -2075,7 +2114,8 @@ test('monitoring PDF preview serves the exact submitted paper inline with the sh
     $this->actingAs($this->researcher)
         ->post(route('project-progress.submit-prepared', [$this->topic, $report]))
         ->assertSessionHasNoErrors();
-
+    $this->actingAs($this->head)->get(route('project-progress.monitoring-tool.view', $report))->assertForbidden();
+    ($this->forwardReport)($report);
     foreach ([$this->head, $this->researcher] as $viewer) {
         $response = $this->actingAs($viewer)->get(route('project-progress.monitoring-tool.view', $report))
             ->assertSuccessful()->assertHeader('Content-Type', 'application/pdf')
@@ -2130,7 +2170,7 @@ test('older progress reports remain accessible in history while terminal reports
         'accomplishment_summary' => 'Completed the pilot with documentation.',
         'introduction' => 'Pilot implementation.', 'objectives' => 'Evaluate the pilot.',
         'methodology' => 'Interviews and observation.', 'results_discussion' => 'Pilot results documented.',
-        'review_status' => ProjectNarrativeReport::STATUS_REVISION_REQUESTED,
+        'review_status' => ProjectNarrativeReport::STATUS_PENDING,
         'research_head_remarks' => 'Explain the participant shortfall.',
         'photos' => [['path' => 'progress-reports/campus.jpg', 'caption' => 'Pilot coordination.', 'section' => 'results_discussion']],
     ]);

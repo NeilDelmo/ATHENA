@@ -18,7 +18,8 @@ test('the rendered project views preserve monitoring, poster covers, file select
     const html = readFileSync(resolve('storage/framework/testing/project-workspace.html'), 'utf8');
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/project-workspace.css'), 'utf8'), { from: undefined });
-    const module = readFileSync(resolve('resources/js/project-workspace.js'), 'utf8').replaceAll('export ', '');
+    const module = readFileSync(resolve('resources/js/report-library.js'), 'utf8').replaceAll('export ', '') + '\n'
+        + readFileSync(resolve('resources/js/project-workspace.js'), 'utf8').replace(/^import .+;\r?\n/gm, '').replaceAll('export ', '');
     const posterImage = readFileSync(resolve('public/images/sample-maintenance-poster.png'));
     const documents = [
         { key: 'proposal-pdf', category: 'proposal', title: 'Approved proposal', filename: 'Coastal research proposal.pdf', note: '', source: 'Approved submission', uploaded_by: 'Elena Santos', uploaded_at: '2025-06-01T00:00:00Z', file_size: 24576, view_url: 'http://localhost/files/proposal/view', download_url: 'http://localhost/files/proposal/download', generated_comment_response: true, official: true },
@@ -87,6 +88,15 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 await workspace.waitFor({ state: 'visible' });
                 const filesTab = page.getByRole('tab', { name: 'Files', exact: true });
                 const monitoringTab = page.getByRole('tab', { name: 'Monitoring', exact: true });
+                const tabs = page.getByRole('tablist', { name: 'Project views' });
+                await expect(tabs).toHaveCSS('background-color', dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
+                await expect(tabs).toHaveCSS('border-radius', '12px');
+                await expect(filesTab).toHaveCSS('background-color', dark ? 'rgb(255, 255, 255)' : 'rgb(3, 7, 18)');
+                await expect(filesTab).toHaveCSS('color', dark ? 'rgb(3, 7, 18)' : 'rgb(255, 255, 255)');
+                for (const tab of [filesTab, monitoringTab]) {
+                    assert.ok((await tab.boundingBox()).height >= 44);
+                    await expect(tab).toHaveCSS('font-size', '16px');
+                }
                 await expect(filesTab).toHaveAttribute('aria-selected', 'true');
                 await expect(monitoringTab).toHaveAttribute('aria-selected', 'false');
                 await expect(page.locator('[data-project-monitoring]')).toBeHidden();
@@ -104,6 +114,8 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 await filesTab.press('Home');
                 await expect(monitoringTab).toHaveAttribute('aria-selected', 'true');
                 await expect(monitoringTab).toBeFocused();
+                await expect(monitoringTab).toHaveCSS('background-color', dark ? 'rgb(255, 255, 255)' : 'rgb(3, 7, 18)');
+                await expect(filesTab).not.toHaveCSS('background-color', dark ? 'rgb(255, 255, 255)' : 'rgb(3, 7, 18)');
                 await expect(workspace).toBeHidden();
                 await expect(monitoringFilters).toBeVisible();
                 await expect(page.locator('[data-kpi-strip]')).toHaveCount(0);
@@ -123,6 +135,11 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 const state = () => workspace.evaluate(element => JSON.parse(JSON.stringify(Alpine.$data(element).workspace)));
                 const location = () => workspace.evaluate(element => Alpine.$data(element).location);
                 const settled = () => page.waitForFunction(() => !Alpine.$data(document.querySelector('[data-project-workspace]')).saving);
+                const chooseView = async name => {
+                    await workspace.locator('[data-library-view-surface]').click({ button: 'right' });
+                    await expect(page.getByRole('menu', { name: 'View', exact: true })).toBeVisible();
+                    await page.getByRole('menuitemradio', { name, exact: true }).click();
+                };
                 const item = (type, id) => workspace.locator(`[data-workspace-${type}][data-item-id="${id}"]:visible`);
                 const projects = workspace.locator('[data-workspace-project]:visible');
                 const folderNav = name => page.getByRole('navigation', { name: 'Project folders' }).getByRole('button', { name: `Open folder ${name}`, exact: true });
@@ -336,11 +353,11 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 assert.deepEqual(readFileSync(await download.path()), posterImage);
                 await posterPreview.getByRole('button', { name: 'Close', exact: true }).click();
                 await expect(projectSummary.getByRole('link', { name: 'View record: Coastal communities research', exact: true })).toBeVisible();
-                await page.getByRole('button', { name: 'Details', exact: true }).click();
+                await chooseView('Details');
                 await settled();
                 assert.equal(persisted.view, 'list');
                 assert.equal(await location(), projectLocation);
-                await expect(page.getByRole('button', { name: 'Details', exact: true })).toHaveAttribute('aria-pressed', 'true');
+                assert.equal((await state()).view, 'list');
                 await page.getByLabel('Search this location').fill('final report');
                 await expect(workspace.locator('[data-workspace-document]:visible')).toHaveCount(1);
                 await page.getByLabel('Search this location').fill('');
@@ -354,7 +371,7 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 assert.equal(await location(), 'year:2025');
                 await page.getByRole('button', { name: 'Up', exact: true }).click();
                 assert.equal(await location(), 'all');
-                await page.getByRole('button', { name: 'Icons', exact: true }).click();
+                await chooseView('Medium icons');
                 await settled();
 
                 const parent = await createFolder('Coastal studies', true);
@@ -442,7 +459,7 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 await screenshot('organized');
 
                 rejectNextSave = true;
-                await page.getByRole('button', { name: 'Details', exact: true }).click();
+                await chooseView('Details');
                 await page.getByRole('button', { name: 'Reload workspace', exact: true }).waitFor({ state: 'visible' });
                 assert.equal((await state()).view, 'grid');
                 assert.equal(await page.getByRole('button', { name: 'New folder', exact: true }).isDisabled(), true);

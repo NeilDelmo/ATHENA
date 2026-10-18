@@ -1,5 +1,4 @@
 @php
-    $previewChunks = collect($index['chunks'] ?? [])->take(12);
     $unindexedPages = $index['unindexed_pages'] ?? $manual->unindexed_pages ?? [];
     $effectiveDateIsFuture = $manual->effective_date?->isAfter(today()) ?? false;
 @endphp
@@ -54,7 +53,7 @@
                         <p class="mt-1 max-w-3xl text-sm leading-6 text-amber-800 dark:text-amber-200">Text could not be read on the pages below. Review them in the PDF before activating this edition. Their content may be missing from research guidance.</p>
                         <ul class="mt-3 flex flex-wrap gap-2 text-xs font-bold" aria-label="Pages with unreadable text">
                             @foreach ($unindexedPages as $page)
-                                <li class="rounded-lg border border-amber-200 bg-white/60 px-2.5 py-1.5 dark:border-amber-800 dark:bg-amber-950/50">Page {{ $page }}</li>
+                                <li><a href="#page={{ $page }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($manual->version), page: {{ $page }} })" class="inline-flex min-h-11 items-center rounded-lg border border-amber-200 bg-white/60 px-2.5 py-1.5 underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-600 dark:border-amber-800 dark:bg-amber-950/50">Page {{ $page }}</a></li>
                             @endforeach
                         </ul>
                     </div>
@@ -62,39 +61,7 @@
             </aside>
         @endif
 
-        <section x-data="{ query: '' }" class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="manual-preview-heading">
-            <div class="flex flex-col gap-4 border-b border-slate-200 p-5 dark:border-slate-800 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
-                <div class="max-w-2xl">
-                    <h2 id="manual-preview-heading" class="text-lg font-black tracking-tight text-slate-950 dark:text-white">Text preview</h2>
-                    <p id="manual-preview-hint" class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">This sample shows the first {{ $previewChunks->count() }} extracted text sections. Download the PDF to review the complete manual and check its formatting.</p>
-                </div>
-                @if ($previewChunks->isNotEmpty())
-                    <div class="w-full lg:max-w-xs">
-                        <label for="manual-preview-search" class="sr-only">Search this preview sample</label>
-                        <input id="manual-preview-search" type="search" x-model.debounce.150ms="query" aria-describedby="manual-preview-hint" placeholder="Search this sample" class="block w-full rounded-xl border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                    </div>
-                @endif
-            </div>
-            @if ($previewChunks->isNotEmpty())
-                <div x-ref="preview" class="max-h-[36rem] divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800" role="region" aria-label="Extracted manual text sample" tabindex="0">
-                    @foreach ($previewChunks as $chunk)
-                        <article x-show="!query.trim() || $el.textContent.toLowerCase().includes(query.trim().toLowerCase())" class="px-5 py-5 sm:px-6">
-                            <div class="flex flex-wrap items-start justify-between gap-2">
-                                <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ $chunk['section'] ?: 'Manual text' }}</h3>
-                                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $chunk['page_start'] === $chunk['page_end'] ? 'Page '.$chunk['page_start'] : 'Pages '.$chunk['page_start'].'–'.$chunk['page_end'] }}</p>
-                            </div>
-                            <p class="mt-3 max-w-4xl whitespace-pre-wrap break-words text-sm leading-7 text-slate-600 dark:text-slate-300">{{ $chunk['content'] }}</p>
-                        </article>
-                    @endforeach
-                </div>
-                <p x-cloak x-show="query.trim() && !Array.from($refs.preview.children).some(section => section.textContent.toLowerCase().includes(query.trim().toLowerCase()))" role="status" class="p-6 text-sm text-slate-500 dark:text-slate-400">No matching text in this sample. Try another word or download the PDF to review all pages.</p>
-            @else
-                <div class="px-6 py-10">
-                    <p class="text-sm font-bold text-slate-700 dark:text-slate-200">No text preview is available.</p>
-                    <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Download the PDF and review it before deciding whether to activate this edition.</p>
-                </div>
-            @endif
-        </section>
+        <x-research-manual-reader :reader="$manualReader" class="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6" />
 
         <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6" aria-labelledby="activate-manual-heading">
             <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-10">

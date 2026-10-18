@@ -10,10 +10,12 @@ import loadConfig from 'tailwindcss/loadConfig.js';
 import { projectStatusManager } from '../../resources/js/project-status-manager.js';
 
 test('the rendered monitoring workspace prioritizes reports and supports disclosure and tab navigation in both themes', async () => {
-    execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', 'tests/Feature/MonitoringObjectiveAlertTest.php', 'tests/Feature/PostApprovalUiDemoSeederTest.php', '--filter=post approval UI|monitoring prioritizes|progress quarter rows|a revised Monitoring Tool remains|monitoring alerts are visible'], {
-        encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
-    });
+    if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
+        execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', 'tests/Feature/MonitoringObjectiveAlertTest.php', 'tests/Feature/PostApprovalUiDemoSeederTest.php', 'tests/Feature/ProjectReportSecretaryReviewUiTest.php', 'tests/Feature/ProjectMonitoringHealthPresentationTest.php', '--filter=post approval UI|monitoring prioritizes|progress quarter rows|a revised Monitoring Tool remains|monitoring alerts are visible|forwarded reports offer|monitoring summary groups'], {
+            encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1', ATHENA_EXPORT_HEAD_REVIEW: '1' },
+        });
+    }
     const overdueAlert = readFileSync(resolve('storage/framework/testing/monitoring-overdue-alert.html'), 'utf8');
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/proposal-paper-workspace.css'), 'utf8'), { from: undefined });
@@ -24,9 +26,9 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
 
     try {
-        for (const fixture of ['completed-faculty_researcher', 'completed-research_head', 'active', 'history', 'delayed-head']) {
+        for (const fixture of ['completed-faculty_researcher', 'completed-research_head', 'active', 'history', 'delayed-head', 'head-review', 'summary-head']) {
             const html = readFileSync(resolve(`storage/framework/testing/monitoring-${fixture}.html`), 'utf8');
-            for (const width of (fixture === 'delayed-head' ? [390, 1440] : [320, 390, 768, 1440])) {
+            for (const width of (['delayed-head', 'head-review', 'summary-head'].includes(fixture) ? [390, 1440] : [320, 390, 768, 1440])) {
                 for (const dark of [false, true]) {
                     const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
                     const errors = [];
@@ -86,62 +88,107 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     await expect(tab).toHaveCSS('border-radius', '12px');
                     await expect(tab).toHaveCSS('border-bottom-width', '0px');
                     await expect(page.locator('[data-project-monitoring-details] dd').first()).toHaveCSS('font-size', '16px');
-                    await expect(page.locator('#quarterly-reports')).toHaveCSS('background-color', 'rgb(122, 0, 25)');
-                    await expect(page.locator('#quarterly-reporting-schedule-heading')).toHaveCSS('color', 'rgb(255, 255, 255)');
+                    assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Latest reported project progress/);
+                    assert.ok(await page.locator('#quarterly-reports > span svg').isVisible());
+                    assert.ok(await page.locator('#quarterly-reporting-schedule-heading').evaluate(el => parseFloat(getComputedStyle(el).fontSize)) >= 24);
                     assert.equal(await page.getByRole('tab').first().getAttribute('id'), 'project-monitoring-tab-button');
-                    assert.equal(await page.locator('[data-reporting-quarter]').count(), ['history', 'delayed-head'].includes(fixture) ? 4 : 3);
+                    assert.equal(await page.locator('[data-reporting-quarter]').count(), fixture === 'summary-head' ? 2 : (['history', 'delayed-head', 'head-review'].includes(fixture) ? 4 : 3));
                     assert.equal(await page.locator('#terminal-reports').isVisible(), true);
                     assert.equal(await page.locator('[data-project-details]').count(), 0);
-                    assert.equal(await page.locator('[data-monitoring-budget-section]').count(), ['completed-research_head', 'history', 'delayed-head'].includes(fixture) ? 0 : 1);
+                    assert.equal(await page.locator('[data-monitoring-budget-section]').count(), ['completed-research_head', 'delayed-head', 'head-review', 'summary-head'].includes(fixture) ? 0 : 1, `${fixture} budget visibility at ${width}px`);
                     const recordMenu = page.locator('[data-project-record-menu]');
                     assert.equal(await recordMenu.getAttribute('open'), null);
                     assert.equal(await page.getByRole('tab', { name: 'Proposal', exact: true }).isVisible(), false);
                     assert.equal(await page.locator('#terminal-reports ol').count(), 0);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 
+                    const overview = page.locator('[data-monitoring-overview]');
+                    assert.doesNotMatch(await overview.innerText(), /completion decision needed|Awaiting required report \/ review|Awaiting Research Head review/);
+                    for (const group of await overview.locator('[data-monitoring-review-group]').all()) {
+                        assert.equal(await group.getAttribute('open'), null);
+                        const summary = group.locator('summary');
+                        await summary.focus();
+                        await page.keyboard.press('Enter');
+                        assert.equal(await group.getAttribute('open'), '');
+                        for (const link of await group.locator('[data-monitoring-task-link]').all()) {
+                            assert.equal(await link.isVisible(), true);
+                            assert.ok(await link.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
+                            const target = new URL(await link.getAttribute('href'), 'http://localhost').hash;
+                            assert.equal(await page.locator(target).count(), 1, `Task link must have a rendered destination: ${target}`);
+                        }
+                        await page.keyboard.press('Space');
+                        assert.equal(await group.getAttribute('open'), null);
+                    }
+                    if (width >= 1280 && await overview.locator('[data-project-status-manager]').count()) {
+                        const notice = await overview.locator('[data-monitoring-notice-link]').boundingBox();
+                        const manage = await overview.getByRole('button', { name: 'Manage status', exact: true }).boundingBox();
+                        assert.ok(Math.abs(notice.y - manage.y) <= 1, 'Monitoring actions should share one row');
+                    }
+
                     const rows = page.locator('[data-reporting-quarter]');
                     for (let index = 0; index < await rows.count(); index++) {
+                        assert.ok(await rows.nth(index).locator('[data-quarter-overdue]').count() <= 1);
+                        for (const status of await rows.nth(index).locator('[data-report-controls] .report-review-status > span:not(.sr-only)').all()) {
+                            assert.doesNotMatch(await status.innerText(), /overdue/i);
+                        }
+                        assert.equal(await rows.nth(index).getByRole('progressbar').count(), 0);
+                        assert.doesNotMatch(await rows.nth(index).innerText(), /%|at submission/);
                         assert.equal(await rows.nth(index).locator('[data-monitoring-quarter]').count(), 1);
                         assert.equal(await rows.nth(index).locator('[data-progress-quarter]').count(), 1);
                         assert.equal(await rows.nth(index).locator('[data-monitoring-report-status]').isVisible(), true);
                         assert.equal(await rows.nth(index).locator('[data-narrative-report-status]').isVisible(), true);
-                        const toolStatus = await rows.nth(index).locator('[data-monitoring-report-status]').boundingBox();
-                        const progressStatus = await rows.nth(index).locator('[data-narrative-report-status]').boundingBox();
                         const controlGroups = rows.nth(index).locator('[data-report-controls]');
                         const controls = [controlGroups.nth(0).locator('.quarterly-report-primary'), controlGroups.nth(1).locator('.quarterly-report-primary')];
+                        const slots = await Promise.all([controlGroups.nth(0).boundingBox(), controlGroups.nth(1).boundingBox()]);
+                        assert.ok(Math.abs(slots[0].width - slots[1].width) <= 1, `${fixture} report slots must have equal widths`);
+                        assert.ok(Math.abs(slots[0].height - slots[1].height) <= 1, `${fixture} report slots must have equal heights`);
                         const boxes = [];
+                        const statusInsets = [];
                         for (const control of controls) {
                             assert.equal(await control.count(), 1);
                             assert.equal(await control.locator('.report-review-status').isVisible(), true);
                             const box = await control.boundingBox();
-                            assert.equal(box.height, 44);
-                            assert.ok(box.width >= 120 && box.width <= 144);
+                            assert.ok(box.height >= 44);
+                            if (width >= 1280) assert.ok(box.height <= 48);
+                            assert.ok(await control.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
+                            assert.ok(box.width >= 44 && box.x + box.width <= width);
                             assert.equal(await control.locator('.report-review-status').evaluate(el => getComputedStyle(el).borderTopWidth), '0px');
                             const status = await control.locator('.report-review-status').boundingBox();
+                            statusInsets.push(status.x - box.x);
                             assert.ok(status.x >= box.x && status.x + status.width <= box.x + box.width);
-                            assert.ok(Math.abs(status.y + status.height / 2 - box.y - box.height / 2) <= 1);
+                            assert.ok(status.y >= box.y && status.y + status.height <= box.y + box.height);
+                            assert.ok(await control.locator('.report-review-status').evaluate(el => parseFloat(getComputedStyle(el).fontSize)) >= 16);
                             boxes.push(box);
                         }
-                        assert.equal(boxes[0].width, boxes[1].width);
-                        assert.ok(Math.abs(boxes[0].y - boxes[1].y) <= 1);
-                        assert.equal(toolStatus.height, progressStatus.height);
-                        if (width >= 640) {
+                        assert.ok(Math.abs(statusInsets[0] - statusInsets[1]) <= 1, `${fixture} report status text must align`);
+                        assert.ok(width < 360 ? boxes[1].y >= boxes[0].y + boxes[0].height : Math.abs(boxes[0].y - boxes[1].y) <= 1, `${fixture} ${width}px report alignment: ${JSON.stringify(boxes)}`);
+                        if (fixture === 'delayed-head') {
+                            const rowBounds = await rows.nth(index).boundingBox();
+                            assert.ok(rowBounds.height <= (width < 1280 ? 280 : 64), `Quarter row is too tall: ${JSON.stringify(rowBounds)}`);
+                        }
+                        if (width >= 1280) {
+                            assert.ok((await rows.nth(index).boundingBox()).height <= 64, `${fixture} quarter must fit on one line`);
                             for (const [column, control] of [[1, boxes[0]], [2, boxes[1]]]) {
                                 const heading = await page.locator('thead th .quarterly-report-rail').nth(column - 1).boundingBox();
-                                assert.ok(Math.abs(heading.x - control.x) <= 1);
+                                assert.ok(control.x >= heading.x && control.x + control.width <= heading.x + heading.width + 1);
                             }
                         }
 
-                        if (fixture.startsWith('completed')) {
-                            const bounds = await rows.nth(index).boundingBox();
-                            assert.ok(bounds.height <= (width < 640 ? 230 : 140));
+                    }
+                    if (width >= 1280) {
+                        const schedule = page.locator('#progress-reports');
+                        await schedule.evaluate(element => { element.style.maxWidth = '64rem'; });
+                        for (const row of await rows.all()) {
+                            assert.ok((await row.boundingBox()).height <= 64, `${fixture} must stay on one line in the app content width`);
+                            for (const cell of await row.locator(':scope > th, :scope > td').all()) {
+                                assert.ok(await cell.evaluate(element => element.scrollWidth <= element.clientWidth), `${fixture} must not clip its columns`);
+                            }
                         }
+                        await schedule.evaluate(element => { element.style.maxWidth = ''; });
                     }
                     const heading = await page.locator('[data-project-monitoring-heading] h3').boundingBox();
                     const tabBounds = await tab.boundingBox();
-                    const quarterlyHeading = await page.locator('#quarterly-reporting-schedule-heading').boundingBox();
                     assert.ok(Math.abs(heading.x - tabBounds.x) <= 1);
-                    assert.ok(Math.abs(heading.x - quarterlyHeading.x) <= 1);
                     if (fixture.startsWith('completed') || fixture === 'history') {
                         const action = rows.first().getByRole('button', { name: /View Q1 monitoring tool/ });
                         const id = await action.getAttribute('aria-controls');
@@ -169,14 +216,13 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                                 const inlinePaper = panel.locator('[data-submitted-report-paper]');
                                 await inlinePaper.waitFor({ state: 'visible' });
                                 const thumbnailBounds = await inlinePaper.boundingBox();
-                                assert.ok(thumbnailBounds.width <= 193 && thumbnailBounds.height <= 273);
+                                assert.ok(thumbnailBounds.width <= 257 && thumbnailBounds.height <= 380, JSON.stringify(thumbnailBounds));
                                 if (width === 768) {
                                     const schedule = page.locator('#progress-reports');
                                     await schedule.evaluate(element => { element.style.maxWidth = '28rem'; });
                                     const summary = await inlinePaper.evaluate(element => element.previousElementSibling.getBoundingClientRect().toJSON());
                                     const constrainedPaper = await inlinePaper.boundingBox();
-                                    assert.ok(Math.abs(constrainedPaper.y - summary.y) <= 1);
-                                    assert.ok(constrainedPaper.x >= summary.x + summary.width);
+                                    assert.ok(constrainedPaper.y >= summary.y + summary.height);
                                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                                     await schedule.evaluate(element => { element.style.maxWidth = ''; });
                                 }
@@ -185,20 +231,22 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                                 const panelBounds = await panel.boundingBox();
                                 assert.equal(closeReportBounds.width, 44);
                                 assert.equal(closeReportBounds.height, 44);
-                                assert.ok(panelBounds.height <= (width < 640 ? 590 : 330), `Expanded report is too tall: ${panelBounds.height}px`);
+                                assert.ok(await panel.locator('[data-quarter-report-heading] h4').evaluate(el => parseFloat(getComputedStyle(el).fontSize)) >= 20);
                                 assert.ok(closeReportBounds.x + closeReportBounds.width <= panelBounds.x + panelBounds.width);
                                 const badge = panel.locator('[data-quarter-report-heading] .report-review-status');
                                 assert.equal(await badge.locator('svg').count(), 1);
                                 assert.equal(await badge.evaluate(element => getComputedStyle(element).borderTopStyle), 'solid');
                                 assert.equal(await inlinePaper.getByRole('group', { name: 'Document zoom controls' }).count(), 0);
                                 assert.equal(await panel.getByRole('progressbar').getAttribute('aria-valuenow'), '25');
+                                await expect(panel.getByRole('heading', { name: 'Recorded project progress', exact: true })).toBeVisible();
                                 assert.equal(await panel.getByRole('heading', { name: 'Results', exact: true }).count(), 0);
                                 const preview = panel.getByRole('button', { name: 'Preview submitted PDF', exact: true });
+                                await expect(preview).toHaveText('Preview PDF');
                                 const download = panel.getByRole('link', { name: /Download .* PDF/ });
                                 const previewBounds = await preview.boundingBox();
                                 const downloadBounds = await download.boundingBox();
                                 assert.equal(previewBounds.height, downloadBounds.height);
-                                assert.ok(Math.abs(previewBounds.y - downloadBounds.y) <= 1);
+                                assert.ok(width < 640 ? downloadBounds.y >= previewBounds.y : Math.abs(previewBounds.y - downloadBounds.y) <= 1);
                                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                                 const maximize = inlinePaper.getByRole('button', { name: 'Enlarge the paper preview', exact: true });
                                 await maximize.focus();
@@ -279,7 +327,7 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     } else if (fixture === 'delayed-head') {
                         const manager = page.locator('[data-project-status-manager]');
                         assert.equal(await manager.evaluate(element => getComputedStyle(element).position), 'static');
-                        assert.equal(await rows.first().getByRole('progressbar').getAttribute('aria-valuenow'), '100');
+                        assert.match(await rows.first().innerText(), /Targets completed/);
                         const trigger = manager.getByRole('button', { name: 'Manage status', exact: true });
                         await trigger.click();
                         const panel = manager.getByRole('region');
@@ -289,8 +337,20 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         await page.keyboard.press('Escape');
                         await panel.waitFor({ state: 'hidden' });
                         assert.equal(await trigger.evaluate(element => document.activeElement === element), true);
-                    } else {
-                        assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Q1 · Open now/);
+                    } else if (fixture === 'head-review') {
+                        await rows.first().getByRole('button', { name: /View Q1 monitoring tool/ }).click();
+                        const review = page.locator('[data-monitoring-report-detail] [data-head-report-review]');
+                        await expect(review).toBeVisible();
+                        await review.getByRole('radio', { name: /Send concerns/ }).check();
+                        await expect(review.locator('textarea')).toHaveAttribute('required', 'required');
+                        await review.getByRole('radio', { name: /Accept report/ }).check();
+                        await expect(review.locator('textarea')).not.toHaveAttribute('required');
+                        assert.ok(await review.locator('textarea').evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
+                        if (process.env.MONITORING_SCREENSHOT_DIRECTORY) {
+                            await page.locator('[data-monitoring-report-detail]').screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `head-review-${width}-${dark ? 'dark' : 'light'}.png`) });
+                        }
+                    } else if (fixture === 'active') {
+                        assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Q1 · Overdue/);
                         assert.equal(await rows.nth(1).getByRole('link', { name: 'Revise Q2 progress report' }).isVisible(), true);
                         assert.equal(await page.getByRole('link', { name: 'Open terminal report' }).isVisible(), true);
                     }
@@ -373,6 +433,7 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         await page.evaluate(() => scrollTo(0, 0));
                         await page.screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `monitoring-${fixture}-${width}-${dark ? 'dark' : 'light'}.png`), fullPage: true });
                         await page.locator('#progress-reports').screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `quarterly-${fixture}-${width}-${dark ? 'dark' : 'light'}.png`) });
+                        await overview.screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `summary-${fixture}-${width}-${dark ? 'dark' : 'light'}.png`) });
                     }
                     await page.close();
                 }
@@ -384,10 +445,12 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
 });
 
 test('submitted report previews render real PDFs and resize their pages with the proposal controls', async () => {
-    execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=monitoring prioritizes|report reader shows'], {
-        encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
-    });
+    if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
+        execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=monitoring prioritizes|report reader shows'], {
+            encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
+        });
+    }
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/proposal-paper-workspace.css'), 'utf8'), { from: undefined });
     const pdfWorkspace = readFileSync(resolve('resources/js/pdf-annotation-workspace.js'), 'utf8')
@@ -442,7 +505,7 @@ test('submitted report previews render real PDFs and resize their pages with the
                         if (width < 640) {
                             const period = await quarter.locator('[data-reporting-period]').boundingBox();
                             assert.ok(period.width >= width - 75);
-                            assert.ok((await quarter.boundingBox()).height <= 230);
+                            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                         }
                         await dialog.locator('[data-submitted-report-paper]').scrollIntoViewIfNeeded();
                     }
@@ -463,7 +526,7 @@ test('submitted report previews render real PDFs and resize their pages with the
                         await waitForPages(1);
                         const paper = dialog.locator('[data-submitted-report-paper]');
                         const bounds = await paper.boundingBox();
-                        assert.ok(bounds.width <= 193 && bounds.height <= 273);
+                        assert.ok(bounds.width <= 257 && bounds.height <= 380);
                         assert.equal(await paper.locator('canvas').count(), 1);
                         const previewPage = await paper.locator('.pdf-annotation-page').boundingBox();
                         const paperFrame = await paper.locator('.proposal-preview-paper').boundingBox();
@@ -487,6 +550,8 @@ test('submitted report previews render real PDFs and resize their pages with the
                     const pages = dialog.locator('.pdf-annotation-page');
                     assert.equal(await pages.count(), count);
                     const zoom = dialog.getByRole('group', { name: 'Document zoom controls' });
+                    assert.ok(await dialog.locator('.proposal-preview-dock-heading h3').evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 20);
+                    assert.ok(await zoom.getByRole('button', { name: 'Fit width', exact: true }).evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
                     const initial = await pages.first().boundingBox();
                     const viewer = await dialog.locator('.pdf-annotation-viewer').boundingBox();
                     assert.ok(initial.width <= viewer.width && initial.width >= viewer.width - 70, 'The enlarged paper must open at readable page width, even in a short window');
@@ -579,10 +644,12 @@ test('submitted report previews render real PDFs and resize their pages with the
 });
 
 test('opened report readers keep a readable document, aligned actions and accessible figure and PDF dialogs', async () => {
-    execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=report reader shows'], {
-        encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
-        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
-    });
+    if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
+        execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=report reader shows'], {
+            encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
+        });
+    }
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/proposal-paper-workspace.css'), 'utf8'), { from: undefined });
     const pdfWorkspace = readFileSync(resolve('resources/js/pdf-annotation-workspace.js'), 'utf8')
@@ -710,7 +777,7 @@ test('opened report readers keep a readable document, aligned actions and access
                     assert.equal(await zoom.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
                     const paperBounds = await pdfDialog.getByLabel('Submitted report PDF').boundingBox();
                     const zoomBounds = await zoom.boundingBox();
-                    assert.ok(paperBounds.height >= 100);
+                    assert.ok(paperBounds.height >= 100, `${fixture} preview at ${width}x${height}: ${JSON.stringify(paperBounds)}`);
                     assert.ok(paperBounds.y + paperBounds.height <= zoomBounds.y);
                     for (const button of await zoom.getByRole('button').all()) {
                         const bounds = await button.boundingBox();

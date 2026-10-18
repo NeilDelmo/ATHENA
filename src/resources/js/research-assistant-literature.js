@@ -166,12 +166,47 @@ export function serializeAssistantLiterature(packet) {
     return persisted;
 }
 
-export function researchAssistantLiterature() {
+export function researchAssistantLiterature({ savePaper } = {}) {
     return {
         literatureOperationPending: false,
 
         literatureBusy(message) {
             return Boolean(this.isLoading || this.sendInProgress || this.reportChangesOperationPending || this.retryAfter > 0 || this.literatureOperationPending || message?.literature?.is_working);
+        },
+
+        canReviewLiteratureFlow(message) {
+            const packet = message?.literature;
+
+            return packet?.kind === 'insertion' && packet.applied === true
+                && Number.isSafeInteger(packet.proposal_draft_id) && packet.proposal_draft_id > 0
+                && !this.literatureBusy(message) && !this.proposalChangesBusy?.() && !this.draft?.trim();
+        },
+
+        async reviewLiteratureFlow(message) {
+            if (!this.canReviewLiteratureFlow(message)) return false;
+
+            const packet = message.literature;
+            const sequence = this.requestSequence;
+            packet.is_working = true;
+            packet.error = '';
+            this.literatureOperationPending = true;
+
+            try {
+                if (typeof savePaper !== 'function' || !await savePaper(packet.proposal_draft_id)) {
+                    throw new Error('Save your current paper edits before reviewing the RRL flow.');
+                }
+                if (sequence !== this.requestSequence || this.isLoading || this.sendInProgress || this.draft?.trim()) return false;
+
+                await this.sendPrompt('Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.',
+                    { type: 'suggest_proposal_changes' }, { proposal_draft_id: packet.proposal_draft_id });
+                return true;
+            } catch (error) {
+                packet.error = error instanceof Error ? error.message : 'The RRL flow review could not be requested. Try again.';
+                return false;
+            } finally {
+                packet.is_working = false;
+                this.literatureOperationPending = false;
+            }
         },
 
         literatureEvidenceLabel(source) {

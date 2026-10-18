@@ -17,6 +17,7 @@ class IeeeReferenceFormatter
         $year = $source->publication_date?->year ?? $source->publication_year;
         $doi = filled($source->doi) ? 'doi: '.LiteratureSource::normalizeDoi($source->doi).'.' : null;
         $url = filled($source->url) ? '[Online]. Available: '.trim($source->url).'.' : null;
+        $pages = self::sentencePart($source->pages);
 
         return $prefix.collect([
             $authors !== '' ? $authors.',' : null,
@@ -24,7 +25,7 @@ class IeeeReferenceFormatter
             $venue !== '' ? $venue.',' : null,
             filled($source->volume) ? 'vol. '.self::sentencePart($source->volume).',' : null,
             filled($source->issue) ? 'no. '.self::sentencePart($source->issue).',' : null,
-            filled($source->pages) ? 'pp. '.self::sentencePart($source->pages).',' : null,
+            $pages !== '' ? (Str::startsWith($pages, 'Art. no. ') ? $pages : 'pp. '.$pages).',' : null,
             filled($source->publisher) ? self::sentencePart($source->publisher).',' : null,
             $year ? $year.'.' : null,
             $doi,
@@ -84,7 +85,8 @@ class IeeeReferenceFormatter
 
         $surname ??= $parts->pop();
         $initials = $parts
-            ->map(fn (string $part): string => Str::upper(Str::substr($part, 0, 1)).'.')
+            ->map(fn (string $part): string => collect(explode('-', $part))
+                ->filter()->map(fn (string $segment): string => Str::upper(Str::substr($segment, 0, 1)).'.')->join('-'))
             ->join(' ');
 
         return trim($initials.' '.$surname);

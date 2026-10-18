@@ -14,7 +14,7 @@
     @apply bg-brand-wash font-semibold text-brand dark:bg-rose-950/50 dark:text-rose-300;
 }
 .workspace-count {
-    @apply ml-auto text-sm tabular-nums text-slate-500 dark:text-slate-400;
+    @apply ml-auto text-base tabular-nums text-slate-500 dark:text-slate-400;
 }
 .workspace-view {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-base font-medium text-slate-600 disabled:opacity-50 dark:text-slate-300;
@@ -33,11 +33,49 @@
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     gap: 12px;
 }
+[data-workspace-sizing] {
+    --workspace-column-width: 155px;
+    --workspace-icon-width: 80px;
+    --workspace-icon-height: 64px;
+    --workspace-item-height: 168px;
+    --workspace-padding-y: 16px;
+    --workspace-padding-x: 12px;
+    --workspace-list-height: 72px;
+    --workspace-list-icon-width: 44px;
+    --workspace-list-icon-height: 40px;
+}
+[data-workspace-sizing][data-size="small"] {
+    --workspace-column-width: 136px;
+    --workspace-icon-width: 48px;
+    --workspace-icon-height: 40px;
+    --workspace-item-height: 136px;
+    --workspace-padding-y: 10px;
+    --workspace-padding-x: 8px;
+    --workspace-list-height: 64px;
+    --workspace-list-icon-width: 32px;
+    --workspace-list-icon-height: 28px;
+}
+[data-workspace-sizing][data-size="large"] {
+    --workspace-column-width: 232px;
+    --workspace-icon-width: 100px;
+    --workspace-icon-height: 80px;
+    --workspace-item-height: 216px;
+    --workspace-padding-y: 24px;
+    --workspace-padding-x: 20px;
+    --workspace-list-height: 96px;
+    --workspace-list-icon-width: 64px;
+    --workspace-list-icon-height: 56px;
+}
+[data-workspace-sizing] .workspace-items-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--workspace-column-width)), 1fr));
+}
 .workspace-item {
     @apply relative min-w-0 cursor-default rounded-lg border-2 border-transparent text-slate-950 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800/60;
 }
 .workspace-items-grid .workspace-item {
-    @apply flex min-h-[168px] flex-col items-center gap-2 px-3 py-4 text-center;
+    min-height: var(--workspace-item-height, 168px);
+    padding: var(--workspace-padding-y, 16px) var(--workspace-padding-x, 12px);
+    @apply flex flex-col items-center gap-2 text-center;
 }
 .workspace-item-name {
     @apply block min-w-0 text-base font-medium leading-6;
@@ -47,56 +85,74 @@
     @apply line-clamp-3;
 }
 .workspace-item-meta {
-    @apply text-sm leading-5 text-slate-500 dark:text-slate-400;
+    @apply text-base leading-6 text-slate-500 dark:text-slate-400;
 }
 .workspace-item-graphic {
-    @apply h-[64px] w-[80px] shrink-0;
+    width: var(--workspace-icon-width, 80px);
+    height: var(--workspace-icon-height, 64px);
+    @apply shrink-0;
 }
 .workspace-project-cover {
-    @apply relative block h-[64px] w-[80px] shrink-0;
+    width: var(--workspace-icon-width, 80px);
+    height: var(--workspace-icon-height, 64px);
+    @apply relative block shrink-0;
 }
 .workspace-project-cover img {
-    @apply absolute bottom-1 right-1 h-12 w-8 rounded-sm border border-amber-700/40 bg-white object-contain shadow-sm;
+    width: calc(var(--workspace-icon-width, 80px) * .4);
+    height: calc(var(--workspace-icon-height, 64px) * .75);
+    @apply absolute bottom-1 right-1 rounded-sm border border-amber-700/40 bg-white object-contain shadow-sm;
 }
 .workspace-file-graphic {
-    @apply relative flex h-[64px] w-[80px] shrink-0 items-center justify-center;
+    width: var(--workspace-icon-width, 80px);
+    height: var(--workspace-icon-height, 64px);
+    @apply relative flex shrink-0 items-center justify-center;
 }
 .workspace-file-graphic svg {
-    @apply h-16 w-14;
+    width: calc(var(--workspace-icon-height, 64px) * .875);
+    height: var(--workspace-icon-height, 64px);
 }
 .workspace-image-graphic {
-    @apply flex h-[64px] w-[80px] shrink-0 items-center justify-center;
+    width: var(--workspace-icon-width, 80px);
+    height: var(--workspace-icon-height, 64px);
+    @apply flex shrink-0 items-center justify-center;
 }
 .workspace-image-graphic img {
     @apply max-h-full max-w-full rounded border border-slate-200 bg-white object-contain shadow-sm;
 }
 .workspace-file-type {
-    @apply absolute bottom-2 rounded bg-red-700 px-1.5 py-0.5 text-sm font-bold text-white;
+    @apply absolute bottom-2 rounded bg-red-700 px-1.5 py-0.5 text-base font-bold text-white;
 }
 .workspace-items-list {
     @apply flex flex-col gap-1;
 }
 .workspace-items-list .workspace-item {
-    @apply grid min-h-[72px] items-center gap-x-3 px-3 py-2 text-left;
-    grid-template-columns: 44px minmax(0, 1fr);
+    min-height: var(--workspace-list-height, 72px);
+    grid-template-columns: var(--workspace-list-icon-width, 44px) minmax(0, 1fr);
+    @apply grid items-center gap-x-3 px-3 py-2 text-left;
 }
 .workspace-items-list .workspace-item-graphic,
 .workspace-items-list .workspace-project-cover,
 .workspace-items-list .workspace-image-graphic,
 .workspace-items-list .workspace-file-graphic {
-    @apply row-span-2 h-10 w-11;
+    width: var(--workspace-list-icon-width, 44px);
+    height: var(--workspace-list-icon-height, 40px);
+    @apply row-span-2;
 }
 .workspace-items-list .workspace-project-cover .workspace-item-graphic {
-    @apply h-10 w-11;
+    width: var(--workspace-list-icon-width, 44px);
+    height: var(--workspace-list-icon-height, 40px);
 }
 .workspace-items-list .workspace-project-cover img {
-    @apply bottom-0 right-0 h-8 w-5;
+    width: calc(var(--workspace-list-icon-width, 44px) * .45);
+    height: calc(var(--workspace-list-icon-height, 40px) * .8);
+    @apply bottom-0 right-0;
 }
 .workspace-items-list .workspace-file-graphic svg {
-    @apply h-10 w-8;
+    width: calc(var(--workspace-list-icon-height, 40px) * .8);
+    height: var(--workspace-list-icon-height, 40px);
 }
 .workspace-items-list .workspace-file-type {
-    @apply bottom-0 px-1 text-sm;
+    @apply bottom-0 px-1;
 }
 .workspace-items-list .workspace-item-meta {
     @apply col-start-2;
@@ -108,7 +164,7 @@
     @apply !bg-amber-50 outline outline-2 outline-offset-[-2px] outline-brand dark:!bg-amber-950/20 dark:outline-rose-400;
 }
 .workspace-status {
-    @apply inline-flex rounded-md bg-slate-100 px-2 py-1 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300;
+    @apply inline-flex rounded-md bg-slate-100 px-2 py-1 text-base font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300;
 }
 .workspace-completed {
     @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300;
@@ -119,6 +175,7 @@
 .workspace-pending {
     @apply bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300;
 }
+[data-library-view-surface]:focus-visible,
 [data-project-records-page] [role="tab"]:focus-visible,
 [data-project-document-browser] :is(button, a, [role="button"]):focus-visible,
 [data-project-workspace] :is(button, a, [data-workspace-item]):focus-visible {

@@ -9,6 +9,7 @@ use App\Models\RmsQuarterlyReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\RmsQuarterlyReportData;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -98,7 +99,27 @@ test('unsupported report sections never fall through to unrelated narrative edit
     $payload['messages'][0]['content'] = $question;
     $this->postJson(route('research-support.chat'), $payload)->assertUnprocessable();
     Http::assertNothingSent();
-})->with(['Improve my objectives.', 'Revise the funding source.', 'Improve the actual accomplishment for row 99.', 'Revise my conclusions.']);
+})->with(['Improve my objectives.', 'Revise the funding source.', 'Improve the actual accomplishment for row 99.', 'Revise my conclusions.',
+    'Change the report names.', 'Update my approval.', 'Revise my signature.', 'Change the report dates.', 'Change the report amounts.']);
+
+test('report wording suggestions preserve facts inside narrative fields', function (string $before, string $value, int $count) {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    $this->progress->update(['source_data' => ['results_discussion' => $before]]);
+    ($this->fakeChanges)([['field' => 'results_discussion', 'before' => $before, 'value' => $value, 'reason' => 'Revises wording.']]);
+    $payload = ($this->payload)('progress-report', ['topic_id' => $this->topic->id]);
+    unset($payload['action']);
+    $payload['messages'][0]['content'] = 'Update this report wording.';
+
+    $this->postJson(route('research-support.chat'), $payload)->assertSuccessful()->assertJsonCount($count, 'report_changes.suggestions');
+    expect($this->progress->fresh()->source_data['results_discussion'])->toBe($before);
+})->with([
+    'name' => ['Dr. Maria Santos recorded the observations.', 'Dr. Juan Cruz recorded the observations.', 0],
+    'written date' => ['Observations were recorded in May.', 'Observations were recorded in June.', 0],
+    'numeric date' => ['Observations were recorded on 10/11/2026.', 'Observations were recorded on 11/10/2026.', 0],
+    'currency' => ['Materials cost PHP 500.', 'Materials cost USD 500.', 0],
+    'approval' => ['The board has not approved the protocol.', 'The board has approved the protocol.', 0],
+    'valid wording' => ['Dr. Maria Santos recorded observations in May.', 'In May, observations were recorded by Dr. Maria Santos.', 1],
+]);
 
 test('resolving rejects changed drafts withdrawn access other accounts and expired tokens', function (string $change) {
     ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
@@ -128,6 +149,18 @@ test('report suggestions preserve negative signs and percentage units', function
     ($this->fakeChanges)([['field' => 'results_discussion', 'before' => 'The change was -12.5%.', 'value' => $value, 'reason' => 'Attempted factual edit.']]);
     $this->postJson(route('research-support.chat'), ($this->payload)('progress-report', ['topic_id' => $this->topic->id]))->assertSuccessful()->assertJsonCount(0, 'report_changes.suggestions');
 })->with(['The change was 12.5%.', 'The change was -12.5.', 'The change was +12.5%.']);
+
+test('older cached report suggestions cannot bypass current factual protections', function () {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    ($this->fakeChanges)([['field' => 'introduction', 'before' => 'Monitoring describes coastal conditions.',
+        'value' => 'Coastal conditions are described through monitoring.', 'reason' => 'Clarifies wording.']]);
+    $suggestion = $this->postJson(route('research-support.chat'), ($this->payload)('progress-report', ['topic_id' => $this->topic->id]))->assertSuccessful()->json('report_changes.suggestions.0');
+    $key = 'assistant-report-changes:'.hash('sha256', $suggestion['token']);
+    Cache::put($key, [...Cache::get($key), 'value' => 'The report is approved.'], now()->addMinutes(30));
+
+    $this->postJson(route('research-support.report-changes.resolve'), ['token' => $suggestion['token'], 'suggestion_id' => $suggestion['id']])->assertUnprocessable();
+    expect($this->progress->fresh()->source_data['introduction'])->toBe('Monitoring describes coastal conditions.');
+});
 
 test('terminal literature revision rejects reversing a negative percentage', function () {
     ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);

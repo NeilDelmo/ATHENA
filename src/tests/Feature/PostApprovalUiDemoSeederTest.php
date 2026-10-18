@@ -256,8 +256,9 @@ test('post approval UI demos provide accessible reports and completion stages wi
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="utf-8" ?>'.$page->getContent());
     $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@data-reporting-quarter="1"]//*[@role="progressbar"]')->item(0)->getAttribute('aria-valuenow'))->toBe('100')
-        ->and($xpath->query('//*[@data-reporting-quarter="3"]')->item(0)->textContent)->toContain('Targets overdue');
+    expect($xpath->query('//*[@data-reporting-quarter="1"]//*[@role="progressbar"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-reporting-quarter="1"]')->item(0)->textContent)->toContain('Targets completed')
+        ->and($xpath->query('//*[@data-reporting-quarter="3"]')->item(0)->textContent)->toContain('Targets still incomplete');
     if (getenv('ATHENA_EXPORT_MONITORING_LAYOUT') === '1') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
         File::put(storage_path('framework/testing/monitoring-delayed-head.html'), $page->getContent());

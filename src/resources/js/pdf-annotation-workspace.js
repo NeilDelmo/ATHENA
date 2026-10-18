@@ -152,6 +152,52 @@ function validationMessage(payload, fallback) {
     return messages.length > 0 ? messages.join(' ') : (payload?.message || fallback);
 }
 
+function pdfTextMatches(pageElements, query) {
+    const matches = [];
+    for (const [pageNumber, pageElement] of pageElements) {
+        const layer = pageElement.querySelector('.textLayer');
+        if (!layer) continue;
+        const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+        const characters = [];
+        let text = '';
+        let previousBounds = null;
+        let node;
+        while ((node = walker.nextNode())) {
+            if (!node.textContent) continue;
+            const nodeRange = document.createRange();
+            nodeRange.selectNodeContents(node);
+            const bounds = nodeRange.getBoundingClientRect();
+            if (previousBounds && text && !text.endsWith(' ') && !/^\s/.test(node.textContent)) {
+                const overlap = Math.min(bounds.bottom, previousBounds.bottom) - Math.max(bounds.top, previousBounds.top);
+                const height = Math.min(bounds.height, previousBounds.height);
+                const gap = Math.max(bounds.left - previousBounds.right, previousBounds.left - bounds.right);
+                if (overlap < height / 2 || gap > height * 0.15) {
+                    text += ' ';
+                    characters.push({ node, start: 0, end: 0 });
+                }
+            }
+            for (let offset = 0; offset < node.textContent.length; offset++) {
+                const character = /\s/.test(node.textContent[offset]) ? ' ' : node.textContent[offset].toLowerCase();
+                if (character === ' ' && text.endsWith(' ')) continue;
+                text += character;
+                for (let index = 0; index < character.length; index++) characters.push({ node, start: offset, end: offset + 1 });
+            }
+            previousBounds = bounds;
+        }
+        let start = text.indexOf(query);
+        while (start !== -1) {
+            const first = characters[start];
+            const last = characters[start + query.length - 1];
+            const range = document.createRange();
+            range.setStart(first.node, first.start);
+            range.setEnd(last.node, last.end);
+            matches.push({ pageNumber, start, range });
+            start = text.indexOf(query, start + query.length);
+        }
+    }
+    return matches;
+}
+
 export function pdfScaleToFit(pageWidth, availableWidth) {
     return pageWidth > 0 && availableWidth > 0 ? availableWidth / pageWidth : 1;
 }
@@ -215,6 +261,11 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
         let wheelDelta = 0;
         let wheelTimer = null;
         let wheelAnchor = null;
+        let pendingPage = null;
+        let viewerScrollHandler = null;
+        let rendering = false;
+        let destroyed = false;
+        let lastSearchQuery = '';
 
         return {
             config: {},
@@ -248,6 +299,12 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             selectedAnnotationId: null,
             saving: false,
             saveError: '',
+            currentPage: 1,
+            pageCount: 0,
+            searchQuery: '',
+            searchStatus: '',
+            searchMatches: [],
+            currentSearchMatch: -1,
 
             get maxPaperZoom() {
                 return Math.max(150, Math.min(400, Number(this.config.maxZoom) || 150));
@@ -292,6 +349,14 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.revisionUrl = String(this.config.revisionUrl || '');
                 this.isResearchHead = Boolean(this.config.isResearchHead);
                 this.canAnnotate = Boolean(this.config.canAnnotate);
+                if (this.config.initialPage) this.goToPage(this.config.initialPage);
+                if (this.config.searchable) {
+                    this.$nextTick(() => {
+                        if (destroyed) return;
+                        viewerScrollHandler = () => this.updateCurrentPage();
+                        this.$refs.viewer?.addEventListener('scroll', viewerScrollHandler, { passive: true });
+                    });
+                }
                 this.focusAnnotationId = this.readFocusAnnotationId();
                 if (this.config.fitWidth) {
                     window.athenaRevisionPdf = {
@@ -379,6 +444,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             destroy() {
+                destroyed = true;
+                rendering = false;
                 if (this.paperFocusOpen) document.body.style.overflow = bodyOverflowBeforePaperFocus;
                 resizeObserver?.disconnect();
                 visibilityObserver?.disconnect();
@@ -387,7 +454,93 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 window.clearTimeout(resizeTimer);
                 window.clearTimeout(wheelTimer);
                 wheelViewer?.removeEventListener('wheel', wheelHandler);
+                this.$refs.viewer?.removeEventListener('scroll', viewerScrollHandler);
                 renderToken += 1;
+            },
+
+            goToPage(value) {
+                const parsed = Number.parseInt(value, 10);
+                if (destroyed || !Number.isFinite(parsed)) return;
+                this.currentPage = clamp(parsed, 1, this.pageCount || Infinity);
+                pendingPage = this.currentPage;
+                const element = pageElements.get(pendingPage);
+                if (!element) return;
+                const viewer = this.$refs.viewer;
+                viewer.scrollTop += element.getBoundingClientRect().top - viewer.getBoundingClientRect().top;
+                pendingPage = null;
+            },
+
+            updateCurrentPage() {
+                if (pendingPage !== null || pageElements.size === 0) return;
+                const viewerBounds = this.$refs.viewer.getBoundingClientRect();
+                const currentBounds = pageElements.get(this.currentPage)?.getBoundingClientRect();
+                if (currentBounds && currentBounds.top >= viewerBounds.top && currentBounds.bottom <= viewerBounds.bottom) return;
+                const top = viewerBounds.top + 24;
+                let nearestDistance = Infinity;
+                for (const [pageNumber, element] of pageElements) {
+                    const bounds = element.getBoundingClientRect();
+                    const distance = Math.max(bounds.top - top, top - bounds.bottom, 0);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        this.currentPage = pageNumber;
+                    }
+                }
+            },
+
+            findText(previous = false, again = false) {
+                if (!this.config.searchable || destroyed) return;
+                const query = this.searchQuery.trim().replace(/\s+/g, ' ').toLowerCase();
+                const changed = query !== lastSearchQuery;
+                this.refreshSearch();
+                if (!this.searchMatches.length) return;
+                this.currentSearchMatch = again && !changed
+                    ? (this.currentSearchMatch + (previous ? -1 : 1) + this.searchMatches.length) % this.searchMatches.length
+                    : previous ? this.searchMatches.length - 1 : 0;
+                this.renderSearchHighlights();
+                const match = this.searchMatches[this.currentSearchMatch];
+                this.goToPage(match.pageNumber);
+                const bounds = match.range.getBoundingClientRect();
+                const viewer = this.$refs.viewer;
+                const viewerBounds = viewer.getBoundingClientRect();
+                viewer.scrollTop += Math.max(0, bounds.top - viewerBounds.top - viewer.clientHeight / 3);
+            },
+
+            refreshSearch() {
+                if (!this.config.searchable || destroyed) return;
+                const query = this.searchQuery.trim().replace(/\s+/g, ' ').toLowerCase();
+                const selected = this.searchMatches[this.currentSearchMatch];
+                this.searchMatches = query ? pdfTextMatches(pageElements, query) : [];
+                const retained = query === lastSearchQuery && selected
+                    ? this.searchMatches.findIndex(match => match.pageNumber === selected.pageNumber && match.start === selected.start) : -1;
+                this.currentSearchMatch = this.searchMatches.length ? Math.max(0, retained) : -1;
+                lastSearchQuery = query;
+                this.renderSearchHighlights();
+            },
+
+            renderSearchHighlights() {
+                pageElements.forEach(page => page.querySelector('.pdf-search-overlay')?.remove());
+                this.searchMatches.forEach((match, index) => {
+                    const page = pageElements.get(match.pageNumber);
+                    const bounds = page.getBoundingClientRect();
+                    let overlay = page.querySelector('.pdf-search-overlay');
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.className = 'pdf-search-overlay';
+                        overlay.setAttribute('aria-hidden', 'true');
+                        overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:2';
+                        page.append(overlay);
+                    }
+                    for (const rectangle of match.range.getClientRects()) {
+                        if (rectangle.width <= 0 || rectangle.height <= 0) continue;
+                        const highlight = document.createElement('span');
+                        highlight.className = 'pdf-search-highlight';
+                        highlight.dataset.searchCurrent = String(index === this.currentSearchMatch);
+                        highlight.style.cssText = `position:absolute;pointer-events:none;left:${rectangle.left - bounds.left}px;top:${rectangle.top - bounds.top}px;width:${rectangle.width}px;height:${rectangle.height}px;background:${index === this.currentSearchMatch ? 'rgb(249 115 22 / .5)' : 'rgb(250 204 21 / .4)'}`;
+                        overlay.append(highlight);
+                    }
+                });
+                this.searchStatus = !lastSearchQuery ? '' : rendering ? 'Searching…'
+                    : this.searchMatches.length ? `${this.currentSearchMatch + 1} of ${this.searchMatches.length} matches` : 'No matches';
             },
 
             openPaperFocus() {
@@ -535,16 +688,21 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             async loadPdf(pdfJsLoader = loadPdfJs) {
+                if (destroyed) return;
                 this.loading = true;
                 this.loadError = '';
                 this.viewerRefreshRequired = false;
 
                 try {
                     const pdfJs = await pdfJsLoader();
+                    if (destroyed) return;
                     pdfDocument = await pdfJs.getDocument({
                         url: this.config.pdfUrl,
                         withCredentials: true,
                     }).promise;
+                    if (destroyed) return;
+                    this.pageCount = pdfDocument.numPages || 0;
+                    if (pendingPage !== null) this.goToPage(pendingPage);
                     if (this.config.firstPageOnly) {
                         const page = await pdfDocument.getPage(1);
                         const viewport = page.getViewport({ scale: 1 });
@@ -583,9 +741,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             async renderDocument(pdfJs = null, anchor = null) {
-                if (!pdfDocument || !this.$refs.viewer || this.$refs.viewer.clientWidth === 0) return;
+                if (destroyed || !pdfDocument || !this.$refs.viewer || this.$refs.viewer.clientWidth === 0) return;
 
                 const activeRender = ++renderToken;
+                rendering = true;
                 const library = pdfJs || await loadPdfJs();
                 if (activeRender !== renderToken) return;
                 const viewer = this.$refs.viewer;
@@ -672,6 +831,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         viewer.append(pageElement);
                     }
                     if (firstDisplay) this.renderAnnotationsForPage(pageNumber);
+                    if (firstDisplay && pendingPage === pageNumber) this.goToPage(pendingPage);
                     if (firstDisplay && this.annotations.some((annotation) => Number(annotation.id) === this.focusAnnotationId && Number(annotation.pageNumber) === pageNumber)) {
                         this.focusRequestedAnnotation();
                     }
@@ -688,6 +848,9 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     pageElements.forEach((_page, number) => this.renderAnnotationsForPage(number));
                 }
                 this.restorePaperViewAnchor(anchor);
+                if (pendingPage !== null) this.goToPage(pendingPage);
+                rendering = false;
+                this.refreshSearch();
                 if (this.draftSelection) {
                     this.renderSelectionPreview(this.draftSelection);
                     this.$nextTick(() => this.positionCommentComposer());

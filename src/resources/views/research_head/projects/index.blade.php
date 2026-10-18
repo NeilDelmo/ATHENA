@@ -7,13 +7,13 @@
     </x-slot>
 
     <div class="rh-review-page space-y-5" x-data="{recordsView: @js($initialRecordsView)}" data-project-monitoring-list data-project-records-page>
-        <div x-cloak role="tablist" aria-label="Project views" class="flex gap-2"
+        <div x-cloak role="tablist" aria-label="Project views" class="flex min-h-14 flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 dark:border-slate-700 dark:bg-slate-900"
             @keydown.arrow-right.prevent="recordsView = recordsView === 'files' ? 'monitoring' : 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
             @keydown.arrow-left.prevent="recordsView = recordsView === 'files' ? 'monitoring' : 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
             @keydown.home.prevent="recordsView = 'monitoring'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
             @keydown.end.prevent="recordsView = 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())">
-            <button id="project-monitoring-tab" type="button" role="tab" aria-controls="project-monitoring-panel" :aria-selected="recordsView === 'monitoring'" :tabindex="recordsView === 'monitoring' ? 0 : -1" @click="recordsView = 'monitoring'" class="workspace-view">Monitoring</button>
-            <button id="project-files-tab" type="button" role="tab" aria-controls="project-files-panel" :aria-selected="recordsView === 'files'" :tabindex="recordsView === 'files' ? 0 : -1" @click="recordsView = 'files'" class="workspace-view">Files</button>
+            <button id="project-monitoring-tab" type="button" role="tab" aria-controls="project-monitoring-panel" :aria-selected="recordsView === 'monitoring'" :tabindex="recordsView === 'monitoring' ? 0 : -1" @click="recordsView = 'monitoring'" :class="recordsView === 'monitoring' ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'" class="inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 py-2.5 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Monitoring</button>
+            <button id="project-files-tab" type="button" role="tab" aria-controls="project-files-panel" :aria-selected="recordsView === 'files'" :tabindex="recordsView === 'files' ? 0 : -1" @click="recordsView = 'files'" :class="recordsView === 'files' ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'" class="inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 py-2.5 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Files</button>
         </div>
 
         <div x-cloak x-show="recordsView === 'monitoring'" class="space-y-4" data-project-monitoring-controls>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ReturnCollegeQuarterlyReportRequest;
 use App\Models\CollegeQuarterlyReport;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -17,13 +18,26 @@ class ResearchHeadQuarterlyReportController extends Controller
     public function index(Request $request): View
     {
         abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
-        $validated = $request->validate(['year' => ['nullable', 'integer', 'between:2000,2100']]);
+        $validated = $request->validate([
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'college' => ['nullable', 'string', 'max:191'],
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
+        ]);
         $year = (int) ($validated['year'] ?? now()->year);
+        $college = $validated['college'] ?? '';
+        $quarter = isset($validated['quarter']) ? (int) $validated['quarter'] : null;
+        $browsingYears = ! $request->filled('year') && $college === '';
+        $years = CollegeQuarterlyReport::whereHas('submissions')->distinct()->pluck('reporting_year')
+            ->push(now()->year)->unique()->sortDesc()->values();
+        $collegeReports = CollegeQuarterlyReport::where('reporting_year', $year)->whereHas('submissions')
+            ->with('latestSubmission')->orderBy('reporting_quarter')->get(['id', 'college', 'reporting_quarter']);
         $reports = CollegeQuarterlyReport::where('reporting_year', $year)->whereHas('submissions')
+            ->when($college !== '', fn (Builder $query): Builder => $query->where('college', $college))
+            ->when($quarter !== null, fn (Builder $query): Builder => $query->where('reporting_quarter', $quarter))
             ->with(['latestSubmission.submittedBy', 'latestSubmission.returnedBy', 'submissions' => fn ($query) => $query->orderByDesc('version_number')])
             ->orderByDesc('reporting_quarter')->orderBy('college')->paginate(12)->withQueryString();
 
-        return view('research_head.quarterly-reports.index', compact('reports', 'year'));
+        return view('research_head.quarterly-reports.index', compact('reports', 'year', 'college', 'quarter', 'browsingYears', 'years', 'collegeReports'));
     }
 
     public function returnForCorrection(ReturnCollegeQuarterlyReportRequest $request, CollegeQuarterlyReport $report): RedirectResponse
@@ -42,7 +56,7 @@ class ResearchHeadQuarterlyReportController extends Controller
             ]);
         });
 
-        return redirect()->route('research_head.quarterly-reports.index', ['year' => $report->reporting_year])
+        return redirect()->route('research_head.quarterly-reports.index', ['year' => $report->reporting_year, 'college' => $report->college, 'quarter' => $report->reporting_quarter])
             ->with('status', 'Quarterly report returned to the coordinator for correction.');
     }
 }

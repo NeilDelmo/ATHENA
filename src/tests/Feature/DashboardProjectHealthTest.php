@@ -12,6 +12,8 @@ use App\Services\ProjectMonitoringHealth;
 use App\Services\ResearchHeadAnalytics;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -77,6 +79,167 @@ test('completion averages use submitted reported progress without treating missi
         ->assertSee('1 of 2 projects reported')->assertDontSee('Outside this faculty portfolio');
     ($this->exportDashboard)('researcher', $response->getContent());
 });
+
+test('Head health and analytics use forwarded progress and budgets while retaining secretary review status', function () {
+    $project = ($this->project)();
+    $forwarded = ($this->monitoring)($project, 1, [
+        'review_stage' => 'head', 'budget_utilization' => [['actual_amount' => 20000]],
+    ]);
+    $waiting = ($this->monitoring)($project, 2, [
+        'review_stage' => 'secretary', 'review_status' => 'pending', 'progress_percentage' => 100,
+        'budget_utilization' => [['actual_amount' => 90000]],
+        'work_plan' => [['source_work_plan_index' => 0, 'target_completion_date' => '2026-09-01', 'percent_weight' => 50, 'accomplished_percentage' => 1]],
+    ]);
+    ($this->narrative)($project, 1);
+    ($this->narrative)($project, 2, ['review_stage' => 'secretary', 'review_status' => 'pending']);
+
+    $headHealth = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true);
+    $facultyHealth = app(ProjectMonitoringHealth::class)->assess($project->fresh());
+    $analytics = app(ResearchHeadAnalytics::class)->summarize()['projects']->sole();
+
+    expect($headHealth['progress'])->toBe(40)
+        ->and($headHealth['utilized'])->toBe(20000.0)
+        ->and($headHealth['report_id'])->toBe($forwarded->id)
+        ->and($headHealth['delayed'])->toBeFalse()
+        ->and($headHealth['issues']->pluck('type'))->not->toContain('quarterly', 'progress_quarterly', 'delayed', 'completion')
+        ->and($headHealth['issues']->pluck('issue')->join(' '))->toContain('Q2 Monitoring Tool · Office review', 'Q2 Progress Report · Office review')
+        ->and($facultyHealth['progress'])->toBe(100)
+        ->and($facultyHealth['utilized'])->toBe(90000.0)
+        ->and($analytics['progress'])->toBe(40)
+        ->and($analytics['utilized'])->toBe(20000.0)
+        ->and($analytics['report_id'])->toBe($forwarded->id);
+
+    $waiting->update(['review_stage' => 'head']);
+    $forwardedHealth = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true);
+    expect($forwardedHealth['progress'])->toBe(100)
+        ->and($forwardedHealth['utilized'])->toBe(90000.0)
+        ->and($forwardedHealth['issues']->pluck('type'))->toContain('completion');
+});
+
+test('Head health leaves reported values unavailable when every report is with the secretary', function () {
+    $project = ($this->project)();
+    foreach ([1, 2] as $quarter) {
+        ($this->monitoring)($project, $quarter, [
+            'review_stage' => 'secretary', 'review_status' => 'pending', 'progress_percentage' => 100,
+            'budget_utilization' => [['actual_amount' => 90000]],
+        ]);
+        ($this->narrative)($project, $quarter, ['review_stage' => 'secretary', 'review_status' => 'pending']);
+    }
+
+    $health = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true);
+    $analytics = app(ResearchHeadAnalytics::class)->summarize();
+    expect($health['progress'])->toBeNull()
+        ->and($health['utilized'])->toBeNull()
+        ->and($health['percentage'])->toBeNull()
+        ->and($health['report_id'])->toBeNull()
+        ->and($health['report_date'])->toBeNull()
+        ->and($health['issues']->pluck('type'))->not->toContain('quarterly', 'progress_quarterly', 'completion')
+        ->and($health['issues']->pluck('issue')->join(' '))->toContain('Office review')
+        ->and($analytics['projects']->sole()['progress'])->toBeNull()
+        ->and($analytics['projects']->sole()['utilized'])->toBeNull()
+        ->and($analytics['budget']['reported'])->toBe(0);
+});
+
+test('monitoring review issues identify the quarter and measure the current review stage', function (string $reportType, array $attributes, string $status, int $days, string $basis) {
+    $project = ($this->project)();
+    $attributes = ['review_status' => 'pending', 'submitted_at' => '2026-09-01 12:00:00', ...$attributes];
+    $report = $reportType === 'monitoring'
+        ? ($this->monitoring)($project, 1, $attributes)
+        : ($this->narrative)($project, 1, $attributes);
+    $type = $reportType === 'monitoring' ? 'report_review' : 'narrative_review';
+    $label = $reportType === 'monitoring' ? 'Monitoring Tool' : 'Progress Report';
+    $anchor = $reportType === 'monitoring' ? 'monitoring-tool-' : 'narrative-report-';
+    $issue = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true)['issues']->firstWhere('type', $type);
+
+    expect($issue['issue'])->toBe('Q1 '.$label.' · '.$status)
+        ->and($issue['days'])->toBe($days)
+        ->and($issue['basis'])->toBe($basis)
+        ->and($issue['review_stage'])->toBe($attributes['review_stage'] ?? 'head')
+        ->and($issue['review_status'])->toBe($attributes['review_status'])
+        ->and($issue['report_id'])->toBe($report->id)
+        ->and($issue['url'])->toBe(route('topics.show', $project).'#'.$anchor.$report->id);
+})->with(['Monitoring Tool' => 'monitoring', 'Progress Report' => 'progress'])->with([
+    'Head review starts when the secretary forwards' => [['review_stage' => 'head', 'forwarded_at' => '2026-09-30 12:00:00'], 'Head review', 2, 'with Research Head'],
+    'initial Office review starts at submission' => [['review_stage' => 'secretary'], 'Office review', 31, 'with Research Office Secretary'],
+    'returned concerns restart Office review' => [['review_stage' => 'secretary', 'reviewed_at' => '2026-10-01 12:00:00'], 'Office review', 1, 'with Research Office Secretary'],
+    'secretary corrections start at the correction request' => [['review_stage' => 'secretary', 'review_status' => 'revision_requested', 'secretary_reviewed_at' => '2026-09-29 12:00:00'], 'Corrections needed', 3, 'since corrections requested'],
+    'legacy corrections use the Head decision date' => [['review_stage' => null, 'review_status' => 'revision_requested', 'reviewed_at' => '2026-09-28 12:00:00'], 'Corrections needed', 4, 'since corrections requested'],
+    'legacy Head review falls back to submission' => [['review_stage' => 'head', 'forwarded_at' => null], 'Head review', 31, 'with Research Head'],
+]);
+
+test('reported full progress flags closeout without claiming a completion decision is ready', function () {
+    $project = ($this->project)();
+    ($this->monitoring)($project, 2, ['progress_percentage' => 100, 'submitted_at' => '2026-10-01 12:00:00']);
+    $health = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true);
+
+    expect($health['status'])->toBe('awaiting')
+        ->and($health['progress'])->toBe(100)
+        ->and($health['delayed'])->toBeFalse()
+        ->and($health['issues']->firstWhere('type', 'completion'))->toMatchArray([
+            'issue' => 'Project closeout pending', 'basis' => 'since 100% report', 'days' => 1,
+        ])
+        ->and($health['issues']->pluck('type'))->toContain('quarterly', 'progress_quarterly');
+});
+
+test('Head monitoring lists and completion filters use the latest forwarded reports', function () {
+    $project = ($this->project)();
+    $visible = ($this->monitoring)($project, 1, ['review_stage' => 'head', 'progress_percentage' => 40]);
+    $waiting = ($this->monitoring)($project, 2, ['review_stage' => 'secretary', 'review_status' => 'pending', 'progress_percentage' => 100]);
+    $visibleNarrative = ($this->narrative)($project, 1, ['review_stage' => 'head']);
+    ($this->narrative)($project, 2, ['review_stage' => 'secretary', 'review_status' => 'pending']);
+
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('research_head.projects.index', ['status' => 'ongoing']))->assertOk()
+        ->assertViewHas('summary', fn (array $summary): bool => $summary['ongoing'] === 1 && $summary['completion_pending'] === 0)
+        ->assertViewHas('projects', fn ($projects): bool => $projects->count() === 1
+            && $projects->first()->latestProgressReport?->id === $visible->id
+            && $projects->first()->latestNarrativeReport?->id === $visibleNarrative->id)
+        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['progress'] === 40);
+    $this->get(route('research_head.projects.index', ['status' => 'completion_pending']))->assertOk()
+        ->assertViewHas('projects', fn ($projects): bool => $projects->isEmpty());
+    $this->patch(route('research_head.projects.update-status', $project), [
+        'project_status' => 'completed', 'completion_confirmed' => '1',
+    ])->assertSessionHasErrors(['project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.']);
+    expect($project->fresh()->project_status)->toBe('ongoing');
+
+    $waiting->update(['review_stage' => 'head']);
+    $this->get(route('research_head.projects.index', ['status' => 'completion_pending']))->assertOk()
+        ->assertViewHas('summary', fn (array $summary): bool => $summary['completion_pending'] === 1 && $summary['ongoing'] === 0)
+        ->assertViewHas('projects', fn ($projects): bool => $projects->first()->latestProgressReport?->id === $waiting->id);
+});
+
+test('project completion waits for current secretary reviews and permits resolved version history', function (string $reportType) {
+    Notification::fake();
+    Storage::fake('local');
+    $project = ($this->project)(['notice_to_proceed_data' => ['approved_end_date' => '2026-09-30']]);
+    foreach ([1, 2] as $quarter) {
+        $monitoring = ($this->monitoring)($project, $quarter, ['review_stage' => 'head', 'progress_percentage' => 100]);
+        $progress = ($this->narrative)($project, $quarter, ['review_stage' => 'head']);
+    }
+    $waiting = $reportType === 'monitoring' ? $monitoring : $progress;
+    $waiting->update(['review_stage' => 'secretary', 'review_status' => 'pending']);
+    Storage::disk('local')->put('signed-terminal.pdf', '%PDF-signed');
+    ($this->narrative)($project, 2, [
+        'report_type' => 'terminal', 'terminal_data' => ['signed_copy' => ['path' => 'signed-terminal.pdf']],
+    ]);
+
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.projects.update-status', $project), ['project_status' => 'completed', 'completion_confirmed' => '1'])
+        ->assertSessionHasErrors('project_status');
+    expect(session('errors')->first('project_status'))->toContain('Research Office Secretary')
+        ->and($project->fresh()->project_status)->toBe('ongoing');
+
+    $replacement = $waiting->replicate()->fill([
+        'review_stage' => 'head', 'review_status' => 'reviewed', 'version_number' => 2,
+    ]);
+    if ($replacement instanceof ProjectProgressReport) {
+        $replacement->supersedes_report_id = $waiting->id;
+    }
+    $replacement->save();
+    $this->patch(route('research_head.projects.update-status', $project), ['project_status' => 'completed', 'completion_confirmed' => '1'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+    expect($project->fresh()->project_status)->toBe('completed');
+})->with(['Monitoring Tool' => 'monitoring', 'Progress Report' => 'progress']);
 
 test('unreported and empty portfolios have honest progress and attention states', function (bool $hasProject) {
     if ($hasProject) {

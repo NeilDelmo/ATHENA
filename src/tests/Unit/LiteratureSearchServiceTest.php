@@ -243,3 +243,149 @@ test('malformed successful responses are reported and not cached', function () {
     expect($search['failed_sources'])->toBeEmpty();
     Http::assertSentCount(8);
 });
+
+test('later proposal subtopics receive a bounded search with the original filters', function () {
+    fakeLiteratureIndexes([
+        'api.openalex.org/*' => function ($request) {
+            return Http::response(['results' => ($request['search'] ?? '') === 'book cataloging indexing circulation borrowing' ? [[
+                'display_name' => 'Book Circulation and Borrowing in University Libraries',
+                'authorships' => [['author' => ['display_name' => 'Library Researcher']]],
+                'publication_year' => 2024, 'doi' => 'https://doi.org/10.1000/borrowing',
+                'cited_by_count' => 20, 'open_access' => ['is_oa' => true],
+            ]] : []]);
+        },
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search('Book management system automated cataloging indexing circulation borrowing', [
+        'year_from' => 2022, 'year_to' => 2025, 'min_citations' => 5, 'open_access' => true,
+    ]);
+
+    expect($search['results'])->toHaveCount(1)
+        ->and($search['results'][0]['matched_terms'])->toContain('book', 'circulation', 'borrowing');
+    Http::assertSent(fn ($request): bool => ($request['search'] ?? '') === 'book cataloging indexing circulation borrowing'
+        && str_contains($request['filter'], 'publication_year:2022-2025')
+        && str_contains($request['filter'], 'cited_by_count:>4')
+        && str_contains($request['filter'], 'is_oa:true'));
+    Http::assertSentCount(9);
+});
+
+test('short searches can retrieve selected context without replacing the main topic', function () {
+    fakeLiteratureIndexes();
+
+    app(LiteratureSearchService::class)->search('flood monitoring', [], 'Evaluate warning accuracy and community response.');
+
+    Http::assertSent(fn ($request): bool => ($request['search'] ?? '') === 'flood monitoring');
+    Http::assertSent(fn ($request): bool => ($request['search'] ?? '') === 'flood monitoring warning accuracy');
+    Http::assertSentCount(8);
+});
+
+test('abbreviations and their full phrases count as one matching research concept', function (string $query, string $title) {
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => Http::response(['data' => [[
+            'title' => $title, 'authors' => [['name' => 'Researcher']],
+            'year' => 2024, 'externalIds' => ['DOI' => '10.1000/abbreviation'],
+        ]]]),
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search($query);
+
+    expect($search['results'])->toHaveCount(1)
+        ->and($search['results'][0]['matched_terms'])->toHaveCount(2);
+})->with([
+    ['IoT flood', 'Internet of Things for Flood Warning'],
+    ['Internet of Things flood', 'IoT Flood Warning'],
+    ['NLP chatbot', 'Natural Language Processing for Chatbots'],
+    ['large language models education', 'LLM Applications in Education'],
+]);
+
+test('partial abbreviation phrases cannot admit unrelated sources', function (string $query, string $title) {
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => Http::response(['data' => [[
+            'title' => $title, 'authors' => [['name' => 'Researcher']], 'year' => 2024,
+        ]]]),
+    ]);
+
+    expect(app(LiteratureSearchService::class)->search($query)['results'])->toBeEmpty();
+})->with([
+    ['IoT flood', 'Internet Networking During Flood Response'],
+    ['Internet of Things flood', 'IoT Networking Architecture'],
+    ['NLP chatbot', 'Language Chatbot Interfaces'],
+]);
+
+test('abbreviation searches send full phrases to indexes and retain the original topic', function () {
+    fakeLiteratureIndexes();
+
+    app(LiteratureSearchService::class)->search('IoT flood monitoring');
+
+    Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://api.semanticscholar.org/')
+        && $request['query'] === 'internet of things flood monitoring');
+    Http::assertSent(fn ($request): bool => ($request['search'] ?? '') === 'iot flood monitoring');
+    Http::assertSent(fn ($request): bool => ($request['search'] ?? '') === 'internet of things flood monitoring');
+    Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://export.arxiv.org/')
+        && str_contains($request['search_query'], '(all:iot OR all:"internet of things") AND all:flood'));
+    Http::assertSentCount(8);
+});
+
+test('availability notices identify both rate limited and otherwise failed indexes', function () {
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => Http::response([], 429),
+        'api.crossref.org/*' => Http::response([], 503),
+        'api.openalex.org/*' => Http::response(['results' => [[
+            'display_name' => 'Community Monitoring Programs',
+            'authorships' => [['author' => ['display_name' => 'Researcher']]],
+            'publication_year' => 2024,
+        ]]]),
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search('community monitoring');
+
+    expect($search['provider_notice'])->toContain('Semantic Scholar', 'rate-limited', 'Crossref', 'did not respond');
+});
+
+test('research subject nouns remain searchable even when they can describe objectives', function (string $query) {
+    fakeLiteratureIndexes();
+
+    $search = app(LiteratureSearchService::class)->search($query);
+
+    expect($search['search_keywords'])->toHaveCount(2)
+        ->and($search['query_guidance']['is_broad'])->toBeFalse();
+    Http::assertSentCount(7);
+})->with(['formative assessment', 'program evaluation', 'measure theory']);
+
+test('Europe PMC links use the namespace matching the available identifier', function (?string $pmcid, string $expectedUrl) {
+    fakeLiteratureIndexes([
+        'www.ebi.ac.uk/*' => Http::response(['resultList' => ['result' => [[
+            'title' => 'Community Monitoring Programs', 'authorString' => 'Researcher',
+            'pubYear' => '2024', 'source' => 'MED', 'id' => '12345678', 'pmcid' => $pmcid,
+        ]]]]),
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search('community monitoring');
+
+    expect($search['results'])->toHaveCount(1)
+        ->and($search['results'][0]['url'])->toBe($expectedUrl);
+})->with([
+    ['PMC1234567', 'https://europepmc.org/articles/PMC1234567'],
+    [null, 'https://europepmc.org/article/MED/12345678'],
+]);
+
+test('complete technical concepts remain searchable when normalized to an abbreviation', function (string $query) {
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => Http::response(['data' => [[
+            'title' => $query.' Applications', 'authors' => [['name' => 'Researcher']], 'year' => 2024,
+        ]]]),
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search($query);
+
+    expect($search['results'])->toHaveCount(1)
+        ->and($search['query_guidance']['message'])->not->toContain('too broad');
+    Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://api.semanticscholar.org/'));
+})->with(['Internet of Things', 'natural language processing', 'IoT']);
+
+test('generic single words still request a more specific research topic', function () {
+    fakeLiteratureIndexes();
+
+    expect(app(LiteratureSearchService::class)->search('education')['results'])->toBeEmpty();
+    Http::assertNothingSent();
+});

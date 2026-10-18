@@ -140,6 +140,47 @@ function assistantDocxContents(string $text): string
     return $contents;
 }
 
+test('assistant report context identifies secretary review and respects head forwarding visibility', function () {
+    $owner = User::factory()->create();
+    $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
+    $report = $topic->progressReports()->create([
+        'submitted_by' => $owner->id, 'reporting_date' => '2026-08-31',
+        'version_number' => 1, 'progress_percentage' => 50,
+        'accomplishments' => 'OFFICE-REVIEW-ONLY-DETAIL', 'review_stage' => 'secretary',
+        'secretary_remarks' => 'Explain the survey result.',
+    ]);
+    $service = app(ResearchAssistantWorkflowContextService::class);
+    $packet = $service->promptContext($owner, $topic, ['workflow_scope' => 'monitoring'], 'What needs revision?');
+    expect($packet)->toContain('OFFICE-REVIEW-ONLY-DETAIL', 'Explain the survey result.', 'Awaiting Research Office Secretary review');
+
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    expect($service->promptContext($head, $topic, ['workflow_scope' => 'monitoring'], 'What needs revision?'))->not->toContain('OFFICE-REVIEW-ONLY-DETAIL');
+
+    $report->update(['review_stage' => 'head', 'forwarded_at' => now()]);
+    expect($service->promptContext($head, $topic, ['workflow_scope' => 'monitoring'], 'What needs revision?'))->toContain('OFFICE-REVIEW-ONLY-DETAIL', 'Awaiting Research Head review');
+});
+
+test('assistant monitoring context supplies the displayed review labels and secretary return route', function () {
+    $owner = User::factory()->create();
+    $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
+    $packet = app(ResearchAssistantWorkflowContextService::class)->promptContext(
+        $owner, $topic, ['workflow_scope' => 'monitoring'], 'wht does the head review means in this monitoring tool as a status?',
+    );
+    preg_match('/\{.*\}/s', $packet, $matches);
+    $context = json_decode($matches[0], true, flags: JSON_THROW_ON_ERROR);
+    $workflow = $context['monitoring']['report_review_workflow'] ?? [];
+
+    expect($workflow['normal_route'] ?? null)->toBe(['Faculty Researcher', 'Research Office Secretary', 'Research Head'])
+        ->and($workflow['table_labels']['Awaiting Research Head review'] ?? null)->toBe('Head review')
+        ->and($workflow['table_labels']['Accepted by Research Head'] ?? null)->toBe('Accepted')
+        ->and($workflow['head_review_actions'] ?? null)->toBe([
+            'Accept report' => 'Accepted',
+            'Return concerns to Research Office Secretary' => 'Office review',
+        ]);
+});
+
 test('assistant distinguishes activity delay from project end and report submission lateness', function (?string $initialSubmittedAt, ?int $expectedDaysLate) {
     $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', config('app.timezone')));
     $owner = User::factory()->create();
@@ -318,7 +359,7 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertDontSee('Research prompt groups')
         ->assertDontSee('Planning')
         ->assertDontSee('Methods')
-        ->assertDontSee('Revision')
+        ->assertSee('Revisions change written content only.')
         ->assertDontSee('Writing')
         ->assertDontSee('Refine my research question')
         ->assertDontSee('Ask about research questions, methodology, writing, or proposal revisions.')
@@ -331,6 +372,8 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('openWorkspace()', false)
         ->assertSee('collapseWorkspace()', false)
         ->assertSee('workspaceOpen', false);
+
+    expect($response->getContent())->not->toMatch('/>\s*Revision\s*</u');
 
     if (getenv('ATHENA_EXPORT_ASSISTANT_LAYOUT') === '1' && $role === 'faculty') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
@@ -684,6 +727,11 @@ test('authenticated users can receive a gemini research response', function (str
         && $request['messages'][0]['role'] === 'system'
         && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
         && str_contains($request['messages'][0]['content'], 'Active ATHENA workspace: '.$researcher->activeWorkspaceLabel())
+        && str_contains($request['messages'][0]['content'], 'Ordinary chat has no live web-browsing tools.')
+        && str_contains($request['messages'][0]['content'], 'Do not claim a fresh web search or verified references unless retrieved source evidence is supplied.')
+        && str_contains($request['messages'][0]['content'], 'Use ATHENA\'s literature search workflow for requests to find papers')
+        && ! isset($request['tools'])
+        && ! isset($request['plugins'])
         && str_contains($request['messages'][0]['content'], 'Proposal-paper changes save automatically.'));
 })->with(['faculty', 'faculty_researcher', 'research_head']);
 
@@ -2020,6 +2068,10 @@ test('literature search returns available results when one provider fails', func
             ],
         ]),
         'api.openalex.org/works*' => Http::response(['results' => []]),
+        'www.ebi.ac.uk/*' => Http::response(['resultList' => ['result' => []]]),
+        'api.ies.ed.gov/*' => Http::response(['response' => ['docs' => []]]),
+        'doaj.org/*' => Http::response(['results' => []]),
+        'export.arxiv.org/*' => Http::response('<feed xmlns="http://www.w3.org/2005/Atom"/>'),
     ]);
 
     $researcher = User::factory()->create();
@@ -2034,7 +2086,7 @@ test('literature search returns available results when one provider fails', func
         ->assertJsonPath('results.0.title', 'Faculty research mentoring practices')
         ->assertJsonPath('results.0.description', 'No description available from source.')
         ->assertJsonPath('failed_sources.0', 'Semantic Scholar')
-        ->assertJsonPath('provider_notice', 'Showing 1 result from Crossref and OpenAlex. Semantic Scholar temporarily rate-limited this search.');
+        ->assertJsonPath('provider_notice', 'Showing 1 result from Crossref, OpenAlex, Europe PMC, ERIC, DOAJ and arXiv. Semantic Scholar temporarily rate-limited this search.');
 });
 
 test('literature search reports unavailable when every provider fails', function () {

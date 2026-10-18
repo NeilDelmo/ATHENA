@@ -32,7 +32,7 @@ unset($__defined_vars, $__key, $__value); ?>
     $workspaceCount = count($workspaces);
     $workspaceCopy = [
         'research_head' => ['label' => 'Research Head', 'description' => 'Manage research calls, review proposals, and oversee institutional research.'],
-        'faculty_researcher' => ['label' => 'Research Projects', 'description' => 'Manage approved projects, submit monitoring reports, and access released documents.'],
+        'faculty_researcher' => ['label' => 'Faculty Researcher', 'description' => 'Manage approved projects, submit monitoring reports, and access released documents.'],
         'faculty' => ['label' => 'Faculty', 'description' => 'Prepare proposals, submit research papers, and respond to review feedback.'],
     ];
 ?>

@@ -25,7 +25,10 @@ class CollegeQuarterlyReportFacultyEvidence
         return TopicProposal::query()->withIssuedNotice()
             ->where('notice_to_proceed_issued_at', '<=', $period['end'])
             ->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $coordinator->college))
-            ->with(['progressReports.submitter', 'narrativeReports.submitter'])
+            ->with([
+                'progressReports' => fn ($reports) => $reports->visibleToResearchHead()->with('submitter'),
+                'narrativeReports' => fn ($reports) => $reports->visibleToResearchHead()->with('submitter'),
+            ])
             ->orderBy('title')->orderBy('id')->get()
             ->flatMap(fn (TopicProposal $topic): array => $this->evidence->forProject($topic, $period['start'], $period['end']))
             ->unique('path')->values()->all();

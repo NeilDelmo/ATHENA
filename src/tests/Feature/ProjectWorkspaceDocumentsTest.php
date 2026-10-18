@@ -1,7 +1,9 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectDocument;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -117,6 +119,109 @@ test('project file browsing skips missing stored files', function () {
         ->assertJsonPath('documents', []);
 });
 
+test('project folders include submitted Monitoring Tools and Progress Reports with working PDF links', function (bool $storedPdf) {
+    $contents = "%PDF-1.7\nproject report";
+    $converter = new class implements DocumentPdfConverter
+    {
+        public int $conversionCount = 0;
+
+        public function convertDocx(string $contents): string
+        {
+            $this->conversionCount++;
+
+            return "%PDF-1.7\nproject report";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('This test should not convert spreadsheets.');
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $converter);
+
+    $monitoring = $this->project->progressReports()->create([
+        'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-06-30',
+        'reporting_year' => 2026, 'reporting_quarter' => 2, 'submitted_at' => now(),
+        'progress_percentage' => 50, 'accomplishments' => 'Coastal mapping completed.',
+        'work_plan' => [[
+            'activity' => 'Map coastal conditions', 'percent_weight' => 100,
+            'physical_target' => 'Survey coastal sites', 'target_completion_date' => '2026-06-30',
+            'actual_accomplishment' => 'Coastal mapping completed.', 'accomplished_percentage' => 50,
+            'findings' => 'Remaining sites scheduled for the next quarter.',
+        ]],
+        'budget_utilization' => [['type' => 'Purchase Request', 'details' => 'Survey supplies', 'amount_requested' => 5000, 'actual_amount' => 4000, 'remarks' => 'Delivered']],
+        'official_pdf_path' => $storedPdf ? 'progress-reports/monitoring.pdf' : null,
+        'official_pdf_filename' => $storedPdf ? 'monitoring-tool.pdf' : null,
+        'official_pdf_size' => $storedPdf ? strlen($contents) : null,
+    ]);
+    $progress = $this->project->narrativeReports()->create([
+        ...$this->reportAttributes, 'report_type' => 'progress', 'reporting_date' => '2026-06-30',
+        'submitted_at' => now(), 'official_pdf_path' => $storedPdf ? 'narrative-progress-reports/progress.pdf' : null,
+        'official_pdf_filename' => $storedPdf ? 'progress-report.pdf' : null,
+        'official_pdf_size' => $storedPdf ? strlen($contents) : null,
+    ]);
+    if ($storedPdf) {
+        foreach ([$monitoring, $progress] as $report) {
+            Storage::disk('local')->put($report->official_pdf_path, $contents);
+        }
+    }
+    $monitoring->replicate()->fill([
+        'reporting_quarter' => 3, 'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_PREPARED,
+        'official_pdf_path' => 'reports/prepared-monitoring.pdf', 'official_pdf_filename' => 'prepared-monitoring.pdf',
+    ])->save();
+    $progress->replicate()->fill([
+        'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_PREPARED,
+        'official_pdf_path' => 'reports/prepared-progress.pdf', 'official_pdf_filename' => 'prepared-progress.pdf',
+    ])->save();
+    $otherProject = $this->project->replicate();
+    $otherProject->fill(['title' => 'Unrelated project'])->save();
+    $monitoring->replicate()->fill(['topic_id' => $otherProject->id, 'official_pdf_path' => 'reports/unrelated-monitoring.pdf'])->save();
+    $progress->replicate()->fill(['topic_id' => $otherProject->id, 'official_pdf_path' => 'reports/unrelated-progress.pdf'])->save();
+    foreach (['prepared-monitoring', 'prepared-progress', 'unrelated-monitoring', 'unrelated-progress'] as $filename) {
+        Storage::disk('local')->put('reports/'.$filename.'.pdf', $contents);
+    }
+
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $response = $this->getJson($this->documentsUrl)->assertSuccessful()
+        ->assertJsonPath('total', 2)
+        ->assertJsonPath('categories.0.key', ProjectDocument::CATEGORY_MONITORING_REPORTS)
+        ->assertJsonPath('categories.0.count', 2);
+    $documents = collect($response->json('documents'))->keyBy('key');
+    foreach ([
+        ['monitoring-report-'.$monitoring->id, route('project-progress.monitoring-tool.view', $monitoring), route('project-progress.monitoring-tool', $monitoring)],
+        ['narrative-report-'.$progress->id, route('project-narrative-reports.view', $progress), route('project-narrative-reports.download', $progress)],
+    ] as [$key, $previewUrl, $downloadUrl]) {
+        expect($documents->get($key))->toMatchArray([
+            'category' => ProjectDocument::CATEGORY_MONITORING_REPORTS,
+            'view_url' => $previewUrl, 'download_url' => $downloadUrl, 'official' => true,
+        ]);
+        $preview = $this->get($previewUrl)->assertSuccessful()->assertHeader('Content-Type', 'application/pdf');
+        expect($preview->headers->get('Content-Disposition'))->toStartWith('inline')
+            ->and($preview->streamedContent())->toBe($contents);
+        $download = $this->get($downloadUrl)->assertSuccessful()->assertDownload();
+        expect($download->streamedContent())->toBe($contents);
+    }
+    expect($converter->conversionCount)->toBe($storedPdf ? 0 : 4)
+        ->and($this->project->projectDocuments()->count())->toBe(0);
+    expect($response->getContent())->not->toContain('official_pdf_path');
+})->with(['stored PDFs' => true, 'legacy reports without stored PDFs' => false]);
+
+test('project folders omit submitted reports whose recorded PDF is missing', function (string $type) {
+    $attributes = ['official_pdf_path' => 'reports/missing.pdf', 'official_pdf_filename' => 'missing.pdf'];
+    if ($type === 'monitoring') {
+        $this->project->progressReports()->create([
+            ...$attributes, 'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-06-30',
+            'progress_percentage' => 50, 'accomplishments' => 'Coastal mapping completed.',
+            'work_plan' => [], 'budget_utilization' => [],
+        ]);
+    } else {
+        $this->project->narrativeReports()->create([...$this->reportAttributes, ...$attributes, 'report_type' => 'progress']);
+    }
+
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->getJson($this->documentsUrl)->assertSuccessful()->assertJsonPath('documents', []);
+})->with(['monitoring', 'progress']);
+
 test('submitted terminal posters appear once as private image files with their report', function () {
     $file = UploadedFile::fake()->image('coastal-project-poster.png', 240, 360);
     $path = $file->store('narrative-progress-reports/'.$this->project->id, 'local');
@@ -194,8 +299,9 @@ test('project folders omit unavailable or private report posters', function (str
         'official_pdf_path' => $preparedPdfPath,
     ]);
 
-    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
-        ->getJson($this->documentsUrl)->assertSuccessful()->assertJsonPath('documents', []);
+    $response = $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->getJson($this->documentsUrl)->assertSuccessful()->assertJsonPath('total', $reason === 'progress report' ? 1 : 0);
+    expect(collect($response->json('documents'))->filter(fn (array $document): bool => str_starts_with($document['key'], 'terminal-report-poster-')))->toBeEmpty();
     $this->get(route('research_head.projects.index'))->assertSuccessful()
         ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['poster_url'] === null);
 })->with(['progress report', 'prepared report', 'missing file', 'invalid image', 'ordinary report figure', 'no poster']);
@@ -216,7 +322,7 @@ test('terminal poster previews retain report authorization', function () {
     Gate::before(fn (User $user, string $ability): ?bool => $ability === 'view' ? false : null);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('research_head.projects.index'))->assertSuccessful()
-        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['poster_url'] === null);
+        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects === []);
 });
 
 test('project folder covers use the newest available submitted terminal poster', function () {

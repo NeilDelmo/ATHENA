@@ -8,7 +8,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
-test('faculty Files uses category folders, native poster previews and queued PDF uploads without trapping the page', async () => {
+test('project folders preserve the folder grid, mouse scrolling, previews and queued PDF uploads', async () => {
     if (process.env.ATHENA_FILES_FIXTURE_READY !== '1') {
         execFileSync('php', ['vendor/pestphp/pest/bin/pest', '--compact', 'tests/Feature/ProjectDocumentLibraryTest.php', '--filter=faculty researcher files use an inline'], {
             encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
@@ -21,7 +21,8 @@ test('faculty Files uses category folders, native poster previews and queued PDF
     const readerHtml = readFileSync(resolve('storage/framework/testing/project-files-reader.html'), 'utf8');
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/project-workspace.css'), 'utf8'), { from: undefined });
-    const module = readFileSync(resolve('resources/js/project-document-drawer.js'), 'utf8').replaceAll('export ', '');
+    const module = readFileSync(resolve('resources/js/report-library.js'), 'utf8').replaceAll('export ', '') + '\n'
+        + readFileSync(resolve('resources/js/project-document-drawer.js'), 'utf8').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
     const posterImage = readFileSync(resolve('public/images/sample-maintenance-poster.png'));
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
 
@@ -54,13 +55,14 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                         }
                     }
                     const poster = files.querySelector('[data-project-document-key^="terminal-report-poster-"]');
+                    const posterSelection = files.querySelector(`[data-project-file-selection="${poster.dataset.projectDocumentKey}"]`);
                     return {
                         html: reducedRoot.outerHTML,
                         floatingTriggers: document.querySelectorAll('[data-project-documents-floating-trigger]').length,
                         fileBrowsers: document.querySelectorAll('[data-project-document-browser]').length,
                         posterKey: poster.dataset.projectDocumentKey,
                         posterView: poster.querySelector('img').getAttribute('src'),
-                        posterDownload: files.querySelector(`[data-project-file-selection="${poster.dataset.projectDocumentKey}"] a`).getAttribute('href'),
+                        posterDownload: posterSelection.querySelector('a').getAttribute('href'),
                     };
                 }, html);
                 let pageHtml = fixture.html;
@@ -93,12 +95,33 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 const files = page.locator('#project-files-tab');
                 const fileBrowser = files.locator('[data-project-document-browser]');
                 const filesTab = page.locator('#project-files-tab-button');
+                const chooseView = async (target, name) => {
+                    await target.click({ button: 'right' });
+                    await expect(page.getByRole('menu', { name: 'View', exact: true })).toBeVisible();
+                    await page.getByRole('menuitemradio', { name, exact: true }).click();
+                };
                 const drawerState = () => fileBrowser.evaluate(element => {
                     const state = Alpine.$data(element);
-                    return { inline: state.inline, open: state.open, category: state.activeCategory, selected: state.selectedItem, queued: state.selectedFiles.map(file => file.name), error: state.fileError };
+                    return { inline: state.inline, open: state.open, view: state.view, size: state.size, category: state.activeCategory, selected: state.selectedItem, queued: state.selectedFiles.map(file => file.name), error: state.fileError };
                 });
                 const unlocked = async () => {
                     assert.equal(await page.locator('body').evaluate(body => body.classList.contains('overflow-hidden') || body.classList.contains('overflow-y-hidden')), false);
+                };
+                const wheelScrollsPage = async target => {
+                    await page.evaluate(() => {
+                        const spacer = document.createElement('div');
+                        spacer.dataset.wheelTestSpacer = '';
+                        spacer.style.height = '100vh';
+                        document.body.append(spacer);
+                    });
+                    await target.hover();
+                    const before = await page.evaluate(() => window.scrollY);
+                    await page.mouse.wheel(0, 400);
+                    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
+                    await page.evaluate(() => {
+                        document.querySelector('[data-wheel-test-spacer]').remove();
+                        window.scrollTo(0, 0);
+                    });
                 };
                 const screenshot = async name => {
                     await page.locator('main').evaluate(async element => {
@@ -120,16 +143,27 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 await expect(fileBrowser.locator('[data-project-file-category]:visible')).toHaveCount(2);
                 await expect(fileBrowser.locator('[data-project-document-key]:visible')).toHaveCount(0);
                 await unlocked();
+                await wheelScrollsPage(fileBrowser.locator('[data-project-file-category]').first());
                 await screenshot('folders');
 
                 const reportsFolder = fileBrowser.locator('[data-project-file-category="monitoring_reports"]');
                 await reportsFolder.click();
                 assert.equal((await drawerState()).category, 'all');
                 await expect(reportsFolder).toHaveAttribute('aria-pressed', 'true');
+                await chooseView(reportsFolder, 'Small icons');
+                const smallFolderWidth = await reportsFolder.locator('.workspace-item-graphic').evaluate(element => element.getBoundingClientRect().width);
+                await chooseView(reportsFolder, 'Large icons');
+                assert.ok(await reportsFolder.locator('.workspace-item-graphic').evaluate(element => element.getBoundingClientRect().width) > smallFolderWidth);
+                await chooseView(reportsFolder, 'Details');
+                await expect(reportsFolder.locator('..')).toHaveClass('workspace-items-list');
+                await expect(reportsFolder).toHaveAttribute('aria-pressed', 'true');
+                assert.equal((await drawerState()).category, 'all');
+                await chooseView(reportsFolder, 'Medium icons');
                 const nameSize = await reportsFolder.locator('.workspace-item-name').evaluate(element => parseFloat(getComputedStyle(element).fontSize));
                 assert.ok(nameSize >= 16);
-                await reportsFolder.press('Enter');
+                await fileBrowser.getByRole('button', { name: 'Open folder', exact: true }).click();
                 assert.equal((await drawerState()).category, 'monitoring_reports');
+                await expect(fileBrowser.locator('[data-project-file-category]:visible')).toHaveCount(0);
                 await expect(fileBrowser.locator('[data-project-document-key]:visible')).toHaveCount(2);
 
                 const poster = fileBrowser.locator(`[data-project-document-key="${fixture.posterKey}"]`);
@@ -137,7 +171,7 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 await poster.click();
                 await expect(poster).toHaveAttribute('aria-pressed', 'true');
                 await expect(page.locator('[data-project-document-preview-content]')).toHaveCount(0);
-                await expect(posterSelection.getByRole('button', { name: 'View', exact: true })).toBeVisible();
+                await expect(posterSelection.getByRole('button', { name: 'Preview', exact: true })).toBeVisible();
                 const thumbnail = poster.locator('img');
                 assert.ok(await poster.locator('.workspace-item-name').evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
                 await thumbnail.evaluate(image => image.decode());
@@ -155,6 +189,7 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 await expect(page.locator('[data-project-document-preview-content]')).toHaveCount(0);
                 await unlocked();
                 await expect(poster).toBeFocused();
+                await wheelScrollsPage(poster);
                 await poster.press('Enter');
                 await expect(previewImage).toBeVisible();
                 await previewImage.evaluate(image => image.dispatchEvent(new Event('error')));
@@ -175,12 +210,16 @@ test('faculty Files uses category folders, native poster previews and queued PDF
 
                 const terminal = fileBrowser.locator('[data-project-document-key^="narrative-report-"]');
                 await terminal.click();
-                await expect(fileBrowser.locator(`[data-project-file-selection="${await terminal.getAttribute('data-project-document-key')}"]`).getByRole('button', { name: 'View', exact: true })).toHaveCount(0);
-                const terminalDownload = page.waitForEvent('download');
+                const terminalSelection = fileBrowser.locator(`[data-project-file-selection="${await terminal.getAttribute('data-project-document-key')}"]`);
+                await expect(terminalSelection.getByRole('button', { name: 'Preview', exact: true })).toBeVisible();
                 await terminal.press('Enter');
+                await expect(page.locator('[data-project-document-preview-content]:visible [data-pdf-annotation-config]')).toBeVisible();
+                await page.keyboard.press('Escape');
+                const terminalDownload = page.waitForEvent('download');
+                await terminalSelection.getByRole('link', { name: 'Download', exact: true }).click();
                 assert.equal((await terminalDownload).suggestedFilename(), 'terminal-report.pdf');
 
-                await page.getByRole('button', { name: 'Up to project files', exact: true }).click();
+                await page.getByRole('button', { name: 'Up to project folders', exact: true }).click();
                 assert.equal((await drawerState()).category, 'all');
                 const proposalFolder = fileBrowser.locator('[data-project-file-category="proposal_papers"]');
                 await proposalFolder.dblclick();
@@ -190,7 +229,7 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 const proposalSelection = fileBrowser.locator(`[data-project-file-selection="${await proposal.getAttribute('data-project-document-key')}"]`);
                 const proposalDownloadUrl = await proposalSelection.getByRole('link', { name: 'Download', exact: true }).getAttribute('href');
                 assert.match(proposalDownloadUrl, /\/files\//);
-                await proposalSelection.getByRole('button', { name: 'View', exact: true }).click();
+                await proposalSelection.getByRole('button', { name: 'Preview', exact: true }).click();
                 const pdfPreview = page.locator('[data-project-document-preview-content]:visible [data-pdf-annotation-config]');
                 await expect(pdfPreview).toBeVisible();
                 const previewConfiguration = await pdfPreview.evaluate(element => JSON.parse(element.dataset.pdfAnnotationConfig));
@@ -217,6 +256,14 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 await upload.getByRole('button', { name: 'Remove second-evidence.pdf', exact: true }).click();
                 assert.deepEqual((await drawerState()).queued, ['supporting-evidence.pdf']);
                 await expect(upload.getByRole('button', { name: 'Upload 1 PDF', exact: true })).toBeEnabled();
+                const selectedBeforeLayout = (await drawerState()).selected;
+                await chooseView(proposal, 'Large icons');
+                await chooseView(proposal, 'Details');
+                await expect(proposal.locator('..')).toHaveClass('workspace-items-list');
+                assert.equal((await drawerState()).selected, selectedBeforeLayout);
+                assert.equal((await drawerState()).category, 'proposal_papers');
+                assert.deepEqual((await drawerState()).queued, ['supporting-evidence.pdf']);
+                assert.equal(await upload.locator('input[type="file"]').evaluate(input => input.files.length), 1);
                 assert.equal(posts, 0);
                 await fileBrowser.getByRole('button', { name: 'Add PDF files', exact: false }).click();
 
@@ -236,6 +283,12 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 await screenshot('shortcut');
                 assert.deepEqual(errors, []);
 
+                await initialize();
+                await filesTab.click();
+                await expect(files.locator('[data-workspace-sizing]')).toHaveAttribute('data-size', 'large');
+                assert.equal((await drawerState()).view, 'list');
+                await expect(reportsFolder.locator('..')).toHaveClass('workspace-items-list');
+
                 pageHtml = await page.evaluate(source => {
                     const document = new DOMParser().parseFromString(source, 'text/html');
                     const root = document.querySelector('[data-topic-workspace]');
@@ -250,6 +303,8 @@ test('faculty Files uses category folders, native poster previews and queued PDF
                 await expect(fileBrowser.getByRole('button', { name: 'Add PDF files', exact: false })).toHaveCount(0);
                 await expect(fileBrowser.locator('#project-file-upload')).toHaveCount(0);
                 await expect(fileBrowser.locator('[data-project-file-category]:visible')).toHaveCount(2);
+                await expect(files.locator('[data-workspace-sizing]')).toHaveAttribute('data-size', 'medium');
+                assert.equal((await drawerState()).view, 'grid');
                 await unlocked();
                 await screenshot('reader');
                 assert.equal(posts, 0);
