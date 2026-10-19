@@ -4,7 +4,7 @@
             <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
                 <span class="inline-flex items-center gap-1.5 text-sm font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? "You're the project leader" : "Project staff · Project leader: ".$proposalDraft->owner->name }}</span>
-                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-base font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto">{{ auth()->user()->can('submit', $proposalDraft) ? 'Review & turn in' : 'Review working draft' }}</button>
+                <button type="button" data-proposal-readiness-continue data-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-base font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto">{{ auth()->user()->can('submit', $proposalDraft) ? 'Review & turn in' : 'Review working draft' }}</button>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -67,6 +67,9 @@
         @endif
 
 
+        <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" :blockers="$readinessBlockers" :ready-to-prepare="$readyToPrepare" :ready-to-submit="$readyToSubmit" />
+        <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
+
         <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
 
         <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900" role="tablist" aria-label="Proposal workspace sections">
@@ -88,7 +91,7 @@
 
         <section id="project-details-tab" x-show="activeProposalTab === 'details'" x-cloak role="tabpanel" aria-labelledby="project-details-tab-button">
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-                <div data-paper-editor data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}" data-project-details-autosave="true" data-paper-edit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" x-data="proposalDraftProjectDetails({ initialDuration: @js($initialDuration), initialStart: @js($initialPlannedStart), initialEnd: @js($initialPlannedEnd), initialComplete: @js($projectDetailsComplete), autoSave: true })" class="space-y-4">
+                <div data-paper-editor data-proposal-paper="details" data-proposal-readiness-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}" data-project-details-autosave="true" data-paper-edit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" x-data="proposalDraftProjectDetails({ initialDuration: @js($initialDuration), initialStart: @js($initialPlannedStart), initialEnd: @js($initialPlannedEnd), initialComplete: @js($projectDetailsComplete), autoSave: true })" class="space-y-4">
                     <x-paper-editor-submit-status />
                     <x-proposal-autosave-status />
                     <x-proposal-collaboration-monitor
@@ -312,7 +315,7 @@
 
             <div class="mt-5 flex flex-col gap-3 rounded-xl bg-gray-950 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                 <div><p class="font-black text-white">Ready to prepare the project?</p><p class="mt-1 text-sm leading-6 text-gray-300">Review the five proposal papers. ATHENA automatically includes the two assessment forms, for a total of seven PDFs.</p></div>
-                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-white px-5 py-3 text-base font-bold text-gray-950 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</button>
+                <button type="button" data-proposal-readiness-continue data-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-white px-5 py-3 text-base font-bold text-gray-950 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</button>
             </div>
         </section>
 
@@ -602,11 +605,6 @@
                         <p class="font-black">This project cannot be turned in yet.</p>
                         <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
                     </x-proposal-alert>
-                @elseif (! $readyToSubmit)
-                    <div role="alert" class="mb-6 border-l-4 border-red-600 bg-red-50 p-5 text-sm text-red-950 dark:bg-red-950/40 dark:text-red-100">
-                        <p class="font-black">Complete the items below before submitting.</p>
-                        <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($readinessErrors as $error)<li>{{ $error }}</li>@endforeach</ul>
-                    </div>
                 @endif
 
                 <div class="space-y-6">

@@ -1,4 +1,4 @@
-@props(['topic', 'draft' => null, 'defaults' => [], 'evidence' => [], 'standalone' => false])
+@props(['topic', 'draft' => null, 'defaults' => [], 'evidence' => [], 'standalone' => false, 'draftRecoveryState' => null])
 @php
     $data = app(\App\Support\TerminalReportData::class)->normalize($topic, [...array_replace($defaults, $draft?->source_data ?? []), 'accomplishments' => old('accomplishments', $draft?->source_data['accomplishments'] ?? $defaults['accomplishments'] ?? [])]);
     $terminal = $data['terminal_data'] ?? [];
@@ -7,9 +7,10 @@
     $authors = $value('terminal_data.authors', []);
     $accomplishments = $data['accomplishments'] ?: [['objective' => '', 'target' => '', 'actual' => '']];
     $selectedCover = $value('reuse_cover_image');
-    $coverPreview = $evidence[$selectedCover]['preview_url'] ?? '';
+    $savedImages = app(\App\Services\ReportFigureDraftService::class)->displayImages($topic, $data);
+    $coverPreview = $savedImages['cover_image']['preview_url'] ?? $evidence[$selectedCover]['preview_url'] ?? '';
     $usedFigureSlots = collect(range(1, 30))
-        ->filter(fn (int $index): bool => filled($value('reuse_photo_'.$index)) || filled($value('photo_caption_'.$index)))
+        ->filter(fn (int $index): bool => filled($value('saved_photo_'.$index)) || filled($value('reuse_photo_'.$index)) || filled($value('photo_caption_'.$index)))
         ->max();
     $initialFigureCount = max(1, (int) ($usedFigureSlots ?: 1));
     $monitoringSources = collect($defaults['monitoring_reference'] ?? []);
@@ -29,6 +30,15 @@
     data-narrative-progress-autosave="true"
     x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), previewTitle: 'Terminal Report preview', draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token()), submissionOpen: @js($submissionOpen), submissionOpensAt: @js($submissionOpensAt)})"
 >
+    <x-proposal-collaboration-monitor
+        :loaded-version="$draft?->lock_version ?? 0"
+        :state-url="route('project-report-drafts.edit-state', ['topic' => $topic, 'kind' => 'terminal', 'reportingDate' => 'terminal', 'source' => 0])"
+        :state-scope="$draftRecoveryState['scope'] ?? null"
+        :reload-url="route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'terminal'])"
+        label="Terminal Report"
+        report-recovery
+    />
+
     <x-monitoring-writing-toolbar
         :topic="$topic"
         report-label="Terminal Report"
@@ -51,11 +61,12 @@
         action="{{ route('project-narrative-reports.prepare', $topic) }}"
         enctype="multipart/form-data"
         class="mx-auto max-w-6xl space-y-8 text-base leading-7 text-gray-800 dark:text-slate-200"
-        @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }"
+        @submit="submitNarrativeReport($event)"
     >
         @csrf
         <input type="hidden" name="report_type" value="terminal">
         <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
+        <input type="hidden" name="recovery_scope" value="{{ $draftRecoveryState['scope'] ?? '' }}">
         <x-assistant-report-editor :context="['report_type' => 'terminal-report', 'topic_id' => $topic->id]" />
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open {{ $submissionOpensAt }}.</p>
 
@@ -122,7 +133,7 @@
         @endif
 
         <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-950 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
-            Review the carried-over proposal content and confirm the final dates, spending, and findings. Image files are not autosaved, so choose new uploads again if you leave before preparing the report.
+            Review the carried-over proposal content and confirm the final dates, spending, and findings. Text, poster, and figure images save privately with the draft. Wait for “Draft saved” before leaving.
         </div>
 
         @if ($missingPeriods->isNotEmpty())
@@ -180,9 +191,12 @@
             <section
                 id="terminal-cover"
                 data-terminal-cover-image
+                data-report-image
                 class="scroll-mt-24 overflow-hidden rounded-3xl border border-gray-300 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
-                x-data="{ previewUrl: @js($coverPreview), selected: @js($selectedCover), evidence: @js($evidence) }"
+                x-data="{ previewUrl: @js($coverPreview), selected: @js($selectedCover), evidence: @js($evidence), imageId: @js($value('saved_cover_image')), imageName: @js($savedImages['cover_image']['name'] ?? '') }"
+                @report-image-saved="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); imageId = $event.detail.id; imageName = $event.detail.name; previewUrl = $event.detail.preview_url"
             >
+                <input type="hidden" name="saved_cover_image" x-model="imageId">
                 <div class="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)]">
                     <div class="relative flex min-h-80 items-center justify-center overflow-hidden bg-slate-100 p-6 dark:bg-slate-950">
                         <img x-show="previewUrl" :src="previewUrl" :alt="$refs.coverCaption?.value || 'Terminal report cover poster preview'" class="max-h-[28rem] w-full rounded-xl object-contain shadow-2xl">
@@ -204,16 +218,18 @@
                                 name="cover_image"
                                 accept=".jpg,.jpeg,.png"
                                 class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-red-800"
-                                @change="if ($event.target.files[0]) { previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; }"
+                                @change="if ($event.target.files[0]) { if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; imageId = ''; }"
                             >
+                            <span role="status" class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
                         </label>
+                        <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-300 dark:hover:bg-red-950">Remove image</button>
                         <label class="block font-bold">
                             Or reuse earlier evidence
                             <select
                                 x-model="selected"
                                 name="reuse_cover_image"
                                 class="{{ $input }}"
-                                @change="if (evidence[selected]) { previewUrl = evidence[selected].preview_url; $refs.coverCaption.value = evidence[selected].caption || $refs.coverCaption.value; $refs.coverCaption.dispatchEvent(new Event('input', { bubbles: true })); } else { previewUrl = ''; }"
+                                @change="imageId = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; if (evidence[selected]) { previewUrl = evidence[selected].preview_url; $refs.coverCaption.value = evidence[selected].caption || $refs.coverCaption.value; $refs.coverCaption.dispatchEvent(new Event('input', { bubbles: true })); } else { previewUrl = ''; }"
                             >
                                 <option value="">No earlier image selected</option>
                                 @foreach ($evidence as $key => $photo)<option value="{{ $key }}">{{ $photo['label'] }}</option>@endforeach
@@ -330,14 +346,17 @@
             @foreach (range(1, 30) as $index)
                 @php
                     $selectedFigure = $value('reuse_photo_'.$index);
-                    $figurePreview = $evidence[$selectedFigure]['preview_url'] ?? '';
+                    $figurePreview = $savedImages['photo_'.$index]['preview_url'] ?? $evidence[$selectedFigure]['preview_url'] ?? '';
                 @endphp
                 <article
+                    data-report-image
                     x-show="figureCount >= {{ $index }}"
                     x-cloak
                     class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
-                    x-data="{ caption: @js($value('photo_caption_'.$index)), section: @js($value('photo_section_'.$index, 'results_discussion')), selected: @js($selectedFigure), previewUrl: @js($figurePreview) }"
+                    x-data="{ caption: @js($value('photo_caption_'.$index)), section: @js($value('photo_section_'.$index, 'results_discussion')), selected: @js($selectedFigure), previewUrl: @js($figurePreview), imageId: @js($value('saved_photo_'.$index)), imageName: @js($savedImages['photo_'.$index]['name'] ?? '') }"
+                    @report-image-saved="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); imageId = $event.detail.id; imageName = $event.detail.name; previewUrl = $event.detail.preview_url"
                 >
+                    <input type="hidden" name="saved_photo_{{ $index }}" x-model="imageId">
                     <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
                         <h4 class="text-xl font-bold text-gray-950 dark:text-white">Figure {{ $index }}</h4>
                         <span class="rounded-full bg-white px-3 py-1 font-semibold text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">JPG / PNG</span>
@@ -350,11 +369,13 @@
                         <div class="grid gap-4 sm:grid-cols-2">
                             <label class="block font-bold">
                                 Upload a new image
-                                <input type="file" name="photo_{{ $index }}" accept=".jpg,.jpeg,.png" class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-red-800" @change="if ($event.target.files[0]) { previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; }">
+                                <input type="file" name="photo_{{ $index }}" accept=".jpg,.jpeg,.png" class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-red-800" @change="if ($event.target.files[0]) { if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; imageId = ''; }">
+                                <span role="status" class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
+                                <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="mt-2 min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-300 dark:hover:bg-red-950">Remove image</button>
                             </label>
                             <label class="block font-bold">
                                 Or reuse earlier evidence
-                                <select x-model="selected" name="reuse_photo_{{ $index }}" class="{{ $input }}" @change="if (evidence[selected]) { caption = evidence[selected].caption || ''; section = ['methodology','results_discussion'].includes(evidence[selected].section) ? evidence[selected].section : 'results_discussion'; previewUrl = evidence[selected].preview_url; } else { previewUrl = ''; }">
+                                <select x-model="selected" name="reuse_photo_{{ $index }}" class="{{ $input }}" @change="imageId = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; if (evidence[selected]) { caption = evidence[selected].caption || ''; section = ['methodology','results_discussion'].includes(evidence[selected].section) ? evidence[selected].section : 'results_discussion'; previewUrl = evidence[selected].preview_url; } else { previewUrl = ''; }">
                                     <option value="">No earlier image selected</option>
                                     @foreach ($evidence as $key => $photo)<option value="{{ $key }}">{{ $photo['label'] }}</option>@endforeach
                                 </select>

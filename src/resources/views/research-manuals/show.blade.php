@@ -44,6 +44,8 @@
             </dl>
         </section>
 
+        <x-research-manual-checks :manual="$manual" />
+
         @if (count($unindexedPages) > 0)
             <aside class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100" aria-labelledby="missing-text-heading" role="alert">
                 <div class="flex items-start gap-3">
@@ -61,7 +63,80 @@
             </aside>
         @endif
 
-        <x-research-manual-reader :reader="$manualReader" class="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6" />
+        <section id="manual-comparison" class="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6" aria-labelledby="manual-comparison-heading" data-manual-comparison>
+            <div>
+                <h2 id="manual-comparison-heading" class="text-lg font-black tracking-tight text-slate-950 dark:text-white">Compare with the current manual</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Review differences in extracted text before activation. Formatting is ignored. Renamed or moved sections and PDF extraction changes may appear as added or removed text. Highlights include words between separate edits in a passage.</p>
+            </div>
+            @if ($comparisonError)
+                <p role="alert" class="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">Comparison is unavailable: {{ $comparisonError }} Review both PDFs before activation.</p>
+            @elseif ($isActive)
+                <p class="text-sm text-slate-600 dark:text-slate-300">This is the current edition. Open an uploaded edition to compare it before activation.</p>
+            @elseif ($comparison === null)
+                <p class="text-sm text-slate-600 dark:text-slate-300">There is no current manual to compare. Review this edition and its guidance before first activation.</p>
+            @else
+                <x-research-manual-reader :reader="$currentReader">
+                    <x-slot:summary>
+                        <h3 class="font-bold text-slate-900 dark:text-white">Current: {{ $currentReader['title'] }}</h3>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $currentReader['edition'] ?? 'Legacy edition' }}</p>
+                    </x-slot:summary>
+                </x-research-manual-reader>
+                <div class="flex flex-wrap gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300" aria-label="Extracted text comparison summary">
+                    @foreach (['changed' => 'changed passages', 'added' => 'added passages', 'removed' => 'removed passages', 'unreadable' => 'unmatched passages needing PDF review'] as $type => $label)
+                        <span class="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800">{{ $comparisonCounts[$type] ?? 0 }} {{ $label }}</span>
+                    @endforeach
+                    <span class="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800">{{ $comparison['unchanged_sections'] }} unchanged sections</span>
+                </div>
+                @if ($currentReader['unindexed_pages'] !== [] || $unindexedPages !== [])
+                    <aside class="rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                        <p class="font-bold">Unreadable pages are excluded from the comparison.</p>
+                        <p>Missing extracted text does not establish that a policy was added or removed. Review these PDF pages and any unmatched passages.</p>
+                        @foreach ([['reader' => $currentReader, 'label' => 'Current edition'], ['reader' => $manualReader, 'label' => 'Uploaded edition']] as $edition)
+                            @if ($edition['reader']['unindexed_pages'] !== [])
+                                <p class="mt-2 font-semibold">{{ $edition['label'] }}:</p>
+                                <ul class="flex flex-wrap gap-x-4 gap-y-1" aria-label="{{ $edition['label'] }} unreadable pages">
+                                    @foreach ($edition['reader']['unindexed_pages'] as $page)
+                                        <li><a href="{{ $edition['reader']['read_url'] }}#page={{ $page }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($edition['reader']['version']), page: {{ $page }} })" class="inline-flex min-h-11 items-center underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-600">Page {{ $page }}</a></li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        @endforeach
+                    </aside>
+                @endif
+                @forelse ($comparisonChanges as $change)
+                    <article class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+                        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-3 dark:bg-slate-950/50">
+                            <h3 class="break-words text-sm font-bold text-slate-900 dark:text-white">{{ $change['section'] }}</h3>
+                            <span class="text-xs font-bold text-slate-600 dark:text-slate-300">{{ $change['source_kind'] === 'appendix' ? 'Manual appendix · ' : '' }}{{ $change['type'] === 'unreadable' ? 'Unmatched text — PDF review needed' : ucfirst($change['type']).' extracted text' }}</span>
+                        </div>
+                        <div class="grid divide-y divide-slate-200 dark:divide-slate-700 md:grid-cols-2 md:divide-x md:divide-y-0">
+                            @foreach ([['passage' => $change['before'], 'reader' => $currentReader, 'label' => 'Current edition', 'before' => true], ['passage' => $change['after'], 'reader' => $manualReader, 'label' => 'Uploaded edition', 'before' => false]] as $side)
+                                <div class="min-w-0 p-4">
+                                    <p class="text-xs font-bold text-slate-500 dark:text-slate-400">{{ $side['label'] }} · {{ $side['reader']['edition'] ?? 'Legacy edition' }}</p>
+                                    @if ($side['passage'])
+                                        <a href="{{ $side['reader']['read_url'] }}#page={{ $side['passage']['page_start'] }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($side['reader']['version']), page: {{ $side['passage']['page_start'] }} })" class="inline-flex min-h-11 items-center text-xs font-semibold text-red-700 underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300">{{ $side['passage']['page_start'] === $side['passage']['page_end'] ? 'Page '.$side['passage']['page_start'] : 'Pages '.$side['passage']['page_start'].'–'.$side['passage']['page_end'] }}</a>
+                                        <p class="break-words text-sm leading-7 text-slate-700 dark:text-slate-200">@foreach ($side['passage']['segments'] as $segment)@if ($segment['changed'])<mark @class(['bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200 line-through' => $side['before'], 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200' => ! $side['before']])>{{ $segment['text'] }}</mark>@else{{ $segment['text'] }}@endif@endforeach</p>
+                                    @else
+                                        <p class="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">No matching extracted passage in this section.{{ $change['type'] === 'unreadable' ? ' Check the unreadable PDF pages before interpreting this difference.' : '' }}</p>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </article>
+                @empty
+                    <p class="text-sm text-slate-600 dark:text-slate-300">No differences were found in the indexed section text. Review PDF pages with unreadable text separately.</p>
+                @endforelse
+                {{ $comparisonChanges->links() }}
+                <p class="text-sm leading-6 text-slate-500 dark:text-slate-400">Changes to manual appendices, forms or approval steps may require separate application updates. This review does not change forms or workflows.</p>
+            @endif
+        </section>
+
+        <x-research-manual-reader :reader="$manualReader" class="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+            <x-slot:summary>
+                <h2 class="font-bold text-slate-900 dark:text-white">{{ $isActive ? 'Current edition' : 'Uploaded edition' }}: {{ $manual->title }}</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $manual->edition }} · {{ number_format($manual->page_count) }} pages</p>
+            </x-slot:summary>
+        </x-research-manual-reader>
 
         <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6" aria-labelledby="activate-manual-heading">
             <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-10">

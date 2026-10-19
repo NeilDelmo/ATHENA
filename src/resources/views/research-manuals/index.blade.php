@@ -10,65 +10,66 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mx-auto max-w-7xl space-y-5" data-research-manuals>
+    <div class="mx-auto flex max-w-7xl flex-wrap items-start gap-5" data-research-manuals>
         @if (session('success'))
-            <div class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">
+            <div class="flex w-full items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 4.5 4.5 10.5-10.5" /></svg>
                 <span>{{ session('success') }}</span>
             </div>
         @endif
 
         @if ($manualError ?? null)
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">
+            <div class="w-full rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">
                 <p class="font-bold">The current manual could not be read</p>
                 <p class="mt-1 leading-6">{{ $manualError }}</p>
             </div>
         @endif
 
-        <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6" aria-labelledby="current-manual-heading">
-            <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                <div class="flex min-w-0 items-start gap-4">
-                    <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" aria-hidden="true">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-2.6-1.75-5.4-2.25-9-1.5v14.25c3.6-.75 6.4-.25 9 1.5m0-14.25c2.6-1.75 5.4-2.25 9-1.5v14.25c-3.6-.75-6.4-.25-9 1.5m0-14.25V21" /></svg>
-                    </span>
-                    <div class="min-w-0">
-                        <h2 id="current-manual-heading" class="text-sm font-bold text-slate-500 dark:text-slate-400">Current manual</h2>
-                        @if ($currentManual)
-                            <p class="mt-1 break-words text-xl font-black tracking-tight text-slate-950 dark:text-white">{{ $currentManual->title }}</p>
-                            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ $currentManual->edition }} &middot; {{ number_format($currentManual->page_count) }} pages</p>
-                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Effective {{ $currentManual->effective_date?->format('M j, Y') ?? 'date not recorded' }}</p>
-                        @elseif ($legacyManual)
-                            <p class="mt-1 break-words text-xl font-black tracking-tight text-slate-950 dark:text-white">{{ $legacyManual['title'] }}</p>
-                            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Existing edition &middot; {{ number_format($legacyManual['page_count']) }} pages</p>
-                            <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">The existing manual remains in use until you activate an uploaded edition.</p>
-                        @elseif ($manualError ?? null)
-                            <p class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-white">Current manual unavailable</p>
-                            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">The saved manual files remain stored. Restore the current manual index before replacing this edition.</p>
-                        @else
-                            <p class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-white">No active manual</p>
-                            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Upload a PDF and review its contents before activating it for general research guidance.</p>
-                        @endif
-                    </div>
-                </div>
-                @if ($currentManual)
-                    <a href="{{ route('research-manuals.show', $currentManual) }}" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-red-200 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:text-red-300 dark:focus:ring-offset-slate-950">View current edition</a>
-                @endif
-            </div>
-            <p class="mt-5 border-t border-slate-100 pt-4 text-sm leading-6 text-slate-500 dark:border-slate-800 dark:text-slate-400">Activating a new edition updates general guidance. Existing proposals keep the manual edition assigned to them.</p>
+        <section class="min-w-0 flex-1 basis-[28rem] rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6" aria-labelledby="current-manual-heading">
             @if ($manualReader ?? null)
-                <x-research-manual-reader :reader="$manualReader" class="mt-5" />
+                <x-research-manual-reader :reader="$manualReader">
+                    <x-slot name="summary">
+                        <h2 id="current-manual-heading" class="text-sm font-bold text-brand dark:text-rose-300">Current manual</h2>
+                        <p class="mt-1 break-words text-xl font-black tracking-tight text-slate-950 dark:text-white">{{ $manualReader['title'] }}</p>
+                        @if ($currentManual)
+                            <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
+                                <p>{{ $currentManual->edition }} &middot; {{ number_format($currentManual->page_count) }} pages</p>
+                                <p>Effective {{ $currentManual->effective_date?->format('M j, Y') ?? 'date not recorded' }}</p>
+                            </div>
+                        @else
+                            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Existing edition &middot; {{ number_format($manualReader['page_count']) }} pages</p>
+                        @endif
+                    </x-slot>
+                    <x-slot name="actions">
+                        @if ($currentManual)
+                            <a href="{{ route('research-manuals.show', $currentManual) }}" class="workspace-secondary">View current edition</a>
+                        @endif
+                    </x-slot>
+                    <x-slot name="note">
+                        <p class="max-w-3xl text-sm leading-6 text-slate-500 dark:text-slate-400">Activating a new edition updates general guidance. Existing proposals keep the manual edition assigned to them.</p>
+                    </x-slot>
+                </x-research-manual-reader>
+            @else
+                <h2 id="current-manual-heading" class="text-sm font-bold text-slate-500 dark:text-slate-400">Current manual</h2>
+                @if ($manualError ?? null)
+                    <p class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-white">Current manual unavailable</p>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">The saved manual files remain stored. Restore the current manual index before replacing this edition.</p>
+                @else
+                    <p class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-white">No active manual</p>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Upload a PDF and review its contents before activating it for general research guidance.</p>
+                @endif
             @endif
         </section>
 
-        <section id="upload-manual" class="scroll-mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="upload-manual-heading">
-            <div class="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-10">
+        <section id="upload-manual" class="min-w-0 flex-1 basis-[28rem] scroll-mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="upload-manual-heading">
+            <div class="grid gap-6 p-5 sm:p-6">
                 <div>
                     <h2 id="upload-manual-heading" class="text-lg font-black tracking-tight text-slate-950 dark:text-white">Upload an edition</h2>
-                    <p class="mt-2 max-w-sm text-sm leading-6 text-slate-500 dark:text-slate-400">Add the approved PDF and its edition details. Uploading saves it for review; you choose when to activate it.</p>
-                    <p class="mt-4 max-w-sm text-sm leading-6 text-slate-500 dark:text-slate-400">When policy changes, review ATHENA’s forms and approval steps separately.</p>
+                    <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Add the approved PDF and its edition details. Uploading saves it for review; you choose when to activate it.</p>
+                    <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">When policy changes, review ATHENA’s forms and approval steps separately.</p>
                 </div>
 
-                <form method="POST" action="{{ route('research-manuals.store') }}" enctype="multipart/form-data" x-data="{ submitting: false }" x-on:submit="if (submitting) { $event.preventDefault(); } else { submitting = true; }" x-bind:aria-busy="submitting" class="min-w-0 space-y-5">
+                <form method="POST" action="{{ route('research-manuals.store') }}" enctype="multipart/form-data" class="min-w-0 space-y-5">
                     @csrf
                     @if ($errors->any())
                         <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
@@ -95,30 +96,29 @@
                         </div>
                         <div>
                             <label for="manual-effective-date" class="block text-sm font-bold text-slate-800 dark:text-slate-100">Effective date</label>
-                            <x-date-picker id="manual-effective-date" name="effective_date" :value="old('effective_date')" required class="mt-2" />
+                            <x-date-picker id="manual-effective-date" name="effective_date" :value="old('effective_date')" required class="mt-2 [&>[role=dialog]]:left-auto [&>[role=dialog]]:-right-6 sm:[&>[role=dialog]]:right-0" />
                             <x-input-error id="manual-effective-date-error" :messages="$errors->get('effective_date')" class="mt-2" />
                         </div>
                     </div>
 
                     <div>
                         <label for="manual-pdf" class="block text-sm font-bold text-slate-800 dark:text-slate-100">Manual PDF</label>
-                        <p id="manual-pdf-hint" class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">PDF only, up to 25 MB. Include selectable text where possible. Select the file again if an upload needs correction.</p>
+                        <p id="manual-pdf-hint" class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">PDF only, up to 25 MB. Include selectable text where possible. Your selected file stays available if an upload needs correction or retry.</p>
                         <input id="manual-pdf" name="manual" type="file" accept=".pdf,application/pdf" required aria-describedby="manual-pdf-hint{{ $errors->has('manual') ? ' manual-pdf-error' : '' }}" @error('manual') aria-invalid="true" @enderror class="mt-2 block w-full cursor-pointer rounded-xl border border-slate-300 bg-white text-sm text-slate-600 file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:font-semibold file:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
                         <x-input-error id="manual-pdf-error" :messages="$errors->get('manual')" class="mt-2" />
                     </div>
 
                     <div class="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                         <p class="max-w-sm text-xs leading-5 text-slate-500 dark:text-slate-400">Keep this page open while the PDF is uploaded and prepared for review.</p>
-                        <button type="submit" x-bind:disabled="submitting" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus:ring-offset-slate-900">
-                            <span x-show="!submitting">Upload for review</span>
-                            <span x-show="submitting" x-cloak>Preparing edition…</span>
+                        <button type="submit" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus:ring-offset-slate-900">
+                            Upload for review
                         </button>
                     </div>
                 </form>
             </div>
         </section>
 
-        <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="edition-history-heading">
+        <section class="min-w-0 w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="edition-history-heading">
             <div class="border-b border-slate-200 px-5 py-5 dark:border-slate-800 sm:px-6">
                 <h2 id="edition-history-heading" class="text-lg font-black tracking-tight text-slate-950 dark:text-white">Edition history</h2>
                 <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Uploaded editions remain available for review and reference.</p>

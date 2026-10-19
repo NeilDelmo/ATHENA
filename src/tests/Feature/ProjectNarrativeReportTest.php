@@ -312,8 +312,8 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertSee('VIII. Rationale')
         ->assertSee('X. Results and Discussion')
         ->assertSee('Add figure')
-        ->assertSee('Changes and accomplishment evidence save privately as a draft.')
-        ->assertSee('Evidence stays out of the report preview and downloaded PDF.')
+        ->assertSee('Changes, figures, and accomplishment evidence save privately as a draft.')
+        ->assertSee('Evidence stays out of the report preview and downloaded PDF; figures are included in the report.')
         ->assertSee('data-progress-evidence', false)
         ->assertSee('data-narrative-progress-autosave-form', false);
 });
@@ -560,6 +560,42 @@ test('the owner and Research Head can download the official report as a PDF and 
         $generated->close();
         unlink($generatedPath);
     }
+});
+
+test('large report figure previews are private and smaller while downloads and generated documents retain original images', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)([
+            'photo_1' => UploadedFile::fake()->image('large-original.jpg', 2400, 1800),
+        ]))->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    $original = Storage::disk('local')->get($report->photos[0]['path']);
+    $url = route('project-narrative-reports.photos.view', [$report, 0, 'preview' => 1]);
+    $preview = $this->get($url)->assertSuccessful()->assertHeader('Content-Type', 'image/webp');
+
+    expect(strlen($preview->streamedContent()))->toBeLessThan(strlen($original))
+        ->and($preview->headers->get('Cache-Control'))->toContain('private')->toContain('no-store');
+    $download = $this->get(route('project-narrative-reports.photos.download', [$report, 0]))
+        ->assertSuccessful()->assertDownload('large-original.jpg');
+    expect($download->streamedContent())->toBe($original);
+    $temporary = tempnam(sys_get_temp_dir(), 'report-original-');
+    file_put_contents($temporary, $this->pdfConverter->sourceDocument);
+    $zip = new ZipArchive;
+    expect($zip->open($temporary))->toBeTrue();
+    $images = [];
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+        if (str_starts_with($zip->getNameIndex($index), 'word/media/')) {
+            $images[] = $zip->getFromIndex($index);
+        }
+    }
+    $zip->close();
+    unlink($temporary);
+    expect($images)->toContain($original);
+
+    $other = User::factory()->create();
+    $other->assignRole('faculty_researcher');
+    $this->actingAs($other)->get($url)->assertForbidden();
+    auth()->logout();
+    $this->get($url)->assertRedirect(route('login'));
 });
 
 test('an unrelated faculty researcher cannot download progress report files', function () {
@@ -813,6 +849,70 @@ test('submitted report pages allow project readers and deny outsiders, guests, a
     $this->actingAs($this->researcher)->get(route('project-narrative-reports.show', $report))->assertNotFound();
     auth()->logout();
     $this->get(route('project-narrative-reports.show', $report))->assertRedirect(route('login'));
+});
+
+test('progress draft autosaves figure images and restores them for preview preparation and discard', function () {
+    $date = app(MonitoringQuarterService::class)->projectPeriods($this->topic)->first()['end']->toDateString();
+    $response = $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [
+        'draft_version' => 0, 'reporting_date' => $date,
+        'figures' => [['image' => UploadedFile::fake()->image('saved-diagram.png'), 'caption' => 'Saved diagram', 'section' => 'methodology', 'after_paragraph' => 1]],
+    ])->assertSuccessful();
+    $image = $response->json('images.figures.0.image');
+    expect($image['id'] ?? null)->not->toBeNull();
+    $draft = ProjectNarrativeReportDraft::firstOrFail();
+    Storage::disk('local')->assertExists($draft->source_data['saved_images'][$image['id']]['path']);
+    $this->get($image['preview_url'])->assertSuccessful()->assertHeader('Content-Type', 'image/png');
+    $this->get(route('project-narrative-reports.create', [$this->topic, 'reporting_date' => $date]))
+        ->assertSuccessful()->assertSee($image['id']);
+    $payload = ($this->progressReportPayload)([
+        'photo_1' => null, 'photo_caption_1' => null, 'photo_section_1' => null,
+        'figures' => [['image_id' => $image['id'], 'caption' => 'Saved diagram', 'section' => 'methodology', 'after_paragraph' => 1]],
+    ]);
+    $this->post(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertSee('Saved diagram')->assertSee('src="'.$image['preview_url'].'"', false);
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertRedirect()->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::firstOrFail();
+    expect($report->photos)->toHaveCount(1)->and($report->photos[0]['caption'])->toBe('Saved diagram');
+    Storage::disk('local')->assertExists($report->photos[0]['path']);
+    expect(ProjectNarrativeReportDraft::count())->toBe(0);
+    $this->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))->assertRedirect()->assertSessionHasNoErrors();
+    $restored = ProjectNarrativeReportDraft::firstOrFail();
+    $restoredId = $restored->source_data['figures'][0]['image_id'];
+    Storage::disk('local')->assertExists($restored->source_data['saved_images'][$restoredId]['path']);
+});
+
+test('report draft images stay private and reject stale foreign quarter and invalid uploads while removing unused images', function () {
+    $dates = app(MonitoringQuarterService::class)->projectPeriods($this->topic)->pluck('end')->map->toDateString();
+    $payload = ['draft_version' => 0, 'reporting_date' => $dates[0], 'figures' => [['image' => UploadedFile::fake()->image('private.png'), 'caption' => 'Private figure', 'section' => 'methodology']]];
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [...$payload, 'reporting_date' => null])->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    $response = $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), $payload)->assertSuccessful();
+    $image = $response->json('images.figures.0.image');
+    $path = ProjectNarrativeReportDraft::sole()->source_data['saved_images'][$image['id']]['path'];
+    $collaborator = User::factory()->create();
+    $collaborator->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create(['user_id' => $collaborator->id, 'name' => $collaborator->name, 'email' => $collaborator->email, 'accepted_at' => now()]);
+    $this->actingAs($collaborator)->get($image['preview_url'])->assertNotFound();
+    $retained = ['draft_version' => 0, 'reporting_date' => $dates[0], 'figures' => [['image_id' => $image['id'], 'caption' => 'Foreign figure', 'section' => 'methodology']]];
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), $retained)->assertUnprocessable()->assertJsonValidationErrors('figures.0.image_id');
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->get($image['preview_url'])->assertForbidden();
+    $this->actingAs($this->researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+    $retained['draft_version'] = 1;
+    $retained['reporting_date'] = $dates[1];
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), $retained)->assertUnprocessable()->assertJsonValidationErrors('figures.0.image_id');
+    $payload['figures'][0]['image'] = UploadedFile::fake()->image('stale.png');
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), $payload)->assertUnprocessable()->assertJsonValidationErrors('draft_version');
+    Storage::disk('local')->assertExists($path);
+    expect(Storage::disk('local')->files('narrative-progress-reports/'.$this->topic->id.'/draft-images'))->toHaveCount(1);
+    $payload['draft_version'] = 1;
+    $payload['figures'][0]['image'] = UploadedFile::fake()->create('not-an-image.png', 1, 'text/plain');
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), $payload)->assertUnprocessable()->assertJsonValidationErrors('figures.0.image');
+    $payload['figures'][0]['image'] = UploadedFile::fake()->image('replacement.png');
+    $replacement = $this->postJson(route('project-narrative-reports.draft', $this->topic), $payload)->assertSuccessful();
+    Storage::disk('local')->assertMissing($path);
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => $replacement->json('draft_version'), 'reporting_date' => $dates[0], 'figures' => []])->assertSuccessful();
+    expect(ProjectNarrativeReportDraft::sole()->source_data['saved_images'])->toBe([])
+        ->and(Storage::disk('local')->files('narrative-progress-reports/'.$this->topic->id.'/draft-images'))->toBe([]);
+    $this->get($replacement->json('images.figures.0.image.preview_url'))->assertNotFound();
 });
 
 test('progress draft retains arbitrary figure captions and long reused narratives without saving file uploads', function () {

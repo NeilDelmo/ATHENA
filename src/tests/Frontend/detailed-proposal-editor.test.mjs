@@ -8,7 +8,7 @@ import { proposalCitationField } from '../../resources/js/proposal-semantic-edit
 import { proposalSourceWorkspace } from '../../resources/js/proposal-source-workspace.js';
 import { formatPersonName } from '../../resources/js/proposal-people.js';
 
-const sourceWorkspace = readFileSync(new URL('../../resources/js/proposal-source-workspace.js', import.meta.url), 'utf8').replaceAll('export ', '');
+const sourceWorkspace = 'const uploadRequest = (...args) => fetch(...args);\n' + readFileSync(new URL('../../resources/js/proposal-source-workspace.js', import.meta.url), 'utf8').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
 const semanticHelpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
 
 function editor(overrides = {}, { keepAutoSave = false } = {}) {
@@ -25,6 +25,7 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
         document: { body: { classList: { add() {} } }, getElementById: () => null },
         HTMLElement: class {},
         URL: { createObjectURL: () => 'blob:preview' },
+        uploadRequest: (...args) => (overrides.fetch || globalThis.fetch)(...args),
         ...overrides,
     };
     vm.runInNewContext(source.slice(start, end), context);

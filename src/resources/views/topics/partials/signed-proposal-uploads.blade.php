@@ -40,7 +40,7 @@
 
     <div class="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
         @foreach ($finalSigningFiles as $source)
-            <article data-signing-document data-upload-state="{{ $signedSourceFileIds->contains($source->id) ? 'uploaded' : 'awaiting' }}" :data-upload-state="document.saved ? 'uploaded' : 'awaiting'" x-data="{ document: documents.find(item => item.id === {{ $source->id }}), dragging: false, replacing: false }" class="grid min-w-0 gap-4 border-l-4 px-5 py-6 sm:px-6" :class="document.saved ? 'border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20' : 'border-l-transparent'">
+            <article data-signing-document data-signed-source="{{ $source->id }}" data-upload-state="{{ $signedSourceFileIds->contains($source->id) ? 'uploaded' : 'awaiting' }}" :data-upload-state="document.saved ? 'uploaded' : 'awaiting'" x-data="{ document: documents.find(item => item.id === {{ $source->id }}), dragging: false, replacing: false }" class="grid min-w-0 gap-4 border-l-4 px-5 py-6 sm:px-6" :class="document.saved ? 'border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20' : 'border-l-transparent'">
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-3">
                         <h4 class="text-lg font-semibold leading-7 text-slate-900 dark:text-white">{{ $source->label() }}</h4>

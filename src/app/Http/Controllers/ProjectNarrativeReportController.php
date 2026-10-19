@@ -15,11 +15,14 @@ use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ImagePreviewService;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
 use App\Services\ProgressReportEvidenceService;
 use App\Services\ProjectMonitoringFormDataService;
+use App\Services\ProjectReportDraftState;
 use App\Services\ProjectReportReviewService;
+use App\Services\ReportFigureDraftService;
 use App\Services\SidebarAttentionService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
@@ -65,12 +68,13 @@ class ProjectNarrativeReportController extends Controller
         return view('faculty.progress-reports.create', [
             'topic' => $topic,
             ...$data,
+            'draftRecoveryState' => app(ProjectReportDraftState::class)->forEditor($topic, $request->user(), $reportType, $data['selectedReportingDate']),
         ]);
     }
 
     public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
     {
-        $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
+        $validated = app(ReportFigureDraftService::class)->withSavedImages($request, app(TerminalReportData::class)->normalize($topic, $request->validated()));
         if (($validated['report_type'] ?? 'progress') === 'progress') {
             $period = app(MonitoringQuarterService::class)->forDate($validated['reporting_date'], $topic);
             $validated = [...$validated, 'reporting_quarter' => $period['quarter'], 'period_start' => $period['start']->toDateString(), 'period_end' => $period['end']->toDateString()];
@@ -82,9 +86,12 @@ class ProjectNarrativeReportController extends Controller
                 'photo_caption_'.$index,
                 'photo_section_'.$index,
                 'reuse_photo_'.$index,
+                'saved_photo_'.$index,
                 'photo_after_paragraph_'.$index,
             ])
             ->prepend('figures')
+            ->prepend('saved_images')
+            ->prepend('saved_cover_image')
             ->prepend('cover_image_caption')
             ->prepend('reuse_cover_image')
             ->prepend('cover_image')
@@ -146,7 +153,7 @@ class ProjectNarrativeReportController extends Controller
         try {
             $evidenceService->store(
                 $topic,
-                [...app(TerminalReportData::class)->normalize($topic, $request->validated()), 'review_stage' => $request->input('report_type', 'progress') === 'progress' ? 'secretary' : null],
+                [...app(ReportFigureDraftService::class)->withSavedImages($request, app(TerminalReportData::class)->normalize($topic, $request->validated())), 'review_stage' => $request->input('report_type', 'progress') === 'progress' ? 'secretary' : null],
                 $request->file('accomplishment_evidence', []),
                 fn (array $data): ProjectNarrativeReport => $prepareProjectNarrativeReport->handle(
                     $topic, $request->user(), $data, $request->allFiles(),
@@ -170,6 +177,7 @@ class ProjectNarrativeReportController extends Controller
             ->where('report_type', $request->input('report_type', 'progress'))
             ->delete();
         $evidenceService->deleteUnreferenced($topic, $request->attributes->get('progress_report_evidence_paths', []));
+        app(ReportFigureDraftService::class)->deleteUnreferenced($topic, $request->attributes->get('report_figure_previous_paths', []));
 
         return back()->with('success', ($request->input('report_type') === 'terminal' ? 'Terminal Report' : 'Progress Report').' PDF prepared. Review it, then submit the exact file to the '.($request->input('report_type') === 'terminal' ? 'Research Head' : 'Research Office Secretary').'.');
     }
@@ -181,11 +189,13 @@ class ProjectNarrativeReportController extends Controller
         ProgressReportEvidenceService $evidenceService,
     ): JsonResponse {
         $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
-        $draft = $evidenceService->store(
-            $topic, $validated, $request->file('accomplishment_evidence', []),
-            fn (array $data): ProjectNarrativeReportDraft => $saveProjectNarrativeReportDraft->handle(
-                $topic, $request->user(), $request->integer('draft_version'),
-                collect($data)->except('draft_version')->all(),
+        $draft = app(ReportFigureDraftService::class)->store($request, $topic, $validated,
+            fn (array $data): ProjectNarrativeReportDraft => $evidenceService->store(
+                $topic, $data, $request->file('accomplishment_evidence', []),
+                fn (array $data): ProjectNarrativeReportDraft => $saveProjectNarrativeReportDraft->handle(
+                    $topic, $request->user(), $request->integer('draft_version'),
+                    collect($data)->except('draft_version')->all(),
+                ),
             ),
         );
         $evidenceService->deleteUnreferenced($topic, $request->attributes->get('progress_report_evidence_paths', []));
@@ -194,6 +204,7 @@ class ProjectNarrativeReportController extends Controller
             'message' => 'Progress Report draft saved.',
             'draft_version' => $draft->lock_version,
             'accomplishments' => $draft->source_data['accomplishments'] ?? [],
+            'images' => app(ReportFigureDraftService::class)->displayImages($topic, $draft->source_data),
         ]);
     }
 
@@ -248,48 +259,21 @@ class ProjectNarrativeReportController extends Controller
         ProjectNarrativeReport $report,
         ProgressReportEvidenceService $evidenceService,
     ): RedirectResponse {
-        if ($report->report_type === 'terminal') {
-            $sourceData = $report->only(['report_type', 'tracking_number', 'researchers', 'funding_agency', 'accomplishments', 'introduction', 'rationale', 'objectives', 'methodology', 'results_discussion', 'terminal_data']);
-            foreach (['submission_date', 'implementation_start', 'implementation_end'] as $field) {
-                $sourceData[$field] = $report->$field?->toDateString();
-            }
-            $figureIndex = 1;
-            foreach ($report->photos ?? [] as $index => $photo) {
-                if (($photo['section'] ?? null) === 'cover') {
-                    if (isset($photo['source_report_id'], $photo['source_photo_index'])) {
-                        $sourceData['reuse_cover_image'] = $photo['source_report_id'].':'.$photo['source_photo_index'];
-                    }
-                    $sourceData['cover_image_caption'] = $photo['caption'] ?? '';
-
-                    continue;
-                }
-                if (isset($photo['source_report_id'], $photo['source_photo_index'])) {
-                    $sourceData['reuse_photo_'.$figureIndex] = $photo['source_report_id'].':'.$photo['source_photo_index'];
-                }
-                $sourceData['photo_caption_'.$figureIndex] = $photo['caption'];
-                $sourceData['photo_section_'.$figureIndex] = $photo['section'];
-                $sourceData['photo_after_paragraph_'.$figureIndex] = $photo['after_paragraph'] ?? 0;
-                $figureIndex++;
-            }
-            ProjectNarrativeReportDraft::query()->firstOrCreate(
-                ['topic_id' => $topic->id, 'user_id' => $request->user()->id, 'report_type' => 'terminal'],
-                ['source_data' => $sourceData, 'lock_version' => 1],
-            );
-        }
+        app(ReportFigureDraftService::class)->restoreDraft($report, $request->user());
         $this->deletePreparedReportFiles($report);
         $evidencePaths = $evidenceService->paths($report->accomplishments ?? []);
         $report->delete();
         $evidenceService->deleteUnreferenced($topic, $evidencePaths);
 
         return back()->with('success', $report->report_type === 'terminal'
-            ? 'Prepared Terminal Report discarded. Your text was kept as a draft. Select any new image uploads again before preparing the replacement PDF.'
-            : 'Prepared Progress Report discarded. You can now prepare a new PDF.');
+            ? 'Prepared Terminal Report discarded. Your text and images were kept as a draft.'
+            : 'Prepared Progress Report discarded. Your text and images were kept as a draft.');
     }
 
     public function store(StoreProjectNarrativeReportRequest $request, TopicProposal $topic, ProgressReportEvidenceService $evidenceService): RedirectResponse
     {
         abort_unless($topic->user_id === $request->user()->id, 403);
-        $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
+        $validated = app(ReportFigureDraftService::class)->withSavedImages($request, app(TerminalReportData::class)->normalize($topic, $request->validated()));
         $storedPaths = [];
 
         try {
@@ -305,9 +289,12 @@ class ProjectNarrativeReportController extends Controller
                         'photo_caption_'.$index,
                         'photo_section_'.$index,
                         'reuse_photo_'.$index,
+                        'saved_photo_'.$index,
                         'photo_after_paragraph_'.$index,
                     ])
                     ->prepend('figures')
+                    ->prepend('saved_images')
+                    ->prepend('saved_cover_image')
                     ->prepend('cover_image_caption')
                     ->prepend('reuse_cover_image')
                     ->prepend('cover_image')
@@ -480,7 +467,7 @@ class ProjectNarrativeReportController extends Controller
         );
     }
 
-    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ProgressReportEvidenceService $evidenceService): StreamedResponse
+    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ProgressReportEvidenceService $evidenceService, ImagePreviewService $previews): StreamedResponse
     {
         $file = null;
         if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER) && $topic->isAccessibleTo($request->user())) {
@@ -518,13 +505,29 @@ class ProjectNarrativeReportController extends Controller
         if ($request->boolean('preview')) {
             abort_unless(in_array($mimeType, ['image/jpeg', 'image/png'], true), 404);
 
-            return Storage::disk('local')->response($file['path'], $file['name'], ['Content-Type' => $mimeType, 'X-Content-Type-Options' => 'nosniff']);
+            return $previews->response($file['path'], $file['name']);
         }
 
         return Storage::disk('local')->download($file['path'], $file['name'], ['X-Content-Type-Options' => 'nosniff']);
     }
 
-    public function downloadPhoto(Request $request, ProjectNarrativeReport $report, int $photoIndex): StreamedResponse
+    public function draftImage(Request $request, TopicProposal $topic, string $image, ReportFigureDraftService $images, ImagePreviewService $previews): StreamedResponse
+    {
+        abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER) && $topic->isAccessibleTo($request->user()), 403);
+        $file = ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->pluck('source_data')
+            ->map(fn (array $data): ?array => $data['saved_images'][$image] ?? null)->filter()->first();
+        abort_unless($file && $images->isStored($topic, $file), 404);
+        $mimeType = Storage::disk('local')->mimeType($file['path']);
+        abort_unless(in_array($mimeType, ['image/jpeg', 'image/png'], true), 404);
+
+        if ($request->boolean('preview')) {
+            return $previews->response($file['path'], $file['original_name'] ?? basename($file['path']));
+        }
+
+        return Storage::disk('local')->response($file['path'], $file['original_name'] ?? basename($file['path']), ['Content-Type' => $mimeType, 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+    }
+
+    public function downloadPhoto(Request $request, ProjectNarrativeReport $report, int $photoIndex, ImagePreviewService $previews): StreamedResponse
     {
         $this->authorizeViewer($request, $report);
         $photo = ($report->photos ?? [])[$photoIndex] ?? null;
@@ -535,6 +538,10 @@ class ProjectNarrativeReportController extends Controller
         if ($request->routeIs('project-narrative-reports.photos.view')) {
             $mimeType = Storage::disk('local')->mimeType($photo['path']);
             abort_unless(in_array($mimeType, ['image/jpeg', 'image/png', 'image/webp'], true), 415);
+
+            if ($request->boolean('preview')) {
+                return $previews->response($photo['path'], $filename);
+            }
 
             return Storage::disk('local')->response($photo['path'], $filename, [
                 'Content-Type' => $mimeType,

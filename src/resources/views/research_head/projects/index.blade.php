@@ -6,7 +6,7 @@
         <x-page-header class="rh-review-page-header [&_h1]:text-3xl [&_p]:text-base [&_p]:leading-6" :title="($completedOnly ?? false) ? 'Completed projects' : 'Research projects'" :subtitle="($completedOnly ?? false) ? 'Browse completed research, final reports, and project records.' : 'Organize approved research and review project progress.'" />
     </x-slot>
 
-    <div class="rh-review-page space-y-5" x-data="{recordsView: @js($initialRecordsView)}" data-project-monitoring-list data-project-records-page>
+    <div class="rh-review-page space-y-5" x-data="projectRecordsPage({initialView: @js($initialRecordsView)})" data-project-monitoring-list data-project-records-page>
         <div x-cloak role="tablist" aria-label="Project views" class="flex min-h-14 flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 dark:border-slate-700 dark:bg-slate-900"
             @keydown.arrow-right.prevent="recordsView = recordsView === 'files' ? 'monitoring' : 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"
             @keydown.arrow-left.prevent="recordsView = recordsView === 'files' ? 'monitoring' : 'files'; $nextTick(() => $el.querySelector('[aria-selected=true]').focus())"

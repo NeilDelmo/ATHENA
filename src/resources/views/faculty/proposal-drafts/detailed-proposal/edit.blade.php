@@ -24,6 +24,8 @@
         data-proposal-draft-id="{{ $proposalDraft->id }}"
         data-proposal-paper-workspace
         data-paper-editor
+        data-proposal-paper="detailed-proposal"
+        data-proposal-readiness-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}"
         data-paper-draft-save="true"
         data-detailed-proposal-autosave="true"
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
@@ -52,7 +54,7 @@
             methodologyKeys: @js(array_keys($methodologyFields)),
             methodologySections: @js($methodologyFields),
             figureSections: @js(config('detailed_proposal.image_sections')),
-            methodologyImageUrlTemplate: @js(route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, '__image_id__'])),
+            methodologyImageUrlTemplate: @js(route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, '__image_id__', 'preview' => 1])),
             literatureSearchUrl: @js(route('research-support.literature-search')),
             literatureLibrarySearchUrl: @js(route('research-support.literature-library.index')),
             literatureLibrarySaveUrl: @js(route('research-support.literature-library.store')),
@@ -74,6 +76,11 @@
             revisionReviewUrl: @js($proposalDraft->topic_id ? route('faculty.topics.revision', $proposalDraft->topic_id).'#review-and-submit' : null),
         })"
     >
+        <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
+        @if (request()->has('proposal_requirement'))
+            <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" />
+        @endif
+
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif

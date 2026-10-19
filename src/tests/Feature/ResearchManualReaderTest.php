@@ -224,7 +224,7 @@ test('guidance uses only the selected staged manual and returns page citations w
     $conversationCount = ResearchAssistantConversation::count();
     Http::fake(['manual-reader.test/*' => Http::response(['choices' => [['message' => ['content' => 'Signed consent is required before recruitment [ATHENA 1].']]]])]);
     $this->actingAs($this->head)->postJson(route('research-manuals.guidance-check', $staged), ['question' => 'What does section 1.1 require?'])
-        ->assertOk()->assertJsonPath('edition', '2026')
+        ->assertOk()->assertJsonPath('edition', '2026')->assertJsonPath('version', $staged->version)->assertJsonPath('check_type', 'ai_response')
         ->assertJsonPath('sources.0.document_version', $staged->version)
         ->assertJsonPath('sources.0.url', route('research-manuals.read', $staged->version).'#page=2')
         ->assertJsonPath('sources.0.reference', 'ATHENA 1')
@@ -244,9 +244,66 @@ test('guidance without matching evidence answers honestly without calling a prov
     $manual = readerManualFixture($this->head);
     Http::fake();
     $this->actingAs($this->head)->postJson(route('research-manuals.guidance-check', $manual), ['question' => 'What is the submarine allowance?'])
-        ->assertOk()->assertJsonPath('sources', [])->assertJsonPath('edition', '2026')
+        ->assertOk()->assertJsonPath('sources', [])->assertJsonPath('edition', '2026')->assertJsonPath('check_type', 'no_evidence')
         ->assertJson(fn (AssertableJson $json) => $json->where('reply', fn (string $reply): bool => str_contains($reply, 'not find'))->etc());
     Http::assertNothingSent();
+});
+
+test('edition review compares current and uploaded passages with escaped highlights and exact PDF links without activating', function () {
+    $active = readerManualFixture($this->head, '2025');
+    $library = app(ResearchManualLibrary::class);
+    $library->activate($active);
+    $staged = readerManualFixture($this->head, '2026');
+    $stagedIndex = $library->index($staged);
+    $stagedIndex['chunks'][0]['content'] = 'Ethics approval for edition 2026 requires signed consent before participant recruitment. <script>alert(1)</script>';
+    File::put($staged->indexPath(), json_encode($stagedIndex, JSON_THROW_ON_ERROR));
+    $before = File::get($this->activeIndexPath);
+    $review = $this->actingAs($this->head)->get(route('research-manuals.show', $staged))->assertOk()
+        ->assertSee('Compare with the current manual')->assertSee('Changed extracted text')
+        ->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;', false)->assertDontSee('<script>alert(1)</script>', false)
+        ->assertSee(route('research-manuals.read', $active->version).'#page=2', false)
+        ->assertSee(route('research-manuals.read', $staged->version).'#page=2', false)
+        ->assertSee('Unreadable pages are excluded from the comparison.')
+        ->assertViewHas('currentReader', fn (array $reader): bool => $reader['version'] === $active->version && $reader['guidance_url'] === null && $reader['read_hash'] === false)
+        ->assertViewHas('comparisonChanges', fn ($changes): bool => $changes->total() === 1 && $changes->first()['type'] === 'changed')
+        ->assertViewHas('manualReader', fn (array $reader): bool => in_array('What does section 1.1 require in this edition?', $reader['guidance_questions'], true) && count($reader['guidance_questions']) <= 5);
+    expect(File::get($this->activeIndexPath))->toBe($before)
+        ->and($staged->fresh()->activated_at)->toBeNull()
+        ->and($library->active()->id)->toBe($active->id);
+
+    if (getenv('ATHENA_EXPORT_MANUAL_READER') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/manual-comparison.html'), $review->getContent());
+    }
+});
+
+test('edition review handles a first manual and a legacy current edition without adopting or changing it', function () {
+    $staged = readerManualFixture($this->head, '2026');
+    $this->actingAs($this->head)->get(route('research-manuals.show', $staged))->assertOk()
+        ->assertSee('There is no current manual to compare.');
+    $active = readerManualFixture($this->head, '2025');
+    app(ResearchManualLibrary::class)->activate($active);
+    $active->delete();
+    $before = File::get($this->activeIndexPath);
+    $this->get(route('research-manuals.show', $staged))->assertOk()
+        ->assertViewHas('currentReader', fn (array $reader): bool => $reader['version'] === $active->version && $reader['edition'] === null);
+    expect(ResearchManual::count())->toBe(1)->and(File::get($this->activeIndexPath))->toBe($before);
+});
+
+test('edition comparison paginates changes and reports an unavailable current index honestly', function () {
+    $active = readerManualFixture($this->head, '2025');
+    app(ResearchManualLibrary::class)->activate($active);
+    $staged = readerManualFixture($this->head, '2026');
+    $index = app(ResearchManualLibrary::class)->index($staged);
+    $index['chunks'][0]['content'] = implode("\n\n", array_map(fn (int $number): string => 'Updated ethics passage '.$number.'.', range(1, 12)));
+    File::put($staged->indexPath(), json_encode($index, JSON_THROW_ON_ERROR));
+    $this->actingAs($this->head)->get(route('research-manuals.show', $staged))->assertOk()
+        ->assertViewHas('comparisonChanges', fn ($changes): bool => $changes->count() === 8 && $changes->total() === 12);
+    $this->get(route('research-manuals.show', [$staged, 'comparison_page' => 2]))->assertOk()
+        ->assertViewHas('comparisonChanges', fn ($changes): bool => $changes->count() === 4 && $changes->currentPage() === 2);
+    File::put($this->activeIndexPath, '{unreadable');
+    $this->get(route('research-manuals.show', $staged))->assertOk()->assertSee('Comparison is unavailable:')
+        ->assertViewHas('comparison', null)->assertSee('Preview manual');
 });
 
 test('guidance never falls back to the active edition when the selected index is missing', function () {

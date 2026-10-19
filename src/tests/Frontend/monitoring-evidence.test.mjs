@@ -22,7 +22,7 @@ const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQ
 
 function state(config = {}) {
     let factory;
-    runInNewContext(factorySource, { Alpine: { data: (_, value) => { factory = value; } }, documentPreviewForm: () => ({}), window: {} });
+    runInNewContext(factorySource, { Alpine: { data: (_, value) => { factory = value; } }, documentPreviewForm: () => ({}), window: {}, uploadRequest: (url, options) => fetch(url, options) });
     const result = factory(config);
     result.$nextTick = callback => callback?.();
     result.triggerMonitoringDraftAutoSave = () => {};
@@ -97,6 +97,7 @@ test('the rendered monitoring form uploads, computes, autosaves and restores evi
             await page.setContent(`<html><style>${styles.css}\n${read('resources/css/proposal-paper-workspace.css')}</style><body><main>${readFileSync(fixture, 'utf8')}</main></body></html>`);
             await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
             await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
+                const uploadRequest=(url,options)=>window.fetch(url,options);
                 window.savedRows=[];window.saveRequests=[];
                 window.fetch=async(url,options)=>{
                     const fields=[...options.body.entries()];window.saveRequests.push(fields);

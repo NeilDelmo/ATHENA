@@ -3,6 +3,7 @@
     'preparedReport' => null,
     'revisionReport' => null,
     'monitoringDraft' => null,
+    'draftRecoveryState' => null,
     'standalone' => false,
     'quarterOptions' => [],
     'selectedReportingDate' => null,
@@ -134,6 +135,15 @@
     </header>
     @endif
 
+    <x-proposal-collaboration-monitor
+        :loaded-version="$monitoringDraft?->lock_version ?? 0"
+        :state-url="route('project-report-drafts.edit-state', ['topic' => $topic, 'kind' => 'monitoring', 'reportingDate' => $defaultReportingDate, 'source' => $revisionReport?->id ?? 0])"
+        :state-scope="$draftRecoveryState['scope'] ?? null"
+        :reload-url="route('project-progress.create', ['topic' => $topic, 'reporting_date' => $defaultReportingDate, 'revise_monitoring_report' => $revisionReport?->id])"
+        label="Monitoring Tool"
+        report-recovery
+    />
+
     <x-monitoring-writing-toolbar
         :topic="$topic"
         report-label="Monitoring Tool"
@@ -163,6 +173,7 @@
             <input type="hidden" name="source_report_id" value="{{ $revisionReport->id }}">
         @endif
         <input type="hidden" name="draft_version" value="{{ $monitoringDraft?->lock_version ?? 0 }}">
+        <input type="hidden" name="recovery_scope" value="{{ $draftRecoveryState['scope'] ?? '' }}">
         <input type="hidden" name="progress_mode" value="evidence">
         <x-assistant-report-editor :context="['report_type' => 'monitoring-tool', 'topic_id' => $topic->id, 'source_key' => $revisionReport ? 'revision:'.$revisionReport->id : 'new']" />
 

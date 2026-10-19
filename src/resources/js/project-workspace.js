@@ -1,7 +1,21 @@
 import { reportLibrary } from './report-library.js';
+import { workspacePageState } from './workspace-switching.js';
+
+export function projectRecordsPage({ initialView = 'monitoring' } = {}) {
+    const continuity = workspacePageState('records');
+    return {
+        recordsView: initialView,
+        init() {
+            const saved = continuity.read();
+            if (!new URLSearchParams(window.location.search).has('view') && ['monitoring', 'files'].includes(saved?.view)) this.recordsView = saved.view;
+            this.$watch('recordsView', view => { if (['monitoring', 'files'].includes(view)) continuity.write({ view }); });
+        },
+    };
+}
 
 export function projectWorkspace(config = {}) {
     const display = reportLibrary(config.displayStorageKey);
+    const continuity = workspacePageState('folders');
     const copy = (value) => JSON.parse(JSON.stringify(value));
     const preferences = {
         view: ['grid', 'list'],
@@ -68,8 +82,15 @@ export function projectWorkspace(config = {}) {
         init() {
             display.init();
             this.size = display.size;
+            const saved = continuity.read();
+            if (saved) {
+                if (typeof saved.location === 'string' && this.isLocation(saved.location)) this.openLocation(saved.location, false);
+                this.query = typeof saved.query === 'string' ? saved.query.slice(0, 200) : '';
+                if (saved.statusFilter === 'all' || this.projects.some(project => project.status === saved.statusFilter)) this.statusFilter = saved.statusFilter;
+            }
             this.$watch?.('query', () => { this.page = 1; this.clearSelection(); });
             this.$watch?.('statusFilter', () => { this.page = 1; this.clearSelection(); });
+            for (const field of ['query', 'statusFilter', 'location']) this.$watch?.(field, () => continuity.write({ query: this.query.slice(0, 200), statusFilter: this.statusFilter, location: this.location }));
         },
 
         setItemSize(size) {

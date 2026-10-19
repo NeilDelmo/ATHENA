@@ -21,6 +21,9 @@ test('the proposal review loads when its dialog opens and stays mounted on reope
         const page = await browser.newPage();
         const errors = [];
         let reviewRequests = 0;
+        let reviewRefreshRequests = 0;
+        let readinessRequests = 0;
+        let guideToMissingField = true;
         page.on('pageerror', (error) => errors.push(error.message));
         await page.route('**/*', async (route) => {
             const url = new URL(route.request().url());
@@ -29,12 +32,27 @@ test('the proposal review loads when its dialog opens and stays mounted on reope
                 await route.fulfill({ body: readFileSync(resolve('public/build', asset)), contentType: asset.endsWith('.css') ? 'text/css' : 'text/javascript' });
             } else if (url.hostname === 'fonts.bunny.net') {
                 await route.fulfill({ contentType: 'text/css', body: '' });
+            } else if (route.request().method() === 'GET' && route.request().headers().accept?.includes('application/json') && url.pathname.endsWith('/review')) {
+                readinessRequests++;
+                await route.fulfill({ json: {
+                    status: guideToMissingField ? 'incomplete' : 'prepare', can_guide: true,
+                    ready_to_prepare: !guideToMissingField, ready_to_submit: false,
+                    blockers: guideToMissingField ? [{
+                        key: 'project_details', paper: 'details', field: 'duration_months',
+                        owner: 'faculty', reason: 'validation', message: 'Set the project duration.',
+                        url: 'http://athena-review.test/proposal?proposal_requirement=duration_months#project-details',
+                    }] : [],
+                } });
             } else if (route.request().method() === 'POST' && url.pathname.endsWith('/update')) {
                 const body = route.request().postDataJSON();
-                assert.equal(body.components[0].calls[0].method, '__lazyLoad');
-                reviewRequests++;
+                const method = body.components[0].calls[0].method;
+                if (method === '__lazyLoad') reviewRequests++;
+                else {
+                    assert.equal(method, '$refresh');
+                    reviewRefreshRequests++;
+                }
                 await route.fulfill({ contentType: 'application/json', body: loadedReview });
-            } else if (route.request().isNavigationRequest()) {
+            } else if (route.request().isNavigationRequest() || url.pathname === '/proposal') {
                 await route.fulfill({ contentType: 'text/html', body: html });
             } else {
                 await route.fulfill({ json: { notifications: [], unread_count: 0 } });
@@ -45,14 +63,23 @@ test('the proposal review loads when its dialog opens and stays mounted on reope
         await page.getByRole('heading', { name: 'Large saved proposal', exact: true }).waitFor();
         assert.equal(reviewRequests, 0);
         assert.equal(await page.locator('[data-proposal-review-package]').count(), 0);
-        await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-modal', { detail: 'proposal-review' })));
+        await page.getByRole('button', { name: 'Review & turn in', exact: true }).first().click();
+        await page.waitForFunction(() => document.activeElement?.id === 'duration_months');
+        assert.match(page.url(), /proposal_requirement=duration_months/);
+        assert.equal(await page.locator('#duration_months').getAttribute('aria-invalid'), 'true');
+        assert.equal(await page.locator('[data-proposal-review-package]').count(), 0);
+        assert.equal(readinessRequests, 2);
+        guideToMissingField = false;
+        await page.getByRole('button', { name: 'Review & turn in', exact: true }).first().click();
         await page.locator('#review-papers-heading').waitFor({ state: 'visible' });
         assert.equal(reviewRequests, 1);
+        assert.equal(reviewRefreshRequests, 0);
         await page.getByRole('button', { name: 'Close review and turn in' }).click();
         await page.locator('#review-papers-heading').waitFor({ state: 'hidden' });
-        await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-modal', { detail: 'proposal-review' })));
+        await page.getByRole('button', { name: 'Review & turn in', exact: true }).first().click();
         await page.locator('#review-papers-heading').waitFor({ state: 'visible' });
         assert.equal(reviewRequests, 1);
+        assert.equal(reviewRefreshRequests, 1);
         assert.deepEqual(errors, []);
     } finally {
         await browser.close();

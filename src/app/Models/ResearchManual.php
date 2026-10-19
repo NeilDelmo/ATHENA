@@ -25,6 +25,9 @@ class ResearchManual extends Model
             'page_count' => 'integer',
             'unindexed_pages' => 'array',
             'activated_at' => 'datetime',
+            'guidance_check_results' => 'array',
+            'guidance_check_started_at' => 'datetime',
+            'guidance_check_completed_at' => 'datetime',
         ];
     }
 

@@ -4,13 +4,23 @@ namespace App\Providers;
 
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Observers\ProposalPdfPreparationObserver;
 use App\Services\LibreOfficeDocumentPdfConverter;
+use App\Services\NotificationInbox;
+use App\Services\ProposalPdfPreparation;
 use App\Services\ResearchHeadReportQueue;
 use App\Services\SidebarAttentionService;
+use App\Services\WorkspaceActionItems;
 use App\Support\ResearchCallDeadlineNotice;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Queue\Events\JobPopping;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -32,6 +42,23 @@ class AppServiceProvider extends ServiceProvider
         SidebarAttentionService $sidebarAttention,
         ResearchCallDeadlineNotice $researchCallDeadlineNotice,
     ): void {
+        DB::listen(function (QueryExecuted $query): void {
+            $metrics = request()->attributes->get('athena.request_performance');
+            if ($metrics !== null) {
+                $metrics->query_count++;
+                $metrics->database_ms += $query->time;
+            }
+        });
+
+        ProposalDraft::observe(ProposalPdfPreparationObserver::class);
+        ProposalDraftDocument::observe(ProposalPdfPreparationObserver::class);
+
+        Event::listen(JobPopping::class, function (JobPopping $event): void {
+            if ($event->connectionName === 'proposal-pdfs') {
+                app(ProposalPdfPreparation::class)->heartbeat();
+            }
+        });
+
         View::composer('layouts.navigation', function ($view) use ($sidebarAttention): void {
             $user = request()->user();
 
@@ -44,14 +71,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('components.notification-menu', function ($view): void {
-            $query = auth()->user()->visibleNotificationsQuery();
-            $view->with('notificationItems', (clone $query)->latest()->limit(15)->get()->map(fn ($notification): array => [
-                'id' => $notification->id,
-                'data' => $notification->data,
-                'read_at' => $notification->read_at?->toIso8601String(),
-                'created_at' => $notification->created_at->diffForHumans(),
-            ]));
-            $view->with('unreadNotificationCount', $query->whereNull('read_at')->count());
+            $user = auth()->user();
+            $actions = request()->attributes->get('athena.workspace_actions') ?? app(WorkspaceActionItems::class)->for($user);
+            $items = app(NotificationInbox::class)->for($user, $actions, recentOnly: true);
+            $view->with('notificationItems', $items->take(15)->map(fn (array $item): array => Arr::except($item, 'history')));
+            $view->with('unreadNotificationCount', $user->visibleNotificationsQuery()->whereNull('read_at')->count());
         });
 
         View::composer('layouts.app', function ($view) use ($researchCallDeadlineNotice): void {
@@ -149,7 +173,7 @@ class AppServiceProvider extends ServiceProvider
                     'label' => $topic->title,
                     'status' => str_replace('_', ' ', $topic->status),
                     'dissemination' => $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
-                        && $topic->isDisseminationAvailable() && $user->can('view', $topic) ? [
+                        && $topic->isDisseminationAvailable() ? [
                             'journal_search_url' => route('research.dissemination.journals.search', $topic),
                             'journal_save_url' => route('research.dissemination.journal-submissions.store', $topic),
                             'conference_search_url' => route('research.dissemination.conferences.search', $topic),

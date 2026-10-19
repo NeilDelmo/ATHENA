@@ -16,11 +16,13 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\ImagePreviewService;
 use App\Services\MonitoringEvidenceService;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use App\Services\ProjectDocumentLibrary;
 use App\Services\ProjectMonitoringFormDataService;
+use App\Services\ProjectReportDraftState;
 use App\Services\ProjectReportReviewService;
 use App\Services\SidebarAttentionService;
 use Carbon\CarbonImmutable;
@@ -129,6 +131,7 @@ class ProjectMonitoringController extends Controller
             'initialWorkPlanRows' => $initialWorkPlanRows,
             'previousProgressByPeriod' => $quarters->mapWithKeys(fn (array $row): array => [$row['year'].'-'.$row['quarter'] => array_map(fn (array $activity): array => ['accomplished_percentage' => $activity['accomplished_percentage'] ?? 0], $evidence->previousRows($topic, $row['end']->toDateString()))])->all(),
             'overdueWorkPlanActivities' => $approvedWorkPlan->overdueActivities($topic),
+            'draftRecoveryState' => app(ProjectReportDraftState::class)->forEditor($topic, $request->user(), 'monitoring', $selectedReportingDate, $data['revisionReport']?->id ?? 0),
         ]);
     }
 
@@ -641,7 +644,7 @@ class ProjectMonitoringController extends Controller
         return Storage::disk('local')->download($report->attachment_path);
     }
 
-    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence): StreamedResponse
+    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ImagePreviewService $previews): StreamedResponse
     {
         $file = null;
         if ($request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user())) {
@@ -679,7 +682,7 @@ class ProjectMonitoringController extends Controller
         if ($request->boolean('preview')) {
             abort_unless(in_array($mimeType, ['image/jpeg', 'image/png'], true), 404);
 
-            return Storage::disk('local')->response($file['path'], $file['name'], ['Content-Type' => $mimeType, 'X-Content-Type-Options' => 'nosniff']);
+            return $previews->response($file['path'], $file['name']);
         }
 
         return Storage::disk('local')->download($file['path'], $file['name'], ['X-Content-Type-Options' => 'nosniff']);

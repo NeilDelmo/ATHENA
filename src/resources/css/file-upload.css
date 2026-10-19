@@ -1,0 +1,7 @@
+.file-upload-progress{clear:both;display:grid;gap:.5rem;margin-top:1rem;border:1px solid #fecaca;border-radius:.75rem;background:#fff5f5;padding:1rem;color:#881337;font-size:.875rem;line-height:1.5;overflow-wrap:anywhere}
+.file-upload-progress[hidden],.file-upload-progress [hidden]{display:none}
+.file-upload-progress progress{width:100%;height:.6rem;accent-color:#b91c1c}
+.file-upload-progress [data-upload-size]{font-variant-numeric:tabular-nums;font-size:.75rem}
+.file-upload-progress button{justify-self:start;min-height:2.75rem;border:1px solid currentColor;border-radius:.5rem;padding:.5rem 1rem;font-weight:700}
+.file-upload-progress button:focus-visible{outline:2px solid #dc2626;outline-offset:3px}
+.dark .file-upload-progress{border-color:#7f1d1d;background:#2b0d16;color:#fecdd3}

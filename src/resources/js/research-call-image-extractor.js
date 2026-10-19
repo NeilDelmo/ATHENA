@@ -1,3 +1,5 @@
+import { uploadRequest } from './file-upload.js';
+
 function displayExtractionStatus(statusElement, message, state = 'success') {
     if (! (statusElement instanceof HTMLElement)) return;
 
@@ -500,7 +502,7 @@ function initializeResearchCallImageExtractors() {
             displayExtractionStatus(statusElement, 'Reading the poster...');
 
             try {
-                const response = await fetch(form.dataset.extractUrl, {
+                const response = await uploadRequest(form.dataset.extractUrl, {
                     method: 'POST',
                     headers: {
                         Accept: 'application/json',
@@ -509,7 +511,7 @@ function initializeResearchCallImageExtractors() {
                     credentials: 'same-origin',
                     body: formData,
                     signal: request.signal,
-                });
+                }, { root: form });
                 const payload = await response.json();
 
                 if (!response.ok) {

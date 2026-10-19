@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreResearchManualRequest;
 use App\Models\ResearchManual;
 use App\Models\User;
+use App\Services\ResearchManualChecks;
+use App\Services\ResearchManualComparison;
 use App\Services\ResearchManualLibrary;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -61,12 +65,22 @@ class ResearchManualController extends Controller
             throw ValidationException::withMessages(['manual' => $exception->getMessage()]);
         }
 
-        return redirect()->route('research-manuals.show', $manual)->with('success', 'Manual uploaded. Review the extracted passages before activation.');
+        return redirect()->route('research-manuals.show', $manual)->with('success', 'Manual uploaded. Automated guidance checks have been queued. Review the results and extracted passages before activation.');
     }
 
-    public function show(Request $request, ResearchManual $researchManual): View|RedirectResponse
+    public function show(Request $request, ResearchManual $researchManual, ResearchManualComparison $comparison, ResearchManualChecks $checks): View|RedirectResponse|JsonResponse
     {
         $this->authorizeManager($request);
+
+        if ($researchManual->activated_at === null) {
+            $checks->queue($researchManual);
+        }
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => $researchManual->guidance_check_status,
+                'html' => view('components.research-manual-checks', ['manual' => $researchManual])->render(),
+            ])->header('Cache-Control', 'private, no-store');
+        }
 
         try {
             $index = $this->library->index($researchManual);
@@ -74,11 +88,40 @@ class ResearchManualController extends Controller
             return redirect()->route('research-manuals.index')->withErrors(['manual' => $exception->getMessage()]);
         }
 
+        $currentReader = null;
+        $comparisonError = null;
+        $compared = null;
+        $isActive = false;
+        try {
+            $current = $this->library->activeIndex();
+            $isActive = ($current['version'] ?? null) === $researchManual->version;
+            if ($current !== null && ! $isActive) {
+                $resolved = $this->library->resolveVersion($current['version']);
+                if ($resolved === null) {
+                    throw new RuntimeException('The current manual could not be loaded for comparison.');
+                }
+                $currentReader = [...$this->library->readerConfig($resolved['index'], $resolved['manual']), 'read_hash' => false];
+                $compared = $comparison->compare($resolved['index'], $index);
+            }
+        } catch (RuntimeException $exception) {
+            $comparisonError = $exception->getMessage();
+        }
+        $changes = $compared['changes'] ?? [];
+        $page = max(1, min((int) $request->query('comparison_page', 1), max(1, (int) ceil(count($changes) / 8))));
+        $reviewSections = array_values(array_unique(array_column(array_filter($changes, fn (array $change): bool => $change['after'] !== null), 'section')));
+
         return view('research-manuals.show', [
             'manual' => $researchManual->load('uploadedBy'),
             'index' => $index,
-            'isActive' => $this->library->active()?->is($researchManual) ?? false,
-            'manualReader' => $this->library->readerConfig($index, $researchManual, true),
+            'isActive' => $isActive,
+            'manualReader' => $this->library->readerConfig($index, $researchManual, true, $reviewSections),
+            'currentReader' => $currentReader,
+            'comparisonError' => $comparisonError,
+            'comparison' => $compared,
+            'comparisonCounts' => array_count_values(array_column($changes, 'type')),
+            'comparisonChanges' => new LengthAwarePaginator(array_slice($changes, ($page - 1) * 8, 8), count($changes), 8, $page, [
+                'path' => $request->url(), 'pageName' => 'comparison_page', 'fragment' => 'manual-comparison',
+            ]),
         ]);
     }
 

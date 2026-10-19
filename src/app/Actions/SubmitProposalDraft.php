@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Exceptions\ProposalPdfPreparationBusy;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftDocumentVersion;
@@ -20,6 +21,7 @@ use App\Services\GADChecklistDocumentService;
 use App\Services\InitialScreeningFormDocumentService;
 use App\Services\LineItemBudgetDocumentService;
 use App\Services\ProposalPackageService;
+use App\Services\ProposalPdfPreparation;
 use App\Services\WorkPlanDocumentService;
 use App\Support\CurriculumVitaeData;
 use App\Support\CurriculumVitaeRules;
@@ -36,6 +38,7 @@ use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
 use App\Support\WorkPlanProposalObjectives;
 use App\Support\WorkPlanRules;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -65,7 +68,20 @@ class SubmitProposalDraft
         private readonly WorkPlanProposalObjectives $workPlanProposalObjectives,
     ) {}
 
-    public function prepare(ProposalDraft $draft, User $user): void
+    public function prepare(ProposalDraft $draft, User $user, bool $onlyMissing = false): void
+    {
+        $lock = Cache::lock('proposal-pdf-generation:'.$draft->id, 600);
+        if (! $lock->get()) {
+            throw ProposalPdfPreparationBusy::withMessages(['preparation' => 'The latest PDFs are already being prepared. Wait for preparation to finish.']);
+        }
+        try {
+            $this->prepareLocked($draft, $user, $onlyMissing);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function prepareLocked(ProposalDraft $draft, User $user, bool $onlyMissing): void
     {
         $draft->load(['researchCall', 'documents']);
 
@@ -97,6 +113,9 @@ class SubmitProposalDraft
                 }
 
                 $document = $draft->documents->firstWhere('document_type', $paper['document_type']);
+                if ($onlyMissing && $this->preparedFileExists($document, $paper)) {
+                    continue;
+                }
 
                 $generatedPapers[$paper['slug']] = match ($paper['slug']) {
                     'work-plan' => $this->generateWorkPlan($draft, $document),
@@ -115,7 +134,7 @@ class SubmitProposalDraft
             unset($generatedPapers);
             $detailedPaper = $this->catalog->get('detailed-proposal');
 
-            if ($detailedPaper['mode'] !== 'upload') {
+            if ($detailedPaper['mode'] !== 'upload' && (! $onlyMissing || ! $this->preparedFileExists($draft->documents->firstWhere('document_type', $detailedPaper['document_type']), $detailedPaper))) {
                 $preparedFiles[] = $this->generateDetailedProposal(
                     $draft,
                     $draft->documents->firstWhere('document_type', $detailedPaper['document_type']),
@@ -124,7 +143,7 @@ class SubmitProposalDraft
                 );
             }
 
-            DB::transaction(function () use ($draft, $draftVersion, $documentVersions, $preparedFiles): void {
+            DB::transaction(function () use ($draft, $draftVersion, $documentVersions, $preparedFiles, $onlyMissing): void {
                 $lockedDraft = ProposalDraft::query()
                     ->whereKey($draft->getKey())
                     ->lockForUpdate()
@@ -137,6 +156,11 @@ class SubmitProposalDraft
                     throw ValidationException::withMessages([
                         'preparation' => 'Project details changed while the PDFs were being prepared. Review the changes and prepare the files again.',
                     ]);
+                }
+
+                $lockedDocuments = $lockedDraft->documents()->lockForUpdate()->get()->keyBy('document_type');
+                if ($lockedDocuments->map(fn (ProposalDraftDocument $document): int => $document->lock_version)->all() != $documentVersions->all()) {
+                    throw ValidationException::withMessages(['preparation' => 'A proposal paper changed while the PDFs were being prepared. The latest saved version will be used instead.']);
                 }
 
                 foreach ($preparedFiles as $preparedFile) {
@@ -162,17 +186,17 @@ class SubmitProposalDraft
                         'checksum' => $preparedFile['checksum'],
                         'source_data' => $preparedFile['source_data'] ?? $document?->source_data,
                         'completed_at' => $document?->completed_at ?? now(),
-                        'lock_version' => $expectedVersion + 1,
+                        'lock_version' => $onlyMissing ? $expectedVersion : $expectedVersion + 1,
                     ];
 
                     if ($document) {
-                        $document->update($attributes);
+                        $document->fill($attributes)->saveQuietly();
                     } else {
-                        $lockedDraft->documents()->create([
+                        ProposalDraftDocument::withoutEvents(fn () => $lockedDraft->documents()->create([
                             ...$attributes,
                             'document_type' => $preparedFile['document_type'],
                             'position' => 0,
-                        ]);
+                        ]));
                     }
                 }
             }, 3);
@@ -181,6 +205,20 @@ class SubmitProposalDraft
 
             throw $exception;
         }
+
+        try {
+            app(ProposalPdfPreparation::class)->prune($draft);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /** @param array<string, mixed> $paper */
+    private function preparedFileExists(?ProposalDraftDocument $document, array $paper): bool
+    {
+        return $document !== null && filled($document->file_path) && $document->mime_type === 'application/pdf'
+            && ($paper['mode'] !== 'automatic' || ! str_contains($document->file_path, '/prepared/manual/'))
+            && Storage::disk('local')->exists($document->file_path);
     }
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -302,7 +340,7 @@ class SubmitProposalDraft
                 }
 
                 $this->archiveDocumentHistory->handle($lockedDraft, $topic, $permanentDirectory);
-                $lockedDraft->delete();
+                $lockedDraft->forceDelete();
 
                 return $topic;
             }, 3);

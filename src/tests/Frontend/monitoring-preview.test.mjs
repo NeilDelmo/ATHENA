@@ -41,6 +41,8 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                         <main class="mx-auto max-w-[90rem] p-4">${readFileSync(resolve(fixtureDirectory, `monitoring-preview-${type}.html`), 'utf8')}</main></body></html>`);
                     await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
                     await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
+                        const uploadRequest=(url,options)=>window.fetch(url,options);
+                        const submitFileUploadForm=async(form)=>{form.submit();return true;};
                         window.previewRequests=[];window.savedDrafts=[];window.previewFailure=false;window.previewDelay=0;
                         window.fetch=async(url,options)=>{
                             const fields=[...options.body.entries()];
@@ -184,6 +186,79 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     }
                     await page.close();
                 }
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test('terminal poster and figure uploads show saved state and delayed text saves preserve image removal', async () => {
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(read('resources/css/app.css'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [1440, 390]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
+                const errors = [];
+                page.on('pageerror', error => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body data-app-shell>${read('../tmp/monitoring-preview-terminal.html')}</body></html>`);
+                await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
+                await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
+                    const uploadRequest=(url,options)=>window.fetch(url,options);
+                    const submitFileUploadForm=async(form)=>{form.submit();return true;};
+                    window.savedImages={};window.saveCount=0;window.gateSave=true;
+                    window.fetch=async(url,options)=>{
+                        const fields=[...options.body.entries()];const images={};
+                        for(const key of ['cover_image','photo_1']) {
+                            const file=fields.find(([name])=>name===key)?.[1];
+                            const retained=fields.find(([name])=>name===('saved_'+key))?.[1];
+                            if(file instanceof File&&file.size) images[key]={id:'00000000-0000-4000-8000-'+String(++window.saveCount).padStart(12,'0'),name:file.name,preview_url:'data:image/png;base64,${image.toString('base64')}'};
+                            else if(retained&&window.savedImages[key]) images[key]=window.savedImages[key];
+                        }
+                        if(window.gateSave){window.gateSave=false;await new Promise(resolve=>window.releaseSave=resolve)}
+                        window.savedImages=images;
+                        return {ok:true,status:200,json:async()=>({draft_version:++window.saveCount,images})};
+                    };
+                    document.addEventListener('alpine:init',()=>{
+                        ${datePicker}
+                        const register=Alpine.data.bind(Alpine);
+                        Alpine.data=(name,factory)=>register(name,(config)=>{
+                            const state=factory(config);const initialize=state.init;
+                            state.init=function(){window.monitorState=this;initialize.call(this)};return state;
+                        });
+                        ${controllers}
+                    });` });
+                await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
+                await page.waitForFunction(() => Boolean(window.monitorState));
+                const cover = page.locator('[data-terminal-cover-image]');
+                const figure = page.locator('#terminal-figures [data-report-image]').first();
+                await cover.locator('input[type=file]').setInputFiles({ name: 'poster.png', mimeType: 'image/png', buffer: image });
+                await figure.locator('input[type=file]').setInputFiles({ name: 'results.png', mimeType: 'image/png', buffer: image });
+                await page.evaluate(() => { void window.monitorState.saveNarrativeDraft(); });
+                await page.waitForFunction(() => typeof window.releaseSave === 'function');
+                await cover.getByText('Image waiting to save…', { exact: true }).waitFor();
+                await page.evaluate(() => window.releaseSave());
+                assert.equal(await page.evaluate(() => window.monitorState.finishNarrativeDraftAutoSave()), true);
+                await cover.getByText('Saved with draft: poster.png', { exact: true }).waitFor();
+                await figure.getByText('Saved with draft: results.png', { exact: true }).waitFor();
+                assert.equal(await cover.locator('input[type=file]').evaluate(field => field.files.length), 0);
+                assert.equal(await figure.locator('input[type=file]').evaluate(field => field.files.length), 0);
+                const savedFigure = await figure.locator('input[name=saved_photo_1]').inputValue();
+                await page.evaluate(() => { window.gateSave=true;delete window.releaseSave; });
+                await cover.locator('input[name=cover_image_caption]').fill('Updated poster caption');
+                await page.evaluate(() => { void window.monitorState.saveNarrativeDraft(); });
+                await page.waitForFunction(() => typeof window.releaseSave === 'function');
+                await cover.getByRole('button', { name: 'Remove image', exact: true }).click();
+                await page.evaluate(() => window.releaseSave());
+                assert.equal(await page.evaluate(() => window.monitorState.finishNarrativeDraftAutoSave()), true);
+                assert.equal(await cover.locator('input[name=saved_cover_image]').inputValue(), '');
+                assert.equal(await cover.locator('img').isVisible(), false);
+                assert.equal(await figure.locator('input[name=saved_photo_1]').inputValue(), savedFigure);
+                assert.equal(await page.evaluate(() => Boolean(window.savedImages.cover_image)), false);
+                assert.deepEqual(errors, []);
+                await page.close();
             }
         }
     } finally {

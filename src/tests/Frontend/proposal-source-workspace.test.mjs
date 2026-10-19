@@ -424,7 +424,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
     assert.equal(compiled.status, 0, (compiled.stderr || compiled.stdout).slice(-3000));
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
-    const helpers = readFileSync(resolve('resources/js/proposal-source-workspace.js'), 'utf8').replace(/^export /gm, '');
+    const helpers = readFileSync(resolve('resources/js/proposal-source-workspace.js'), 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         for (const width of [320, 390, 1440]) {
@@ -433,7 +433,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 const errors = [];
                 page.on('pageerror', (error) => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles.css}[x-cloak]{display:none!important}</style></head><body class="bg-white dark:bg-slate-950"><main x-data="sourcesFixture"><button id="sources-opener" @click="openSourceWorkspace()">Sources</button>${compiled.stdout}</main></body></html>`);
-                await page.addScriptTag({ content: `${helpers}
+                await page.addScriptTag({ content: `const uploadRequest = (...args) => fetch(...args);\n${helpers}
                     window.sourceRequests = []; window.sourceInsertions = 0; window.paperDraftInsertions = 0;
                     document.addEventListener('alpine:init', () => Alpine.data('sourcesFixture', () => ({
                         ...proposalSourceWorkspace({ csrfToken: 'test', proposalDraftId: 42, synthesisUrl: '/synthesis', evidenceBase: '/proposal/links', assistanceUrl: '/assistance', libraryUrl: '/library', request: async (url, options) => {

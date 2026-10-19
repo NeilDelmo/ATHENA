@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,53 @@ beforeEach(function () {
     foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
+});
+
+test('switching workspaces resumes the last successful page and preserves its filters and tab', function () {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $url = route('faculty.proposal-drafts.index', ['search' => 'coastal', 'status' => 'draft']);
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty'])
+        ->get($url)->assertOk();
+    $this->postJson(route('workspace.store'), ['workspace' => 'research_head'])->assertOk();
+    $this->postJson(route('workspace.store'), ['workspace' => 'faculty', 'resume_url' => $url.'#saved-drafts'])
+        ->assertOk()->assertJsonPath('redirect', $url.'#saved-drafts');
+});
+
+test('workspace continuity ignores foreign and unvisited browser destinations', function (string $destination) {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head'])
+        ->postJson(route('workspace.store'), ['workspace' => 'faculty', 'resume_url' => $destination])
+        ->assertOk()->assertJsonPath('redirect', route('faculty.dashboard'));
+})->with(['https://other.test/steal', '//other.test/steal', '/faculty/proposal-drafts/999999', 'javascript:alert(1)']);
+
+test('resumed pages recheck access and fall back to the workspace dashboard when access was lost', function () {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $draft = ProposalDraft::create(['user_id' => $head->id, 'project_title' => 'Workspace continuity project']);
+    $url = route('faculty.proposal-drafts.show', $draft);
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty'])
+        ->get($url)->assertOk();
+    $this->postJson(route('workspace.store'), ['workspace' => 'research_head'])->assertOk();
+    $draft->delete();
+    $this->postJson(route('workspace.store'), ['workspace' => 'faculty'])
+        ->assertOk()->assertJsonPath('redirect', $url);
+    $this->get($url)->assertRedirect(route('faculty.dashboard'));
+    $this->postJson(route('workspace.store'), ['workspace' => 'research_head'])->assertOk();
+    $this->postJson(route('workspace.store'), ['workspace' => 'faculty'])
+        ->assertOk()->assertJsonPath('redirect', route('faculty.dashboard'));
+});
+
+test('workspace locations remain private to the signed in account', function () {
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $first->assignRole('research_head');
+    $second->assignRole('research_head');
+    $url = route('faculty.proposal-drafts.index', ['search' => 'private search']);
+    $this->actingAs($first)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty'])->get($url)->assertOk();
+    $this->actingAs($second)->postJson(route('workspace.store'), ['workspace' => 'faculty'])
+        ->assertOk()->assertJsonPath('redirect', route('faculty.dashboard'));
 });
 
 test('a research head can choose research head or faculty workspaces', function () {
@@ -254,7 +302,7 @@ test('coordinator and secretary workspaces stay separate for an account with bot
         ->assertRedirect(route('research_secretary.dashboard'));
     $this->get(route('research_secretary.dashboard'))->assertOk()
         ->assertSee('Research Office Secretary Dashboard')
-        ->assertSee('Prepare Notices to Proceed, release signed documents')
+        ->assertSee('Review Monitoring Tools and Progress Reports, handle corrections')
         ->assertDontSee('Research Office / Secretary');
     $this->get(route('profile.edit'))->assertOk()
         ->assertSee('Research Office Secretary')

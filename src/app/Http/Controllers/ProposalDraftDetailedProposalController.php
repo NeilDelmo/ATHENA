@@ -11,6 +11,7 @@ use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftLiteratureSource;
 use App\Services\DetailedProposalDocumentService;
 use App\Services\DetailedProposalMethodologyImageService;
+use App\Services\ImagePreviewService;
 use App\Support\DetailedProposalData;
 use App\Support\DetailedProposalRules;
 use App\Support\LineItemBudgetData;
@@ -27,7 +28,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProposalDraftDetailedProposalController extends Controller
@@ -234,8 +234,13 @@ class ProposalDraftDetailedProposalController extends Controller
             app(ProposalDraftReadiness::class)->detailedProposalChecklist($proposalDraft),
         );
         $detailedProposal['methodology_images'] = collect($detailedProposal['methodology_images'])
-            ->map(function (array $image) use ($methodologyImageService): array {
-                $image['data_url'] = $methodologyImageService->dataUrl($image);
+            ->map(function (array $image) use ($methodologyImageService, $proposalDraft): array {
+                if ($image['stored_path'] !== null && ! $image['image'] instanceof UploadedFile) {
+                    $image['original_url'] = route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, $image['id']]);
+                    $image['data_url'] = route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, $image['id'], 'preview' => 1]);
+                } else {
+                    $image['data_url'] = $methodologyImageService->dataUrl($image);
+                }
 
                 return $image;
             })
@@ -279,9 +284,11 @@ class ProposalDraftDetailedProposalController extends Controller
     }
 
     public function methodologyImage(
+        Request $request,
         ProposalDraft $proposalDraft,
         string $imageId,
-    ): Response {
+        ImagePreviewService $previews,
+    ): StreamedResponse {
         Gate::authorize('update', $proposalDraft);
         $sourceData = $this->document($proposalDraft)?->source_data;
         $image = collect(is_array($sourceData) ? ($sourceData['methodology_images'] ?? []) : [])
@@ -290,7 +297,11 @@ class ProposalDraftDetailedProposalController extends Controller
 
         abort_unless(is_string($path) && Storage::disk('local')->exists($path), 404);
 
-        return response(Storage::disk('local')->get($path), 200, [
+        if ($request->boolean('preview')) {
+            return $previews->response($path, $image['original_filename'] ?? basename($path));
+        }
+
+        return Storage::disk('local')->response($path, $image['original_filename'] ?? basename($path), [
             'Content-Type' => is_string($image['mime_type'] ?? null) ? $image['mime_type'] : 'application/octet-stream',
             'X-Content-Type-Options' => 'nosniff',
         ]);
@@ -386,7 +397,7 @@ class ProposalDraftDetailedProposalController extends Controller
             ->map(fn (array $image, int $index): array => [
                 'client_id' => $clientIds->get($index, ''),
                 'id' => (string) $image['id'],
-                'url' => route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, $image['id']]),
+                'url' => route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, $image['id'], 'preview' => 1]),
             ])
             ->all();
     }

@@ -202,8 +202,8 @@
 <section class="rounded-2xl border {{ $readyToSubmit ? 'border-green-200 bg-green-50' : ($readyToPrepare ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50') }} p-5 sm:p-6">
     <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">{{ $canSubmitProposal ? ($submissionFilesPrepared ? $submitLabel : 'Prepare submission PDFs') : 'Submission status' }}</h3>
-            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $canSubmitProposal ? ($readyToSubmit ? ($proposalDraft->topic_id !== null ? 'This sends a new numbered version to the Research Head and preserves every earlier submission.' : 'Five proposal papers and two automatic assessment forms are ready. Turn in sends all seven PDFs to the Research Head.') : ($readyToPrepare ? 'Prepare seven PDFs, then review the five proposal papers before submission.' : 'Complete Project Details and the five proposal papers before preparing the submission files.')) : 'Earlier submitted versions remain available. Requested revisions are submitted through the proposal revision page.' }}</p>
+            <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">{{ $canSubmitProposal ? ($submissionFilesPrepared ? $submitLabel : 'Submission PDFs update automatically') : 'Submission status' }}</h3>
+            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $canSubmitProposal ? ($readyToSubmit ? ($proposalDraft->topic_id !== null ? 'This sends a new numbered version to the Research Head and preserves every earlier submission.' : 'Five proposal papers and two automatic assessment forms are ready. Turn in sends all seven PDFs to the Research Head.') : ($readyToPrepare ? 'Your saved content is complete. ATHENA prepares the PDFs automatically; review them before turning in.' : 'Complete the required content. ATHENA prepares the submission PDFs after your changes save.')) : 'Earlier submitted versions remain available. Requested revisions are submitted through the proposal revision page.' }}</p>
         </div>
         <div class="flex w-full shrink-0 flex-col gap-3 sm:w-auto">
             @if ($canSubmitProposal && $submissionFilesPrepared)
@@ -212,14 +212,6 @@
                     <button type="submit" wire:loading.attr="disabled" wire:target="turnIn" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">{{ $submitLabel }}</button>
                     <x-proposal-submission-loading-screen livewire-target="turnIn" />
                 </form>
-            @elseif (! $submissionFilesPrepared)
-                @can('prepare', $proposalDraft)
-                    <form action="{{ route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-package-prepare data-proposal-livewire-action="prepare">
-                        @csrf
-                        <button type="submit" wire:loading.attr="disabled" wire:target="prepare" @disabled(! $readyToPrepare) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Prepare seven PDFs</button>
-                        <x-proposal-pdf-preparation-loading-screen livewire-target="prepare" />
-                    </form>
-                @endcan
             @endif
             @if (! $canSubmitProposal)
                 @if ($proposalDraft->topic_id && $proposalDraft->user_id === auth()->id())

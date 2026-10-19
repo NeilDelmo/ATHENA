@@ -85,7 +85,7 @@ class ProjectMonitoringFormDataService
                 ->where('reporting_quarter', $period['quarter'])->where('review_status', ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
                 ->latest('id')->first();
             if ($revisionSource !== null) {
-                $progressDefaults = [...$progressDefaults, ...app(ProgressReportData::class)->normalize($topic, ['accomplishments' => $revisionSource->accomplishments ?? []])];
+                $progressDefaults = [...$progressDefaults, ...app(ProgressReportData::class)->normalize($topic, ['accomplishments' => $revisionSource->accomplishments ?? []]), ...app(ReportFigureDraftService::class)->reportImages($revisionSource)];
             }
         }
 

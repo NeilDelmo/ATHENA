@@ -118,7 +118,7 @@ export function proposalPreviewWorkspace() {
         },
 
         setProposalPreviewZoom(value) {
-            this.previewZoom = Math.max(50, Math.min(150, Number(value) || 100));
+            this.previewZoom = Math.max(50, Math.min(150, Math.round(Number(value) * 100) / 100 || 100));
             this.applyProposalPreviewZoom();
         },
 
@@ -136,18 +136,28 @@ export function proposalPreviewWorkspace() {
             this.applyProposalPreviewZoom();
         },
 
-        bindProposalPreviewWheel(frame = this.$refs.previewFrame, isExpanded = () => this.previewFullscreen, onZoom = (amount) => this.setProposalPreviewZoom(this.previewZoom + amount)) {
+        bindProposalPreviewWheel(frame = this.$refs.previewFrame, isExpanded = () => this.previewFullscreen || (this.previewPaneOpen && this.$refs.previewPanel?.matches('.proposal-preview-pane')), onZoom = (amount) => this.setProposalPreviewZoom(this.previewZoom + amount), getZoom = () => this.previewZoom) {
             const previewDocument = frame?.contentDocument;
             if (typeof previewDocument?.addEventListener !== 'function' || frame.proposalPreviewWheelBinding?.document === previewDocument) return;
-            const previous = frame.proposalPreviewWheelBinding;
-            previous?.document.removeEventListener('wheel', previous.handler, { capture: true });
+            this.unbindProposalPreviewWheel(frame);
             let wheelDelta = 0;
+            let gestureZoom = null;
+            let gestureScale = 1;
             const handler = (event) => {
-                if (!isExpanded() || !event.ctrlKey || event.shiftKey || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+                if (event.defaultPrevented || !event.ctrlKey || event.shiftKey || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
                     wheelDelta = 0;
                     return;
                 }
+                // The containing revision preview owns zoom, including PDFs inside its iframe.
+                event.stopPropagation();
+                if (!isExpanded()) return;
                 event.preventDefault();
+                if (gestureZoom !== null) return;
+                if (event.deltaMode === 0 && Math.abs(event.deltaY) < 40) {
+                    wheelDelta = 0;
+                    onZoom(getZoom() * (Math.exp(-event.deltaY * .01) - 1));
+                    return;
+                }
                 const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? frame.clientHeight || 800 : 1;
                 if (Math.sign(wheelDelta) !== Math.sign(event.deltaY)) wheelDelta = 0;
                 wheelDelta += event.deltaY * units;
@@ -155,8 +165,44 @@ export function proposalPreviewWorkspace() {
                 onZoom(wheelDelta < 0 ? 10 : -10);
                 wheelDelta = 0;
             };
-            previewDocument.addEventListener('wheel', handler, { passive: false, capture: true });
-            frame.proposalPreviewWheelBinding = { document: previewDocument, handler };
+            const start = (event) => {
+                gestureZoom = null;
+                if (event.defaultPrevented || !Number.isFinite(event.scale) || event.scale <= 0) return;
+                event.stopPropagation();
+                if (!isExpanded()) return;
+                event.preventDefault();
+                gestureZoom = getZoom();
+                gestureScale = event.scale;
+            };
+            const change = (event) => {
+                if (event.defaultPrevented || gestureZoom === null || !Number.isFinite(event.scale) || event.scale <= 0) return;
+                event.stopPropagation();
+                if (!isExpanded()) { gestureZoom = null; return; }
+                event.preventDefault();
+                onZoom(gestureZoom * event.scale / gestureScale - getZoom());
+            };
+            const end = (event) => {
+                if (gestureZoom !== null && !event.defaultPrevented) {
+                    event.stopPropagation();
+                    event.preventDefault();
+                }
+                gestureZoom = null;
+            };
+            const handlers = { wheel: handler, gesturestart: start, gesturechange: change, gestureend: end };
+            for (const [type, callback] of Object.entries(handlers)) {
+                previewDocument.addEventListener(type, callback, { passive: false, capture: true });
+            }
+            frame.proposalPreviewWheelBinding = {
+                document: previewDocument,
+                cleanup() {
+                    for (const [type, callback] of Object.entries(handlers)) previewDocument.removeEventListener(type, callback, { capture: true });
+                },
+            };
+        },
+
+        unbindProposalPreviewWheel(frame = this.$refs?.previewFrame) {
+            frame?.proposalPreviewWheelBinding?.cleanup();
+            if (frame) delete frame.proposalPreviewWheelBinding;
         },
 
         applyProposalPreviewZoom() {

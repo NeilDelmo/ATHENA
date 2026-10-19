@@ -45,7 +45,7 @@ test('a plain manual page waits for a preview request and then opens the shared 
     const f = fixture(context);
     await f.state.init();
     assert.deepEqual(f.events, []);
-    assert.equal(f.state.manualPage, 1);
+    assert.equal(f.state.manualPage, null);
     await f.state.openPreview(7);
     assert.equal(f.state.manualPage, 7);
     assert.deepEqual(f.events, expectedPreview(7));
@@ -83,10 +83,31 @@ test('manual page requests only open the matching edition', async context => {
     assert.deepEqual(f.events, expectedPreview(7));
 });
 
-test('the standalone reader opens the first page when no citation hash is present', async context => {
+test('the current edition comparison reader ignores candidate hashes but accepts its own page requests', async context => {
+    const f = fixture(context, { hash: '#page=2', configuration: { ...config, read_hash: false } });
+    await f.state.init();
+    window.location.hash = '#page=3';
+    window.dispatchEvent(new Event('hashchange'));
+    await Promise.resolve();
+    assert.deepEqual(f.events, []);
+    window.dispatchEvent(new CustomEvent('research-manual:page', { detail: { version: config.version, page: 2 } }));
+    await Promise.resolve();
+    assert.deepEqual(f.events, expectedPreview(2));
+});
+
+test('the standalone reader leaves the reading position to the PDF viewer when no citation hash is present', async context => {
     const f = fixture(context, { openOnLoad: true });
     await f.state.init();
-    assert.deepEqual(f.events, expectedPreview(1));
+    assert.deepEqual(f.events, [{ name: 'open-modal', detail: `research-manual-preview-${config.version}` }]);
+});
+
+test('an ordinary reopen does not repeat a previous citation page request', async context => {
+    const f = fixture(context);
+    await f.state.openPreview(7);
+    f.events.length = 0;
+    await f.state.openPreview();
+    assert.equal(f.state.manualPage, null);
+    assert.deepEqual(f.events, [{ name: 'open-modal', detail: `research-manual-preview-${config.version}` }]);
 });
 
 test('component cleanup removes manual listeners and repeated cleanup is safe', async context => {
@@ -168,4 +189,73 @@ test('aborted guidance stays quiet and a network error allows another question',
     await f.state.askGuidance('Ethics review?');
     assert.equal(f.state.guidanceError, 'Connection unavailable');
     assert.equal(f.state.guidanceLoading, false);
+});
+
+test('suggested chatbot checks run only when requested, sequentially, and stop at five questions', async context => {
+    let activeRequests = 0;
+    let maximumActiveRequests = 0;
+    const f = fixture(context, {
+        configuration: { ...config, guidance_questions: Array.from({ length: 7 }, (_, index) => `Question ${index + 1}`) },
+        fetcher: async (_url, options) => {
+            activeRequests++;
+            maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+            await Promise.resolve();
+            activeRequests--;
+            const question = JSON.parse(options.body).question;
+            return { ok: true, json: async () => ({ reply: `Answer to ${question} [ATHENA 1]`, edition: config.edition, version: config.version, check_type: 'ai_response', sources: [{ content: 'Cited passage', document_version: config.version }] }) };
+        },
+    });
+    await f.state.init();
+    assert.equal(f.requests.length, 0);
+    await f.state.runGuidanceChecks();
+    assert.equal(f.requests.length, 5);
+    assert.equal(maximumActiveRequests, 1);
+    assert.equal(f.state.guidanceChecks.length, 5);
+    assert.equal(f.state.guidanceChecks[0].question, 'Question 1');
+    assert.equal(f.state.guidanceChecks[4].sources[0].content, 'Cited passage');
+    assert.equal(f.state.suiteRunning, false);
+    assert.match(f.state.suiteProgress, /Review each answer/);
+});
+
+test('guidance retains evidence and unavailable results separately and replaces repeated questions', async context => {
+    const f = fixture(context, { fetchResponse: { ok: true, json: async () => ({ reply: 'Insufficient evidence.', sources: [], edition: config.edition, version: config.version, check_type: 'no_evidence' }) } });
+    await f.state.askGuidance('Question 1');
+    assert.equal(f.state.guidanceChecks[0].type, 'no_evidence');
+    globalThis.fetch = async () => ({ ok: false, json: async () => ({ message: 'Provider unavailable' }) });
+    await f.state.askGuidance('Question 2');
+    assert.equal(f.state.guidanceChecks[1].type, 'unavailable');
+    assert.equal(f.state.guidanceChecks[1].error, 'Provider unavailable');
+    await f.state.askGuidance('Question 1');
+    assert.equal(f.state.guidanceChecks.length, 2);
+    assert.equal(f.state.guidanceChecks[1].question, 'Question 1');
+});
+
+test('stopping suggested checks aborts the pending request and does not send later questions', async context => {
+    const f = fixture(context, {
+        configuration: { ...config, guidance_questions: ['Question 1', 'Question 2'] },
+        fetcher: (_url, options) => new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        }),
+    });
+    const pending = f.state.runGuidanceChecks();
+    assert.equal(f.requests.length, 1);
+    f.state.stopGuidanceChecks();
+    await pending;
+    assert.equal(f.requests[0][1].signal.aborted, true);
+    assert.equal(f.requests.length, 1);
+    assert.equal(f.state.guidanceChecks.length, 0);
+    assert.match(f.state.suiteProgress, /stopped/);
+    assert.equal(f.state.suiteRunning, false);
+});
+
+test('answers or citations from another edition never appear as a candidate answer', async context => {
+    const f = fixture(context, { fetchResponse: { ok: true, json: async () => ({ reply: 'Wrong edition answer', edition: 'Old edition', version: 'b'.repeat(64), sources: [] }) } });
+    await f.state.askGuidance('Question 1');
+    assert.equal(f.state.reply, '');
+    assert.equal(f.state.guidanceChecks[0].type, 'unavailable');
+    assert.match(f.state.guidanceError, /another edition/);
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ reply: 'Wrong citation', edition: config.edition, version: config.version, sources: [{ document_version: 'b'.repeat(64) }] }) });
+    await f.state.askGuidance('Question 2');
+    assert.equal(f.state.reply, '');
+    assert.equal(f.state.guidanceChecks[1].type, 'unavailable');
 });

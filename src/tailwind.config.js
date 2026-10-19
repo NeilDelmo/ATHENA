@@ -10,6 +10,7 @@ export default {
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
         './resources/js/research-assistant-markdown.js',
+        './resources/js/proposal-conflict-recovery.js',
     ],
 
     theme: {

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\ProposalSignatory;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ReportFigureDraftService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -241,7 +242,8 @@ class TerminalReportData
             foreach ($report->photos ?? [] as $index => $photo) {
                 if (Storage::disk('local')->exists($photo['path'] ?? '')) {
                     $evidence[$report->id.':'.$index] = [...$photo, 'report_id' => $report->id, 'index' => $index,
-                        'preview_url' => route('project-narrative-reports.photos.download', [$report, $index]),
+                        'preview_url' => route('project-narrative-reports.photos.view', [$report, $index, 'preview' => 1]),
+                        'original_url' => route('project-narrative-reports.photos.view', [$report, $index]),
                         'label' => $report->report_label.' '.$report->submission_date->format('M j, Y').' — '.($photo['caption'] ?? 'Figure')];
                 }
             }
@@ -256,6 +258,11 @@ class TerminalReportData
         $photos = [];
         $coverFile = $files['cover_image'] ?? null;
         $coverSource = $evidence[$data['reuse_cover_image'] ?? ''] ?? null;
+        $savedCover = $data['saved_images'][$data['saved_cover_image'] ?? ''] ?? null;
+        if (! $coverFile instanceof UploadedFile && $coverSource === null && $savedCover !== null) {
+            $photos[] = app(ReportFigureDraftService::class)->photo($topic, $data['saved_cover_image'], $savedCover,
+                ['caption' => $data['cover_image_caption'] ?? 'Project poster', 'section' => 'cover', 'after_paragraph' => 0], $preview, $storedPaths);
+        }
         if ($coverFile instanceof UploadedFile || $coverSource !== null) {
             $cover = [
                 'caption' => $data['cover_image_caption'] ?? 'Project poster',
@@ -265,7 +272,7 @@ class TerminalReportData
             if ($preview) {
                 $photos[] = $coverFile instanceof UploadedFile
                     ? [...$cover, 'preview_file_input' => 'cover_image']
-                    : [...$cover, 'preview_url' => $coverSource['preview_url']];
+                    : [...$cover, 'preview_url' => $coverSource['preview_url'], 'original_url' => $coverSource['original_url']];
             } elseif ($coverFile instanceof UploadedFile) {
                 $path = $coverFile->store('narrative-progress-reports/'.$topic->id, 'local');
                 $storedPaths[] = $path;
@@ -282,7 +289,8 @@ class TerminalReportData
         foreach (range(1, 30) as $index) {
             $file = $files['photo_'.$index] ?? null;
             $source = $evidence[$data['reuse_photo_'.$index] ?? ''] ?? null;
-            if (! $file instanceof UploadedFile && $source === null) {
+            $saved = $data['saved_images'][$data['saved_photo_'.$index] ?? ''] ?? null;
+            if (! $file instanceof UploadedFile && $source === null && $saved === null) {
                 continue;
             }
             $photo = [
@@ -290,10 +298,15 @@ class TerminalReportData
                 'section' => $data['photo_section_'.$index] ?? 'results_discussion',
                 'after_paragraph' => (int) ($data['photo_after_paragraph_'.$index] ?? 0),
             ];
+            if (! $file instanceof UploadedFile && $source === null) {
+                $photos[] = app(ReportFigureDraftService::class)->photo($topic, $data['saved_photo_'.$index], $saved, $photo, $preview, $storedPaths);
+
+                continue;
+            }
             if ($preview) {
                 $photos[] = $file instanceof UploadedFile
                     ? [...$photo, 'preview_file_input' => 'photo_'.$index]
-                    : [...$photo, 'preview_url' => route('project-narrative-reports.photos.download', [$source['report_id'], $source['index']])];
+                    : [...$photo, 'preview_url' => $source['preview_url'], 'original_url' => $source['original_url']];
 
                 continue;
             }

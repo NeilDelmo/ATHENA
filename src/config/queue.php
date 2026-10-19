@@ -30,6 +30,14 @@ return [
     */
 
     'connections' => [
+        'proposal-pdfs' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'proposal-pdfs',
+            'retry_after' => 600,
+            'after_commit' => true,
+        ],
 
         'sync' => [
             'driver' => 'sync',

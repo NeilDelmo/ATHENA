@@ -2,6 +2,8 @@
 
 namespace App\Notifications;
 
+use App\Models\ProposalDraft;
+use App\Models\ProposalDraftMember;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -31,6 +33,18 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
     public function via(object $notifiable): array
     {
         return ['mail'];
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        preg_match('~/notifications/proposal-invitations/(\d+)$~', $this->workspaceUrl, $matches);
+        if (! isset($matches[1])) {
+            return true;
+        }
+
+        return ProposalDraftMember::query()->whereKey($matches[1])->where('email', $this->invitedEmail)
+            ->when($this->requiresAcceptance, fn ($query) => $query->whereNull('accepted_at'))
+            ->whereHas('draft', fn ($query) => $query->where('status', ProposalDraft::STATUS_DRAFT))->exists();
     }
 
     /**

@@ -124,7 +124,7 @@ class DashboardCalendar extends Component
         $end = $month->endOfMonth()->endOfWeek();
         $events = $calendar->events(auth()->user(), $start, $end, $this->callId);
         $upcoming = $calendar->events(auth()->user(), CarbonImmutable::now(), CarbonImmutable::now()->addYear(), $this->callId)
-            ->filter(fn (array $event) => ($event['deadline'] && ! $event['draft']) || $event['kind'] === 'personal')->take(5);
+            ->filter(fn (array $event) => ! $event['draft'] && ($event['deadline'] || in_array($event['kind'], ['personal', 'project'], true)))->take(5);
         $byDate = $events->groupBy('date');
         $days = collect();
         for ($day = $start; $day->lte($end); $day = $day->addDay()) {

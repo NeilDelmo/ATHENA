@@ -299,7 +299,7 @@
                     </div>
 
                     <div x-show="previewHtml && !previewLoading" x-cloak class="overflow-hidden rounded-2xl border border-gray-300 bg-gray-100 shadow-inner">
-                        <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="previewReady = true" title="Official Work Plan preview" class="h-[42rem] w-full bg-gray-100"></iframe>
+                        <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="proposalPreviewLoaded()" title="Official Work Plan preview" class="h-[42rem] w-full bg-gray-100"></iframe>
                     </div>
 
                     <p x-show="downloadError" x-cloak class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700" x-text="downloadError"></p>

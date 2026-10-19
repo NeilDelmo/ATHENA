@@ -148,6 +148,8 @@ class ResearchAssistantDocumentService
                     'type' => 'proposal_document',
                     'category' => 'Selected document excerpts',
                     'url' => null,
+                    'excerpt' => Str::substr($passage['text'], 0, 1200),
+                    'section' => $passage['location'],
                     ...(isset($passage['page']) ? ['page_start' => $passage['page'], 'page_end' => $passage['page']] : []),
                 ];
             }

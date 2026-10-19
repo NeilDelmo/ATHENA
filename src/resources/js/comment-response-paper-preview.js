@@ -107,6 +107,7 @@ export function commentResponsePaperPreview(url) {
 
         destroy() {
             disposed = true;
+            this.unbindProposalPreviewWheel();
             visibilityObserver?.disconnect();
             resizeObserver?.disconnect();
             revisionForm?.removeEventListener('input', replyListener);

@@ -196,8 +196,19 @@ html.dark .proposal-preview-error { color: #fda4af; }
 .submitted-report-preview .proposal-preview-dock-heading { flex-wrap: nowrap; background: var(--proposal-writing-wash); }
 .submitted-report-preview .proposal-preview-dock-heading h3 { font-size: 1.25rem; }
 .submitted-report-preview .proposal-preview-dock-heading p { font-size: .875rem; }
-.submitted-report-preview .proposal-preview-dock-actions { background: var(--proposal-writing-wash); }
-.submitted-report-preview :is(button:not(.proposal-preview-paper-open), .proposal-preview-download) { font-size: 1rem; }
+.submitted-report-preview .proposal-preview-dock-actions { align-items: center; background: var(--proposal-writing-wash); }
+.submitted-report-preview :is(button:not(.proposal-preview-paper-open), .proposal-preview-download) { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; min-height: 2.75rem; font-size: 1rem; line-height: 1.25; }
+.proposal-preview-icon { width: 1rem; height: 1rem; flex-shrink: 0; }
+.submitted-report-preview .proposal-preview-download { border-color: var(--proposal-writing-accent); background: var(--proposal-writing-accent); color: var(--proposal-writing-surface); }
+.submitted-report-preview .proposal-preview-download:hover { background: var(--proposal-writing-accent); opacity: .9; }
+.submitted-report-preview .proposal-preview-icon-button { width: 2.75rem; padding: .375rem; color: var(--proposal-writing-accent); }
+.proposal-preview-search { position: relative; flex: 1 1 11.25rem; min-width: 11.25rem; }
+.proposal-preview-search > svg { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: var(--proposal-writing-accent); pointer-events: none; }
+.proposal-preview-search input, .proposal-preview-page-input { height: 2.75rem; margin: 0; border: 1px solid var(--proposal-writing-border); border-radius: .375rem; background: var(--proposal-writing-surface); color: var(--proposal-writing-ink); font-size: 1rem; line-height: 1.25; }
+.proposal-preview-search input { width: 100%; padding: .625rem .75rem .625rem 2.25rem; }
+.proposal-preview-search input::placeholder { color: var(--proposal-writing-muted); opacity: 1; }
+.proposal-preview-page-input { width: 4rem; padding: .625rem .375rem; text-align: center; }
+.proposal-preview-search input:focus, .proposal-preview-page-input:focus { border-color: var(--proposal-writing-accent); --tw-ring-color: var(--proposal-writing-accent); }
 .submitted-report-preview .proposal-preview-zoom output { font-size: .875rem; }
 .submitted-report-preview .proposal-preview-paper { overflow: hidden; }
 .submitted-report-preview .revision-pdf-pages { align-items: safe center; }

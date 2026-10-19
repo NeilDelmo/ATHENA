@@ -255,6 +255,12 @@ class ResearchAssistantPaperReader
             ];
         }, $coverage);
         $selectedRefs = array_column($packet['passages'], 'reference');
+        foreach ($packet['passages'] as $passage) {
+            if (! isset($sourceByReference[$passage['reference']]['excerpt'])) {
+                $sourceByReference[$passage['reference']]['excerpt'] = Str::substr($passage['text'], 0, 1200);
+                $sourceByReference[$passage['reference']]['section'] = $passage['location'];
+            }
+        }
 
         return ['prompt' => $instructions.$json,
             'sources' => array_values(array_filter($sourceByReference, fn (array $source): bool => in_array($source['reference'], $selectedRefs, true))),

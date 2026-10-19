@@ -91,7 +91,7 @@
                                 <span class="text-base text-slate-500 dark:text-slate-400" aria-label="No target assessment recorded">—</span>
                             @endif
                         </td>
-                        <td data-monitoring-quarter="{{ $row['quarter'] }}" class="px-2 py-2 align-middle">
+                        <td data-monitoring-quarter="{{ $row['quarter'] }}" data-live-quarter-kind="monitoring" data-live-quarter="{{ $row['quarter'] }}" data-live-report-key="{{ $report ? \App\Services\TopicLiveStatus::reportKey($report) : '' }}" data-live-report-scope="{{ $report ? \App\Services\TopicLiveStatus::reportScope($topic, $report) : '' }}" class="px-2 py-2 align-middle">
                             <div class="quarterly-report-rail"><span class="quarterly-report-mobile-label">Monitoring Tool</span>
                             <div data-report-controls class="flex flex-wrap items-center justify-start gap-1">
                                 @if ($report)
@@ -120,7 +120,7 @@
                                 @endif
                             </div></div>
                         </td>
-                        <td data-progress-quarter="{{ $row['quarter'] }}" class="px-2 py-2 align-middle">
+                        <td data-progress-quarter="{{ $row['quarter'] }}" data-live-quarter-kind="progress" data-live-quarter="{{ $row['quarter'] }}" data-live-report-key="{{ $progressReport ? \App\Services\TopicLiveStatus::reportKey($progressReport) : '' }}" data-live-report-scope="{{ $progressReport ? \App\Services\TopicLiveStatus::reportScope($topic, $progressReport) : '' }}" class="px-2 py-2 align-middle">
                             <div class="quarterly-report-rail"><span class="quarterly-report-mobile-label">Progress Report</span>
                             <div data-report-controls class="flex flex-wrap items-center justify-start gap-1">
                                 @if ($progressReport && ! $progressReport->isPrepared() && $canViewProgressReport)

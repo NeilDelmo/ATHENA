@@ -135,7 +135,7 @@
                     @endphp
                     <figure>
                         @if (in_array($evidence['mime_type'] ?? 'image/png', ['image/jpeg', 'image/png'], true))
-                            <img src="{{ $evidenceUrl }}" alt="{{ $evidenceLabel }}">
+                            <img src="{{ $evidence['download_url'] ?? $evidenceUrl }}" alt="{{ $evidenceLabel }}">
                         @else
                             <a href="{{ $evidenceUrl }}">{{ $evidence['original_filename'] }}</a>
                         @endif

@@ -7,6 +7,7 @@ use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProjectReportDraftState;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,8 +22,11 @@ class SaveProjectMonitoringDraft
         array $sourceData,
     ): ProjectMonitoringDraft {
         $normalizedSourceData = $this->normalizeSourceData($sourceData);
+        $expectedScope = $normalizedSourceData['recovery_scope'] ?? null;
+        unset($normalizedSourceData['recovery_scope']);
 
-        return DB::transaction(function () use ($topic, $user, $sourceReport, $expectedVersion, $normalizedSourceData): ProjectMonitoringDraft {
+        return DB::transaction(function () use ($topic, $user, $sourceReport, $expectedVersion, $normalizedSourceData, $expectedScope): ProjectMonitoringDraft {
+            $topic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $draft = ProjectMonitoringDraft::query()
                 ->whereBelongsTo($topic, 'topic')
                 ->whereBelongsTo($user, 'user')
@@ -41,6 +45,11 @@ class SaveProjectMonitoringDraft
             $newDate = $normalizedSourceData['reporting_date'] ?? null;
             if ($savedDate && $newDate && app(MonitoringQuarterService::class)->forDate($savedDate, $topic)['start']->ne(app(MonitoringQuarterService::class)->forDate($newDate, $topic)['start'])) {
                 throw ValidationException::withMessages(['reporting_date' => 'Finish your saved Monitoring Tool draft before starting another quarter.']);
+            }
+
+            $state = app(ProjectReportDraftState::class)->forEditor($topic, $user, 'monitoring', $newDate ?? $savedDate ?? $sourceReport?->reporting_date?->toDateString(), $sourceReport?->id ?? 0);
+            if (! $state['is_editable'] || ($expectedScope !== null && $expectedScope !== $state['scope'])) {
+                throw ValidationException::withMessages(['draft_version' => 'The saved report changed or is no longer editable. Load the latest saved work before saving again.']);
             }
 
             if ($draft === null) {

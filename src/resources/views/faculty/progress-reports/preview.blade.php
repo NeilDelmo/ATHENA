@@ -89,8 +89,8 @@
                                             $position = $position === 0 ? count($paragraphs) : min($position, count($paragraphs));
                                         @endphp
                                         @if ($position === $paragraphIndex + 1)
-                                            <figure hidden>
-                                                <img data-preview-file-input="{{ $photo['preview_file_input'] }}" alt="{{ $photo['caption'] }}">
+                                            <figure @if(isset($photo['preview_file_input'])) hidden @endif>
+                                                <picture>@if(isset($photo['original_url']))<source media="print" srcset="{{ $photo['original_url'] }}">@endif<img @if(isset($photo['preview_file_input'])) data-preview-file-input="{{ $photo['preview_file_input'] }}" @else src="{{ $photo['preview_url'] ?? '' }}" @endif alt="{{ $photo['caption'] }}" decoding="async"></picture>
                                                 <figcaption>Figure {{ $figureNumber++ }}. {{ $photo['caption'] }}</figcaption>
                                             </figure>
                                         @endif

@@ -6,10 +6,12 @@ use App\Actions\SaveProposalDraftDetails;
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
 use App\Contracts\DocumentPdfConverter;
+use App\Jobs\PrepareProposalDraftPdfs;
 use App\Livewire\ProposalDraftReviewPackage;
 use App\Models\LiteratureSource;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalSignatory;
@@ -22,6 +24,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
 use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\NoticeToProceedDataService;
+use App\Services\ProposalPdfPreparation;
 use App\Services\ProposalSignatureWorkflow;
 use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
@@ -29,9 +32,14 @@ use App\Support\ProposalPaperCatalog;
 use App\Support\ResearchHeadScreeningData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Process\PendingProcess;
+use Illuminate\Queue\Events\JobPopping;
+use Illuminate\Queue\WorkerOptions;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -850,7 +858,7 @@ test('rapid repeated create requests reuse the first matching proposal draft', f
     expect($this->faculty->proposalDrafts()->count())->toBe(1);
 });
 
-test('deleting a draft removes its records and private staged directory', function () {
+test('deleting a draft retains its records and private staged directory for recovery', function () {
     $draft = ($this->createDraft)();
     $path = $draft->storageDirectory().'/detailed-proposal/draft.pdf';
     Storage::disk('local')->put($path, 'draft contents');
@@ -869,10 +877,9 @@ test('deleting a draft removes its records and private staged directory', functi
         ->delete(route('faculty.proposal-drafts.destroy', $draft))
         ->assertRedirect(route('faculty.proposal-drafts.index'));
 
-    $this->assertDatabaseMissing('proposal_drafts', ['id' => $draft->id]);
-    $this->assertDatabaseMissing('proposal_draft_documents', ['id' => $document->id]);
-    Storage::disk('local')->assertMissing($path);
-    expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->toBeEmpty();
+    $this->assertSoftDeleted($draft);
+    $this->assertModelExists($document);
+    Storage::disk('local')->assertExists($path);
 });
 
 test('every draft paper and submission endpoint is protected from another owner', function () {
@@ -977,7 +984,6 @@ test('the proposal hub separates editable papers from automatically included ass
         ->assertDontSee('Optional preview')
         ->assertDontSee('>Open GAD Checklist</a>', false)
         ->assertDontSee('>Open Initial Screening Form</a>', false)
-        ->assertDontSee('>Open paper</a>', false)
         ->assertDontSee('>Edit paper</a>', false)
         ->assertDontSee('>Preview paper</a>', false)
         ->assertDontSee('>Update Project Details</button>', false)
@@ -997,6 +1003,7 @@ test('the proposal hub separates editable papers from automatically included ass
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);
     expect($xpath->query('//*[@id="required-pdf-attachments-tab"]//article')->length)->toBe(5)
+        ->and($xpath->query('//*[@id="required-pdf-attachments-tab"]//a[normalize-space(.)="Open paper"]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-automatic-assessment-forms]//button[@data-assessment-preview-trigger]')->length)->toBe(2)
         ->and($xpath->query('//*[@id="review-papers-heading"]/ancestor::section[1]//article')->length)->toBe(0)
         ->and($xpath->query('//*[@data-review-assessment-forms]//li')->length)->toBe(0);
@@ -1053,6 +1060,402 @@ test('upload-only papers use the protected editor exit and one upload and exit a
         ->assertSee('completed-expenses.pdf')
         ->assertSee('Replace the uploaded PDF')
         ->assertSee('Replace PDF and exit');
+});
+
+test('automatic PDFs debounce saved changes without creating duplicate queued work', function () {
+    Cache::flush();
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->where('document_type', 'curriculum_vitae')->update(['file_path' => null]);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $preparation->request($draft->id);
+    Queue::assertPushed(PrepareProposalDraftPdfs::class, 1);
+    expect($preparation->status($draft->fresh())['status'])->toBe('queued');
+});
+
+test('automatic PDFs regenerate affected files without changing editor versions or retaining obsolete working PDFs', function () {
+    Cache::flush();
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $before = $draft->documents->keyBy('document_type');
+    $cv = $before['curriculum_vitae'];
+    $cvVersion = $cv->lock_version;
+    $oldCvPath = $cv->file_path;
+    $cv->update(['file_path' => null]);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->run($draft->id);
+    $current = $draft->fresh()->documents->keyBy('document_type');
+    expect($current['curriculum_vitae']->file_path)->not->toBe($oldCvPath)
+        ->and($current['curriculum_vitae']->lock_version)->toBe($cvVersion)
+        ->and($current['work_plan']->file_path)->toBe($before['work_plan']->file_path)
+        ->and($preparation->status($draft->fresh())['status'])->toBe('ready');
+    Storage::disk('local')->assertMissing($oldCvPath);
+    expect(Storage::disk('local')->allFiles($draft->storageDirectory().'/prepared'))->toHaveCount(7);
+    $currentPaths = $current->pluck('file_path')->all();
+    $preparation->run($draft->id);
+    expect($draft->fresh()->documents->pluck('file_path')->all())->toEqualCanonicalizing($currentPaths);
+});
+
+test('PDF preparation retries temporary failures within a durable limit and preserves recovery and submitted files', function () {
+    Cache::flush();
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $workPlan = $draft->documents->firstWhere('document_type', 'work_plan');
+    app(RecordProposalDraftDocumentVersion::class)->handle($workPlan, $this->faculty);
+    $protected = $workPlan->file_path;
+    Storage::disk('local')->put('proposal-packages/submitted-history.pdf', '%PDF submitted');
+    $draft->documents()->update(['file_path' => null]);
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            throw new RuntimeException('Conversion failed');
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new RuntimeException('Conversion failed');
+        }
+    });
+    $preparation = app(ProposalPdfPreparation::class);
+    expect(fn () => $preparation->run($draft->id))->toThrow(RuntimeException::class);
+    expect($preparation->status($draft->fresh())['status'])->toBe('retrying');
+    Cache::flush();
+    expect(fn () => $preparation->run($draft->id))->toThrow(RuntimeException::class);
+    $preparation->run($draft->id);
+    expect($preparation->status($draft->fresh())['status'])->toBe('failed')
+        ->and($draft->fresh()->pdf_preparation_state['attempts'])->toBe(3);
+    $preparation->run($draft->id);
+    $preparation->reconcile();
+    expect($draft->fresh()->pdf_preparation_state['attempts'])->toBe(3);
+    Storage::disk('local')->assertExists($protected);
+    Storage::disk('local')->assertExists('proposal-packages/submitted-history.pdf');
+    $this->actingAs($this->otherFaculty)->postJson(route('faculty.proposal-drafts.submission-files.prepare', $draft))->assertForbidden();
+});
+
+test('PDF recovery keeps durable queued and expired reserved jobs and resumes them without changing editor versions', function () {
+    $realQueue = Queue::getFacadeRoot();
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->where('document_type', 'curriculum_vitae')->update(['file_path' => null]);
+    $before = $draft->fresh();
+    $versions = $before->documents->pluck('lock_version', 'id')->all();
+    DB::table('proposal_drafts')->where('id', $draft->id)->update(['pdf_preparation_state' => null]);
+    Queue::swap($realQueue);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $runId = $draft->fresh()->pdf_preparation_state['run_id'];
+    $this->travel(6)->seconds();
+    $job = Queue::connection('proposal-pdfs')->pop('proposal-pdfs');
+    expect($job)->not->toBeNull();
+    $this->travel(11)->minutes();
+    Cache::flush();
+    $preparation->reconcile();
+    expect($draft->fresh()->pdf_preparation_state['run_id'])->toBe($runId)
+        ->and(DB::table('jobs')->where('queue', 'proposal-pdfs')->where('payload', 'like', '%'.$runId.'%')->count())->toBe(1)
+        ->and($preparation->status($draft->fresh())['status'])->toBe('stalled');
+
+    $recovered = Queue::connection('proposal-pdfs')->pop('proposal-pdfs');
+    expect($recovered->getJobId())->toBe($job->getJobId());
+    $recovered->fire();
+    $after = $draft->fresh();
+    expect($preparation->status($after)['status'])->toBe('ready')
+        ->and($after->lock_version)->toBe($before->lock_version)
+        ->and($after->updated_at->toISOString())->toBe($before->updated_at->toISOString())
+        ->and($after->documents->pluck('lock_version', 'id')->all())->toBe($versions);
+});
+
+test('PDF recovery replaces missing jobs within a bounded limit and only explicit retry resets exhaustion', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->where('document_type', 'curriculum_vitae')->update(['file_path' => null]);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $obsoleteRun = $draft->fresh()->pdf_preparation_state['run_id'];
+    foreach (range(1, 4) as $recovery) {
+        $this->travel(11)->minutes();
+        Cache::flush();
+        $preparation->reconcile();
+    }
+    Queue::assertPushed(PrepareProposalDraftPdfs::class, 4);
+    expect($preparation->status($draft->fresh())['status'])->toBe('failed');
+    $preparation->run($draft->id, $obsoleteRun);
+    $this->actingAs($this->faculty)->postJson(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertAccepted()->assertJsonPath('preparation.status', 'failed');
+    Queue::assertPushed(PrepareProposalDraftPdfs::class, 4);
+    $this->postJson(route('faculty.proposal-drafts.submission-files.prepare', $draft), ['retry' => true])
+        ->assertAccepted()->assertJsonPath('preparation.status', 'queued');
+    Queue::assertPushed(PrepareProposalDraftPdfs::class, 5);
+    expect($draft->fresh()->pdf_preparation_state['recoveries'])->toBe(0);
+});
+
+test('the PDF worker backs off a temporary conversion failure and automatically finishes the same generation', function () {
+    $realQueue = Queue::getFacadeRoot();
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->where('document_type', 'curriculum_vitae')->update(['file_path' => null]);
+    DB::table('proposal_drafts')->where('id', $draft->id)->update(['pdf_preparation_state' => null]);
+    Queue::swap($realQueue);
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        private bool $interrupted = false;
+
+        public function convertDocx(string $contents): string
+        {
+            if (! $this->interrupted) {
+                $this->interrupted = true;
+                throw new RuntimeException('Temporary converter interruption');
+            }
+
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return $this->convertDocx($contents);
+        }
+    });
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $runId = $draft->fresh()->pdf_preparation_state['run_id'];
+    $originalJobId = DB::table('jobs')->where('queue', 'proposal-pdfs')->value('id');
+    $this->travel(31)->minutes();
+    $worker = app('queue.worker');
+    $options = new WorkerOptions(sleep: 0, maxTries: 0);
+    $worker->runNextJob('proposal-pdfs', 'proposal-pdfs', $options);
+    $retry = DB::table('jobs')->where('queue', 'proposal-pdfs')->first();
+    expect($preparation->status($draft->fresh())['status'])->toBe('retrying')
+        ->and($retry->available_at)->toBe(now()->timestamp + 30)
+        ->and($retry->id)->not->toBe($originalJobId);
+    $this->travel(11)->minutes();
+    Cache::flush();
+    $preparation->reconcile();
+    expect($draft->fresh()->pdf_preparation_state['run_id'])->toBe($runId)
+        ->and(DB::table('jobs')->where('queue', 'proposal-pdfs')->count())->toBe(1);
+    $worker->runNextJob('proposal-pdfs', 'proposal-pdfs', $options);
+    expect($preparation->status($draft->fresh())['status'])->toBe('ready')
+        ->and($draft->fresh()->pdf_preparation_state['attempts'])->toBe(2)
+        ->and(DB::table('jobs')->where('queue', 'proposal-pdfs')->count())->toBe(0);
+});
+
+test('PDF validation failure is terminal until saved content changes', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $document = $draft->documents->firstWhere('document_type', 'curriculum_vitae');
+    $document->updateQuietly(['file_path' => null]);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $submit = Mockery::mock(SubmitProposalDraft::class);
+    $submit->shouldReceive('prepare')->once()->andThrow(ValidationException::withMessages(['paper' => 'Invalid paper content.']));
+    app()->instance(SubmitProposalDraft::class, $submit);
+    $preparation->run($draft->id);
+    $this->travel(11)->minutes();
+    Cache::flush();
+    $preparation->reconcile();
+    expect($preparation->status($draft->fresh())['status'])->toBe('failed');
+    Queue::assertPushed(PrepareProposalDraftPdfs::class, 1);
+    $document->updateQuietly(['lock_version' => $document->lock_version + 1]);
+    $preparation->request($draft->id);
+    expect($preparation->status($draft->fresh())['status'])->toBe('queued');
+    Queue::assertPushed(PrepareProposalDraftPdfs::class, 2);
+});
+
+test('PDF generation lock contention releases the job without spending a conversion attempt', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->where('document_type', 'curriculum_vitae')->update(['file_path' => null]);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $runId = $draft->fresh()->pdf_preparation_state['run_id'];
+    $this->travel(6)->seconds();
+    $lock = Cache::lock('proposal-pdf-generation:'.$draft->id, 600);
+    expect($lock->get())->toBeTrue();
+    try {
+        $job = (new PrepareProposalDraftPdfs($draft->id, $runId))->withFakeQueueInteractions();
+        $job->handle($preparation);
+        $job->assertReleased(15);
+        expect($draft->fresh()->pdf_preparation_state['attempts'])->toBe(0)
+            ->and($preparation->status($draft->fresh())['status'])->toBe('retrying');
+    } finally {
+        $lock->release();
+    }
+});
+
+test('a missing working PDF cannot be reported ready from persisted preparation state', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->run($draft->id);
+    Storage::disk('local')->delete($draft->documents->firstWhere('document_type', 'curriculum_vitae')->file_path);
+    expect($preparation->status($draft->fresh())['status'])->toBe('needed');
+});
+
+test('only the dedicated PDF worker records its real polling heartbeat', function () {
+    Cache::forget('proposal-pdfs:worker-heartbeat');
+    event(new JobPopping('database', 'default'));
+    expect(Cache::has('proposal-pdfs:worker-heartbeat'))->toBeFalse();
+    event(new JobPopping('proposal-pdfs', 'proposal-pdfs'));
+    expect(Cache::get('proposal-pdfs:worker-heartbeat'))->toBe(now()->timestamp);
+});
+
+test('an interrupted third PDF conversion cannot spend another attempt when its reserved job resumes', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->where('document_type', 'curriculum_vitae')->update(['file_path' => null]);
+    $preparation = app(ProposalPdfPreparation::class);
+    $preparation->request($draft->id);
+    $state = [...$draft->fresh()->pdf_preparation_state, 'status' => 'preparing', 'attempts' => 3];
+    DB::table('proposal_drafts')->where('id', $draft->id)->update(['pdf_preparation_state' => json_encode($state, JSON_THROW_ON_ERROR)]);
+    $preparation->run($draft->id, $state['run_id']);
+    expect($preparation->status($draft->fresh())['status'])->toBe('failed')
+        ->and($draft->fresh()->pdf_preparation_state['attempts'])->toBe(3)
+        ->and($draft->fresh()->documents->firstWhere('document_type', 'curriculum_vitae')->file_path)->toBeNull();
+});
+
+test('cleanup failure cannot delete committed prepared PDFs', function () {
+    Queue::fake();
+    $draft = ($this->createDraft)();
+    $cleanup = Mockery::mock(ProposalPdfPreparation::class, [app(ProposalDraftReadiness::class)])->makePartial();
+    $cleanup->shouldReceive('prune')->andThrow(new RuntimeException('Storage listing unavailable'));
+    app()->instance(ProposalPdfPreparation::class, $cleanup);
+    $draft = ($this->completeDraft)($draft);
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
+    foreach ($draft->fresh()->documents as $document) {
+        Storage::disk('local')->assertExists($document->file_path);
+    }
+});
+
+test('PDF cleanup preserves manual replacements that are waiting to be saved', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $directory = $draft->storageDirectory().'/prepared';
+    $replacement = $directory.'/manual/detailed-proposal/upload-in-progress.pdf';
+    $obsolete = $directory.'/obsolete-generation/detailed-proposal.pdf';
+    Storage::disk('local')->put($replacement, '%PDF manual replacement');
+    Storage::disk('local')->put($obsolete, '%PDF obsolete generation');
+
+    app(ProposalPdfPreparation::class)->prune($draft);
+
+    Storage::disk('local')->assertExists($replacement);
+    Storage::disk('local')->assertMissing($obsolete);
+    foreach ($draft->documents as $document) {
+        Storage::disk('local')->assertExists($document->file_path);
+    }
+});
+
+test('editing a CV invalidates its working PDF without rebuilding unrelated papers', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $paths = $draft->documents->pluck('file_path', 'document_type')->all();
+    $document = $draft->documents->firstWhere('document_type', 'curriculum_vitae');
+    $source = $document->source_data;
+    $source['people'][0]['agency'] = 'Updated agency';
+    app(SaveProposalDraftDocument::class)->handle($draft, $this->faculty, 'curriculum_vitae', 0, $document->lock_version, [
+        'source_data' => $source, 'completed_at' => now(),
+    ]);
+    $current = $draft->fresh()->documents->keyBy('document_type');
+    expect($current['curriculum_vitae']->file_path)->toBeNull()
+        ->and($current['work_plan']->file_path)->toBe($paths['work_plan'])
+        ->and($current['line_item_budget']->file_path)->toBe($paths['line_item_budget']);
+    app(ProposalPdfPreparation::class)->run($draft->id);
+    expect($current['curriculum_vitae']->fresh()->file_path)->not->toBeNull();
+});
+
+test('an edit made during PDF conversion wins and the obsolete conversion is removed', function () {
+    Queue::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $document = $draft->documents->firstWhere('document_type', 'curriculum_vitae');
+    $source = $document->source_data;
+    $source['people'][0]['agency'] = 'First edit';
+    app(SaveProposalDraftDocument::class)->handle($draft, $this->faculty, 'curriculum_vitae', 0, $document->lock_version, ['source_data' => $source]);
+    app()->instance(DocumentPdfConverter::class, new class($document) implements DocumentPdfConverter
+    {
+        private bool $edited = false;
+
+        public function __construct(private ProposalDraftDocument $document) {}
+
+        public function convertDocx(string $contents): string
+        {
+            if (! $this->edited) {
+                $this->edited = true;
+                $latest = $this->document->fresh();
+                $source = $latest->source_data;
+                $source['people'][0]['agency'] = 'Newest edit during preparation';
+                $latest->update(['source_data' => $source, 'lock_version' => $latest->lock_version + 1]);
+            }
+
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return $this->convertDocx($contents);
+        }
+    });
+    app(ProposalPdfPreparation::class)->run($draft->id);
+    expect($document->fresh()->source_data['people'][0]['agency'])->toBe('Newest edit during preparation')
+        ->and($document->fresh()->file_path)->toBeNull();
+    app(ProposalPdfPreparation::class)->run($draft->id);
+    expect($document->fresh()->source_data['people'][0]['agency'])->toBe('Newest edit during preparation')
+        ->and($document->fresh()->file_path)->not->toBeNull();
+});
+
+test('submission readiness guides only authorized editors to precise missing fields', function () {
+    $draft = ($this->createDraft)();
+    $response = $this->actingAs($this->faculty)
+        ->getJson(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()
+        ->assertJsonPath('status', 'incomplete')
+        ->assertJsonPath('can_guide', true);
+    $duration = collect($response->json('blockers'))->firstWhere('field', 'duration_months');
+    expect($duration['paper'])->toBe('details')
+        ->and($duration['message'])->toContain('duration')
+        ->and($duration['url'])->toBe(route('faculty.proposal-drafts.show', [
+            'proposalDraft' => $draft, 'proposal_requirement' => 'duration_months',
+        ]).'#project-details');
+
+    $this->actingAs($this->otherFaculty)->getJson(route('faculty.proposal-drafts.review', $draft))->assertForbidden();
+
+    $draft->update(['status' => ProposalDraft::STATUS_SUBMITTING]);
+    $locked = $this->actingAs($this->faculty)->getJson(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()->assertJsonPath('can_guide', false);
+    expect(collect($locked->json('blockers'))->every(fn (array $blocker): bool => $blocker['url'] === null))->toBeTrue();
+});
+
+test('submission readiness separates PDF preparation and office requirements from missing content', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $this->actingAs($this->faculty)
+        ->getJson(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()->assertJsonPath('status', 'ready')->assertJsonPath('ready_to_submit', true)
+        ->assertJsonCount(0, 'blockers');
+
+    $draft->documents()->update(['file_path' => null, 'mime_type' => null]);
+    $this->getJson(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()->assertJsonPath('status', 'prepare')->assertJsonPath('ready_to_prepare', true)
+        ->assertJsonPath('ready_to_submit', false)->assertJsonCount(0, 'blockers');
+
+    $draft->update(['signatory_selections' => []]);
+    ProposalSignatory::query()->delete();
+    config(['work_plan.verifier.name' => '', 'notice_to_proceed.issuing_officer.name' => '']);
+    $office = $this->getJson(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()->assertJsonPath('status', 'office')->assertJsonPath('ready_to_prepare', false);
+    expect(collect($office->json('blockers'))->every(fn (array $blocker): bool => $blocker['owner'] === 'research_office' && $blocker['url'] === null))->toBeTrue();
+});
+
+test('automatic submission guidance is connected to the hub and every paper editor', function () {
+    $draft = ($this->createDraft)();
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()->assertSee('data-proposal-readiness-continue', false)
+        ->assertSee('data-proposal-paper="details"', false)
+        ->assertSee('Required information needs attention')
+        ->assertDontSee('Open section');
+
+    foreach (['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae'] as $paper) {
+        $this->get(route('faculty.proposal-drafts.'.$paper.'.edit', ['proposalDraft' => $draft, 'proposal_requirement' => '__paper__']))
+            ->assertOk()->assertSee('data-proposal-paper="'.$paper.'"', false)
+            ->assertSee('data-proposal-readiness-label', false);
+    }
 });
 
 test('paper and review pages render saved files and final readiness actions', function () {
@@ -2129,8 +2532,9 @@ test('submission PDFs can be prepared from CV values using the official display 
         ->and($savedCurriculumVitae->source_data['people'][0]['birthday'])->toBe('1995-06-12');
 });
 
-test('Livewire prepares initial and unseen update PDFs without leaving the review modal', function (bool $isUpdate) {
+test('the review modal refreshes when automatic PDFs finish for initial and unseen updates', function (bool $isUpdate) {
     Notification::fake();
+    Queue::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
     if ($isUpdate) {
         $topic = app(SubmitProposalDraft::class)->handle($draft, $this->faculty);
@@ -2149,12 +2553,21 @@ test('Livewire prepares initial and unseen update PDFs without leaving the revie
             'proposalDraft' => $draft,
             'inModal' => true,
         ])
-        ->assertSee('Prepare seven PDFs')
-        ->call('prepare')
+        ->assertSee('Submission PDFs update automatically')
+        ->assertDontSee('Prepare seven PDFs');
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertAccepted()
+        ->assertJsonPath('preparation.status', 'queued');
+    Queue::assertPushed(PrepareProposalDraftPdfs::class);
+    app(ProposalPdfPreparation::class)->run($draft->id);
+
+    $component->call('$refresh')
         ->assertHasNoErrors()
         ->assertNoRedirect()
-        ->assertSet('statusMessage', 'Seven PDFs prepared. Review the five proposal papers; the two assessment forms are included automatically.')
-        ->assertSee('Submission PDFs prepared');
+        ->assertSee('Submission PDFs are up to date.')
+        ->assertSee('Ready to turn in');
 
     if ($isUpdate) {
         $component->assertSee('Submit Version 2');
@@ -2214,6 +2627,11 @@ test('faculty reviews five proposal papers while two generated assessment forms 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
+        ->assertSee('Loading proposal review')
+        ->assertDontSee('Choose replacement PDF');
+
+    $this->get(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()
         ->assertSee('Prepared PDF ready')
         ->assertSee('Download prepared PDF')
         ->assertSee('Choose replacement PDF')
@@ -2222,7 +2640,7 @@ test('faculty reviews five proposal papers while two generated assessment forms 
         ->assertSee('no faculty answers or replacement uploads are needed');
 
     $workspace = $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.show', $draft));
+        ->get(route('faculty.proposal-drafts.review', $draft));
 
     expect(substr_count($workspace->getContent(), 'Choose replacement PDF'))->toBe(5);
 
@@ -2287,7 +2705,13 @@ test('faculty reviews five proposal papers while two generated assessment forms 
     );
 
     expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeFalse()
-        ->and($draft->documents()->whereNotNull('file_path')->count())->toBe(0);
+        ->and($draft->documents()->whereNull('file_path')->pluck('document_type')->all())
+        ->toEqualCanonicalizing([
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        ])
+        ->and($draft->documents()->whereNotNull('file_path')->count())->toBe(4);
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
@@ -2929,6 +3353,7 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
                 'no_change' => $noChange, 'page' => 1, 'paragraph' => 2,
             ]])->all(),
         ];
+        $revisionDraft = null;
         if ($noChange) {
             $payload['revision_resolutions'] = [ProposalVersionFile::TYPE_DETAILED_PROPOSAL => [
                 'action' => 'no_change', 'explanation' => 'The existing summary addresses this comment.',
@@ -2955,11 +3380,23 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
                 'file' => UploadedFile::fake()->createWithContent('revised-proposal.pdf', $prepared->streamedContent()),
             ])->assertOk();
         }
+        $history = $revisionDraft?->documentVersions()->get() ?? collect();
         $previous = $version();
         $this->patch(route('faculty.topics.resubmit', $topic), $payload)->assertSessionHasNoErrors();
         expect($topic->fresh()->status)->toBe($expectedStatus)
             ->and($version()->version_number)->toBe($previous->version_number + 1)
             ->and($review->fileRevisions()->whereNull('resolved_at')->count())->toBe(0);
+        if ($revisionDraft) {
+            expect(ProposalDraft::withTrashed()->whereKey($revisionDraft->id)->exists())->toBeFalse();
+            Storage::disk('local')->assertDirectoryEmpty($revisionDraft->storageDirectory());
+            foreach ($history as $savedVersion) {
+                $savedVersion->refresh();
+                expect($savedVersion->topic_id)->toBe($topic->id)->and($savedVersion->proposal_draft_id)->toBeNull();
+                if ($savedVersion->hasStoredFile()) {
+                    Storage::disk('local')->assertExists($savedVersion->file_path);
+                }
+            }
+        }
         foreach ($feedback->rows($review->fresh()) as $row) {
             expect($row['comment'])->not->toBeEmpty()
                 ->and($row['response'])->toBe($payload['feedback_responses'][$row['key']]['response'])

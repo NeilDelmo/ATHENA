@@ -23,6 +23,8 @@
         data-curriculum-vitae-workspace
         @focusin="focusCurriculumVitaeField($event)"
         data-paper-editor
+        data-proposal-paper="curriculum-vitae"
+        data-proposal-readiness-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}"
         data-paper-draft-save="true"
         data-curriculum-vitae-autosave="true"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
@@ -43,6 +45,11 @@
             revisionReviewUrl: @js($proposalDraft->topic_id ? route('faculty.topics.revision', $proposalDraft->topic_id).'#review-and-submit' : null),
         })"
     >
+        <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
+        @if (request()->has('proposal_requirement'))
+            <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" />
+        @endif
+
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif

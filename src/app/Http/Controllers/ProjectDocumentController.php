@@ -6,6 +6,7 @@ use App\Actions\StoreProjectDocuments;
 use App\Http\Requests\StoreProjectDocumentRequest;
 use App\Models\ProjectDocument;
 use App\Models\TopicProposal;
+use App\Services\ImagePreviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -37,11 +38,16 @@ class ProjectDocumentController extends Controller
         Request $request,
         TopicProposal $topic,
         ProjectDocument $projectDocument,
+        ImagePreviewService $previews,
     ): StreamedResponse {
         Gate::forUser($request->user())->authorize('view', $topic);
         abort_unless(Storage::disk('local')->exists($projectDocument->file_path), 404);
         $mimeType = Storage::disk('local')->mimeType($projectDocument->file_path);
         abort_unless(in_array($mimeType, ['application/pdf', 'image/jpeg', 'image/png'], true), 404);
+
+        if ($request->boolean('preview') && str_starts_with($mimeType, 'image/')) {
+            return $previews->response($projectDocument->file_path, $projectDocument->original_filename);
+        }
 
         return Storage::disk('local')->response(
             $projectDocument->file_path,

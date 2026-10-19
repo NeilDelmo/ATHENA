@@ -1,10 +1,15 @@
 <?php
 
 use App\Http\Middleware\EnsureWorkspace;
+use App\Http\Middleware\HandleFileUploads;
+use App\Http\Middleware\MeasureRequestPerformance;
+use App\Http\Middleware\RememberWorkspacePage;
+use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -17,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->web(prepend: [MeasureRequestPerformance::class], append: [RememberWorkspacePage::class, HandleFileUploads::class]);
+        $middleware->prependToPriorityList(SubstituteBindings::class, RememberWorkspacePage::class);
+        $middleware->appendToPriorityList(SubstituteBindings::class, EnsureWorkspace::class);
+        $middleware->appendToPriorityList([EnsureWorkspace::class, SubstituteBindings::class, Authorize::class], HandleFileUploads::class);
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'workspace' => EnsureWorkspace::class,
@@ -27,8 +36,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*')
+                || ($request->hasHeader('X-Athena-Upload-ID') && $request->expectsJson())
                 || $request->routeIs('research-support.chat')
                 || $request->routeIs('research-manuals.guidance-check')
+                || ($request->expectsJson() && $request->routeIs('research-manuals.show'))
                 || $request->routeIs('research-support.proposal-changes.resolve')
                 || $request->routeIs('research-support.report-changes.resolve')
                 || $request->routeIs('research-support.history', 'research-support.history.*')
@@ -72,6 +83,10 @@ return Application::configure(basePath: dirname(__DIR__))
                     'faculty.proposal-drafts.expense-breakdown.download',
                     'faculty.proposal-drafts.curriculum-vitae.update',
                     'project-progress.draft',
+                    'project-report-drafts.edit-state',
+                    'notifications.read',
+                    'notifications.read-all',
+                    'notifications.open',
                     'project-narrative-reports.draft',
                     'project-narrative-reports.preview',
                     'project-progress.preview',

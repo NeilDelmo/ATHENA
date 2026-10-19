@@ -12,6 +12,7 @@
         'token' => hash('sha256', $image['path']), 'filename' => $image['original_filename'] ?? basename($image['path']),
         'caption' => old('saved_evidence_captions.'.hash('sha256', $image['path']), $image['caption'] ?? ''),
         'url' => route('research_coordinator.reports.evidence', ['report' => $report, 'index' => $index]),
+        'preview_url' => route('research_coordinator.reports.evidence', ['report' => $report, 'index' => $index, 'preview' => 1]),
     ])->values()->all();
     $nextQuarter = $period['end']->addDay()->startOfDay();
     $inputClass = 'w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-950 dark:text-white';
@@ -180,10 +181,11 @@
                         $evidenceUrl = $evidence['url'] ?? route('research_coordinator.reports.evidence', ['report' => $report, 'index' => $index]);
                         $evidenceLabel = $report?->evidenceLabel($evidence) ?: ($evidence['caption'] ?? 'Supporting documentation '.($index + 1));
                         $isImage = in_array($evidence['mime_type'] ?? 'image/png', ['image/jpeg', 'image/png'], true);
+                        $previewUrl = $evidenceUrl.(str_contains($evidenceUrl, '?') ? '&' : '?').'preview=1';
                     @endphp
                     <figure class="space-y-2">
                         @if ($isImage)
-                            <a href="{{ $evidenceUrl }}" target="_blank" rel="noopener" class="inline-block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img src="{{ $evidenceUrl }}" alt="{{ $evidenceLabel }}" class="max-h-64 rounded-lg object-contain" loading="lazy"></a>
+                            <a href="{{ $evidence['download_url'] ?? $evidenceUrl }}" target="_blank" rel="noopener" class="inline-block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img src="{{ $previewUrl }}" alt="{{ $evidenceLabel }}" class="max-h-64 rounded-lg object-contain" loading="lazy" decoding="async"></a>
                         @else
                             <a href="{{ $evidenceUrl }}" class="inline-block break-words rounded font-semibold text-brand underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">{{ $evidence['original_filename'] }}</a>
                         @endif

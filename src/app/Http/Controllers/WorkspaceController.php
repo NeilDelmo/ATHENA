@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SelectWorkspaceRequest;
 use App\Models\User;
+use App\Support\WorkspaceLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,7 @@ class WorkspaceController extends Controller
         $request->session()->forget('url.intended');
         $request->session()->flash('status', 'You are now using the '.$request->user()->activeWorkspaceLabel().' workspace.');
 
-        $dashboardUrl = route($request->user()->dashboardRouteName($workspace));
+        $dashboardUrl = WorkspaceLocation::destination($request, $workspace, $request->validated('resume_url'));
 
         if ($request->expectsJson()) {
             return response()->json(['redirect' => $dashboardUrl]);

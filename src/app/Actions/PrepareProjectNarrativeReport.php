@@ -79,9 +79,12 @@ class PrepareProjectNarrativeReport
                     'photo_caption_'.$index,
                     'photo_section_'.$index,
                     'reuse_photo_'.$index,
+                    'saved_photo_'.$index,
                     'photo_after_paragraph_'.$index,
                 ])
                 ->prepend('figures')
+                ->prepend('saved_images')
+                ->prepend('saved_cover_image')
                 ->prepend('cover_image_caption')
                 ->prepend('reuse_cover_image')
                 ->prepend('cover_image')

@@ -318,6 +318,32 @@ test('terminal preparation snapshots all sections and downloads the exact stored
     }
 });
 
+test('terminal draft autosaves poster and figures for reload preview preparation and discard', function () {
+    ($this->completeQuarterlyProgress)();
+    $payload = ($this->terminalPayload)([
+        'cover_image' => UploadedFile::fake()->image('saved-poster.png'), 'cover_image_caption' => 'Saved project poster',
+        'photo_1' => UploadedFile::fake()->image('saved-result.png'), 'photo_caption_1' => 'Saved final result', 'photo_section_1' => 'results_discussion', 'draft_version' => 0,
+    ]);
+    $response = $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), $payload)->assertSuccessful();
+    $cover = $response->json('images.cover_image');
+    $figure = $response->json('images.photo_1');
+    expect($cover['id'] ?? null)->not->toBeNull()->and($figure['id'] ?? null)->not->toBeNull();
+    $this->get($cover['preview_url'])->assertSuccessful();
+    $this->get(route('project-narrative-reports.create', [$this->topic, 'report_type' => 'terminal']))->assertSuccessful()->assertSee($cover['id'])->assertSee($figure['id']);
+    unset($payload['cover_image'], $payload['photo_1'], $payload['draft_version']);
+    $payload['saved_cover_image'] = $cover['id'];
+    $payload['saved_photo_1'] = $figure['id'];
+    $this->post(route('project-narrative-reports.preview', $this->topic), $payload)->assertSuccessful()->assertSee($cover['preview_url'], false)->assertSee('Saved final result');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertRedirect()->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::where('report_type', 'terminal')->sole();
+    expect($report->photos)->toHaveCount(2)->and($report->photos[0]['section'])->toBe('cover');
+    Storage::disk('local')->assertExists(array_column($report->photos, 'path'));
+    $this->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))->assertRedirect()->assertSessionHasNoErrors();
+    $draft = ProjectNarrativeReportDraft::where('report_type', 'terminal')->sole();
+    expect($draft->source_data['saved_images'])->toHaveCount(2);
+    Storage::disk('local')->assertExists(array_column($draft->source_data['saved_images'], 'path'));
+});
+
 test('terminal and progress drafts remain separate and preserve arrays and long narratives', function () {
     $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 0, 'report_type' => 'progress', 'introduction' => 'Progress draft'])->assertOk();
     $payload = ($this->terminalPayload)();
@@ -388,7 +414,7 @@ test('terminal reuses only same-project evidence and keeps source files when dis
     Storage::disk('local')->assertMissing($terminal->photos[0]['path']);
     $restored = ProjectNarrativeReportDraft::where('report_type', 'terminal')->firstOrFail();
     expect($restored->source_data['terminal_data']['conclusions'])->toContain('The objectives were achieved.')
-        ->and($restored->source_data['reuse_photo_1'])->toBe($source->id.':0');
+        ->and($restored->source_data['saved_photo_1'])->not->toBeNull();
     $payload['reuse_photo_1'] = '999999:0';
     $this->postJson(route('project-narrative-reports.preview', $this->topic), $payload)->assertUnprocessable()->assertJsonValidationErrors('reuse_photo_1');
 });

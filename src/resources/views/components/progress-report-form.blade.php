@@ -1,4 +1,4 @@
-@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'progressDefaults' => [], 'terminalDefaults' => [], 'terminalEvidence' => [], 'quarterOptions' => [], 'selectedReportingDate' => null])
+@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'progressDefaults' => [], 'terminalDefaults' => [], 'terminalEvidence' => [], 'quarterOptions' => [], 'selectedReportingDate' => null, 'draftRecoveryState' => null])
 @php
     $reportType = $preparedReport?->report_type ?? old('report_type', request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress')));
     $reportLabel = $reportType === 'terminal' ? 'Terminal report' : 'Progress report';
@@ -45,7 +45,7 @@
     </section>
 @else
 @if ($reportType === 'terminal')
-    <x-terminal-report-form :topic="$topic" :draft="$narrativeReportDraft" :defaults="$terminalDefaults" :evidence="$terminalEvidence" :standalone="$standalone" />
+    <x-terminal-report-form :topic="$topic" :draft="$narrativeReportDraft" :defaults="$terminalDefaults" :evidence="$terminalEvidence" :standalone="$standalone" :draft-recovery-state="$draftRecoveryState" />
 @else
 @php
     $proposalDraft = $topic->revisionDraft;
@@ -78,11 +78,12 @@
         foreach (array_keys($draftData) as $key) {
             if (preg_match('/^photo_caption_(\d+)$/', $key, $matches) === 1) {
                 $index = (int) $matches[1];
-                $figureRows[] = ['caption' => $draftData[$key] ?? '', 'section' => $draftData['photo_section_'.$index] ?? 'results_discussion', 'after_paragraph' => $draftData['photo_after_paragraph_'.$index] ?? 0];
+                $figureRows[] = ['caption' => $draftData[$key] ?? '', 'section' => $draftData['photo_section_'.$index] ?? 'results_discussion', 'after_paragraph' => $draftData['photo_after_paragraph_'.$index] ?? 0, 'image_id' => $draftData['saved_photo_'.$index] ?? ''];
             }
         }
     }
-    $figureRows = collect($figureRows)->map(fn ($row) => is_array($row) ? \Illuminate\Support\Arr::only($row, ['caption', 'section', 'after_paragraph']) : [])->values()->all();
+    $savedImages = app(\App\Services\ReportFigureDraftService::class)->displayImages($topic, [...$draftData, 'figures' => $figureRows]);
+    $figureRows = collect($figureRows)->map(fn ($row, $index) => [...(is_array($row) ? \Illuminate\Support\Arr::only($row, ['caption', 'section', 'after_paragraph', 'image_id']) : []), 'previewUrl' => $savedImages['figures'][$index]['image']['preview_url'] ?? '', 'imageName' => $savedImages['figures'][$index]['image']['name'] ?? ''])->values()->all();
     $defaultSubmissionDate = array_key_exists('submission_date', $draftData) ? $draftData['submission_date'] : now()->toDateString();
     $defaultTrackingNumber = array_key_exists('tracking_number', $draftData) ? $draftData['tracking_number'] : '';
     $defaultResearchers = array_key_exists('researchers', $draftData) ? $draftData['researchers'] : $researcherNames;
@@ -119,6 +120,15 @@
     </header>
     @endif
 
+    <x-proposal-collaboration-monitor
+        :loaded-version="$narrativeReportDraft?->lock_version ?? 0"
+        :state-url="route('project-report-drafts.edit-state', ['topic' => $topic, 'kind' => 'progress', 'reportingDate' => $selectedReportingDate, 'source' => 0])"
+        :state-scope="$draftRecoveryState['scope'] ?? null"
+        :reload-url="route('project-narrative-reports.create', ['topic' => $topic, 'reporting_date' => $selectedReportingDate])"
+        label="Progress Report"
+        report-recovery
+    />
+
     <x-monitoring-writing-toolbar
         :topic="$topic"
         report-label="Progress Report"
@@ -134,6 +144,7 @@
     <form id="progress-form-{{ $topic->id }}" x-ref="form" data-narrative-progress-autosave-form data-assistant-report-type="progress-report" data-assistant-report-key="progress-report:topic:{{ $topic->id }}" method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitNarrativeReport($event)">
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
+        <input type="hidden" name="recovery_scope" value="{{ $draftRecoveryState['scope'] ?? '' }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
         <x-assistant-report-editor :context="['report_type' => 'progress-report', 'topic_id' => $topic->id]" />
         <div class="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
@@ -159,7 +170,7 @@
             </div>
         @endif
 
-        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes and accomplishment evidence save privately as a draft. Attach evidence for each reported accomplishment before submission. Submitted evidence appears in the project folder and the College Accomplishment Report supporting documentation. Evidence stays out of the report preview and downloaded PDF. Select figure files before preparing the PDF; figures are included in the report and must be selected again after reloading.</p>
+        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes, figures, and accomplishment evidence save privately as a draft. Wait for “Draft saved” before leaving. Attach evidence for each reported accomplishment before submission. Submitted evidence appears in the project folder and the College Accomplishment Report supporting documentation. Evidence stays out of the report preview and downloaded PDF; figures are included in the report.</p>
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>.</p>
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -286,7 +297,8 @@
             </div>
             <p x-show="figureRows.length === 0" class="text-base text-gray-600 dark:text-slate-300">No figures added.</p>
             <template x-for="(figure, index) in figureRows" :key="figure.id">
-                <div class="space-y-4 rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
+                <div data-report-image class="space-y-4 rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900" @report-image-saved="if (figure.previewUrl.startsWith('blob:')) URL.revokeObjectURL(figure.previewUrl); figure.image_id = $event.detail.id; figure.imageName = $event.detail.name; figure.previewUrl = $event.detail.preview_url">
+                    <input type="hidden" :name="'figures[' + index + '][image_id]'" x-model="figure.image_id">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <h4 class="text-base font-bold text-brand dark:text-red-200" x-text="'Figure entry ' + (index + 1)"></h4>
                         <div class="flex flex-wrap gap-2">
@@ -299,6 +311,7 @@
                     <div class="grid gap-4 md:grid-cols-2">
                         <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Figure image
                             <input type="file" :name="'figures[' + index + '][image]'" accept=".jpg,.jpeg,.png" @change="selectFigureFile(figure, $event)" class="mt-2 block w-full rounded-xl border border-gray-200 p-3 text-sm dark:border-slate-700">
+                            <span class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" role="status" x-text="figure.image_id ? 'Saved with draft: ' + figure.imageName : (figure.previewUrl ? 'Image waiting to save…' : '')"></span>
                         </label>
                         <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Caption
                             <input type="text" :name="'figures[' + index + '][caption]'" x-model="figure.caption" :required="!!figure.previewUrl" maxlength="1000" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Describe what this figure demonstrates">

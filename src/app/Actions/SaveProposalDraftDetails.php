@@ -23,7 +23,7 @@ class SaveProposalDraftDetails
 
             if ($lockedDraft->lock_version !== $expectedVersion) {
                 throw ValidationException::withMessages([
-                    'draft_version' => 'A teammate saved newer project details. Copy any unsaved text you need, then reload the page before editing again.',
+                    'draft_version' => 'A teammate saved newer project details. Check the recovery copy status, then load the latest saved work to compare your entries.',
                 ]);
             }
 

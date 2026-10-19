@@ -129,11 +129,13 @@ test('the shared composer sends on Enter and preserves multiline and IME input',
 test('source counts safely handle a newly sent user message without source metadata', () => {
     for (const surface of ['workspace', 'drawer']) {
         const view = readFileSync(new URL(`../../resources/views/components/research-assistant-${surface}.blade.php`, import.meta.url), 'utf8');
-        const expression = view.match(/x-text="([^"]*message\.sources[^\"]+)"/)[1];
-        const count = new Function('message', `return ${expression}`);
-        assert.equal(count({ role: 'user', content: 'My question' }), '(0)');
-        assert.equal(count({ role: 'assistant', sources: [{ reference: '[1]' }] }), '(1)');
+        assert.match(view, /<x-research-assistant-sources\s*\/>/);
     }
+    const shared = readFileSync(new URL('../../resources/views/components/research-assistant-sources.blade.php', import.meta.url), 'utf8');
+    const expression = shared.match(/x-text="([^"]*message\.sources[^\"]+)"/)[1];
+    const count = new Function('message', `return ${expression}`);
+    assert.equal(count({ role: 'user', content: 'My question' }), '(0)');
+    assert.equal(count({ role: 'assistant', sources: [{ reference: '[1]' }] }), '(1)');
 });
 
 test('Escape in history returns focus to the composer without closing its workspace', () => {

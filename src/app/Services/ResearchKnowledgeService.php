@@ -65,6 +65,7 @@ class ResearchKnowledgeService
         if ($manual !== null) {
             $manualSources = array_map(function (array $source) use ($manual): array {
                 $source['title'] .= ' · Edition '.$manual->edition;
+                $source['edition'] = $manual->edition;
 
                 return $source;
             }, $manualSources);
@@ -225,7 +226,8 @@ PROMPT;
                 'type' => $source['type'],
                 'category' => $source['category'],
                 'url' => $source['url'],
-                ...collect($source)->only(['section', 'page_start', 'page_end', 'document_version', 'source_kind'])->all(),
+                'excerpt' => Str::substr($source['content'], 0, 1200),
+                ...collect($source)->only(['section', 'page_start', 'page_end', 'document_version', 'source_kind', 'edition'])->all(),
             ])
             ->all();
     }

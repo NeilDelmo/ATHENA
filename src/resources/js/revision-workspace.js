@@ -684,6 +684,13 @@ export function initializeRevisionPreviews(form, topicId) {
         frame.addEventListener('load', applyZoom);
         for (const paperFrame of [submittedFrame, frame]) {
             paperFrame?.addEventListener('revision-pdf-ready', applyZoom);
+            paperFrame?.addEventListener('revision-pdf-reading-view', () => {
+                const restored = paperFrame.contentWindow?.athenaRevisionPdf?.readingView?.();
+                if (!restored) return;
+                zoom = restored.zoom;
+                fit = restored.fit;
+                applyZoom();
+            });
         }
         submittedFrame?.addEventListener('load', applyZoom);
         if (typeof ResizeObserver !== 'undefined') {
@@ -764,6 +771,10 @@ export function initializeRevisionPreviews(form, topicId) {
             reference?.classList.toggle('revision-reference-expanded', expanded);
             fit = 'width';
             zoom = 100;
+            try {
+                const restored = (panel.hidden ? submittedFrame : frame)?.contentWindow?.athenaRevisionPdf?.readingView?.();
+                if (restored) { zoom = restored.zoom; fit = restored.fit; }
+            } catch { /* Native PDF viewers own their reading position. */ }
             applyZoom();
             paperTriggers.forEach((trigger) => trigger.setAttribute('aria-expanded', String(expanded)));
             for (const paperFrame of [frame, card.querySelector('[data-revision-pdf-frame]')]) {
@@ -787,6 +798,7 @@ export function initializeRevisionPreviews(form, topicId) {
                     paperFrame,
                     () => reference.classList.contains('revision-reference-expanded'),
                     (amount) => resizeZoom(amount),
+                    () => zoom,
                 );
                 paperDocument.body.style.cursor = reference.classList.contains('revision-reference-expanded') ? 'auto' : 'zoom-in';
                 paperDocument.addEventListener('keydown', (event) => {
@@ -819,7 +831,7 @@ export function initializeRevisionPreviews(form, topicId) {
             bindPaperFrame(paperFrame);
         }
         const resizeZoom = (amount) => {
-            zoom = Math.max(50, Math.min(150, zoom + amount));
+            zoom = Math.max(50, Math.min(150, Math.round((zoom + amount) * 100) / 100));
             applyZoom();
         };
         card.querySelector('[data-revision-zoom-out]')?.addEventListener('click', () => resizeZoom(-10));

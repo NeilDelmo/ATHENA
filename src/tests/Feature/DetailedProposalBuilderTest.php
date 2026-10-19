@@ -1345,7 +1345,7 @@ test('detailed proposal auto-save synchronizes saved methodology images', functi
     $response->assertJsonPath('methodology_images.0.id', $image['id'])
         ->assertJsonPath(
             'methodology_images.0.url',
-            route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$this->draft, $image['id']]),
+            route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$this->draft, $image['id'], 'preview' => 1]),
         );
 });
 
@@ -1416,14 +1416,15 @@ test('methodology visuals can be saved, positioned, previewed, and included in t
         ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
         ->assertOk()
         ->assertSee('Figure 1. Community coastal monitoring workflow')
-        ->assertSee('data:image/png;base64,', false);
+        ->assertSee(route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$this->draft, $image['id'], 'preview' => 1]))
+        ->assertSee('media="print"', false);
     $previewContent = $preview->getContent();
 
     expect(strpos($previewContent, 'XII. Methodology:'))
         ->toBeLessThan(strpos($previewContent, 'Research Design'))
         ->and(strpos($previewContent, 'Research Design'))
-        ->toBeLessThan(strpos($previewContent, 'data:image/png;base64,'))
-        ->and(strpos($previewContent, 'data:image/png;base64,'))
+        ->toBeLessThan(strpos($previewContent, 'src="'.route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$this->draft, $image['id'], 'preview' => 1]).'"'))
+        ->and(strpos($previewContent, 'src="'.route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$this->draft, $image['id'], 'preview' => 1]).'"'))
         ->toBeLessThan(strpos($previewContent, 'Figure 1. Community coastal monitoring workflow'))
         ->and(strpos($previewContent, 'Figure 1. Community coastal monitoring workflow'))
         ->toBeLessThan(strpos($previewContent, 'The study uses a sequential mixed-method research design.'));

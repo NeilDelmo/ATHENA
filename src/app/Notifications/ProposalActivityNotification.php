@@ -2,6 +2,9 @@
 
 namespace App\Notifications;
 
+use App\Models\TopicProposal;
+use App\Models\User;
+use App\Services\ApprovedWorkPlanMonitoringService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
@@ -41,6 +44,22 @@ class ProposalActivityNotification extends Notification
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast'];
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        $key = $this->actionData['work_plan_overdue_key'] ?? null;
+        if ($key === null) {
+            return true;
+        }
+        $topic = TopicProposal::query()->find($this->topicId);
+        if (! $notifiable instanceof User || $topic === null
+            || ($topic->user_id !== $notifiable->id && ! $notifiable->hasRole(User::WORKSPACE_RESEARCH_HEAD))) {
+            return false;
+        }
+
+        return collect(app(ApprovedWorkPlanMonitoringService::class)->overdueActivities($topic))
+            ->contains(fn (array $activity): bool => $topic->id.':'.$activity['source_work_plan_index'].':'.$activity['target_completion_date'] === $key);
     }
 
     /**

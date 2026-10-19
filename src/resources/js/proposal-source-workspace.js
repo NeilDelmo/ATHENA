@@ -1,3 +1,5 @@
+import { uploadRequest } from './file-upload.js';
+
 function sourceText(value) {
     return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
 }
@@ -313,10 +315,10 @@ export function proposalSourceWorkspace(config = {}) {
         },
         async sourceWorkspaceRequest(url, options = {}) {
             if (!url) throw new Error('This source action is unavailable. Refresh the editor and try again.');
-            const response = await (config.request || globalThis.fetch)(url, {
+            const response = await (config.request || uploadRequest)(url, {
                 credentials: 'same-origin', ...options,
                 headers: { Accept: 'application/json', 'X-CSRF-TOKEN': config.csrfToken || '', 'X-Requested-With': 'XMLHttpRequest', ...(options.body && !options.multipart ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
-            });
+            }, { root: this.$refs?.sourceWorkspacePanel || this.$el });
             if (response.status === 419 || response.redirected) throw new Error('Your session expired. Refresh the editor before trying again.');
             const payload = await response.json().catch(() => { throw new Error('The source service returned an unexpected response. Try again.'); });
             if (!response.ok) throw new Error(Object.values(payload?.errors || {}).flat()[0] || payload.message || 'This source action could not be completed.');

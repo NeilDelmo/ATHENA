@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\CollegeQuarterlyReportData;
 use App\Services\CollegeQuarterlyReportDocument;
 use App\Services\CollegeQuarterlyReportFacultyEvidence;
+use App\Services\ImagePreviewService;
 use App\Services\MonitoringQuarterService;
 use App\Support\ProposalRichText;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +27,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class ResearchCoordinatorReportController extends Controller
@@ -60,7 +62,7 @@ class ResearchCoordinatorReportController extends Controller
         ]);
     }
 
-    public function evidence(Request $request, CollegeQuarterlyReport $report, int $index): BinaryFileResponse
+    public function evidence(Request $request, CollegeQuarterlyReport $report, int $index, ImagePreviewService $previews): BinaryFileResponse|StreamedResponse
     {
         if ($request->user()->hasRole('research_head') && $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
             abort_unless($report->submitted_at !== null, 403);
@@ -70,6 +72,10 @@ class ResearchCoordinatorReportController extends Controller
         }
         $evidence = $report->evidence[$index] ?? null;
         abort_unless(is_array($evidence) && Storage::disk('local')->exists($evidence['path']), 404);
+
+        if ($request->boolean('preview') && in_array($evidence['mime_type'], ['image/jpeg', 'image/png'], true)) {
+            return $previews->response($evidence['path'], $evidence['original_filename']);
+        }
 
         $headers = [
             'Content-Type' => $evidence['mime_type'], 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store',

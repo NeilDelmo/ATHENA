@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\CheckResearchManualGuidance;
 use App\Models\ProposalDraft;
 use App\Models\ResearchManual;
 use App\Models\TopicProposal;
@@ -8,9 +9,12 @@ use App\Services\ResearchManualIndexer;
 use App\Services\ResearchManualLibrary;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
@@ -58,6 +62,8 @@ test('legacy adoption preserves original files and pins existing unassigned prop
     $index = app(ResearchManualIndexer::class)->index($this->sourcePath, 'Legacy Research Manual');
     $legacyPdf = File::get(dirname($this->activeIndexPath).'/manual.pdf');
     $draft = ProposalDraft::create(['user_id' => $this->faculty->id, 'project_title' => 'Existing draft']);
+    $deletedDraft = ProposalDraft::create(['user_id' => $this->faculty->id, 'project_title' => 'Recoverable existing draft']);
+    $deletedDraft->delete();
     $topic = TopicProposal::create(['user_id' => $this->faculty->id, 'title' => 'Existing project', 'description' => 'Existing research']);
     File::put($this->sourcePath, "%PDF-1.4\nReplacement edition");
     $library = app(ResearchManualLibrary::class);
@@ -66,6 +72,7 @@ test('legacy adoption preserves original files and pins existing unassigned prop
     $library->activate($replacement);
 
     expect($draft->fresh()->research_manual_id)->toBe($legacy->id)
+        ->and(ProposalDraft::withTrashed()->findOrFail($deletedDraft->id)->research_manual_id)->toBe($legacy->id)
         ->and($topic->fresh()->research_manual_id)->toBe($legacy->id)
         ->and(File::get($legacy->pdfPath()))->toBe($legacyPdf)
         ->and(json_decode(File::get($legacy->indexPath()), true)['version'])->toBe($index['version'])
@@ -121,6 +128,34 @@ test('uploads validate metadata pdf type and size', function () {
         'title' => 'Research Manual', 'edition' => '2026', 'effective_date' => '2026-01-01',
         'manual' => UploadedFile::fake()->create('manual.pdf', 25601, 'application/pdf'),
     ])->assertSessionHasErrors('manual');
+    expect(ResearchManual::count())->toBe(0);
+});
+
+test('progress uploads retain a single private manual and one check job when a saved response is retried', function () {
+    config(['cache.default' => 'array']);
+    Cache::flush();
+    Queue::fake();
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $this->withCookie(config('session.cookie'), app('session')->getId());
+    $headers = ['Accept' => 'application/json', 'X-Athena-Upload-ID' => (string) Str::uuid(), 'X-Athena-Upload-Form' => '1'];
+    $data = fn (): array => ['title' => 'Research Manual', 'edition' => '2026', 'effective_date' => '2026-01-01', 'manual' => manualUpload()];
+    $this->post(route('research-manuals.store'), $data(), $headers)->assertOk();
+    $manual = ResearchManual::sole();
+    $this->post(route('research-manuals.store'), $data(), [...$headers, 'X-Athena-Upload-Retry' => '1'])
+        ->assertOk()->assertJson(['redirect' => route('research-manuals.show', $manual)]);
+    expect(ResearchManual::count())->toBe(1)
+        ->and(app(ResearchManualLibrary::class)->active())->toBeNull();
+    Queue::assertPushed(CheckResearchManualGuidance::class, 1);
+    $this->head->removeRole('research_head');
+    $this->post(route('research-manuals.store'), $data(), [...$headers, 'X-Athena-Upload-Retry' => '1'])->assertForbidden();
+});
+
+test('progress manual uploads return validation JSON before saving an invalid edition', function () {
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $this->post(route('research-manuals.store'), [
+        'title' => '', 'edition' => '2026', 'effective_date' => '2026-01-01', 'manual' => manualUpload(),
+    ], ['Accept' => 'application/json', 'X-Athena-Upload-ID' => (string) Str::uuid(), 'X-Athena-Upload-Form' => '1'])
+        ->assertUnprocessable()->assertJsonValidationErrors('title');
     expect(ResearchManual::count())->toBe(0);
 });
 

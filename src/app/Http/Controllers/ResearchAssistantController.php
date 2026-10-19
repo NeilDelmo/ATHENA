@@ -825,11 +825,11 @@ PROMPT;
                 $sources = collect($message['sources'] ?? [])
                     ->filter(fn (mixed $source): bool => is_array($source))
                     ->map(function (array $source): array {
-                        return collect(['reference', 'title', 'url', 'type', 'category'])
+                        return collect(['reference', 'title', 'url', 'type', 'category', 'section', 'page_start', 'page_end', 'document_version', 'edition', ...(($source['type'] ?? null) === 'proposal_document' ? [] : ['excerpt'])])
                             ->mapWithKeys(fn (string $key): array => isset($source[$key]) && is_scalar($source[$key])
                                 ? [$key => $key === 'url'
                                     ? $this->proposalReview->safeSourceUrl(Str::limit((string) $source[$key], 2048, ''))
-                                    : Str::limit(strip_tags((string) $source[$key]), 2048, '')]
+                                    : Str::limit(strip_tags((string) $source[$key]), $key === 'excerpt' ? 1200 : 2048, '')]
                                 : [])
                             ->all();
                     })

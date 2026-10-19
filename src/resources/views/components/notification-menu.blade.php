@@ -64,6 +64,9 @@
             <template x-for="item in notifications" :key="item.id">
                 <form method="POST" :action="notificationOpenUrl(item)" @submit="openNotification($event, item)">
                     @csrf
+                    <template x-for="notificationId in item.notification_ids || [item.id]" :key="notificationId">
+                        <input type="hidden" name="notification_ids[]" :value="notificationId">
+                    </template>
                     <button
                         type="submit"
                         class="group flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800"
@@ -78,6 +81,7 @@
                                 <span class="shrink-0 pt-0.5 text-[10px] text-slate-400 dark:text-slate-500" x-text="item.created_at"></span>
                             </span>
                             <span class="mt-0.5 block line-clamp-2 text-xs leading-5" :class="item.read_at ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300'" x-text="item.data.message"></span>
+                            <span class="mt-1.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400" x-text="`${item.update_count || 1} ${(item.update_count || 1) === 1 ? 'update' : 'updates'} · ${item.needs_action ? 'Needs your action' : 'Information'}`"></span>
                             <span x-show="item.data.action_url && !item.data.action_completed" class="mt-1.5 inline-block text-[10px] font-semibold text-red-700 dark:text-red-300">Review invitation</span>
                         </span>
                     </button>

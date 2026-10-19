@@ -619,6 +619,13 @@ class TopicProposal extends Model
             ->latest('submission_date');
     }
 
+    public function preparedNarrativeReports(): HasMany
+    {
+        return $this->hasMany(ProjectNarrativeReport::class, 'topic_id')
+            ->prepared()
+            ->latest('prepared_at');
+    }
+
     public function latestProgressReport(): HasOne
     {
         return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany(

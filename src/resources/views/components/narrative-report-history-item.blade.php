@@ -12,14 +12,14 @@
     $hasSecretaryReview = ! $isTerminalReport && ($report->secretary_remarks || $canSecretaryReview || $errors->has('review'));
 @endphp
 
-<article id="{{ $reportId }}" {{ $attributes->class(['report-reader scroll-mt-36 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900']) }} data-narrative-report-card>
+<article id="{{ $reportId }}" {{ $attributes->class(['report-reader scroll-mt-36 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900']) }} data-narrative-report-card data-live-report-key="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-scope="{{ \App\Services\TopicLiveStatus::reportScope($report->topic, $report) }}">
     <header data-report-reader-heading class="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 dark:border-slate-700 sm:px-8 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0">
             <h2 class="text-lg font-semibold text-slate-950 dark:text-white">{{ $report->report_label }}@if ($report->reporting_quarter)<span class="ml-2 font-normal text-slate-500 dark:text-slate-400">Q{{ $report->reporting_quarter }}</span>@endif</h2>
             @if ($report->period_start && $report->period_end)<p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ $report->period_start->format('M j, Y') }} – {{ $report->period_end->format('M j, Y') }} <span class="ml-2 text-slate-400">v{{ $report->version_number }}</span></p>@endif
             <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $report->submitter->name }} · {{ $report->submission_date->format('M j, Y') }}</p>
             <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm leading-6 text-slate-500 dark:text-slate-400" data-narrative-report-status>
-                <p class="inline-flex items-center gap-2"><span aria-hidden="true" class="h-1.5 w-1.5 rounded-full {{ $report->review_status === 'reviewed' ? 'bg-emerald-500' : ($report->review_status === 'revision_requested' ? 'bg-red-500' : 'bg-amber-400') }}"></span>{{ $statusLabel }}</p>
+                <p data-live-report-status="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-style="plain" class="inline-flex items-center gap-2"><span data-live-report-indicator aria-hidden="true" class="h-1.5 w-1.5 rounded-full {{ $report->review_status === 'reviewed' ? 'bg-emerald-500' : ($report->review_status === 'revision_requested' ? 'bg-red-500' : 'bg-amber-400') }}"></span><span data-live-report-label>{{ $statusLabel }}</span></p>
                 @if ($isTerminalReport && ($signedCopy || $report->review_status === \App\Models\ProjectNarrativeReport::STATUS_REVIEWED))
                     <p>{{ $signedCopy ? 'Signed terminal PDF uploaded' : 'Signed terminal PDF needed' }}</p>
                 @endif

@@ -62,6 +62,7 @@ class SaveProjectProgressReportDraftRequest extends FormRequest
         return [
             ...app(MonitoringEvidenceService::class)->rules($this),
             'draft_version' => ['required', 'integer', 'min:0'],
+            'recovery_scope' => ['sometimes', 'string', 'size:64'],
             'source_report_id' => ['nullable', 'integer'],
             'reporting_date' => ['nullable', 'date'],
             'tracking_number' => ['nullable', 'string', 'max:100'],

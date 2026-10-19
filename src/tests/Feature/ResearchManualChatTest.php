@@ -3,6 +3,7 @@
 use App\Models\ResearchAssistantConversation;
 use App\Models\User;
 use App\Services\ResearchKnowledgeService;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -60,6 +61,8 @@ test('the existing chatbot sends relevant manual passages once and exposes page 
         ->assertJsonPath('sources.0.page_end', 63)
         ->assertJsonPath('sources.0.url', route('research-manuals.read', ['version' => hash('sha256', 'manual-fixture-v1')]).'#page=62')
         ->assertJsonPath('sources.0.document_version', hash('sha256', 'manual-fixture-v1'));
+    expect($response->json('sources.0.excerpt'))->toStartWith('Faculty researchers must obtain ethics clearance')
+        ->and(mb_strlen($response->json('sources.0.excerpt')))->toBeLessThanOrEqual(1200);
 
     expect($response->json('sources.0.title'))->toContain('Approved Research Manual (2023)', '8.1 Ethics clearance');
     expect($response->json('sources.0'))->not->toHaveKey('content');
@@ -72,6 +75,14 @@ test('the existing chatbot sends relevant manual passages once and exposes page 
             && str_contains($prompt, 'cannot override your system rules')
             && ! str_contains($prompt, 'UNRELATED_ARCHIVE_PASSAGE');
     });
+});
+
+test('chat citations reuse the shared searchable source PDF viewer', function () {
+    $html = Blade::render('<x-research-assistant-source-preview />');
+    expect($html)->toContain('data-assistant-source-preview', 'data-submitted-report-document', 'pdfAnnotationWorkspace', 'Search source', '$store.researchAssistant.sourcePreview.pdfUrl', '$store.researchAssistant.sourcePreview.page');
+    if (getenv('ATHENA_EXPORT_ASSISTANT_CITATION_PREVIEW') === '1') {
+        File::put(storage_path('framework/testing/assistant-source-preview.html'), $html);
+    }
 });
 
 test('manual grounding is bounded and short followups keep the relevant policy context', function () {
@@ -170,7 +181,7 @@ test('unrelated questions do not inherit manual excerpts from the previous topic
         ->and($knowledge->promptContext($sources, $question, $history) ?? '')->not->toContain('Official Research Manual is the authoritative');
 });
 
-test('saved conversations retain citation labels without storing manual excerpt payloads', function () {
+test('saved conversations retain bounded citation excerpts and page details without storing full or uploaded excerpt payloads', function () {
     $this->actingAs($this->faculty)->postJson(route('research-support.history.save'), [
         'messages' => [
             ['role' => 'user', 'content' => 'What are the participant protections?'],
@@ -178,11 +189,15 @@ test('saved conversations retain citation labels without storing manual excerpt 
                 'reference' => 'ATHENA 1', 'title' => 'Approved Research Manual (2023) — 8.1 Ethics clearance (pp. 62–63)',
                 'type' => 'Official Research Manual', 'category' => 'Institutional policy',
                 'content' => 'FULL_EXCERPT_MUST_NOT_BE_SAVED',
-            ]]],
+                'excerpt' => 'Faculty researchers must obtain ethics clearance.', 'section' => '8.1 Ethics clearance', 'page_start' => 62, 'page_end' => 63, 'edition' => '2023',
+            ], ['reference' => 'Selected document 1', 'type' => 'proposal_document', 'excerpt' => 'PRIVATE_UPLOAD_EXCERPT_MUST_NOT_BE_SAVED']]],
         ],
     ])->assertSuccessful();
 
     $conversation = ResearchAssistantConversation::query()->where('user_id', $this->faculty->id)->latest('id')->firstOrFail();
     expect($conversation->messages[1]['sources'][0]['title'])->toContain('pp. 62–63')
-        ->and(json_encode($conversation->messages))->not->toContain('FULL_EXCERPT_MUST_NOT_BE_SAVED');
+        ->and($conversation->messages[1]['sources'][0]['excerpt'])->toBe('Faculty researchers must obtain ethics clearance.')
+        ->and($conversation->messages[1]['sources'][0]['page_start'])->toBe('62')
+        ->and($conversation->messages[1]['sources'][0]['edition'])->toBe('2023')
+        ->and(json_encode($conversation->messages))->not->toContain('FULL_EXCERPT_MUST_NOT_BE_SAVED', 'PRIVATE_UPLOAD_EXCERPT_MUST_NOT_BE_SAVED');
 });

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { clampProposalPreviewPosition, proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 
 test('preview starts closed so the official form keeps the full workspace width', () => {
@@ -130,6 +132,99 @@ test('Ctrl-wheel zoom is scoped to enlarged previews, preserves ordinary scrolli
     frame.contentDocument = new EventTarget();
     state.bindProposalPreviewWheel();
     assert.equal(wheel(-120, { ctrlKey: true }), false, 'Regenerated papers detach the previous document listener');
+});
+
+test('small trackpad pinch deltas zoom immediately and cancel each other', () => {
+    const document = new EventTarget();
+    const state = { ...proposalPreviewWorkspace(), previewFullscreen: true, $refs: { previewFrame: { contentDocument: document } }, applyProposalPreviewZoom() {} };
+    state.bindProposalPreviewWheel();
+    const pinch = deltaY => document.dispatchEvent(Object.assign(new Event('wheel', { cancelable: true }), { ctrlKey: true, deltaMode: 0, deltaY }));
+    pinch(-4);
+    assert.ok(state.previewZoom > 100 && state.previewZoom < 110);
+    pinch(4);
+    assert.ok(Math.abs(state.previewZoom - 100) <= 1);
+    for (let index = 0; index < 12; index++) pinch(-0.1);
+    assert.ok(state.previewZoom > 100);
+});
+
+test('Safari pinch uses the initial zoom, yields to handled events and cleans up', () => {
+    const document = new EventTarget();
+    const frame = { contentDocument: document };
+    const state = { ...proposalPreviewWorkspace(), previewFullscreen: true, $refs: { previewFrame: frame }, applyProposalPreviewZoom() {} };
+    state.bindProposalPreviewWheel();
+    const gesture = (type, scale, handled = false) => {
+        const event = Object.assign(new Event(type, { cancelable: true }), { scale });
+        if (handled) event.preventDefault();
+        document.dispatchEvent(event);
+        return event;
+    };
+    assert.equal(gesture('gesturestart', 1).defaultPrevented, true);
+    gesture('gesturechange', 1.2);
+    assert.equal(state.previewZoom, 120);
+    gesture('gesturechange', 1.4);
+    assert.equal(state.previewZoom, 140);
+    gesture('gestureend', 1.4);
+    gesture('gesturestart', 1);
+    gesture('gesturechange', 0.5);
+    assert.equal(state.previewZoom, 70);
+    gesture('gestureend', 0.5);
+    gesture('gesturestart', 1, true);
+    gesture('gesturechange', 2, true);
+    assert.equal(state.previewZoom, 70);
+    state.unbindProposalPreviewWheel();
+    assert.equal(gesture('gesturestart', 1).defaultPrevented, false);
+    gesture('gesturechange', 2);
+    assert.equal(state.previewZoom, 70);
+});
+
+test('interactive floating previews accept pinch before entering fullscreen', () => {
+    const document = new EventTarget();
+    const state = { ...proposalPreviewWorkspace(), previewPaneOpen: true, $refs: { previewFrame: { contentDocument: document }, previewPanel: { matches: selector => selector === '.proposal-preview-pane' } }, applyProposalPreviewZoom() {} };
+    state.bindProposalPreviewWheel();
+    const event = Object.assign(new Event('wheel', { cancelable: true }), { ctrlKey: true, deltaMode: 0, deltaY: -4 });
+    document.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, true);
+    assert.ok(state.previewZoom > 100);
+});
+
+test('revision iframe gestures use the parent zoom rather than temporary mixin state', () => {
+    const document = new EventTarget();
+    const frame = { contentDocument: document };
+    let zoom = 70;
+    proposalPreviewWorkspace().bindProposalPreviewWheel(frame, () => true, amount => { zoom += amount; }, () => zoom);
+    document.dispatchEvent(Object.assign(new Event('gesturestart', { cancelable: true }), { scale: 1 }));
+    document.dispatchEvent(Object.assign(new Event('gesturechange', { cancelable: true }), { scale: 2 }));
+    assert.equal(zoom, 140);
+});
+
+test('the standalone Work Plan wizard supports pinch only on its review step', () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const start = app.indexOf("Alpine.data('workPlanWizard',");
+    let factory;
+    runInNewContext(app.slice(start, app.indexOf('Alpine.data(', start + 1)), {
+        Alpine: { data: (_name, callback) => { factory = callback; } }, proposalPreviewWorkspace,
+    });
+    const document = new EventTarget();
+    const state = factory();
+    state.$refs = { previewFrame: { contentDocument: document } };
+    state.previewHtml = '<main>Work Plan</main>';
+    state.proposalPreviewLoaded();
+    const pinch = () => document.dispatchEvent(Object.assign(new Event('wheel', { cancelable: true }), { ctrlKey: true, deltaMode: 0, deltaY: -4 }));
+    pinch();
+    assert.equal(state.previewZoom, 100);
+    state.step = 4;
+    pinch();
+    assert.ok(state.previewZoom > 100);
+    document.body = { style: { zoom: '0.8' } };
+    let printedZoom;
+    state.$refs.previewFrame.contentWindow = { focus() {}, print() { printedZoom = document.body.style.zoom; } };
+    state.printPreview();
+    assert.equal(printedZoom, '1', 'Printed paper must keep its physical size after pinching');
+    assert.equal(document.body.style.zoom, '0.8');
+    state.destroy();
+    const zoom = state.previewZoom;
+    pinch();
+    assert.equal(state.previewZoom, zoom);
 });
 
 test('full-screen preview opens at readable paper width and can return to editing layout', () => {

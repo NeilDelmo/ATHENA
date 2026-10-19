@@ -1,12 +1,25 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Draft proposals" subtitle="Prepare your project, then follow its review in Submitted.">
-            <x-slot:actions><a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action text-base">New Proposal</a></x-slot:actions>
+            <x-slot:actions>
+                <a wire:navigate href="{{ route('faculty.proposal-drafts.trash') }}" class="inline-flex min-h-11 items-center px-4 text-base font-semibold text-slate-600 dark:text-slate-300">Trash</a>
+                <a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action text-base">New Proposal</a>
+            </x-slot:actions>
         </x-page-header>
     </x-slot>
     <div class="space-y-5">
         @if (session('success'))
-            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
+            <x-proposal-alert>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <span>{{ session('success') }}</span>
+                    @if (session('deleted_proposal_draft_id'))
+                        <form method="POST" action="{{ route('faculty.proposal-drafts.restore', session('deleted_proposal_draft_id')) }}">
+                            @csrf
+                            <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-4 font-bold underline focus:outline-none focus:ring-2 focus:ring-red-600">Undo</button>
+                        </form>
+                    @endif
+                </div>
+            </x-proposal-alert>
         @endif
         @if ($errors->any())
             <x-proposal-alert type="error">
@@ -53,9 +66,9 @@
                                 action="{{ route('faculty.proposal-drafts.destroy', $proposalDraft) }}"
                                 method="POST"
                                 data-proposal-confirm
-                                data-confirm-title="Delete proposal draft?"
-                                data-confirm-text="This permanently deletes the draft and all staged papers. This action cannot be undone."
-                                data-confirm-button="Delete draft"
+                                data-confirm-title="Move proposal draft to Trash?"
+                                data-confirm-text="The draft will leave your workspace. You can restore its saved papers and history from Trash for 30 days."
+                                data-confirm-button="Move to Trash"
                             >
                                 @csrf
                                 @method('DELETE')

@@ -298,7 +298,7 @@ test('inline papers wait until visible and release their visibility observer whe
     assert.equal(disconnections, 2);
 });
 
-test('PDF wheel zoom preserves ordinary scrolling, combines wheel ticks and cleans up on close', async (t) => {
+test('PDF wheel zoom preserves ordinary scrolling, coalesces pinch renders and cleans up on close', async (t) => {
     const originalWindow = globalThis.window;
     const originalObserver = globalThis.ResizeObserver;
     t.after(() => { globalThis.window = originalWindow; globalThis.ResizeObserver = originalObserver; });
@@ -330,14 +330,15 @@ test('PDF wheel zoom preserves ordinary scrolling, combines wheel ticks and clea
     assert.equal(wheel({ deltaX: 120, deltaY: 10 }).defaultPrevented, false);
     assert.equal(state.previewZoom, 100);
     assert.equal(wheel({ deltaY: -12 }).defaultPrevented, true);
-    assert.equal(state.previewZoom, 100);
+    const smallPinchZoom = state.previewZoom;
+    assert.ok(smallPinchZoom > 100);
     wheel({ deltaY: -28 });
-    assert.equal(state.previewZoom, 110);
+    assert.ok(state.previewZoom > smallPinchZoom);
     wheel();
-    assert.equal(state.previewZoom, 120);
+    assert.equal(state.previewZoom, 150);
     await rendered;
     assert.equal(captures, 1);
-    assert.deepEqual(renders, [{ zoom: 120, anchor: { x: 100, y: 200 } }]);
+    assert.deepEqual(renders, [{ zoom: 150, anchor: { x: 100, y: 200 } }]);
     state.previewZoom = 150;
     wheel();
     assert.equal(state.previewZoom, 150);

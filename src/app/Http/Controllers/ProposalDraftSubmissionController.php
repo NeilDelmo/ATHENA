@@ -6,16 +6,19 @@ use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
 use App\Http\Requests\SubmitProposalDraftRequest;
 use App\Models\ProposalDraft;
+use App\Services\ProposalPdfPreparation;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -25,23 +28,55 @@ class ProposalDraftSubmissionController extends Controller
         ProposalDraft $proposalDraft,
         ProposalDraftReadiness $readiness,
         ProposalBudgetConsistency $proposalBudgetConsistency,
-    ) {
+        Request $request,
+    ): View|JsonResponse {
         Gate::authorize('view', $proposalDraft);
 
         $proposalDraft->load(['researchCall', 'documents', 'owner', 'members.user']);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft, $checklist);
+        $readinessBlockers = $readiness->blockers($proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
         $readyToPrepare = $readinessErrors === [];
         $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
+
+        if ($request->expectsJson()) {
+            $canGuide = Gate::allows('update', $proposalDraft);
+            $hasFacultyBlocker = collect($readinessBlockers)->contains('owner', 'faculty');
+            $status = $readyToSubmit ? 'ready' : ($readyToPrepare ? 'prepare' : ($hasFacultyBlocker ? 'incomplete' : 'office'));
+            $blockers = array_map(function (array $blocker) use ($proposalDraft, $canGuide): array {
+                $parameters = ['proposalDraft' => $proposalDraft, 'proposal_requirement' => $blocker['field'] ?? '__paper__'];
+                $url = $canGuide && $blocker['owner'] === 'faculty' ? match ($blocker['paper']) {
+                    'details' => route('faculty.proposal-drafts.show', $parameters).'#project-details',
+                    'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $parameters),
+                    'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $parameters),
+                    'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $parameters),
+                    'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $parameters),
+                    'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $parameters),
+                    default => null,
+                } : null;
+
+                return [...$blocker, 'url' => $url];
+            }, $readinessBlockers);
+
+            return response()->json([
+                'status' => $status,
+                'can_guide' => $canGuide,
+                'ready_to_prepare' => $readyToPrepare,
+                'ready_to_submit' => $readyToSubmit,
+                'blockers' => $blockers,
+                'preparation' => app(ProposalPdfPreparation::class)->status($proposalDraft),
+            ])->header('Cache-Control', 'private, no-store');
+        }
 
         return view('faculty.proposal-drafts.review', compact(
             'proposalDraft',
             'checklist',
             'projectDetailsComplete',
             'readinessErrors',
+            'readinessBlockers',
             'readyToPrepare',
             'submissionFilesPrepared',
             'readyToSubmit',
@@ -53,8 +88,15 @@ class ProposalDraftSubmissionController extends Controller
         Request $request,
         ProposalDraft $proposalDraft,
         SubmitProposalDraft $submitProposalDraft,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         Gate::authorize('prepare', $proposalDraft);
+
+        if ($request->expectsJson()) {
+            $preparation = app(ProposalPdfPreparation::class);
+            $preparation->request($proposalDraft->id, retry: $request->boolean('retry'));
+
+            return response()->json(['preparation' => $preparation->status($proposalDraft->fresh())], 202);
+        }
 
         try {
             $submitProposalDraft->prepare($proposalDraft, $request->user());

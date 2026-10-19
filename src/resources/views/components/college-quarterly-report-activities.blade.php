@@ -62,7 +62,7 @@
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <template x-for="proof in rowProofs.filter(image => image.section === '{{ $section }}' && image.row_id === activity.id)" :key="proof.token">
                         <figure class="space-y-2">
-                            <a :href="proof.url" target="_blank" rel="noopener" class="block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img :src="proof.url" :alt="proof.filename" loading="lazy" class="h-36 w-full rounded-lg object-contain"></a>
+                            <a :href="proof.url" target="_blank" rel="noopener" class="block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img :src="proof.preview_url" :alt="proof.filename" loading="lazy" decoding="async" class="h-36 w-full rounded-lg object-contain"></a>
                             <figcaption class="break-words text-xs text-slate-500 dark:text-slate-400" x-text="proof.filename"></figcaption>
                             <div>
                                 <label :for="`saved-evidence-caption-${proof.token}`" class="block text-sm font-medium text-gray-700 dark:text-slate-300">Caption</label>

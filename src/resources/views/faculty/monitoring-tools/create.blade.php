@@ -32,6 +32,7 @@
                     :prepared-report="$preparedReport"
                     :revision-report="$revisionReport"
                     :monitoring-draft="$monitoringDraft"
+                    :draft-recovery-state="$draftRecoveryState"
                     :approved-work-plan-by-period="$approvedWorkPlanByPeriod"
                     :approved-work-plan-available="$approvedWorkPlanAvailable"
                     :selected-period-key="$selectedPeriodKey"

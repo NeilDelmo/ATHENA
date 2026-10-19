@@ -15,6 +15,7 @@ class LinkProposalDraftMemberships
         }
 
         $memberships = ProposalDraftMember::query()
+            ->whereHas('draft')
             ->whereNull('user_id')
             ->where('email', mb_strtolower(trim($user->email)))
             ->get();

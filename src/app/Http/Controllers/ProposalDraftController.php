@@ -26,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -154,6 +155,7 @@ class ProposalDraftController extends Controller
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft, $checklist);
+        $readinessBlockers = $readiness->blockers($proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
         $readyToPrepare = $readinessErrors === [];
         $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
@@ -189,6 +191,7 @@ class ProposalDraftController extends Controller
             'checklist',
             'projectDetailsComplete',
             'readinessErrors',
+            'readinessBlockers',
             'readyToPrepare',
             'submissionFilesPrepared',
             'readyToSubmit',
@@ -372,15 +375,16 @@ class ProposalDraftController extends Controller
 
     public function destroy(ProposalDraft $proposalDraft): RedirectResponse
     {
-        Gate::authorize('delete', $proposalDraft);
-
-        $storageDirectory = $proposalDraft->storageDirectory();
-        $proposalDraft->delete();
-        Storage::disk('local')->deleteDirectory($storageDirectory);
+        DB::transaction(function () use ($proposalDraft): void {
+            $lockedDraft = ProposalDraft::query()->lockForUpdate()->findOrFail($proposalDraft->getKey());
+            Gate::authorize('delete', $lockedDraft);
+            $lockedDraft->delete();
+        });
 
         return redirect()
             ->route('faculty.proposal-drafts.index')
-            ->with('success', 'Proposal draft deleted.');
+            ->with('success', 'Proposal draft moved to Trash. You can restore it for 30 days.')
+            ->with('deleted_proposal_draft_id', $proposalDraft->getKey());
     }
 
     private function activeTemplates(ProposalPaperCatalog $catalog): Collection

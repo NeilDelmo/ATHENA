@@ -101,6 +101,9 @@ class ProposalDraftReviewPackage extends Component
         ProposalDraftReadiness $readiness,
         ProposalBudgetConsistency $proposalBudgetConsistency,
     ): View {
+        $this->proposalDraft = ProposalDraft::query()->findOrFail($this->proposalDraft->getKey());
+        Gate::authorize('view', $this->proposalDraft);
+
         $this->proposalDraft->load([
             'researchCall',
             'documents',
@@ -110,6 +113,7 @@ class ProposalDraftReviewPackage extends Component
         $checklist = $readiness->checklist($this->proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($this->proposalDraft);
         $readinessErrors = $readiness->errors($this->proposalDraft, $checklist);
+        $readinessBlockers = $readiness->blockers($this->proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($this->proposalDraft);
         $readyToPrepare = $readinessErrors === [];
         $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
@@ -119,6 +123,7 @@ class ProposalDraftReviewPackage extends Component
             'checklist',
             'projectDetailsComplete',
             'readinessErrors',
+            'readinessBlockers',
             'readyToPrepare',
             'submissionFilesPrepared',
             'readyToSubmit',

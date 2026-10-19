@@ -40,6 +40,7 @@ async function openEditor(browser, width = 1440, dark = false) {
             </form>
         </main></body></html>`);
     await page.addScriptTag({ content: `
+        const uploadRequest = (...args) => fetch(...args);
         ${moduleSource('resources/js/proposal-semantic-editor.js')}
         ${moduleSource('resources/js/proposal-source-workspace.js')}
         ${moduleSource('resources/js/proposal-preview-workspace.js')}

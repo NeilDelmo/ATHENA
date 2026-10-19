@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\ResearchCall;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,6 +25,12 @@ class ResearchCallPublishedNotification extends Notification implements ShouldQu
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast'];
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        return $notifiable instanceof User && $notifiable->hasRole(User::WORKSPACE_FACULTY)
+            && ResearchCall::query()->whereKey($this->researchCallId)->acceptingSubmissions()->exists();
     }
 
     /** @return array<string, mixed> */

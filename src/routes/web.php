@@ -15,12 +15,14 @@ use App\Http\Controllers\LiteratureSynthesisController;
 use App\Http\Controllers\NoticeToProceedController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectArchiveController;
 use App\Http\Controllers\ProjectBudgetUtilizationController;
 use App\Http\Controllers\ProjectDisseminationController;
 use App\Http\Controllers\ProjectDocumentController;
 use App\Http\Controllers\ProjectJournalSubmissionController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectNarrativeReportController;
+use App\Http\Controllers\ProjectReportDraftEditStateController;
 use App\Http\Controllers\ProjectWorkspaceController;
 use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
@@ -36,6 +38,7 @@ use App\Http\Controllers\ProposalDraftLiteratureSourceController;
 use App\Http\Controllers\ProposalDraftMemberController;
 use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
+use App\Http\Controllers\ProposalDraftTrashController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
 use App\Http\Controllers\ProposalFileAnnotationController;
 use App\Http\Controllers\ProposalLiteratureEvidenceController;
@@ -59,9 +62,11 @@ use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RevisionPaperPreviewController;
 use App\Http\Controllers\RoleSelectionController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SidebarAttentionController;
 use App\Http\Controllers\TopicCommentResponseFormController;
 use App\Http\Controllers\TopicController;
+use App\Http\Controllers\TopicLiveStatusController;
 use App\Http\Controllers\WorkPlanController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Auth;
@@ -103,6 +108,7 @@ Route::get('/dashboard', function () {
 })->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/search', SearchController::class)->middleware('throttle:60,1')->name('search.index');
     Route::get('/research-manuals/{version}', [ResearchManualReaderController::class, 'show'])
         ->where('version', '[a-f0-9]{64}')->name('research-manuals.read');
     Route::get('/research-manuals/{version}/file', [ResearchManualReaderController::class, 'file'])
@@ -134,6 +140,8 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
 
     Route::prefix('/faculty/proposal-drafts')->name('faculty.proposal-drafts.')->group(function () {
         Route::get('/', [ProposalDraftController::class, 'index'])->name('index');
+        Route::get('/trash', [ProposalDraftTrashController::class, 'index'])->name('trash');
+        Route::post('/trash/{proposalDraft}/restore', [ProposalDraftTrashController::class, 'restore'])->whereNumber('proposalDraft')->name('restore');
         Route::get('/create', [ProposalDraftController::class, 'create'])->name('create');
         Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
         Route::get('/revision/{topic}', [ProposalDraftController::class, 'revision'])->name('revision');
@@ -226,6 +234,10 @@ Route::get('/proposal-samples/{sample}', [ProposalTemplateController::class, 'sh
 Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
     ->middleware(['auth'])
     ->name('topics.download');
+Route::get('/topics/{topic}/archive', ProjectArchiveController::class)
+    ->middleware(['auth', 'throttle:6,1'])->name('topics.archive');
+Route::get('/topics/{topic}/live-status', TopicLiveStatusController::class)
+    ->middleware(['auth', 'throttle:60,1'])->name('topics.live-status');
 Route::get('/topics/{topic}/versions/{version}/download', [TopicController::class, 'downloadVersion'])
     ->middleware('auth')
     ->name('topics.versions.download');
@@ -332,6 +344,12 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::get('/research/{topic}/monitoring-tool', [ProjectMonitoringController::class, 'create'])->name('project-progress.create');
     Route::get('/research/{topic}/progress-report', [ProjectNarrativeReportController::class, 'create'])->name('project-narrative-reports.create');
+    Route::get('/research/{topic}/report-drafts/{kind}/{reportingDate}/{source}/edit-state', ProjectReportDraftEditStateController::class)
+        ->whereIn('kind', ['monitoring', 'progress', 'terminal'])
+        ->where('reportingDate', '(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|terminal)')
+        ->whereNumber('source')
+        ->middleware('throttle:120,1')
+        ->name('project-report-drafts.edit-state');
     Route::post('/research/{topic}/progress-reports/preview', [ProjectMonitoringController::class, 'preview'])->name('project-progress.preview');
     Route::post('/research/{topic}/progress-reports/draft', [ProjectMonitoringController::class, 'saveDraft'])->name('project-progress.draft');
     Route::post('/research/{topic}/progress-reports/prepare', [ProjectMonitoringController::class, 'prepare'])->name('project-progress.prepare');
@@ -341,6 +359,7 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::delete('/research/{topic}/progress-reports/{report}/prepared', [ProjectMonitoringController::class, 'discardPrepared'])->name('project-progress.discard-prepared');
     Route::post('/research/{topic}/narrative-progress-reports/preview', [ProjectNarrativeReportController::class, 'preview'])->name('project-narrative-reports.preview');
     Route::post('/research/{topic}/narrative-progress-reports/draft', [ProjectNarrativeReportController::class, 'saveDraft'])->name('project-narrative-reports.draft');
+    Route::get('/research/{topic}/narrative-progress-reports/draft-images/{image}', [ProjectNarrativeReportController::class, 'draftImage'])->whereUuid('image')->name('project-narrative-reports.draft-images');
     Route::post('/research/{topic}/narrative-progress-reports/prepare', [ProjectNarrativeReportController::class, 'prepare'])->name('project-narrative-reports.prepare');
     Route::post('/research/{topic}/narrative-progress-reports', [ProjectNarrativeReportController::class, 'prepare'])->name('project-narrative-reports.store');
     Route::post('/research/{topic}/narrative-progress-reports/{report}/submit', [ProjectNarrativeReportController::class, 'submitPrepared'])->name('project-narrative-reports.submit-prepared');

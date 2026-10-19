@@ -6,61 +6,36 @@ use App\Actions\AcceptProposalWorkspaceInvitation;
 use App\Models\ProposalDraftMember;
 use App\Models\User;
 use App\Services\FacultyProjectCapacityService;
+use App\Services\NotificationInbox;
+use App\Services\WorkspaceActionItems;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class NotificationController extends Controller
 {
-    private const INBOX_CATEGORIES = [
-        'invitations' => [
-            'label' => 'Invitations',
-            'description' => 'Invitations to serve as project staff.',
-        ],
-        'collaboration' => [
-            'label' => 'Project team',
-            'description' => 'Accepted invitations and project team activity.',
-        ],
-        'reviews' => [
-            'label' => 'Reviews',
-            'description' => 'Proposal submissions, revisions, and review decisions.',
-        ],
-        'research_calls' => [
-            'label' => 'Research calls',
-            'description' => 'Openings, updates, and deadline reminders.',
-        ],
-        'projects' => [
-            'label' => 'Projects',
-            'description' => 'Monitoring, reports, and implementation activity.',
-        ],
-        'general' => [
-            'label' => 'General',
-            'description' => 'Other ATHENA updates.',
-        ],
-    ];
-
-    public function index(Request $request): JsonResponse|View
+    public function index(Request $request, WorkspaceActionItems $actionItems, NotificationInbox $inbox): JsonResponse|View
     {
+        $pendingActions = $actionItems->for($request->user());
+        $request->attributes->set('athena.workspace_actions', $pendingActions);
+        $notificationItems = $inbox->for($request->user(), $pendingActions, recentOnly: $request->expectsJson());
+        $unreadCount = $request->user()->visibleNotificationsQuery()->whereNull('read_at')->count();
         if ($request->expectsJson()) {
-            $query = $request->user()->visibleNotificationsQuery();
-
             return response()->json([
-                'notifications' => (clone $query)->latest()->limit(15)->get()
-                    ->map(fn (DatabaseNotification $notification): array => $this->presentNotification($notification)),
-                'unread_count' => $query->whereNull('read_at')->count(),
-            ]);
+                'notifications' => $notificationItems->take(15)->map(fn (array $item): array => Arr::except($item, 'history')),
+                'unread_count' => $unreadCount,
+                'pending_actions' => $pendingActions,
+                'workspace' => $request->user()->activeWorkspace(),
+            ])->header('Cache-Control', 'private, no-store');
         }
 
-        $notifications = $request->user()->visibleNotifications();
-        $notificationItems = $notifications->map(fn (DatabaseNotification $notification): array => $this->presentNotification($notification));
-        $unreadCount = $notifications->whereNull('read_at')->count();
-
         $categoryCounts = $notificationItems->countBy('category');
-        $categories = collect(self::INBOX_CATEGORIES)
+        $categories = collect(NotificationInbox::CATEGORIES)
             ->map(fn (array $definition, string $key): array => [
                 'key' => $key,
                 ...$definition,
@@ -72,17 +47,21 @@ class NotificationController extends Controller
             'notificationItems' => $notificationItems,
             'unreadCount' => $unreadCount,
             'categories' => $categories,
+            'pendingActions' => $pendingActions,
         ]);
     }
 
     public function markRead(Request $request, string $notification): JsonResponse
     {
-        $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
+        $storedNotification = $request->user()->visibleNotificationsQuery()->find($notification);
         abort_unless($storedNotification, 404);
 
-        $storedNotification->markAsRead();
+        $this->markVisibleGroupRead($request, $storedNotification);
 
-        return response()->json(['read' => true]);
+        return response()->json([
+            'read' => true,
+            'unread_count' => $request->user()->visibleNotificationsQuery()->whereNull('read_at')->count(),
+        ]);
     }
 
     public function markAllRead(Request $request): JsonResponse|RedirectResponse
@@ -105,9 +84,9 @@ class NotificationController extends Controller
 
     public function open(Request $request, string $notification): RedirectResponse
     {
-        $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
+        $storedNotification = $request->user()->visibleNotificationsQuery()->find($notification);
         abort_unless($storedNotification, 404);
-        $storedNotification->markAsRead();
+        $this->markVisibleGroupRead($request, $storedNotification);
 
         return redirect()->to($this->safeNotificationUrl($storedNotification->data['url'] ?? null));
     }
@@ -210,92 +189,33 @@ class NotificationController extends Controller
         ])->save();
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function presentNotification(DatabaseNotification $notification): array
-    {
-        $category = $this->notificationCategory($notification);
-        $data = $notification->data;
-
-        return [
-            'id' => $notification->id,
-            'data' => $data,
-            'read_at' => $notification->read_at?->toIso8601String(),
-            'created_at' => $notification->created_at->diffForHumans(),
-            'created_at_iso' => $notification->created_at->toIso8601String(),
-            'category' => $category,
-            'category_label' => self::INBOX_CATEGORIES[$category]['label'],
-            'search_text' => Str::lower(implode(' ', [
-                (string) ($data['title'] ?? ''),
-                (string) ($data['message'] ?? ''),
-                self::INBOX_CATEGORIES[$category]['label'],
-            ])),
-        ];
-    }
-
-    private function notificationCategory(DatabaseNotification $notification): string
-    {
-        $data = $notification->data;
-        $title = Str::lower((string) ($data['title'] ?? ''));
-        $sidebarArea = $data['sidebar_area'] ?? null;
-
-        if (isset($data['research_call_id']) || Str::contains($title, 'research call')) {
-            return 'research_calls';
-        }
-
-        $isInvitation = Str::contains($title, ['invitation', 'invited']);
-        $isCompletedInvitation = (bool) ($data['action_completed'] ?? false)
-            || Str::contains($title, ['accepted invitation', 'invitation accepted']);
-
-        if ($isInvitation && ! $isCompletedInvitation) {
-            return 'invitations';
-        }
-
-        if ($isCompletedInvitation) {
-            return 'collaboration';
-        }
-
-        if (in_array($sidebarArea, ['proposal_submissions', 'submitted_proposals'], true) || Str::contains($title, [
-            'review',
-            'revision',
-            'proposal submitted',
-            'proposal approved',
-            'proposal rejected',
-            'screening',
-        ])) {
-            return 'reviews';
-        }
-
-        if ($sidebarArea === 'proposal_workspace') {
-            return 'collaboration';
-        }
-
-        if (in_array($sidebarArea, ['project_monitoring', 'my_projects'], true) || Str::contains($title, [
-            'project',
-            'monitoring',
-            'progress report',
-            'narrative report',
-            'notice to proceed',
-        ])) {
-            return 'projects';
-        }
-
-        return 'general';
-    }
-
     private function safeNotificationUrl(mixed $url): string
     {
-        if (! is_string($url) || $url === '') {
+        if (! is_string($url) || $url === '' || preg_match('/[\x00-\x20\x7f\\\\]/', $url)) {
             return route('notifications.index');
         }
 
         $applicationUrl = rtrim(url('/'), '/');
 
-        if (Str::startsWith($url, '/') || $url === $applicationUrl || Str::startsWith($url, $applicationUrl.'/')) {
+        if ((Str::startsWith($url, '/') && ! Str::startsWith($url, '//')) || $url === $applicationUrl || Str::startsWith($url, $applicationUrl.'/')) {
             return $url;
         }
 
         return route('notifications.index');
+    }
+
+    private function markVisibleGroupRead(Request $request, DatabaseNotification $notification): void
+    {
+        $validated = $request->validate([
+            'notification_ids' => ['sometimes', 'array', 'min:1', 'max:50'],
+            'notification_ids.*' => ['required', 'uuid', 'distinct'],
+        ]);
+        $inbox = app(NotificationInbox::class);
+        $groupKey = $inbox->groupKey($notification);
+        $ids = $validated['notification_ids'] ?? [$notification->id];
+
+        $request->user()->visibleNotificationsQuery()->whereIn('id', $ids)->get()
+            ->filter(fn (DatabaseNotification $candidate): bool => $inbox->groupKey($candidate) === $groupKey)
+            ->each(fn (DatabaseNotification $candidate) => $candidate->markAsRead());
     }
 }

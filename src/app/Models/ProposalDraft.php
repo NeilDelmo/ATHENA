@@ -7,9 +7,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProposalDraft extends Model
 {
+    use SoftDeletes;
+
+    public const TRASH_RETENTION_DAYS = 30;
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_SUBMITTING = 'submitting';
@@ -50,6 +55,7 @@ class ProposalDraft extends Model
             'planned_end' => 'date',
             'lock_version' => 'integer',
             'signatory_selections' => 'array',
+            'pdf_preparation_state' => 'array',
         ];
     }
 
@@ -100,7 +106,7 @@ class ProposalDraft extends Model
 
     public function isEditable(): bool
     {
-        if ($this->status !== self::STATUS_DRAFT) {
+        if ($this->trashed() || $this->status !== self::STATUS_DRAFT) {
             return false;
         }
 
@@ -115,6 +121,8 @@ class ProposalDraft extends Model
 
     public function ensureEditable(): void
     {
+        abort_if($this->trashed(), 403);
+
         if ($this->topic_id !== null) {
             $topic = $this->topic()->lockForUpdate()->first();
             abort_unless($topic !== null && ($topic->status === 'revision_requested' || $topic->canUpdateBeforeReview()), 403);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ArchiveProposalDraftDocumentHistory;
 use App\Actions\SyncTopicCollaborators;
 use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreResearchHeadFileRequest;
@@ -31,6 +32,7 @@ use App\Services\ProposalFormVerifier;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
+use App\Services\ProposalVersionComparison;
 use App\Services\WorkPlanDocumentService;
 use App\Support\DashboardAssistantSuggestions;
 use App\Support\InitialScreeningSubmissionOrder;
@@ -216,6 +218,7 @@ class TopicController extends Controller
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations.reviewer'])->oldest(),
             'progressReports.secretaryReviewer',
             'narrativeReports.secretaryReviewer',
+            'preparedNarrativeReports',
         ]);
 
         if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
@@ -245,8 +248,7 @@ class TopicController extends Controller
             ]);
         $progressReports = $topic->narrativeReports;
         if (! $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && $topic->isAccessibleTo($request->user())) {
-            $progressReports = $progressReports->merge(ProjectNarrativeReport::query()
-                ->prepared()->whereBelongsTo($topic, 'topic')->where('report_type', 'progress')->get());
+            $progressReports = $progressReports->merge($topic->preparedNarrativeReports->where('report_type', 'progress'));
         }
         $progressQuarterRows = $this->monitoringQuarterService->narrativeProgressPeriods($topic, $progressReports)
             ->map(fn (array $row): array => [...$row, 'has_submitted_report' => $row['report']?->isSubmitted() ?? false]);
@@ -266,6 +268,7 @@ class TopicController extends Controller
             ->where('version_number', '<', $latestVersion?->version_number ?? 0)
             ->sortByDesc('version_number')
             ->first();
+        $contentComparisons = app(ProposalVersionComparison::class)->compare($previousVersion, $latestVersion);
 
         $paperCatalog = app(ProposalPaperCatalog::class);
         $paperOrder = $paperCatalog->all()
@@ -401,6 +404,7 @@ class TopicController extends Controller
             'previousVersion',
             'displayProjectCost',
             'comparisonRows',
+            'contentComparisons',
             'pendingFileRevisions',
             'stagedRevisionFiles',
             'draftHistoryCount',
@@ -687,7 +691,7 @@ class TopicController extends Controller
         $result = ['updated' => false];
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $syncTopicCollaborators, $noChangeResponses, &$result) {
+            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $syncTopicCollaborators, $noChangeResponses, $permanentDirectory, &$result) {
                 $revisedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -800,13 +804,15 @@ class TopicController extends Controller
 
                 if ($revisionDraft) {
                     $syncTopicCollaborators->handle($revisionDraft, $revisedTopic);
-                    $revisionDraft->delete();
+                    app(ArchiveProposalDraftDocumentHistory::class)->handle($revisionDraft, $revisedTopic, $permanentDirectory);
+                    $revisionDraft->forceDelete();
                 }
 
                 $result['updated'] = true;
             });
         } catch (Throwable $exception) {
             $packageService->deleteStored($replacementFiles);
+            Storage::disk('local')->deleteDirectory($permanentDirectory);
 
             throw $exception;
         }

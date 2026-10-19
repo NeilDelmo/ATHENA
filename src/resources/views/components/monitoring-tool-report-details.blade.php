@@ -14,7 +14,7 @@
         && $report->review_status === 'revision_requested';
 @endphp
 
-<div class="quarter-report-document" data-monitoring-report-detail>
+<div class="quarter-report-document" data-monitoring-report-detail data-live-report-key="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-scope="{{ \App\Services\TopicLiveStatus::reportScope($topic, $report) }}">
     <x-quarter-report-header :report="$report" :title="$report->quarter_label.' Monitoring Tool · '.$report->version_label" :is-current-version="$isCurrentVersion" :closable="$closable" />
     <div class="quarter-report-layout">
         <div class="min-w-0 space-y-5">

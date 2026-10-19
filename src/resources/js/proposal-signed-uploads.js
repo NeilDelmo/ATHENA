@@ -1,3 +1,5 @@
+import { uploadRequest } from './file-upload.js';
+
 export function proposalSignedUploads(config = {}) {
     return {
         documents: (config.documents ?? []).map(document => ({ ...document, busy: false, error: '', file: null, manualRequired: false, manuallyConfirmed: false, previewed: false, selectedPreviewUrl: null })),
@@ -57,9 +59,9 @@ export function proposalSignedUploads(config = {}) {
                 if (document.manualRequired && document.previewed && document.manuallyConfirmed) {
                     body.append('signed_form_manually_confirmed', '1');
                 }
-                const response = await fetch(config.url, {
+                const response = await uploadRequest(config.url, {
                     method: 'POST', body, headers: { Accept: 'application/json' },
-                });
+                }, { root: this.$el?.closest('[data-signing-document]') || this.$el?.querySelector(`[data-signed-source="${document.id}"]`) || this.$el });
                 const result = await response.json();
                 if (!response.ok) {
                     document.manualRequired = Boolean(result.requires_manual_review);

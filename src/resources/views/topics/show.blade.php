@@ -1,5 +1,6 @@
 <x-app-layout>
     @php
+        $liveSnapshot = app(\App\Services\TopicLiveStatus::class)->snapshot($topic, Auth::user(), $latestVersion);
         $statusClass = match ($topic->status) {
             'approved' => 'bg-gray-950 text-white dark:bg-white dark:text-gray-950',
             'ready_for_signature' => 'bg-red-50 text-red-800',
@@ -87,6 +88,12 @@
     <x-slot name="header">
         <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal').($topic->researchManual ? ' · Research manual: '.$topic->researchManual->title.' ('.$topic->researchManual->edition.')' : '')" :class="$canViewMonitoring ? 'project-page-header' : ''">
             <x-slot name="actions">
+                    @can('view', $topic)
+                        <a data-project-archive href="{{ route('topics.archive', $topic) }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
+                            Project archive
+                        </a>
+                    @endcan
                     @if ($sampleProposalDraft)
                         <a href="{{ route('faculty.proposal-drafts.show', $sampleProposalDraft) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-900 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Open sample proposal draft</a>
                     @endif
@@ -111,7 +118,9 @@
                         </button>
                     @endif
                     @unless ($isFacultyRevision || ($topic->status === 'approved' && $topic->hasIssuedNoticeToProceed() && ! $topic->isCompletedProject()))
-                        <span class="rounded-full px-3 py-1.5 text-sm font-black {{ $statusClass }}">{{ $statusLabel }}</span>
+                        <span data-live-proposal-status class="rounded-full px-3 py-1.5 text-sm font-black {{ $statusClass }}">{{ $statusLabel }}</span>
+                    @else
+                        <span data-live-proposal-status hidden class="rounded-full px-3 py-1.5 text-sm font-black {{ $statusClass }}"></span>
                     @endunless
             </x-slot>
         </x-page-header>
@@ -120,6 +129,9 @@
     <div
         class="mx-auto max-w-7xl space-y-6"
         data-topic-workspace
+        data-topic-live-status data-status-url="{{ route('topics.live-status', $topic) }}"
+        data-workspace="{{ Auth::user()->activeWorkspace() }}" data-account-id="{{ Auth::id() }}"
+        data-live-snapshot="{{ json_encode($liveSnapshot) }}"
         x-data="{
             activeTopicTab: @js($initialTopicTab) || (
                 window.location.hash === '#project-files' ? 'files' :
@@ -198,6 +210,7 @@
         @hashchange.window="syncTopicTab()"
         @open-project-documents.window="setTopicTab('files', 'project-files')"
     >
+        @include('topics.partials.live-status-notice')
         @if (session('revision_submitted'))
             <div id="revision-submitted" data-revision-submission-success role="status" class="rounded-2xl border border-green-200 bg-green-50 p-5 text-green-950 shadow-sm dark:border-green-900 dark:bg-green-950/40 dark:text-green-100">
                 <div class="flex items-start gap-3">
@@ -916,7 +929,7 @@
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
                     <h3 class="text-lg font-black text-gray-900">Submitted version comparison</h3>
-                    <p class="mt-1 text-sm text-gray-600">Compares submission details and identifies replaced files. It does not inspect document content to describe individual text or image edits.</p>
+                    <p class="mt-1 text-sm text-gray-600 dark:text-slate-400">Compare the saved sections and figures in submitted ATHENA papers. Uploaded and older PDFs are compared at file level. Highlighted passages were added, removed, or revised; both submitted versions remain available below.</p>
                 </div>
                 @if ($previousVersion && $latestVersion)
                     <div class="overflow-x-auto">
@@ -939,6 +952,7 @@
                             @endforelse
                         </div>
                     </div>
+                    <x-proposal-version-content-comparison :papers="$contentComparisons" :previous-number="$previousVersion->version_number" :latest-number="$latestVersion->version_number" />
                 @else
                     <div class="p-8 text-center">
                         <p class="text-base font-bold text-gray-700">Only one submitted version</p>

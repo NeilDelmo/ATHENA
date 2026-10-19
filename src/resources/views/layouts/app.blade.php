@@ -34,6 +34,7 @@
         data-app-shell
         @if ($isFacultyWorkspace) data-faculty-shell @endif
         data-auth-user-id="{{ Auth::id() }}"
+        data-active-workspace="{{ Auth::user()?->activeWorkspace() }}"
         @auth
             data-research-assistant-url="{{ route('research-support.chat') }}"
             data-research-assistant-history-url="{{ route('research-support.history') }}"
@@ -129,6 +130,8 @@
 
                 <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-1.5 sm:gap-3 lg:gap-4">
 
+                    <x-global-search />
+
                     <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15.75A9 9 0 118.25 2.25a7.5 7.5 0 0013.5 13.5z" />
@@ -163,7 +166,7 @@
                             </a>
 
                             @if (Auth::user()->hasMultipleWorkspaces() || (Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher'])))
-                                <a wire:navigate href="{{ route(Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher']) ? 'role-selection.show' : 'workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                                <a wire:navigate.hover href="{{ route(Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher']) ? 'role-selection.show' : 'workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
                                     Switch Workspace
                                 </a>
                             @endif
@@ -236,6 +239,7 @@
             >
                 <x-research-assistant-workspace />
             </div>
+            <x-research-assistant-source-preview />
         @endauth
 
         @livewireScriptConfig

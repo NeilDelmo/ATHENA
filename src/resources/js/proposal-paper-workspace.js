@@ -176,6 +176,7 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
             this.previewFrameObserver?.disconnect();
             window.clearTimeout(this.previewRefreshTimer);
             this.stopProposalPreviewDrag();
+            this.unbindProposalPreviewWheel();
         },
     };
 }

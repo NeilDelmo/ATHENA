@@ -66,8 +66,10 @@ function formatAssistantInlineMarkdown(value, sources) {
             const url = safeAssistantSourceUrl(link);
             html += url ? `<a href="${escapeAssistantHtml(url)}" target="_blank" rel="noopener noreferrer" class="assistant-inline-link">${escapeAssistantHtml(label)}</a>` : escapeAssistantHtml(match[0]);
         } else if (reference !== undefined) {
-            const source = sources.find(source => String(source?.reference ?? '').replace(/^\[|\]$/g, '').trim() === reference.trim());
-            html += source && safeAssistantSourceUrl(source.url) ? evidenceLink(source, true) : escapeAssistantHtml(match[0]);
+            const index = sources.findIndex(source => String(source?.reference ?? '').replace(/^\[|\]$/g, '').trim() === reference.trim());
+            const source = sources[index];
+            const label = reference.trim().replace(/^ATHENA\s*/i, '');
+            html += source ? `<button type="button" class="assistant-citation" data-assistant-citation="${index}" aria-haspopup="dialog" aria-expanded="false" aria-label="View source: ${escapeAssistantHtml(source.title || reference)}">${escapeAssistantHtml(label)}</button>` : escapeAssistantHtml(match[0]);
         } else if (strong !== undefined || alternateStrong !== undefined) {
             html += `<strong>${formatAssistantInlineMarkdown(strong ?? alternateStrong, sources)}</strong>`;
         } else {

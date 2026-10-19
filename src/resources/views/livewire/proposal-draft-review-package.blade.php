@@ -1,5 +1,9 @@
 <div data-proposal-review-package x-data="proposalAssessmentPreview()" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
     <div :inert="previewFullscreen">
+        <div class="mb-5">
+            <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" :blockers="$readinessBlockers" :ready-to-prepare="$readyToPrepare" :ready-to-submit="$readyToSubmit" />
+            <div class="mt-3"><x-proposal-pdf-preparation :proposal-draft="$proposalDraft" /></div>
+        </div>
         @if ($statusMessage !== '')
             <div role="status" class="mb-6 border-l-4 border-green-600 bg-green-50 px-5 py-4 text-sm text-green-950">
                 <p class="font-black">Submission PDFs prepared</p>

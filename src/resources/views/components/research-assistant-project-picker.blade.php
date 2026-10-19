@@ -14,7 +14,7 @@
         <button
             x-ref="trigger"
             type="button"
-            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => $refs.search.focus())"
+            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => { if (open) $refs.search.focus() })"
             :aria-expanded="open"
             aria-controls="assistant-projects-{{ $id }}"
             :aria-label="$store.researchAssistant.contextEnabled ? `Change project: ${$store.researchAssistant.selectedContext()?.label || ''}` : 'Add project context'"

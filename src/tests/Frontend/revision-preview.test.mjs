@@ -133,7 +133,7 @@ test('Word replacement preview sends only the chosen file to the authorized prev
     await assert.rejects(revisionPaperPreview(card, 3), /PDF conversion unavailable/);
 });
 
-function previewFixture(editor) {
+function previewFixture(editor, submittedPdf = null) {
     const fixture = cardFixture(editor);
     const { card, nodes } = fixture;
     card.querySelectorAll = () => [];
@@ -157,9 +157,22 @@ function previewFixture(editor) {
     for (const name of ['zoom-value', 'zoom-out', 'zoom-in', 'fit-page', 'fit-width']) {
         nodes[`[data-revision-${name}]`] = control(name);
     }
+    if (submittedPdf) nodes['[data-revision-pdf-frame]'] = { ...control('submitted-frame'), contentWindow: { athenaRevisionPdf: submittedPdf } };
     initializeRevisionPreviews({ querySelectorAll: () => [card] }, 3);
     return { ...fixture, handlers };
 }
+
+test('revision PDF controls reflect the restored reading zoom and fit', () => {
+    const applied = [];
+    const { nodes, handlers } = previewFixture({}, {
+        readingView: () => ({ zoom: 130, fit: 'page' }),
+        setZoom: (zoom, fit) => applied.push({ zoom, fit }),
+    });
+    handlers['submitted-frame:revision-pdf-reading-view']();
+    assert.equal(nodes['[data-revision-zoom-value]'].textContent, '130%');
+    assert.equal(nodes['[data-revision-fit-page]']['aria-pressed'], 'true');
+    assert.deepEqual(applied.at(-1), { zoom: 130, fit: 'page' });
+});
 
 test('switching paper previews keeps the editor visible and mounted and clears replacement object URLs', async (t) => {
     const originalUrl = URL.createObjectURL;
@@ -320,6 +333,19 @@ test('the rendered revision workspace keeps replies with comments, compares comp
                 await page.mouse.wheel(0, 120);
                 await page.waitForFunction(() => document.querySelector('[data-revision-zoom-value]').textContent === '100%');
                 await page.keyboard.up('Control');
+                const pinchedZoom = await page.locator('[data-revision-preview-frame]').evaluate((frame) => {
+                    frame.contentDocument.body.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -4, bubbles: true, cancelable: true }));
+                    return Number.parseFloat(document.querySelector('[data-revision-zoom-value]').textContent);
+                });
+                assert.ok(pinchedZoom > 100 && pinchedZoom < 110, 'Revised papers share smooth trackpad zoom');
+                await page.getByRole('button', { name: 'Fit width', exact: true }).click();
+                assert.equal(await page.locator('[data-revision-preview-frame]').evaluate((frame) => {
+                    for (const [type, scale] of [['gesturestart', 1], ['gesturechange', 1.2], ['gestureend', 1.2]]) {
+                        frame.contentDocument.body.dispatchEvent(Object.assign(new Event(type, { bubbles: true, cancelable: true }), { scale }));
+                    }
+                    return document.querySelector('[data-revision-zoom-value]').textContent;
+                }), '120%');
+                await page.getByRole('button', { name: 'Fit width', exact: true }).click();
                 const fittedZoom = await page.frameLocator('[data-revision-preview-frame]').locator('body').evaluate((element) => Number(element.style.zoom));
                 await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
                 assert.equal(await page.locator('[data-revision-zoom-value]').textContent(), '90%');

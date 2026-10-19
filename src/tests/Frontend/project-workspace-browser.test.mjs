@@ -18,7 +18,8 @@ test('the rendered project views preserve monitoring, poster covers, file select
     const html = readFileSync(resolve('storage/framework/testing/project-workspace.html'), 'utf8');
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/project-workspace.css'), 'utf8'), { from: undefined });
-    const module = readFileSync(resolve('resources/js/report-library.js'), 'utf8').replaceAll('export ', '') + '\n'
+    const module = readFileSync(resolve('resources/js/workspace-switching.js'), 'utf8').replaceAll('export ', '') + '\n'
+        + readFileSync(resolve('resources/js/report-library.js'), 'utf8').replaceAll('export ', '') + '\n'
         + readFileSync(resolve('resources/js/project-workspace.js'), 'utf8').replace(/^import .+;\r?\n/gm, '').replaceAll('export ', '');
     const posterImage = readFileSync(resolve('public/images/sample-maintenance-poster.png'));
     const documents = [
@@ -80,7 +81,7 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 });
                 const initialize = async (targetPage, url) => {
                     await targetPage.goto(url);
-                    await targetPage.addScriptTag({ content: `${module}\ndocument.addEventListener('alpine:init', () => { Alpine.data('projectWorkspace', projectWorkspace); Alpine.data('pdfAnnotationWorkspace', config => ({loading:false, loadError:'', viewerRefreshRequired:false, init(){this.$el.dataset.previewUrl = config.pdfUrl;}})); });` });
+                    await targetPage.addScriptTag({ content: `${module}\ndocument.addEventListener('alpine:init', () => { Alpine.data('projectWorkspace', projectWorkspace); Alpine.data('projectRecordsPage', projectRecordsPage); Alpine.data('pdfAnnotationWorkspace', config => ({loading:false, loadError:'', viewerRefreshRequired:false, init(){this.$el.dataset.previewUrl = config.pdfUrl;}})); });` });
                     await targetPage.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
                 };
                 await initialize(page, 'http://localhost/workspace-test');
@@ -136,9 +137,26 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 const location = () => workspace.evaluate(element => Alpine.$data(element).location);
                 const settled = () => page.waitForFunction(() => !Alpine.$data(document.querySelector('[data-project-workspace]')).saving);
                 const chooseView = async name => {
-                    await workspace.locator('[data-library-view-surface]').click({ button: 'right' });
+                    const surface = workspace.locator('[data-library-view-surface]');
+                    await surface.scrollIntoViewIfNeeded();
+                    await page.evaluate(() => window.getSelection()?.removeAllRanges());
+                    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+                    await surface.dispatchEvent('contextmenu', { clientX: 24, clientY: 24, bubbles: true, cancelable: true });
+                    assert.deepEqual(errors, []);
                     await expect(page.getByRole('menu', { name: 'View', exact: true })).toBeVisible();
-                    await page.getByRole('menuitemradio', { name, exact: true }).click();
+                    const option = page.getByRole('menuitemradio', { name, exact: true });
+                    try {
+                        await option.click();
+                    } catch (error) {
+                        const geometry = await option.evaluate(element => ({
+                            option: element.getBoundingClientRect().toJSON(),
+                            menu: element.closest('[role="menu"]').getBoundingClientRect().toJSON(),
+                            position: getComputedStyle(element.closest('[role="menu"]')).position,
+                            style: element.closest('[role="menu"]').getAttribute('style'),
+                            scrollY, innerWidth, innerHeight,
+                        }));
+                        throw new Error(`${width}px ${dark ? 'dark' : 'light'} ${name}: ${JSON.stringify(geometry)}`, { cause: error });
+                    }
                 };
                 const item = (type, id) => workspace.locator(`[data-workspace-${type}][data-item-id="${id}"]:visible`);
                 const projects = workspace.locator('[data-workspace-project]:visible');
@@ -524,8 +542,8 @@ test('the rendered project views preserve monitoring, poster covers, file select
     } catch (error) {
         if (process.env.PROJECT_WORKSPACE_SCREENSHOT_DIRECTORY) {
             mkdirSync(process.env.PROJECT_WORKSPACE_SCREENSHOT_DIRECTORY, { recursive: true });
-            for (const page of browser.contexts().flatMap(context => context.pages())) {
-                await page.screenshot({ path: resolve(process.env.PROJECT_WORKSPACE_SCREENSHOT_DIRECTORY, 'project-workspace-failure.png'), fullPage: true });
+            for (const [index, page] of browser.contexts().flatMap(context => context.pages()).entries()) {
+                await page.screenshot({ path: resolve(process.env.PROJECT_WORKSPACE_SCREENSHOT_DIRECTORY, `project-workspace-failure-${index}.png`), fullPage: true });
             }
         }
         throw error;

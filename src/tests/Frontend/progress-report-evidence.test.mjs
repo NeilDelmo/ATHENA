@@ -26,6 +26,7 @@ function state(config = {}) {
         Alpine: { data: (_, callback) => { factory = callback; } },
         crypto,
         File,
+        uploadRequest: (url, options) => fetch(url, options),
         window: { crypto, clearTimeout() {} },
         FormData: class extends FormData {
             constructor(entries) {
@@ -71,7 +72,7 @@ test('draft fingerprints identify binary selections while preview requests retai
     ];
     const draft = form.narrativeDraftFormData(entries);
     assert.equal(draft.get(`accomplishment_evidence[${rowKey}][]`).name, 'proof.pdf');
-    assert.equal(draft.has('figures[0][image]'), false);
+    assert.equal(draft.get('figures[0][image]').name, 'figure.png');
     const fingerprint = form.narrativeDraftFingerprint(entries);
     const changed = entries.map(([name, value]) => [name, name.startsWith('accomplishment_evidence[')
         ? new File(['proof'], 'proof.pdf', { type: 'application/pdf', lastModified: 2 }) : value]);
@@ -159,8 +160,11 @@ test('rendered progress reports save private evidence and keep it out of preview
                 const errors = [];
                 page.on('pageerror', error => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}\n${read('resources/css/proposal-paper-workspace.css')}</style><body data-app-shell><main class="mx-auto max-w-[90rem] p-4">${readFileSync(fixture, 'utf8')}</main></body></html>`);
+                await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
                 await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
-                    window.saveRequests=[];window.previewRequests=[];window.savedRows=[];window.gateNextSave=false;
+                    const uploadRequest=(url,options)=>window.fetch(url,options);
+                    const submitFileUploadForm=async(form)=>{form.submit();return true;};
+                    window.saveRequests=[];window.previewRequests=[];window.savedRows=[];window.savedImages={figures:{}};window.gateNextSave=false;
                     window.fetch=async(url,options)=>{
                         const fields=[...options.body.entries()];
                         if(!url.includes('/draft')) {
@@ -177,9 +181,17 @@ test('rendered progress reports save private evidence and keep it out of preview
                             for(const [,file] of uploads) evidence.push({id:'00000000-0000-4000-8000-'+String(window.saveRequests.length*10+evidence.length).padStart(12,'0'),name:file.name,path:'private/'+file.name,mime_type:file.type,size:file.size,checksum:'hash'});
                             return {evidence_key:key,evidence,objective:fields.find(([name])=>name==='accomplishments['+index+'][objective]')?.[1]||'',target:fields.find(([name])=>name==='accomplishments['+index+'][target]')?.[1]||'',actual:fields.find(([name])=>name==='accomplishments['+index+'][actual]')?.[1]||'',activities:row.activities||''};
                         });
+                        const images={figures:{}};
+                        for(const [index,row] of window.narrativeState.figureRows.entries()) {
+                            const file=fields.find(([name])=>name==='figures['+index+'][image]')?.[1];
+                            const retained=fields.find(([name])=>name==='figures['+index+'][image_id]')?.[1];
+                            if(file instanceof File&&file.size) images.figures[index]={image:{id:'00000000-0000-4000-8000-'+String(1000+window.saveRequests.length).padStart(12,'0'),name:file.name,preview_url:'data:image/png;base64,${image.toString('base64')}'}};
+                            else if(retained) images.figures[index]=window.savedImages.figures[index];
+                        }
                         if(window.gateNextSave) {window.gateNextSave=false;await new Promise(resolve=>window.releaseSave=resolve);}
                         window.savedRows=rows;
-                        return {ok:true,status:200,json:async()=>({draft_version:window.saveRequests.length+1,accomplishments:rows})};
+                        window.savedImages=images;
+                        return {ok:true,status:200,json:async()=>({draft_version:window.saveRequests.length+1,accomplishments:rows,images})};
                     };
                     document.addEventListener('alpine:init',()=>{
                         ${datePicker}
@@ -248,10 +260,13 @@ test('rendered progress reports save private evidence and keep it out of preview
                 const figure = page.locator('[data-progress-report-figures]');
                 await figure.locator('input[type="file"]').setInputFiles({ name: 'report-figure.png', mimeType: 'image/png', buffer: image });
                 await figure.locator('input[type="text"]').fill('Results diagram');
+                assert.equal(await page.evaluate(() => window.narrativeState.finishNarrativeDraftAutoSave()), true);
+                assert.equal(await figure.locator('input[type="file"]').evaluate(field => field.files.length), 0);
+                await figure.getByText('Saved with draft: report-figure.png', { exact: true }).waitFor();
                 await page.locator('[data-proposal-workspace-toolbar] [data-proposal-preview-toggle]').click();
                 await page.waitForFunction(() => window.narrativeState.previewReady && !window.narrativeState.previewLoading);
                 assert.equal(await page.evaluate(() => window.previewRequests.every(fields => fields.every(([name]) => !name.startsWith('accomplishment_evidence[') && !/\[evidence(?:_key|_ids)?\]/.test(name)))), true);
-                assert.equal(await page.evaluate(() => window.previewRequests.at(-1).some(([name,file]) => name==='figures[0][image]' && file instanceof File && file.size>0)), true, 'Report figures must remain available to the paper preview');
+                assert.equal(await page.evaluate(() => window.previewRequests.at(-1).some(([name,value]) => name==='figures[0][image_id]' && value)), true, 'Saved figures must remain available to the paper preview');
                 const frame = page.locator('.proposal-preview-dock').frameLocator('iframe');
                 await frame.getByText('Updated accomplishments for this period.', { exact: true }).waitFor();
                 assert.equal(await frame.getByText(/proof\.png|first-save\.png|later-selection\.png/).count(), 0);
@@ -275,7 +290,8 @@ test('rendered progress reports save private evidence and keep it out of preview
                 await page.waitForFunction(() => Boolean(window.preparedFields));
                 assert.equal(await page.evaluate(() => window.preparedFields.filter(([name]) => name==='accomplishments[0][evidence_ids][]').length), 3, 'Preparing the PDF must wait for evidence to finish saving');
                 assert.equal(await page.evaluate(() => window.preparedFields.find(([name]) => name.startsWith('accomplishment_evidence['))[1]), '', 'Preparing the PDF must not upload evidence a second time');
-                assert.equal(await page.evaluate(() => window.preparedFields.find(([name]) => name==='figures[0][image]')[1]), 'report-figure.png');
+                assert.equal(await page.evaluate(() => window.preparedFields.find(([name]) => name==='figures[0][image]')[1]), '');
+                assert.match(await page.evaluate(() => window.preparedFields.find(([name]) => name==='figures[0][image_id]')[1]), /^[a-f0-9-]{36}$/);
                 assert.deepEqual(errors, []);
                 await page.close();
             }

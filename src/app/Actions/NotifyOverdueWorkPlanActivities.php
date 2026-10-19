@@ -23,7 +23,6 @@ class NotifyOverdueWorkPlanActivities
             if ($locked === null || ! $locked->isMonitoringAvailable()) {
                 return 0;
             }
-            $locked->setRelations($topic->getRelations());
             $locked->loadMissing('user');
             $leader = $locked->user;
             if ($leader === null) {

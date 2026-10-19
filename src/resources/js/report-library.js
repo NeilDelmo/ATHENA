@@ -64,13 +64,14 @@ export function reportLibrary(storageKey) {
             this.viewMenuX = event.clientX || anchor.left;
             this.viewMenuY = event.clientY || anchor.bottom;
             this.viewMenuOpen = true;
-            this.$nextTick(() => {
+            this.$nextTick(() => window.requestAnimationFrame(() => {
                 const menu = this.$refs.libraryViewMenu;
+                if (!menu || !this.viewMenuOpen) return;
                 const bounds = menu.getBoundingClientRect();
                 this.viewMenuX = Math.max(8, Math.min(this.viewMenuX, window.innerWidth - bounds.width - 8));
                 this.viewMenuY = Math.max(8, Math.min(this.viewMenuY, window.innerHeight - bounds.height - 8));
                 menu.querySelector('[aria-checked="true"]')?.focus({ preventScroll: true });
-            });
+            }));
         },
         closeViewMenu(restoreFocus = true) {
             if (!this.viewMenuOpen) return;

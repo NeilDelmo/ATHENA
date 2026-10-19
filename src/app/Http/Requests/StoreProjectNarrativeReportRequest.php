@@ -6,6 +6,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportEvidenceService;
+use App\Services\ReportFigureDraftService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
@@ -60,6 +61,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     {
         $rules = [
             ...app(ProgressReportEvidenceService::class)->rules($this),
+            ...app(ReportFigureDraftService::class)->rules($this),
             'reporting_date' => [Rule::excludeIf($this->input('report_type') === 'terminal'), 'required', 'date_format:Y-m-d'],
             'submission_date' => ['required', 'date', 'before_or_equal:today'],
             'report_type' => ['required', Rule::in(['progress', 'terminal'])],
@@ -82,16 +84,16 @@ class StoreProjectNarrativeReportRequest extends FormRequest
 
         if ($this->input('report_type') !== 'terminal') {
             $rules['figures'] = ['nullable', 'array'];
-            $rules['figures.*'] = ['array:image,caption,section,after_paragraph'];
+            $rules['figures.*'] = ['array:image,image_id,caption,section,after_paragraph'];
             $rules['figures.*.image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
-            $rules['figures.*.caption'] = ['nullable', 'string', 'max:1000', 'required_with:figures.*.image'];
-            $rules['figures.*.section'] = ['nullable', Rule::in(['methodology', 'results_discussion']), 'required_with:figures.*.image'];
+            $rules['figures.*.caption'] = ['nullable', 'string', 'max:1000', 'required_with:figures.*.image,figures.*.image_id'];
+            $rules['figures.*.section'] = ['nullable', Rule::in(['methodology', 'results_discussion']), 'required_with:figures.*.image,figures.*.image_id'];
             $rules['figures.*.after_paragraph'] = ['nullable', 'integer', 'min:0', 'max:100000'];
         }
         foreach (app(ProgressReportData::class)->legacyFigureIndexes($this->all()) as $index) {
             $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
-            $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:1000', 'required_with:photo_'.$index];
-            $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion']), 'required_with:photo_'.$index];
+            $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:1000', 'required_with:photo_'.$index.',saved_photo_'.$index];
+            $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion']), 'required_with:photo_'.$index.',saved_photo_'.$index];
             $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:100000'];
         }
 
@@ -119,7 +121,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             $evidenceKeys = array_keys(app(TerminalReportData::class)->evidence($this->route('topic')));
             $rules['cover_image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
             $rules['reuse_cover_image'] = ['nullable', Rule::in($evidenceKeys)];
-            $rules['cover_image_caption'] = ['nullable', 'string', 'max:200', 'required_with:cover_image,reuse_cover_image'];
+            $rules['cover_image_caption'] = ['nullable', 'string', 'max:200', 'required_with:cover_image,reuse_cover_image,saved_cover_image'];
             foreach (range(1, 30) as $index) {
                 $rules['reuse_photo_'.$index] = ['nullable', Rule::in($evidenceKeys)];
                 $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:1000'];
@@ -127,8 +129,8 @@ class StoreProjectNarrativeReportRequest extends FormRequest
                 $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:200'];
                 if (! false) {
                     $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
-                    $rules['photo_caption_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index;
-                    $rules['photo_section_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index;
+                    $rules['photo_caption_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index.',saved_photo_'.$index;
+                    $rules['photo_section_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index.',saved_photo_'.$index;
                 }
             }
         }

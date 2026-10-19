@@ -37,7 +37,7 @@ class ProjectDocumentLibrary
             return null;
         }
 
-        return route('project-narrative-reports.photos.view', [$report, $photoIndex]);
+        return route('project-narrative-reports.photos.view', [$report, $photoIndex, 'preview' => 1]);
     }
 
     /** @return array{categories: Collection<int, array{key: string, label: string, description: string, count: int}>, documents: Collection<int, array<string, mixed>>, total: int, canUpload: bool, uploadCategories: array<string, string>} */
@@ -140,10 +140,10 @@ class ProjectDocumentLibrary
                 'uploaded_by' => $document->uploadedBy?->name,
                 'uploaded_at' => $document->created_at,
                 'file_size' => $document->file_size,
-                'view_url' => route('topics.documents.view', [$topic, $document]),
+                'view_url' => route('topics.documents.view', [$topic, $document, ...($isImage ? ['preview' => 1] : [])]),
                 'download_url' => route('topics.documents.download', [$topic, $document]),
                 'official' => false,
-                ...($isImage ? ['preview_kind' => 'image', 'thumbnail_url' => route('topics.documents.view', [$topic, $document])] : []),
+                ...($isImage ? ['preview_kind' => 'image', 'thumbnail_url' => route('topics.documents.view', [$topic, $document, 'preview' => 1])] : []),
             ]);
         });
 

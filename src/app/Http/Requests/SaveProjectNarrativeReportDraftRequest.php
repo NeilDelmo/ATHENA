@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportEvidenceService;
+use App\Services\ReportFigureDraftService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
@@ -44,8 +45,10 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
     {
         $rules = [
             ...app(ProgressReportEvidenceService::class)->rules($this),
-            'reporting_date' => ['nullable', 'date_format:Y-m-d'],
+            ...app(ReportFigureDraftService::class)->rules($this),
+            'reporting_date' => [Rule::requiredIf($this->input('report_type') === 'progress' && $this->allFiles() !== []), 'nullable', 'date_format:Y-m-d'],
             'draft_version' => ['required', 'integer', 'min:0'],
+            'recovery_scope' => ['sometimes', 'string', 'size:64'],
             'report_type' => ['sometimes', Rule::in(['progress', 'terminal'])],
             'submission_date' => ['nullable', 'date', 'before_or_equal:today'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
@@ -67,12 +70,14 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
 
         if ($this->input('report_type') !== 'terminal') {
             $rules['figures'] = ['nullable', 'array'];
-            $rules['figures.*'] = ['array:caption,section,after_paragraph'];
+            $rules['figures.*'] = ['array:image,image_id,caption,section,after_paragraph'];
+            $rules['figures.*.image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
             $rules['figures.*.caption'] = ['nullable', 'string', 'max:1000'];
             $rules['figures.*.section'] = ['nullable', Rule::in(['methodology', 'results_discussion'])];
             $rules['figures.*.after_paragraph'] = ['nullable', 'integer', 'min:0', 'max:100000'];
         }
         foreach (app(ProgressReportData::class)->legacyFigureIndexes($this->all()) as $index) {
+            $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
             $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:1000'];
             $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion'])];
             $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:100000'];
@@ -94,16 +99,13 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
             $evidenceKeys = array_keys(app(TerminalReportData::class)->evidence($this->route('topic')));
             $rules['reuse_cover_image'] = ['nullable', Rule::in($evidenceKeys)];
             $rules['cover_image_caption'] = ['nullable', 'string', 'max:200'];
+            $rules['cover_image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
             foreach (range(1, 30) as $index) {
                 $rules['reuse_photo_'.$index] = ['nullable', Rule::in($evidenceKeys)];
                 $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:1000'];
                 $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion'])];
                 $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:200'];
-                if (! true) {
-                    $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
-                    $rules['photo_caption_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index;
-                    $rules['photo_section_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index;
-                }
+                $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
             }
         }
 
@@ -114,6 +116,7 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'reporting_date.required' => 'Choose a reporting quarter before adding images or evidence.',
             'terminal_data.total_expenditure.max' => 'The final total expenditure may not exceed the approved project budget.',
         ];
     }

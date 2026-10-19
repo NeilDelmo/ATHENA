@@ -642,9 +642,9 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         ->and($xpath->query('//*[@data-progress-report-reader-link]')->item(0)->getAttribute('href'))
         ->toBe(route('project-narrative-reports.show', $progress))
         ->and($xpath->query('//*[@data-quarter-pdf-preview-modal and @data-report-kind="progress"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@data-submitted-report-preview]')->length)->toBe(2)
-        ->and($xpath->query('//*[@data-submitted-report-preview]//*[@aria-label="Document zoom controls"]')->length)->toBe(2)
-        ->and($xpath->query('//*[@data-submitted-report-preview]//*[contains(@class, "proposal-preview-dock-heading")]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-submitted-report-preview-modal]//*[@data-submitted-report-preview]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-submitted-report-preview-modal]//*[@aria-label="Document zoom controls"]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-submitted-report-preview-modal]//*[contains(@class, "proposal-preview-dock-heading")]')->length)->toBe(2)
         ->and($xpath->query('//*[@data-progress-report-detail]//*[@data-submitted-report-paper]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-monitoring-report-detail]//*[@data-submitted-report-paper]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-progress-report-detail]//*[@role="progressbar"]')->item(0)?->getAttribute('aria-valuenow'))->toBe('25')
@@ -2328,8 +2328,8 @@ test('report reader shows the accomplishment table and seven figures within thei
         ->and($xpath->query('.//*[@data-report-reader-heading]', $card)->length)->toBe(1)
         ->and($xpath->query('.//*[@data-narrative-figure-preview-modal]', $card)->length)->toBe(7)
         ->and($xpath->query('.//header//button[@aria-haspopup="dialog"]/*[local-name()="svg"]', $card)->length)->toBe(1);
-    expect($xpath->query('//*[@data-submitted-report-preview]//*[@aria-label="Document zoom controls"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@data-submitted-report-preview]//*[@aria-label="Zoom in"]')->length)->toBe(1);
+    expect($xpath->query('//*[@data-submitted-report-preview-modal]//*[@aria-label="Document zoom controls"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-submitted-report-preview-modal]//*[@aria-label="Zoom in"]')->length)->toBe(1);
     $content = $xpath->query('.//*[@data-report-section="methodology"]', $card)->item(0)->textContent;
     expect(strpos($content, 'First methods paragraph.'))->toBeLessThan(strpos($content, 'Figure 1.'))
         ->and(strpos($content, 'Figure 2.'))->toBeLessThan(strpos($content, 'Second methods paragraph.'));

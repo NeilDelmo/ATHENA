@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ResearchAssistantWorkflowContextService;
 use Carbon\CarbonImmutable;
 use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -102,12 +103,35 @@ test('assistant venue actions expose project routes only for accessible dissemin
     $pending = TopicProposal::create(['user_id' => $researcher->id, 'title' => 'Proposal awaiting approval', 'status' => 'pending']);
     $other = User::factory()->create();
     $private = TopicProposal::create(['user_id' => $other->id, 'title' => 'Private completed study', 'status' => 'approved', 'project_status' => 'completed']);
+    $sharedProjects = collect(range(1, 3))->map(function (int $number) use ($other, $researcher): TopicProposal {
+        $project = TopicProposal::create(['user_id' => $other->id, 'title' => 'Shared completed study '.$number, 'status' => 'approved', 'project_status' => 'completed']);
+        $project->collaborators()->create([
+            'user_id' => $researcher->id,
+            'name' => $researcher->name,
+            'email' => $researcher->email,
+            'accepted_at' => now(),
+        ]);
+
+        return $project;
+    });
+
+    DB::enableQueryLog();
+    DB::flushQueryLog();
     $response = $this->actingAs($researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty_researcher'])
-        ->get(route('research-support.index'))->assertOk();
+        ->get(route('research-support.index'));
+    $queries = collect(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    $response->assertOk();
     $contexts = collect(assistantContexts($response));
-    expect($contexts->firstWhere('id', $eligible->id)['dissemination']['journal_save_url'])->toBe(route('research.dissemination.journal-submissions.store', $eligible));
-    expect($contexts->firstWhere('id', $pending->id)['dissemination'] ?? null)->toBeNull();
-    expect($contexts->firstWhere('id', $private->id))->toBeNull();
+    foreach ($sharedProjects->prepend($eligible) as $project) {
+        $dissemination = $contexts->firstWhere('id', $project->id)['dissemination'];
+        expect($dissemination['journal_save_url'])->toBe(route('research.dissemination.journal-submissions.store', $project))
+            ->and($dissemination['conference_save_url'])->toBe(route('research.dissemination.conferences.store', $project));
+    }
+    expect($contexts->firstWhere('id', $pending->id))->toBeNull()
+        ->and($contexts->firstWhere('id', $private->id))->toBeNull();
+    expect($queries->filter(fn (array $query): bool => str_starts_with($query['query'], 'select exists(select * from `topic_collaborators`')))->toHaveCount(0);
 });
 
 function assistantDocxContents(string $text): string
@@ -339,8 +363,10 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Privacy details')
         ->assertSee('athena-chat-panel')
         ->assertDontSee('Context-aware assistance:')
-        ->assertSee('Reference material')
-        ->assertSee('These are the records and references Athena could consult for this reply. The number counts reference items, not verified citations.')
+        ->assertSee('data-assistant-sources', false)
+        ->assertSee('Sources and reference material')
+        ->assertSee('Reference material available for this reply.')
+        ->assertDontSee('The number counts reference items, not verified citations.')
         ->assertDontSee('Sources available to Athena')
         ->assertSee('<details x-show="Array.isArray(message.sources)', false)
         ->assertDontSee('Grounded with ATHENA knowledge')

@@ -50,7 +50,11 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#f9a8d4\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"php artisan reverb:start\" \"npm run dev\" --names=server,queue,logs,reverb,vite --kill-others"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#e879f9,#fb7185,#fdba74,#f9a8d4\" \"php artisan serve\" \"php artisan queue:listen --queue=default,research-manual-checks --tries=1 --timeout=0\" \"composer run dev:pdfs\" \"php artisan pail --timeout=0\" \"php artisan reverb:start\" \"npm run dev\" --names=server,queue,pdfs,logs,reverb,vite --kill-others"
+        ],
+        "dev:pdfs": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx concurrently --restart-tries=-1 --restart-after=3000 -c \"#e879f9,#fb7185\" \"php artisan queue:listen proposal-pdfs --sleep=1 --tries=0 --timeout=540\" \"php artisan proposal-pdfs:recover --watch\" --names=worker,recovery"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

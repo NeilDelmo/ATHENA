@@ -5,7 +5,7 @@
     aria-labelledby="assistant-heading"
     role="dialog"
     aria-modal="true"
-    x-trap.inert.noreturn="$store.researchAssistant.workspaceOpen"
+    x-trap.inert.noreturn="$store.researchAssistant.workspaceOpen && !$store.researchAssistant.sourcePreviewOpen"
     @keydown.escape.prevent="$store.researchAssistant.closeWorkspace()"
     data-assistant-workspace
 >
@@ -120,33 +120,17 @@
                             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-900 text-white">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
                             </div>
-                            <div data-assistant-response class="min-w-0 flex-1 text-base leading-relaxed text-stone-950 dark:text-stone-100">
+                            <div data-assistant-response x-data="researchAssistantCitations" @click="openCitation($event, message)" class="min-w-0 flex-1 text-base leading-relaxed text-stone-950 dark:text-stone-100">
                                 <p class="mb-1 text-xs font-semibold text-red-900 dark:text-red-200">Athena</p>
                                 <x-research-assistant-evidence />
                                 <x-research-assistant-document-reading />
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <x-research-assistant-citation />
                                 <x-research-assistant-literature />
                                 <x-research-assistant-proposal-changes />
                                 <x-research-assistant-report-changes />
                                 <x-research-assistant-dissemination />
-                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
-                                    <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800">
-                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
-                                        <span>Reference material</span>
-                                        <span class="text-gray-500" x-text="`(${message.sources?.length || 0})`"></span>
-                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                                    </summary>
-                                    <p class="mt-2 text-xs leading-5 text-stone-600 dark:text-stone-300">These are the records and references Athena could consult for this reply. The number counts reference items, not verified citations.</p>
-                                    <div class="mt-2 grid gap-1.5">
-                                        <template x-for="source in message.sources" :key="source.reference">
-                                            <span class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200">
-                                                <span class="min-w-0 flex-1"><span class="block font-medium" x-text="source.title || source.reference"></span><span class="block text-stone-600 dark:text-stone-300" x-text="source.category || source.reference"></span></span>
-                                                <a x-show="$store.researchAssistant.sourceUrl(source)" :href="$store.researchAssistant.sourceUrl(source)" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-stone-300 bg-white px-3 py-2 text-red-900 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-red-200 dark:hover:bg-stone-800">Open source
-                                                </a>
-                                            </span>
-                                        </template>
-                                    </div>
-                                </details>
+                                <x-research-assistant-sources />
                                 <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
                             </div>
                         </div>

@@ -6,6 +6,7 @@ use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProjectReportDraftState;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -19,8 +20,11 @@ class SaveProjectNarrativeReportDraft
         array $sourceData,
     ): ProjectNarrativeReportDraft {
         $normalizedSourceData = $this->normalizeSourceData($sourceData);
+        $expectedScope = $normalizedSourceData['recovery_scope'] ?? null;
+        unset($normalizedSourceData['recovery_scope']);
 
-        return DB::transaction(function () use ($topic, $user, $expectedVersion, $normalizedSourceData): ProjectNarrativeReportDraft {
+        return DB::transaction(function () use ($topic, $user, $expectedVersion, $normalizedSourceData, $expectedScope): ProjectNarrativeReportDraft {
+            $topic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $draft = ProjectNarrativeReportDraft::query()
                 ->whereBelongsTo($topic, 'topic')
                 ->whereBelongsTo($user, 'user')
@@ -39,6 +43,11 @@ class SaveProjectNarrativeReportDraft
             $newDate = $normalizedSourceData['reporting_date'] ?? null;
             if (($normalizedSourceData['report_type'] ?? 'progress') === 'progress' && $savedDate && $newDate && app(MonitoringQuarterService::class)->forDate($savedDate, $topic)['start']->ne(app(MonitoringQuarterService::class)->forDate($newDate, $topic)['start'])) {
                 throw ValidationException::withMessages(['reporting_date' => 'Finish your saved Progress Report draft before starting another quarter.']);
+            }
+
+            $state = app(ProjectReportDraftState::class)->forEditor($topic, $user, $normalizedSourceData['report_type'] ?? 'progress', $newDate ?? $savedDate);
+            if (! $state['is_editable'] || ($expectedScope !== null && $expectedScope !== $state['scope'])) {
+                throw ValidationException::withMessages(['draft_version' => 'The saved report changed or is no longer editable. Load the latest saved work before saving again.']);
             }
 
             if ($draft === null) {

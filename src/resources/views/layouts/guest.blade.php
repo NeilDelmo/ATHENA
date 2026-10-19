@@ -15,7 +15,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
-    <body class="font-sans antialiased">
+    <body class="font-sans antialiased" data-auth-user-id="{{ Auth::id() }}">
         {{ $slot }}
 
         @livewireScriptConfig

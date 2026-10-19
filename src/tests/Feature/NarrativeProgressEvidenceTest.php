@@ -264,7 +264,7 @@ test('failed narrative PDF preparation removes new evidence while keeping draft 
     Exceptions::assertReported(RuntimeException::class);
 });
 
-test('discarding a prepared narrative report deletes its unreferenced evidence', function () {
+test('discarding a prepared narrative report keeps evidence in its restored draft until removed', function () {
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)([
         'accomplishment_evidence' => [$this->evidenceKey => [UploadedFile::fake()->image('discard.png')]],
     ]))->assertSessionHasNoErrors();
@@ -272,6 +272,12 @@ test('discarding a prepared narrative report deletes its unreferenced evidence',
     $file = $report->accomplishments[0]['evidence'][0];
     Storage::disk('local')->assertExists($file['path']);
     $this->delete(route('project-narrative-reports.discard-prepared', ['topic' => $this->topic, 'report' => $report]))->assertSessionHasNoErrors();
+    Storage::disk('local')->assertExists($file['path']);
+    $draft = ProjectNarrativeReportDraft::query()->sole();
+    expect($draft->source_data['accomplishments'][0]['evidence'][0]['id'])->toBe($file['id']);
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), ($this->payload)([
+        'draft_version' => $draft->lock_version, 'accomplishments' => [['evidence_ids' => []]],
+    ]))->assertSuccessful();
     Storage::disk('local')->assertMissing($file['path']);
     $this->get(route('project-narrative-reports.evidence', ['topic' => $this->topic, 'evidence' => $file['id']]))->assertNotFound();
 });

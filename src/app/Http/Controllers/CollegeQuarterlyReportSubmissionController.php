@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\User;
 use App\Services\CollegeQuarterlyReportDocument;
+use App\Services\ImagePreviewService;
 use App\Services\MonitoringQuarterService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CollegeQuarterlyReportSubmissionController extends Controller
 {
@@ -44,11 +46,15 @@ class CollegeQuarterlyReportSubmissionController extends Controller
         ]);
     }
 
-    public function evidence(Request $request, CollegeQuarterlyReportSubmission $submission, int $index): BinaryFileResponse
+    public function evidence(Request $request, CollegeQuarterlyReportSubmission $submission, int $index, ImagePreviewService $previews): BinaryFileResponse|StreamedResponse
     {
         $this->authorizeReader($request, $submission);
         $image = $submission->snapshot['evidence'][$index] ?? null;
         abort_unless(is_array($image) && Storage::disk('local')->exists($image['path']), 404);
+
+        if ($request->boolean('preview') && in_array($image['mime_type'], ['image/jpeg', 'image/png'], true)) {
+            return $previews->response($image['path'], $image['original_filename']);
+        }
 
         $headers = [
             'Content-Type' => $image['mime_type'], 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store',

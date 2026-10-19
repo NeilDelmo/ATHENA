@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SelectActiveRoleRequest;
+use App\Support\WorkspaceLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class RoleSelectionController extends Controller
         $request->session()->put('active_role', $activeRole);
         $request->session()->put('active_workspace', $activeRole === 'research_coordinator' ? 'research_office' : 'faculty');
 
-        $dashboardUrl = route($activeRole === 'faculty' ? 'faculty.dashboard' : 'research_coordinator.dashboard');
+        $dashboardUrl = WorkspaceLocation::destination($request, $activeRole === 'research_coordinator' ? 'research_office' : 'faculty', $request->validated('resume_url'));
 
         if ($request->expectsJson()) {
             return response()->json(['redirect' => $dashboardUrl]);

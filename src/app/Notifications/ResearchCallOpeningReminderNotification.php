@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\ResearchCall;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Bus\Queueable;
@@ -25,6 +26,17 @@ class ResearchCallOpeningReminderNotification extends Notification implements Sh
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast'];
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        $call = ResearchCall::query()->find($this->researchCallId);
+
+        return $notifiable instanceof User && $call !== null
+            && ($notifiable->hasRole(User::WORKSPACE_RESEARCH_HEAD) || $call->created_by === $notifiable->id)
+            && $call->status === 'open' && ! $call->closes_at->isPast()
+            && $call->opens_at->equalTo($this->opensAt)
+            && $call->opens_at->isFuture() && $call->opens_at->lte(now()->addDay());
     }
 
     public function toArray(object $notifiable): array

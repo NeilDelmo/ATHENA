@@ -25,6 +25,8 @@
         data-proposal-paper-slug="expense-breakdown"
         @athena-apply-proposal-change.window="handleAssistantPaperChange($event)"
         data-paper-editor
+        data-proposal-paper="expense-breakdown"
+        data-proposal-readiness-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}"
         data-paper-draft-save="true"
         data-expense-breakdown-autosave="true"
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
@@ -48,6 +50,11 @@
             revisionTarget: @js(request()->query('revision_target')),
         })"
     >
+        <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
+        @if (request()->has('proposal_requirement'))
+            <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" />
+        @endif
+
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif

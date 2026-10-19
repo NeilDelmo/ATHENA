@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\MonitoringQuarterService;
+use App\Services\WorkspaceActionItems;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
@@ -289,6 +290,32 @@ test('Research Head overdue notifications report official incomplete activity pr
         $this->topic->title, $this->leader->name, 'Build the prototype', 'Develop the prototype',
         'Apr 14, 2026', '50% complete in submitted monitoring.',
     )->not->toContain('Establish the baseline');
+});
+
+test('overdue reminders recheck fresh submitted progress and stop after the target or project is completed', function () {
+    $this->travelTo('2026-02-15');
+    $this->topic->load('progressReports', 'latestVersion.files');
+    $key = $this->topic->id.':0:2026-02-14';
+    $reminder = new ProposalActivityNotification('Work Plan target overdue', 'Complete the target.', '/', topicId: $this->topic->id,
+        actionData: ['work_plan_overdue_key' => $key]);
+    expect($reminder->shouldSend($this->leader, 'database'))->toBeTrue();
+    app(NotifyOverdueWorkPlanActivities::class)->handle($this->topic);
+    $notice = $this->leader->notifications()->sole();
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])->actingAs($this->leader);
+    $this->getJson(route('notifications.index'))->assertOk()->assertJsonPath('notifications.0.needs_action', true)
+        ->assertJsonPath('pending_actions.0.label', 'Address overdue Work Plan target');
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty_researcher');
+    expect(app(WorkspaceActionItems::class)->for($outsider))->toBeEmpty();
+    ($this->makeReport)([['source_work_plan_index' => 0, 'accomplished_percentage' => '16.67']], ['reporting_date' => '2026-02-15']);
+    expect($reminder->shouldSend($this->leader, 'broadcast'))->toBeFalse()
+        ->and(app(NotifyOverdueWorkPlanActivities::class)->handle($this->topic))->toBe(0)
+        ->and($this->leader->notifications()->count())->toBe(1);
+    $this->getJson(route('notifications.index'))->assertOk()->assertJsonPath('notifications.0.needs_action', false)
+        ->assertJsonCount(0, 'pending_actions');
+    expect($notice->fresh()->read_at)->toBeNull();
+    $this->topic->update(['project_status' => 'completed']);
+    expect($reminder->shouldSend($this->leader, 'database'))->toBeFalse();
 });
 
 test('an existing faculty overdue reminder does not prevent the Research Head notification', function () {

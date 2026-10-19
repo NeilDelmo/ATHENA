@@ -11,10 +11,10 @@ function storage(initial = {}) {
     };
 }
 
-function library(localStorage, key = 'athena-report-library') {
+function library(localStorage, key = 'athena-report-library', requestFrame = callback => callback()) {
     const source = readFileSync(new URL('../../resources/js/report-library.js', import.meta.url), 'utf8')
         .replace('export function ', 'function ');
-    const factory = runInNewContext(`${source}\nreportLibrary`, { localStorage, window: { localStorage, innerWidth: 1024, innerHeight: 768 } });
+    const factory = runInNewContext(`${source}\nreportLibrary`, { localStorage, window: { localStorage, innerWidth: 1024, innerHeight: 768, requestAnimationFrame: requestFrame } });
     const state = factory(key);
     state.init();
     return state;
@@ -176,6 +176,31 @@ test('View menu is clamped to the viewport, supports keyboard navigation and ret
     assert.equal(state.size, 'large');
     state.chooseViewOption('tiny');
     assert.equal(state.size, 'large');
+});
+
+test('View menu waits for its visible frame before measuring and never focuses a closed menu', () => {
+    const frames = [];
+    const state = library(storage(), undefined, callback => frames.push(callback));
+    let visible = false;
+    let measured = false;
+    let focused = false;
+    state.$nextTick = callback => callback();
+    state.$refs = { libraryViewMenu: {
+        getBoundingClientRect() { measured = true; return visible ? { width: 240, height: 220 } : { width: 0, height: 0 }; },
+        querySelector: () => ({ focus() { focused = true; } }),
+    } };
+    const surface = { getBoundingClientRect: () => ({ left: 36, bottom: 1200 }) };
+    state.openViewMenu({ target: surface, currentTarget: surface, clientX: 0, clientY: 0, preventDefault() {} });
+    assert.equal(measured, false);
+    visible = true;
+    frames.shift()();
+    assert.equal(state.viewMenuY, 540);
+    assert.equal(focused, true);
+    focused = false;
+    state.openViewMenu({ target: surface, currentTarget: surface, clientX: 0, clientY: 0, preventDefault() {} });
+    state.closeViewMenu(false);
+    frames.shift()();
+    assert.equal(focused, false);
 });
 
 test('editable context menus remain native and dismissing outside does not steal focus', () => {

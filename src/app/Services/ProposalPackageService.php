@@ -225,6 +225,9 @@ class ProposalPackageService
      */
     public function storeGeneratedPapers(array $papers, string $directory, string $projectTitle): array
     {
+        if ($papers === []) {
+            return [];
+        }
         $documents = [];
 
         foreach ($papers as $slug => $paper) {

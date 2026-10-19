@@ -79,12 +79,13 @@ test('only supplied source references become evidence controls', () => {
         { reference: 'Detailed Proposal', title: 'Saved detailed proposal', url: 'https://athena.test/drafts/12/details' },
     ]);
 
-    assert.match(html, /class="[^"]*assistant-evidence-link[^"]*"/);
-    assert.match(html, /href="https:\/\/athena\.test\/drafts\/12\/details"/);
-    assert.match(html, /Open evidence/);
+    assert.match(html, /class="assistant-citation"/);
+    assert.match(html, /data-assistant-citation="0"/);
+    assert.match(html, /View source: Saved detailed proposal/);
+    assert.doesNotMatch(html, /Open evidence/);
     assert.match(html, /Unknown \[ATHENA 9\]/);
     assert.match(html, /<code[^>]*>Do not link \[Detailed Proposal\]<\/code>/);
-    assert.equal((html.match(/assistant-evidence-link/g) || []).length, 1);
+    assert.equal((html.match(/data-assistant-citation=/g) || []).length, 1);
     assert.match(html, /href="https:\/\/example\.edu\/guide"/);
 });
 
@@ -98,7 +99,15 @@ test('hostile URLs and evidence labels stay inert while safe query strings survi
     assert.doesNotMatch(html, /<img/);
     assert.doesNotMatch(html, /assistant-evidence-link/);
     assert.match(html, /href="https:\/\/example\.edu\/\?a=1&amp;b=2"/);
-    assert.match(html, /\[Unsafe evidence\] \[No URL\]/);
+    assert.equal((html.match(/data-assistant-citation=/g) || []).length, 2);
+});
+
+test('inline manual references stay compact and only bind a supplied source', () => {
+    const html = formatAssistantMarkdown('Get clearance [ATHENA 1]. Unknown [ATHENA 8].', [{ reference: 'ATHENA 1', title: '<Ethics>', excerpt: 'Exact policy text', url: null }]);
+    assert.match(html, /<button[^>]*data-assistant-citation="0"[^>]*>1<\/button>/);
+    assert.match(html, /aria-label="View source: &lt;Ethics&gt;"/);
+    assert.match(html, /Unknown \[ATHENA 8\]/);
+    assert.doesNotMatch(html, /href=|<Ethics>/);
 });
 
 test('source URL validation rejects executable, relative, credential, and control-character URLs', () => {

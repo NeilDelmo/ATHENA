@@ -2,7 +2,7 @@
 
 @php($quarter = $quarter ?? $report->reporting_quarter)
 
-<div class="quarter-report-document" data-progress-report-detail>
+<div class="quarter-report-document" data-progress-report-detail data-live-report-key="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-scope="{{ \App\Services\TopicLiveStatus::reportScope($topic, $report) }}">
     <x-quarter-report-header :report="$report" :title="'Q'.$quarter.' Progress Report · Version '.($report->version_number ?? 1)" :closable="$closable" />
     <div class="quarter-report-layout">
         <div class="min-w-0 space-y-5">

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ReportFigureDraftService;
 use Illuminate\Http\UploadedFile;
 
 class ProgressReportData
@@ -132,6 +133,7 @@ class ProgressReportData
         foreach ($this->legacyFigureIndexes($data) as $index) {
             $figures->push([
                 'file' => $files['photo_'.$index] ?? null,
+                'image_id' => $data['saved_photo_'.$index] ?? null,
                 'preview_file_input' => 'photo_'.$index,
                 'caption' => $data['photo_caption_'.$index] ?? '',
                 'section' => $data['photo_section_'.$index] ?? 'results_discussion',
@@ -139,12 +141,15 @@ class ProgressReportData
             ]);
         }
 
-        return $figures->filter(fn (array $row): bool => ($row['file'] ?? null) instanceof UploadedFile)
-            ->map(function (array $row) use ($topic, $preview, &$storedPaths): array {
+        return $figures->filter(fn (array $row): bool => ($row['file'] ?? null) instanceof UploadedFile || isset($data['saved_images'][$row['image_id'] ?? '']))
+            ->map(function (array $row) use ($topic, $data, $preview, &$storedPaths): array {
                 $photo = [
                     'caption' => $row['caption'], 'section' => $row['section'],
                     'after_paragraph' => (int) ($row['after_paragraph'] ?? 0),
                 ];
+                if (! ($row['file'] ?? null) instanceof UploadedFile) {
+                    return app(ReportFigureDraftService::class)->photo($topic, $row['image_id'], $data['saved_images'][$row['image_id']], $photo, $preview, $storedPaths);
+                }
                 if ($preview) {
                     return [...$photo, 'preview_file_input' => $row['preview_file_input']];
                 }

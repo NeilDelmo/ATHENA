@@ -2,6 +2,7 @@
 import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Swal from './proposal-dialog';
 import { researchAssistantHistory } from './research-assistant-history';
+import { researchAssistantCitations, researchAssistantSourcePreview } from './research-assistant-citations';
 import { researchAssistantReview } from './research-assistant-review';
 import { normalizeAssistantLiterature, researchAssistantLiterature, serializeAssistantLiterature } from './research-assistant-literature';
 import { disseminationAction, disseminationSearchRequest, disseminationSearchReply, researchAssistantDissemination } from './research-assistant-dissemination';
@@ -35,14 +36,21 @@ import '../css/report-library.css';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import { projectDocumentDrawer } from './project-document-drawer';
 import { projectStatusManager } from './project-status-manager';
-import { projectWorkspace } from './project-workspace';
+import { projectWorkspace, projectRecordsPage } from './project-workspace';
 import { proposalSignedUploads } from './proposal-signed-uploads';
 import { signatoryDefaultBoard } from './signatory-default-board';
-import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
+import registerPdfAnnotationWorkspace, { synchronizePdfReadingAccount } from './pdf-annotation-workspace';
+import { initializeFileUploads, submitFileUploadForm, uploadRequest } from './file-upload';
+import initializeTopicLiveStatus from './topic-live-status';
+import '../css/file-upload.css';
 import initializeResearchCallCarousels from './research-call-carousel';
 import initializeResearchCallImageExtractors from './research-call-image-extractor';
 import initializeResearchCallPosterPreviews from './research-call-poster-preview';
 import initializeRevisionTargetFocus from './revision-target-focus';
+import initProposalSubmissionReadiness from './proposal-submission-readiness';
+import initializeProposalPdfPreparation from './proposal-pdf-preparation';
+import initializeResearchManualChecks from './research-manual-checks';
+import initializeProposalConflictRecovery from './proposal-conflict-recovery';
 import initializeRevisionWorkspace, { isEmbeddedRevisionEditor, embeddedRevisionFileSaved } from './revision-workspace';
 import {
     filterWorkspacePeople,
@@ -97,6 +105,7 @@ Alpine.data('quarterlyReportForm', quarterlyReportForm);
 Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm);
 Alpine.data('reportLibrary', reportLibrary);
 Alpine.data('researchManualReader', researchManualReader);
+Alpine.data('researchAssistantCitations', researchAssistantCitations);
 Alpine.data('assistantReportEditor', (config) => assistantReportEditor(config, {
     sanitizeHtml: sanitizedSemanticHtml, resolveChange: resolveAssistantReportChange, handoff: assistantReportChangeHandoff,
 }));
@@ -141,6 +150,7 @@ Alpine.data('projectDissemination', projectDissemination);
 Alpine.data('projectDocumentDrawer', projectDocumentDrawer);
 Alpine.data('projectStatusManager', projectStatusManager);
 Alpine.data('projectWorkspace', projectWorkspace);
+Alpine.data('projectRecordsPage', projectRecordsPage);
 Alpine.data('proposalSignedUploads', proposalSignedUploads);
 Alpine.data('signatoryDefaultBoard', signatoryDefaultBoard);
 Alpine.data('researchSecretaryPicker', (config = {}) => ({
@@ -741,6 +751,27 @@ function backgroundAutoSaveContexts() {
     ));
 }
 
+function initializeProposalSubmissionReadiness() {
+    initProposalSubmissionReadiness({
+        beforeContinue: async ({ recheckCompletion = false } = {}) => {
+            const editor = currentPaperEditor();
+            if (!editor) return true;
+
+            if (recheckCompletion) {
+                const configuration = activeProposalPaperAutoSave(editor.dataset);
+                const state = window.Alpine?.$data?.(editor);
+                if (!configuration || !state) return false;
+                state[configuration.lastSavedProperty] = null;
+            }
+
+            return !recheckCompletion && !paperEditorHasUnsavedChanges(editor)
+                ? true
+                : finishPaperEditorAutoSave(editor);
+        },
+        navigate: url => Livewire.navigate(url),
+    });
+}
+
 function backgroundAutoSaveHasPendingChanges() {
     return backgroundAutoSaveContexts().some(({ configuration, state, form }) => (
         autoSaveHasPendingChanges(state, form, configuration)
@@ -871,7 +902,7 @@ async function offerRevisionUpload(blob, filename, config = {}) {
     formData.append('document_type', config.revisionDocumentType);
     formData.append('file', file);
 
-    const response = await fetch(config.revisionUploadUrl, {
+    const response = await uploadRequest(config.revisionUploadUrl, {
         method: 'POST',
         headers: {
             Accept: 'application/json',
@@ -1517,6 +1548,10 @@ document.addEventListener('submit', async (event) => {
         delete editor.dataset.paperSaveConfirmed;
     }
 
+    const uploadForm = event.target;
+    if (uploadForm instanceof HTMLFormElement && uploadForm.enctype === 'multipart/form-data'
+        && [...new FormData(uploadForm).values()].some(value => value instanceof File && value.size > 0)) return;
+
     editor.dataset.paperDirty = 'false';
     showPaperEditorSubmitStatus(editor, event.submitter);
 });
@@ -1537,7 +1572,7 @@ document.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     if (await finishBackgroundAutoSaves()) {
-        HTMLFormElement.prototype.submit.call(form);
+        await submitFileUploadForm(form, event.submitter);
 
         return;
     }
@@ -1622,7 +1657,9 @@ document.addEventListener('click', async (event) => {
         return;
     }
 
-    const message = action.matches('[data-paper-discard], [data-proposal-load-latest]')
+    const message = action.matches('[data-proposal-load-latest]') && editor.querySelector('[data-proposal-conflict-recovery]:not([hidden])')
+        ? 'Load your teammate’s latest saved work to compare it with your recovery copy. Image and attachment files must be selected again.'
+        : action.matches('[data-paper-discard], [data-proposal-load-latest]')
         ? 'Your changes to this paper will be lost when the saved version is reloaded.'
         : 'Your changes to this paper will be lost when you leave this editor.';
 
@@ -1914,6 +1951,7 @@ Alpine.store('researchAssistant', {
     pageActions: assistantPageActions,
     pageScope: assistantPageScope(),
     ...researchAssistantHistory(assistantHistory),
+    ...researchAssistantSourcePreview(),
     ...researchAssistantLiterature({
         savePaper: async (proposalDraftId) => {
             const editor = document.querySelector('[data-detailed-proposal-workspace]');
@@ -4538,6 +4576,8 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             return;
         }
 
+        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.projectDetailsFingerprint(form);
 
         if (fingerprint === this.lastSavedProjectDetails) return;
@@ -4585,6 +4625,7 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             this.projectDetailsComplete = this.lastSavedProjectDetailsComplete;
             this.projectDetailsStatus('Saved just now.', 'saved');
         } catch (error) {
+            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved newer project details')) {
@@ -4986,6 +5027,8 @@ Alpine.data('notificationMenu', (config) => ({
     workspace: config.workspace,
     poller: null,
     notificationHandler: null,
+    refreshVersion: 0,
+    pendingWrites: 0,
 
     init() {
         this.notificationHandler = (event) => this.receive(event.detail);
@@ -4999,6 +5042,8 @@ Alpine.data('notificationMenu', (config) => ({
     },
 
     async refresh() {
+        if (this.pendingWrites > 0) return;
+        const version = ++this.refreshVersion;
         try {
             const response = await fetch(config.indexUrl, {
                 headers: { Accept: 'application/json' },
@@ -5008,34 +5053,22 @@ Alpine.data('notificationMenu', (config) => ({
             if (!response.ok) return;
 
             const payload = await response.json();
+            if (version !== this.refreshVersion || this.pendingWrites > 0) return;
+            if (payload.workspace && payload.workspace !== this.workspace) return;
             this.notifications = payload.notifications;
             this.unreadCount = payload.unread_count;
+            if (Array.isArray(payload.pending_actions)) {
+                window.dispatchEvent(new CustomEvent('athena-workspace-actions', { detail: { workspace: payload.workspace, actions: payload.pending_actions } }));
+            }
         } catch {
             // Reverb or a temporary network failure should never break the app shell.
         }
     },
 
     receive(notification) {
-        const item = {
-            id: notification.id,
-            data: notification.data || {
-                title: notification.title,
-                message: notification.message,
-                url: notification.url,
-                level: notification.level,
-                topic_id: notification.topic_id,
-            },
-            read_at: null,
-            created_at: 'Just now',
-        };
+        if (!this.isVisible({ data: notification.data || notification })) return;
 
-        if (!this.isVisible(item)) return;
-
-        if (!this.notifications.some((existing) => existing.id === item.id)) {
-            this.notifications.unshift(item);
-            this.notifications = this.notifications.slice(0, 15);
-            this.unreadCount += 1;
-        }
+        this.refresh();
     },
 
     isVisible(item) {
@@ -5069,27 +5102,43 @@ Alpine.data('notificationMenu', (config) => ({
     async markNotificationRead(item) {
         if (item.read_at) return true;
 
-        const response = await this.request(config.readUrl.replace('__ID__', item.id));
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || payload.read === false) return false;
+        this.pendingWrites += 1;
+        this.refreshVersion += 1;
+        try {
+            const body = item.notification_ids ? { notification_ids: item.notification_ids } : null;
+            const response = await this.request(config.readUrl.replace('__ID__', item.id), 'PATCH', body);
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.read === false) return false;
 
-        item.read_at = new Date().toISOString();
-        this.unreadCount = Math.max(0, this.unreadCount - 1);
+            item.read_at = new Date().toISOString();
+            this.unreadCount = payload.unread_count ?? Math.max(0, this.unreadCount - (item.unread_count || 1));
+            item.unread_count = 0;
 
-        return true;
+            return true;
+        } finally {
+            this.pendingWrites -= 1;
+            this.refreshVersion += 1;
+        }
     },
 
     async markAllRead() {
-        const response = await this.request(config.readAllUrl);
-        if (!response.ok) return;
+        this.pendingWrites += 1;
+        this.refreshVersion += 1;
+        try {
+            const response = await this.request(config.readAllUrl);
+            if (!response.ok) return;
 
-        const payload = await response.json().catch(() => ({}));
-        const preservedIds = new Set(payload.preserved_ids || []);
+            const payload = await response.json().catch(() => ({}));
+            const preservedIds = new Set(payload.preserved_ids || []);
 
-        this.notifications = this.notifications.map((item) => preservedIds.has(item.id)
-            ? item
-            : { ...item, read_at: item.read_at || new Date().toISOString() });
-        this.unreadCount = payload.unread_count ?? 0;
+            this.notifications = this.notifications.map((item) => preservedIds.has(item.id)
+                ? item
+                : { ...item, read_at: item.read_at || new Date().toISOString(), unread_count: 0 });
+            this.unreadCount = payload.unread_count ?? 0;
+        } finally {
+            this.pendingWrites -= 1;
+            this.refreshVersion += 1;
+        }
     },
 
     async acceptProposalInvitation(item) {
@@ -5721,7 +5770,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     },
 
     monitoringDraftAutoSaveStatus(message, state = 'idle') {
-        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const status = (this.$root || this.$el).querySelector('[data-proposal-autosave-status]');
         const messageElement = status?.querySelector('[data-proposal-autosave-message]');
         const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
 
@@ -5738,6 +5787,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
     },
 
     triggerMonitoringDraftAutoSave() {
+        (this.$root || this.$el).dataset.paperDirty = 'true';
         this.markProposalPreviewStale();
         this.autoSaveRevision += 1;
         this.scheduleMonitoringDraftAutoSave();
@@ -5798,6 +5848,8 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if ((this.$root || this.$el)._proposalRecovery && (!await (this.$root || this.$el)._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.monitoringDraftFingerprint(form);
 
         if (fingerprint === this.lastSavedMonitoringDraft) return;
@@ -5813,7 +5865,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         this.monitoringDraftAutoSaveStatus('Saving draft...', 'saving');
 
         try {
-            const response = await fetch(config.draftSaveUrl, {
+            const response = await uploadRequest(config.draftSaveUrl, {
                 method: 'POST',
                 body: this.monitoringDraftFormData(form),
                 headers: {
@@ -5821,7 +5873,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
                     'X-CSRF-TOKEN': config.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-            });
+            }, { root: form });
             const payload = await response.json();
 
             if (response.status === 422) {
@@ -5829,8 +5881,9 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
                 const message = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the monitoring information.';
 
-                if (message.includes('A newer saved monitoring draft is available')) {
+                if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
+                    (this.$root || this.$el)._proposalRecovery?.conflict();
                     this.monitoringDraftAutoSaveStatus('A newer draft is available. Reload the page before saving again.', 'error');
 
                     return;
@@ -5861,9 +5914,11 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             }
 
             this.lastSavedMonitoringDraft = this.monitoringDraftFingerprint(form);
+            (this.$root || this.$el).dataset.paperDirty = 'false';
             this.monitoringDraftAutoSaveStatus('Draft saved just now.', 'saved');
         } catch (error) {
             this.monitoringDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
+            (this.$root || this.$el)._proposalRecovery?.connectionFailed();
         } finally {
             this.autoSaveInFlight = false;
             if (this.autoSaveRevision !== savedRevision) this.scheduleMonitoringDraftAutoSave();
@@ -5889,7 +5944,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         ...row, id, evidence: row.evidence || [], pendingEvidenceFiles: [], evidenceError: '',
         evidence_key: row.evidence_key || `row-00000000-0000-4000-8000-${String(id).padStart(12, '0')}`,
     })),
-    figureRows: (config.initialFigures || []).map((row, id) => ({ caption: '', section: 'results_discussion', after_paragraph: 0, ...row, id, previewUrl: '' })),
+    figureRows: (config.initialFigures || []).map((row, id) => ({ caption: '', section: 'results_discussion', after_paragraph: 0, previewUrl: '', image_id: '', imageName: '', ...row, id })),
     nextRowId: Math.max((config.initialAccomplishments || []).length, (config.initialFigures || []).length),
 
     addAccomplishment() {
@@ -5986,10 +6041,10 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             this.narrativeDraftAutoSaveStatus('Save your draft and evidence before preparing the PDF.', 'error');
             return;
         }
-        this.$refs.form.submit();
+        if (!await submitFileUploadForm(this.$refs.form)) this.submitting = false;
     },
     addFigure() {
-        this.figureRows.push({ id: this.nextRowId++, caption: '', section: 'results_discussion', after_paragraph: 0, previewUrl: '' });
+        this.figureRows.push({ id: this.nextRowId++, caption: '', section: 'results_discussion', after_paragraph: 0, previewUrl: '', image_id: '', imageName: '' });
         this.rowsChanged();
     },
     removeFigure(index) {
@@ -6009,6 +6064,8 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         if (figure.previewUrl) URL.revokeObjectURL(figure.previewUrl);
         const file = event.target.files?.[0];
         figure.previewUrl = file ? URL.createObjectURL(file) : '';
+        figure.image_id = '';
+        figure.imageName = '';
         this.invalidateNarrativePreview();
     },
     invalidateNarrativePreview() {
@@ -6055,13 +6112,24 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     },
 
     narrativeDraftFormData(form) {
-        const formData = new FormData(form);
+        return new FormData(form);
+    },
 
-        [...formData.keys()]
-            .filter((name) => name === 'cover_image' || /^photo_\d+$/.test(name) || /^figures\[\d+\]\[image\]$/.test(name))
-            .forEach((name) => formData.delete(name));
+    reportImageSnapshot(form) {
+        return [...form.querySelectorAll('[data-report-image] input[type="file"]')].filter(field => field.files.length).map(field => ({
+            field, key: field.name.replace(/\[([^\]]+)\]/g, '.$1'),
+            files: this.accomplishmentEvidenceFileFingerprint([...field.files]),
+        }));
+    },
 
-        return formData;
+    acceptSavedReportImages(images, snapshot) {
+        for (const { field, key, files } of snapshot) {
+            if (!field.isConnected || files !== this.accomplishmentEvidenceFileFingerprint([...field.files])) continue;
+            const saved = key.split('.').reduce((value, part) => value?.[part], images);
+            if (!saved) continue;
+            field.value = '';
+            field.closest('[data-report-image]')?.dispatchEvent(new CustomEvent('report-image-saved', { detail: saved }));
+        }
     },
 
     narrativeDraftFingerprint(form) {
@@ -6071,7 +6139,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     },
 
     narrativeDraftAutoSaveStatus(message, state = 'idle') {
-        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const status = (this.$root || this.$el).querySelector('[data-proposal-autosave-status]');
         const messageElement = status?.querySelector('[data-proposal-autosave-message]');
         const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
 
@@ -6088,6 +6156,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     },
 
     triggerNarrativeDraftAutoSave() {
+        (this.$root || this.$el).dataset.paperDirty = 'true';
         this.autoSaveRevision += 1;
         this.scheduleNarrativeDraftAutoSave();
     },
@@ -6149,11 +6218,14 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if ((this.$root || this.$el)._proposalRecovery && (!await (this.$root || this.$el)._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.narrativeDraftFingerprint(form);
 
         if (fingerprint === this.lastSavedNarrativeDraft) return;
 
         const savedRevision = this.autoSaveRevision;
+        const imageSnapshot = this.reportImageSnapshot(form);
         const evidenceSnapshot = {};
         for (const row of this.accomplishmentRows) {
             const field = this.accomplishmentEvidenceInput(row, form);
@@ -6166,7 +6238,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         this.narrativeDraftAutoSaveStatus('Saving draft...', 'saving');
 
         try {
-            const response = await fetch(config.draftSaveUrl, {
+            const response = await uploadRequest(config.draftSaveUrl, {
                 method: 'POST',
                 body: this.narrativeDraftFormData(form),
                 headers: {
@@ -6174,7 +6246,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
                     'X-CSRF-TOKEN': config.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-            });
+            }, { root: form });
             const payload = await response.json();
 
             if (response.status === 422) {
@@ -6182,8 +6254,9 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
                 const message = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the progress-report information.';
 
-                if (message.includes('A newer saved progress-report draft is available')) {
+                if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
+                    (this.$root || this.$el)._proposalRecovery?.conflict();
                     this.narrativeDraftAutoSaveStatus('A newer draft is available. Reload the page before saving again.', 'error');
 
                     return;
@@ -6203,6 +6276,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
 
             this.acceptSavedAccomplishmentEvidence(payload.accomplishments || [], evidenceSnapshot, form);
+            this.acceptSavedReportImages(payload.images || {}, imageSnapshot);
             await this.$nextTick();
             this.lastSavedNarrativeDraft = fingerprint;
 
@@ -6213,9 +6287,11 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             }
 
             this.lastSavedNarrativeDraft = this.narrativeDraftFingerprint(form);
+            (this.$root || this.$el).dataset.paperDirty = 'false';
             this.narrativeDraftAutoSaveStatus('Draft saved just now.', 'saved');
         } catch (error) {
             this.narrativeDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
+            (this.$root || this.$el)._proposalRecovery?.connectionFailed();
         } finally {
             this.autoSaveInFlight = false;
             if (this.autoSaveRevision !== savedRevision) this.scheduleNarrativeDraftAutoSave();
@@ -6439,11 +6515,13 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
     destroy() {
         window.clearTimeout(this.autoSaveTimer);
         this.stopProposalPreviewDrag();
+        this.unbindProposalPreviewWheel();
         this.clearPreview();
     },
 }));
 
 Alpine.data('workPlanWizard', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     step: 1,
     nextEntryId: 0,
     entries: [],
@@ -6727,14 +6805,32 @@ Alpine.data('workPlanWizard', (config = {}) => ({
     printPreview() {
         if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
 
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
+        const frame = this.$refs.previewFrame;
+        const body = frame.contentDocument?.body;
+        const zoom = body?.style.zoom;
+        try {
+            if (body) body.style.zoom = '1';
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+        } finally {
+            if (body) body.style.zoom = zoom;
+        }
     },
 
     scrollToWizard() {
         const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
         this.$root.scrollIntoView({ behavior, block: 'start' });
+    },
+
+    proposalPreviewLoaded() {
+        this.previewReady = Boolean(this.previewHtml);
+        this.bindProposalPreviewWheel(this.$refs.previewFrame, () => this.step === 4);
+        this.applyProposalPreviewZoom();
+    },
+
+    destroy() {
+        this.unbindProposalPreviewWheel();
     },
 }));
 
@@ -7189,6 +7285,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.workPlanFingerprint(form);
 
         if (fingerprint === this.lastSavedWorkPlan) return;
@@ -7255,6 +7353,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
+            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -7818,6 +7917,8 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.lineItemBudgetFingerprint(form);
 
         if (fingerprint === this.lastSavedLineItemBudget) return;
@@ -7884,6 +7985,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
+            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -8376,6 +8478,8 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.expenseBreakdownFingerprint();
 
         if (fingerprint === this.lastSavedExpenseBreakdown) return;
@@ -8442,6 +8546,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
+            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -8982,6 +9087,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.curriculumVitaeFingerprint(form);
 
         if (fingerprint === this.lastSavedCurriculumVitae) return;
@@ -9048,6 +9155,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
+            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -11183,6 +11291,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
+        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
+
         const fingerprint = this.detailedProposalFingerprint(form);
 
         if (fingerprint === this.lastSavedDetailedProposal) return;
@@ -11201,7 +11311,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                         saveMode.value = saveAsDraft ? '1' : '0';
                     }
 
-                    const response = await fetch(config.updateUrl || form.action, {
+                    const response = await uploadRequest(config.updateUrl || form.action, {
                         method: form.method,
                         body: this.detailedProposalFormData(form),
                         headers: {
@@ -11209,7 +11319,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                             'X-CSRF-TOKEN': config.csrfToken,
                             'X-Requested-With': 'XMLHttpRequest',
                         },
-                    });
+                    }, { root: form });
 
                     return { response, payload: await response.json() };
                 },
@@ -11266,6 +11376,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
+            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -12063,6 +12174,17 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 }));
 
 registerPdfAnnotationWorkspace(Alpine);
+const initializeProposalRecovery = () => initializeProposalConflictRecovery({
+    resumeSave: (root) => {
+        const configuration = activeProposalPaperAutoSave(root.dataset);
+        const state = window.Alpine?.$data?.(root);
+        const saveMethod = configuration?.saveMethod || (root.dataset.monitoringToolAutosave === 'true' ? 'saveMonitoringDraft'
+            : root.dataset.narrativeProgressAutosave === 'true' ? 'saveNarrativeDraft' : null);
+        if (saveMethod && state && !state.autoSaveBlocked && !state.autoSaveInFlight) {
+            void state[saveMethod]?.();
+        }
+    },
+});
 document.addEventListener('athena:workspace-switched', () => Alpine.store('researchAssistant').syncWorkspaceContext());
 initializeWorkspaceSwitching((url) => Livewire.navigate(url));
 const initializeManilaClock = createManilaClock();
@@ -12074,14 +12196,27 @@ initializeResearchCallCarousels();
 initializeResearchCallImageExtractors();
 initializeResearchCallPosterPreviews();
 initializeRevisionTargetFocus();
+initializeProposalSubmissionReadiness();
+initializeProposalPdfPreparation();
+initializeResearchManualChecks();
+initializeFileUploads();
+initializeTopicLiveStatus();
+synchronizePdfReadingAccount();
 initializeRevisionWorkspace(showProposalConfirmation);
 document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
 document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
 document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
 document.addEventListener('livewire:navigated', initializeResearchCallPosterPreviews);
 document.addEventListener('livewire:navigated', initializeRevisionTargetFocus);
+document.addEventListener('livewire:navigated', initializeProposalSubmissionReadiness);
+document.addEventListener('livewire:navigated', initializeProposalPdfPreparation);
+document.addEventListener('livewire:navigated', initializeResearchManualChecks);
+document.addEventListener('livewire:navigated', synchronizePdfReadingAccount);
+document.addEventListener('livewire:navigated', initializeTopicLiveStatus);
+document.addEventListener('livewire:navigated', () => requestAnimationFrame(initializeProposalRecovery));
 document.addEventListener('livewire:navigated', () => initializeRevisionWorkspace(showProposalConfirmation));
 document.addEventListener('livewire:navigated', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeRevisionTargetFocus);
 window.requestAnimationFrame(initializeSemanticEditors);
+window.requestAnimationFrame(initializeProposalRecovery);

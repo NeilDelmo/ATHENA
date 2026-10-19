@@ -5,8 +5,10 @@ namespace App\Support;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalSignatory;
+use App\Models\ResearchCall;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class ProposalDraftReadiness
 {
@@ -205,6 +207,169 @@ class ProposalDraftReadiness
         }
 
         return $errors;
+    }
+
+    /**
+     * @return list<array{key: string, paper: string|null, field: string|null, owner: 'faculty'|'research_office', reason: 'validation'|'save_confirmation', message: string}>
+     */
+    public function blockers(ProposalDraft $draft, ?Collection $checklist = null): array
+    {
+        $checklist ??= $this->checklist($draft);
+        $blockers = [];
+
+        foreach ($this->errors($draft, $checklist) as $key => $message) {
+            $paper = null;
+            $messages = ['' => [$message]];
+            $reason = 'validation';
+
+            if ($key === 'project_details') {
+                $paper = 'details';
+                $messages = $this->projectDetailErrors($draft);
+            } elseif (str_starts_with($key, 'papers.')) {
+                $paper = substr($key, strlen('papers.'));
+                $item = $checklist->get($paper);
+
+                if ($item['paper']['mode'] === 'automatic') {
+                    continue;
+                }
+
+                if ($paper === 'work-plan' && $this->workPlanProposalObjectives->forDraft($draft) === []) {
+                    $paper = 'detailed-proposal';
+                    $messages = ['specific_objectives' => ['Save the specific objectives in the Detailed Proposal before completing the Work Plan.']];
+                } else {
+                    $messages = $this->paperCompletionErrors($draft, $item['paper'], $item['documents']);
+                    $document = $item['documents']->first();
+
+                    if ($item['paper']['mode'] === 'generated'
+                        && $document instanceof ProposalDraftDocument
+                        && is_array($document->source_data)
+                        && $document->completed_at === null
+                        && array_keys($messages) === ['']) {
+                        $reason = 'save_confirmation';
+                    }
+                }
+            } elseif (str_starts_with($key, 'budget_')) {
+                $paper = 'line-item-budget';
+                $field = match ($key) {
+                    'budget_consistency.mooe_total' => 'mooe_total_override',
+                    'budget_consistency.co_total' => 'co_total_override',
+                    default => 'project_total_override',
+                };
+                $messages = [$field => [$message]];
+            }
+
+            foreach ($messages as $field => $errors) {
+                $message = $errors[0];
+
+                if (preg_match('/^(entries|items|people)\.(\d+)\./', $field, $matches)) {
+                    $label = ['entries' => 'Objective', 'items' => 'Expense item', 'people' => 'CV member'][$matches[1]];
+                    $message = $label.' '.((int) $matches[2] + 1).': '.$message;
+                }
+
+                $blockers[] = [
+                    'key' => $key,
+                    'paper' => $paper,
+                    'field' => $field !== '' ? $field : null,
+                    'owner' => str_starts_with($key, 'signatories.') ? 'research_office' : 'faculty',
+                    'reason' => $reason,
+                    'message' => $message,
+                ];
+            }
+        }
+
+        return $blockers;
+    }
+
+    /** @return array<string, list<string>> */
+    private function projectDetailErrors(ProposalDraft $draft): array
+    {
+        $errors = [];
+
+        foreach (['project_title' => 'project title', 'project_leader' => 'project leader', 'planned_start' => 'planned start date', 'planned_end' => 'planned end date'] as $field => $label) {
+            if (blank($draft->{$field})) {
+                $errors[$field] = ['Enter the '.$label.'.'];
+            }
+        }
+
+        if ($draft->duration_months === null || $draft->duration_months < 1 || $draft->duration_months > (int) config('work_plan.max_duration_months')) {
+            $errors['duration_months'] = ['Set a project duration from 1 to '.config('work_plan.max_duration_months').' months.'];
+        }
+
+        if ($draft->planned_start !== null && $draft->planned_end !== null && $draft->planned_end->lessThan($draft->planned_start)) {
+            $errors['planned_end'] = ['Set the planned end date on or after the planned start date.'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param  array<string, mixed>  $paper
+     * @param  Collection<int, ProposalDraftDocument>  $documents
+     * @return array<string, list<string>>
+     */
+    private function paperCompletionErrors(ProposalDraft $draft, array $paper, Collection $documents): array
+    {
+        if ($paper['mode'] === 'upload') {
+            return ['' => [$documents->count() < (int) $paper['min_files']
+                ? 'Upload the required file for '.$paper['label'].'.'
+                : 'Upload '.$paper['label'].' again using an accepted file format and size; its saved file is unavailable or invalid.']];
+        }
+
+        $document = $documents->first();
+        $source = is_array($document?->source_data) ? $document->source_data : [];
+        $source = [
+            ...$source,
+            'project_title' => $draft->project_title,
+            'project_leader' => $draft->project_leader,
+            'planned_start' => $draft->planned_start?->toDateString(),
+            'planned_end' => $draft->planned_end?->toDateString(),
+        ];
+
+        if ($paper['slug'] === 'detailed-proposal') {
+            $errors = DetailedProposalRules::completionErrors($source);
+        } else {
+            $callbacks = [];
+
+            if ($paper['slug'] === 'work-plan') {
+                $objectives = $this->workPlanProposalObjectives->forDraft($draft);
+
+                $source['entries'] = $this->workPlanProposalObjectives->entries(is_array($source['entries'] ?? null) ? $source['entries'] : [], $objectives);
+                $source['total_duration_months'] = $draft->duration_months;
+                $source['prepared_by'] = $draft->project_leader;
+                $rules = WorkPlanRules::rules();
+                $rules['entries.*.objective'] = ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')];
+                $attributes = WorkPlanRules::attributes();
+                $callbacks = WorkPlanRules::afterCallbacks($source['entries'], $draft->duration_months);
+            } elseif ($paper['slug'] === 'line-item-budget') {
+                $expenseSource = $draft->documents->firstWhere('document_type', config('proposal_papers.expense-breakdown.document_type'))?->source_data;
+                $source = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown($source, is_array($expenseSource['items'] ?? null) ? $expenseSource['items'] : null);
+                $rules = LineItemBudgetRules::rules();
+                $attributes = LineItemBudgetRules::attributes();
+                $callbacks = LineItemBudgetRules::afterCallbacks($draft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET);
+            } elseif ($paper['slug'] === 'expense-breakdown') {
+                $source = ExpenseBreakdownRules::normalizeInput($source);
+                $rules = ExpenseBreakdownRules::rules();
+                $attributes = ExpenseBreakdownRules::attributes();
+            } else {
+                $source = CurriculumVitaeRules::normalizeInput($source);
+                $rules = CurriculumVitaeRules::rules();
+                $attributes = CurriculumVitaeRules::attributes();
+            }
+
+            $validator = Validator::make($source, $rules, [], $attributes);
+            $validator->after($callbacks);
+            $errors = $validator->errors()->toArray();
+        }
+
+        foreach (['project_title', 'project_leader', 'planned_start', 'planned_end', 'total_duration_months', 'prepared_by'] as $field) {
+            unset($errors[$field]);
+        }
+
+        if ($paper['slug'] === 'detailed-proposal' && $errors === [] && ! $this->projectDetailsAreComplete($draft)) {
+            return [];
+        }
+
+        return $errors !== [] ? $errors : ['' => ['Finish saving '.$paper['label'].' to mark its content complete.']];
     }
 
     /**

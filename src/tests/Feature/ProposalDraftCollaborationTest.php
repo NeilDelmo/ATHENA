@@ -553,7 +553,8 @@ test('workspace account details autofill member fields in project papers', funct
         ->assertOk()
         ->assertSee($this->owner->email)
         ->assertSee($this->collaborator->email)
-        ->assertSee('Add a workspace member');
+        ->assertSee('Add from the project team')
+        ->assertSee('addWorkspacePerson(person.key)', false);
 });
 
 test('a stale collaborator save cannot overwrite a newer teammate paper or project details', function () {

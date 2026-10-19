@@ -52,7 +52,7 @@ class SaveProposalDraftDocument
 
             if ($currentVersion !== $expectedVersion) {
                 throw ValidationException::withMessages([
-                    'document_version' => 'A teammate saved a newer version of this paper. Copy any unsaved text you need, then reload the page before editing again.',
+                    'document_version' => 'A teammate saved a newer version of this paper. Check the recovery copy status, then load the latest saved work to compare your entries.',
                 ]);
             }
 
@@ -179,8 +179,19 @@ class SaveProposalDraftDocument
         ProposalDraft $draft,
         ProposalDraftDocument $savedDocument,
     ): void {
+        $dependentTypes = match ($savedDocument->document_type) {
+            'detailed_proposal' => ['work_plan'],
+            'work_plan' => ['detailed_proposal'],
+            'expense_breakdown' => ['line_item_budget', 'detailed_proposal'],
+            'line_item_budget' => ['detailed_proposal', 'initial_screening_form', 'curriculum_vitae'],
+            default => [],
+        };
+        if ($dependentTypes === []) {
+            return;
+        }
         ProposalDraftDocument::query()
             ->where('proposal_draft_id', $draft->id)
+            ->whereIn('document_type', $dependentTypes)
             ->whereKeyNot($savedDocument->id)
             ->whereNotNull('source_data')
             ->update([

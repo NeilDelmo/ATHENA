@@ -25,6 +25,7 @@ class SelectActiveRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'resume_url' => ['nullable', 'string', 'max:2048'],
             'role' => ['required', 'string', Rule::in(['faculty', 'research_coordinator'])],
         ];
     }

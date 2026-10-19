@@ -20,6 +20,7 @@ class ProposalDraftPolicy
     public function view(User $user, ProposalDraft $proposalDraft): bool
     {
         return $this->viewAny($user)
+            && ! $proposalDraft->trashed()
             && ($proposalDraft->isOwnedBy($user) || $proposalDraft->isSharedWith($user));
     }
 
@@ -32,7 +33,16 @@ class ProposalDraftPolicy
     public function delete(User $user, ProposalDraft $proposalDraft): bool
     {
         return $this->owns($user, $proposalDraft)
+            && ! $proposalDraft->trashed()
             && $proposalDraft->status === ProposalDraft::STATUS_DRAFT;
+    }
+
+    public function restore(User $user, ProposalDraft $proposalDraft): bool
+    {
+        return $this->owns($user, $proposalDraft)
+            && $proposalDraft->trashed()
+            && $proposalDraft->status === ProposalDraft::STATUS_DRAFT
+            && $proposalDraft->deleted_at->greaterThan(now()->subDays(ProposalDraft::TRASH_RETENTION_DAYS));
     }
 
     public function download(User $user, ProposalDraft $proposalDraft): bool

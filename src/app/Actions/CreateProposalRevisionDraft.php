@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CreateProposalRevisionDraft
 {
@@ -32,11 +33,17 @@ class CreateProposalRevisionDraft
                     && ($topic->status === 'revision_requested' || $topic->canUpdateBeforeReview()), 403);
                 $isPackageUpdate = $topic->canUpdateBeforeReview();
 
-                $existingDraft = ProposalDraft::query()
+                $existingDraft = ProposalDraft::withTrashed()
                     ->where('topic_id', $topic->getKey())
                     ->first();
 
                 if ($existingDraft) {
+                    if ($existingDraft->trashed()) {
+                        throw ValidationException::withMessages([
+                            'draft' => 'This proposal workspace is in Trash. Restore it from Draft proposals before continuing the revision.',
+                        ]);
+                    }
+
                     return $existingDraft;
                 }
 

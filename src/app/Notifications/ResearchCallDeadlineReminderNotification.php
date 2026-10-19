@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\ResearchCall;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Bus\Queueable;
@@ -26,6 +27,17 @@ class ResearchCallDeadlineReminderNotification extends Notification implements S
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast'];
+    }
+
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        $call = ResearchCall::query()->find($this->researchCallId);
+
+        return $notifiable instanceof User && $notifiable->hasRole(User::WORKSPACE_FACULTY)
+            && $call !== null && $call->isAcceptingSubmissions()
+            && $call->closes_at->equalTo($this->closesAt)
+            && $call->closes_at->lte(now()->addDays(7))
+            && $this->stage === (now()->gte($call->closes_at->copy()->subDay()) ? 'final' : 'approaching');
     }
 
     /** @return array<string, mixed> */

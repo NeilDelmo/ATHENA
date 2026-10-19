@@ -232,6 +232,21 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 await page.mouse.wheel(0, 120);
                 await page.waitForFunction(() => window.previewState.previewZoom === 100);
                 await page.keyboard.up('Control');
+                const pinchedZoom = await frame.evaluate((element) => {
+                    const paper = element.contentDocument.body;
+                    paper.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -4, bubbles: true, cancelable: true }));
+                    return window.previewState.previewZoom;
+                });
+                assert.ok(pinchedZoom > 100 && pinchedZoom < 110, 'Trackpad pinch responds without a mouse-wheel threshold');
+                await viewer.getByRole('button', { name: 'Fit width', exact: true }).click();
+                assert.equal(await frame.evaluate((element) => {
+                    const paper = element.contentDocument.body;
+                    for (const [type, scale] of [['gesturestart', 1], ['gesturechange', 1.25], ['gestureend', 1.25]]) {
+                        paper.dispatchEvent(Object.assign(new Event(type, { bubbles: true, cancelable: true }), { scale }));
+                    }
+                    return window.previewState.previewZoom;
+                }), 125);
+                await viewer.getByRole('button', { name: 'Fit width', exact: true }).click();
                 await page.waitForFunction(() => {
                     const frame = document.querySelector('iframe');
                     return frame.contentDocument.querySelector('.comment-response-sheet').getBoundingClientRect().width > 280;

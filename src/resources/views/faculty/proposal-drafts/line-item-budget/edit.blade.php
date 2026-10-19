@@ -26,6 +26,8 @@
         data-proposal-paper-workspace
         data-line-item-budget-workspace
         data-paper-editor
+        data-proposal-paper="line-item-budget"
+        data-proposal-readiness-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}"
         data-paper-draft-save="true"
         data-line-item-budget-autosave="true"
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
@@ -48,6 +50,11 @@
             revisionReviewUrl: @js($proposalDraft->topic_id ? route('faculty.topics.revision', $proposalDraft->topic_id).'#review-and-submit' : null),
         })"
     >
+        <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
+        @if (request()->has('proposal_requirement'))
+            <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" />
+        @endif
+
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif

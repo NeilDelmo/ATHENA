@@ -4,7 +4,7 @@
         @php
             $when = \Illuminate\Support\Carbon::parse($item['at']);
             $allDay = str_contains($item['display_at'], 'All day');
-            $label = $item['kind'] === 'personal' ? 'Personal reminder' : ($item['deadline'] ? 'Deadline' : 'Official date');
+            $label = $item['label'] ?? ($item['kind'] === 'personal' ? 'Personal reminder' : ($item['deadline'] ? 'Deadline' : 'Official date'));
         @endphp
         <button type="button" wire:click="openEvent('{{ $item['id'] }}')" class="group flex w-full min-w-0 items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-red-300 hover:bg-red-50/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-700 dark:bg-slate-950 dark:hover:border-red-800 dark:hover:bg-red-950/20">
             <span class="flex w-12 shrink-0 flex-col overflow-hidden rounded-md border border-slate-200 text-center dark:border-slate-700" aria-label="{{ $when->format('M j, Y') }}">

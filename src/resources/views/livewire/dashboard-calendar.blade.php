@@ -23,7 +23,7 @@
     <header class="flex flex-wrap items-center justify-between gap-4 bg-brand px-5 py-5 text-white sm:px-6">
         <div>
             <h3 class="text-2xl font-semibold tracking-tight">Research calendar</h3>
-            <p class="mt-1 text-sm text-red-100">Official dates and personal reminders · {{ config('app.timezone') }}</p>
+            <p class="mt-1 text-sm text-red-100">Official dates, project dates, and personal reminders · {{ config('app.timezone') }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" wire:click="addReminder" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 text-base font-semibold text-brand hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round" /></svg>Add reminder</button>
@@ -33,6 +33,7 @@
     <div data-calendar-legend class="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-200 px-5 py-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300 sm:px-6">
         <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-brand dark:bg-red-400" aria-hidden="true"></span>Official schedule</span>
         <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm border-2 border-brand dark:border-red-400" aria-hidden="true"></span>Deadline</span>
+        <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-brand dark:bg-red-400" aria-hidden="true"></span>Project date</span>
         <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-slate-400" aria-hidden="true"></span>Personal reminder</span>
     </div>
     <div class="grid min-w-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
@@ -45,7 +46,7 @@
         </div>
         <aside data-calendar-upcoming class="order-2 min-w-0 border-t border-slate-200 p-4 dark:border-slate-800 sm:p-6 lg:order-1 lg:border-r lg:border-t-0" aria-labelledby="upcoming-dates-heading">
             <h4 id="upcoming-dates-heading" class="text-xl font-semibold text-slate-900 dark:text-white">Upcoming dates</h4>
-            <p class="mb-5 mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Deadlines, review schedules, and your personal reminders.</p>
+            <p class="mb-5 mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Project dates, deadlines, and your personal reminders.</p>
             <x-dashboard-calendar-events :events="$upcoming" empty="No upcoming deadlines or reminders in the next year." />
         </aside>
     </div>
@@ -68,13 +69,13 @@
             <div class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800"><p class="text-sm font-bold uppercase tracking-wider text-[#800000] dark:text-red-300">Event details</p><button type="button" x-on:click="$dispatch('close-modal', 'calendar-event')" class="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600 transition hover:border-[#800000] hover:text-[#800000] dark:border-slate-700 dark:text-slate-300">Close</button></div>
             @if ($event)
 
-                <div class="mt-4 flex flex-wrap items-center gap-2"><span class="text-base font-medium text-slate-700 dark:text-slate-200">{{ $event['display_at'] }}</span><span class="rounded-full px-2 py-1 text-sm font-bold bg-red-50 text-brand dark:bg-red-950/40 dark:text-red-200">{{ $event['kind'] === 'personal' ? 'Personal reminder' : ($event['deadline'] ? 'Deadline' : 'Official schedule') }}</span></div>
+                <div class="mt-4 flex flex-wrap items-center gap-2"><span class="text-base font-medium text-slate-700 dark:text-slate-200">{{ $event['display_at'] }}</span><span class="rounded-full px-2 py-1 text-sm font-bold bg-red-50 text-brand dark:bg-red-950/40 dark:text-red-200">{{ $event['label'] ?? ($event['kind'] === 'personal' ? 'Personal reminder' : ($event['deadline'] ? 'Deadline' : 'Official schedule')) }}</span></div>
                 <h3 class="mt-4 text-xl font-semibold tracking-tight">{{ $event['title'] }}</h3>
                 <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ $event['context'] }}</p>
                 <p class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{{ config('app.timezone') }}{{ $event['draft'] ? ' · Draft schedule' : '' }}</p>
                 <p class="mt-4 whitespace-pre-line break-words text-base leading-7 text-slate-600 dark:text-slate-300">{{ $event['notes'] }}</p>
                 @if ($event['url'])
-                    <a href="{{ $event['url'] }}" class="mt-5 inline-flex rounded-md bg-[#800000] px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-900">Open research call</a>
+                    <a href="{{ $event['url'] }}" class="mt-5 inline-flex rounded-md bg-[#800000] px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-900">{{ $event['url_label'] ?? 'Open research call' }}</a>
                 @else
                     <div class="mt-5 flex gap-2"><button wire:click="editReminder({{ $event['reminder_id'] }})" type="button" class="rounded-md bg-[#800000] px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-900">Edit reminder</button><button type="button" wire:click="deleteReminder({{ $event['reminder_id'] }})" wire:confirm="Delete this personal reminder?" class="rounded-md border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50">Delete</button></div>
                 @endif

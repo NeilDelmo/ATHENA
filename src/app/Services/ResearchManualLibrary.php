@@ -20,7 +20,7 @@ use Throwable;
 
 class ResearchManualLibrary
 {
-    public function __construct(private ResearchManualIndexer $indexer) {}
+    public function __construct(private ResearchManualIndexer $indexer, private ResearchManualRetriever $retriever) {}
 
     public function active(): ?ResearchManual
     {
@@ -92,9 +92,10 @@ class ResearchManualLibrary
 
     /**
      * @param  array<string, mixed>  $index
-     * @return array{title: string, edition: ?string, version: string, page_count: int, pdf_url: string, read_url: string, guidance_url: ?string, unindexed_pages: list<int>}
+     * @param  list<string>  $reviewSections
+     * @return array<string, mixed>
      */
-    public function readerConfig(array $index, ?ResearchManual $manual, bool $canCheckGuidance = false): array
+    public function readerConfig(array $index, ?ResearchManual $manual, bool $canCheckGuidance = false, array $reviewSections = []): array
     {
         return [
             'title' => $index['title'], 'edition' => $manual?->edition, 'version' => $index['version'],
@@ -102,7 +103,36 @@ class ResearchManualLibrary
             'pdf_url' => route('research-manuals.file', ['version' => $index['version']]),
             'read_url' => route('research-manuals.read', ['version' => $index['version']]),
             'guidance_url' => $manual !== null && $canCheckGuidance ? route('research-manuals.guidance-check', $manual) : null,
+            'guidance_questions' => $manual !== null && $canCheckGuidance ? $this->guidanceQuestions($index, $manual, $reviewSections) : [],
         ];
+    }
+
+    /** @param array<string, mixed> $index @param list<string> $reviewSections @return list<string> */
+    public function guidanceQuestions(array $index, ResearchManual $manual, array $reviewSections = [], bool $includeMissing = false): array
+    {
+        $questions = [];
+        foreach (['What are the requirements for a research proposal?', 'What ethics review is required?', 'How are research outputs submitted?'] as $question) {
+            if ($includeMissing || $this->retriever->retrieve($question, indexPath: $manual->indexPath()) !== []) {
+                $questions[] = $question;
+            }
+        }
+
+        foreach (array_slice(array_unique([...$reviewSections, ...array_column($index['chunks'], 'section')]), 0, 20) as $section) {
+            if (count($questions) >= 5) {
+                break;
+            }
+            if (preg_match_all('/(?<![\d.])\d+(?:\.\d+)+(?![\d.])/', $section, $numbers) > 0) {
+                $number = $numbers[0][array_key_last($numbers[0])];
+                $question = 'What does section '.$number.' require in this edition?';
+            } else {
+                $question = 'What does this edition say about '.Str::limit($section, 180, '').'?';
+            }
+            if (! in_array($question, $questions, true) && ($includeMissing || $this->retriever->retrieve($question, indexPath: $manual->indexPath()) !== [])) {
+                $questions[] = $question;
+            }
+        }
+
+        return $questions;
     }
 
     public function importLegacy(): ?ResearchManual
@@ -129,7 +159,7 @@ class ResearchManualLibrary
                 throw ValidationException::withMessages(['manual' => 'The PDF could not be read. Upload an unprotected PDF with selectable text, or a copy processed with text recognition (OCR). Contact the administrator if it still cannot be read.']);
             }
 
-            return $this->withLock(fn (): ResearchManual => DB::transaction(function () use ($index, $directory, $edition, $effectiveDate, $user): ResearchManual {
+            $manual = $this->withLock(fn (): ResearchManual => DB::transaction(function () use ($index, $directory, $edition, $effectiveDate, $user): ResearchManual {
                 if (ResearchManual::where('version', $index['version'])->exists()
                     || ($this->activeIndex()['version'] ?? null) === $index['version']) {
                     throw ValidationException::withMessages(['manual' => 'This PDF and title are already indexed. Upload a different edition or title.']);
@@ -150,6 +180,10 @@ class ResearchManualLibrary
 
             throw $exception;
         }
+
+        app(ResearchManualChecks::class)->queue($manual);
+
+        return $manual;
     }
 
     public function activate(ResearchManual $manual): void
@@ -285,7 +319,7 @@ class ResearchManualLibrary
     private function pinUnassigned(?ResearchManual $manual): void
     {
         if ($manual !== null) {
-            ProposalDraft::whereNull('research_manual_id')->update(['research_manual_id' => $manual->getKey()]);
+            ProposalDraft::withTrashed()->whereNull('research_manual_id')->update(['research_manual_id' => $manual->getKey()]);
             TopicProposal::whereNull('research_manual_id')->update(['research_manual_id' => $manual->getKey()]);
         }
     }

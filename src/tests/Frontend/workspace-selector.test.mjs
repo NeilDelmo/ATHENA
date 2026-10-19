@@ -122,6 +122,9 @@ test('two and five workspaces and the legacy role selector retain their form con
 
 async function switchingPage(browser, kind = 'three') {
     const rendered = selector(kind);
+    const navigationView = readFileSync(resolve(`resources/views/layouts/${kind === 'role' ? 'app' : 'navigation'}.blade.php`), 'utf8');
+    const switchNavigation = navigationView.match(/<a\s+(wire:navigate(?:\.hover)?)\s+href="[^"\r\n]*'role-selection\.show'[^"\r\n]*"/)?.[1];
+    assert.ok(switchNavigation, 'Switch Workspace must keep Livewire navigation');
     const originalAction = rendered.match(/<form method="POST" action="([^"]+)" data-workspace-switch/)[1];
     const origin = 'http://athena-switching.test';
     const originalOrigin = new URL(originalAction).origin;
@@ -133,7 +136,7 @@ async function switchingPage(browser, kind = 'three') {
     const appEntry = manifest['resources/js/app.js'];
     const allowedAssets = new Set(Object.values(manifest).map((entry) => entry.file));
     const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-    const state = { posts: [], dashboards: 0, documents: 0, bundles: 0, errors: [], responseStatus: 200, responseBody: null, releasePost: null, releaseDocuments: null, pausePost: false };
+    const state = { posts: [], choosers: 0, dashboards: 0, documents: 0, bundles: 0, errors: [], responseStatus: 200, responseBody: null, releasePost: null, releaseDocuments: null, pausePost: false };
     let activeWorkspace = 'Faculty';
     page.on('pageerror', (error) => state.errors.push(error.message));
     function html(body) {
@@ -166,9 +169,10 @@ async function switchingPage(browser, kind = 'three') {
         if (request.url() === dashboard) {
             state.dashboards++;
             const contextId = activeWorkspace === 'Faculty' ? 101 : activeWorkspace === 'Faculty Researcher' ? 202 : 303;
-            return route.fulfill({ contentType: 'text/html', body: html(`<script>window.athenaResearchAssistantContexts = [{ id: ${contextId}, label: '${activeWorkspace} project' }]; window.athenaResearchAssistantActiveContextId = null; window.athenaResearchAssistantPageActions = [];</script><div x-data data-app-shell data-auth-user-id="1"><h1>${activeWorkspace} workspace</h1><aside x-persist="app-sidebar-${activeWorkspace}">${activeWorkspace} navigation</aside><a wire:navigate href="${action}">Switch Workspace</a></div>`) });
+            return route.fulfill({ contentType: 'text/html', body: html(`<script>window.athenaResearchAssistantContexts = [{ id: ${contextId}, label: '${activeWorkspace} project' }]; window.athenaResearchAssistantActiveContextId = null; window.athenaResearchAssistantPageActions = [];</script><div x-data data-app-shell data-auth-user-id="1"><h1>${activeWorkspace} workspace</h1><aside x-persist="app-sidebar-${activeWorkspace}">${activeWorkspace} navigation</aside><a ${switchNavigation} href="${action}">Switch Workspace</a></div>`) });
         }
         if (request.url() === action) {
+            state.choosers++;
             return route.fulfill({ contentType: 'text/html', body: html(chooser) });
         }
         return route.fulfill({ status: 204, body: '' });
@@ -176,8 +180,17 @@ async function switchingPage(browser, kind = 'three') {
     await page.goto(dashboard);
     await page.waitForFunction(() => window.Livewire?.navigate);
     await page.evaluate(() => { window.workspaceRuntimeSentinel = 'preserved'; });
-    await page.getByRole('link', { name: 'Switch Workspace' }).click();
+    const switchLink = page.getByRole('link', { name: 'Switch Workspace' });
+    const prefetchedChooser = page.waitForResponse((response) => response.url() === action && response.request().method() === 'GET', { timeout: 2000 });
+    await switchLink.hover();
+    await prefetchedChooser;
+    assert.equal(state.choosers, 1, 'hover must fetch the workspace chooser');
+    assert.equal(page.url(), dashboard, 'prefetch must leave the current workspace open');
+    assert.equal(state.posts.length, 0, 'hover must not select a workspace');
+    assert.equal(state.dashboards, 1, 'the destination must not load before selection');
+    await switchLink.click();
     await page.getByRole('heading', { name: 'Choose your workspace' }).waitFor();
+    assert.equal(state.choosers, 1, 'click must reuse the prefetched workspace chooser');
     return { page, state, dashboard, action };
 }
 

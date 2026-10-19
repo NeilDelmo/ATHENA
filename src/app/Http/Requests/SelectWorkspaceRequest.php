@@ -24,6 +24,7 @@ class SelectWorkspaceRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'resume_url' => ['nullable', 'string', 'max:2048'],
             'workspace' => [
                 'required',
                 'string',

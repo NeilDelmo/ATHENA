@@ -14,6 +14,8 @@ function createState(config = {}) {
     runInNewContext(paperPreviewSource + previewSource + source, {
         Alpine: { data: (name, callback) => { factory = callback; } },
         URL: { createObjectURL: () => 'blob:figure', revokeObjectURL: value => revoked.push(value) },
+        CustomEvent,
+        uploadRequest: (url, options) => fetch(url, options),
         window: { clearTimeout() {} },
         FormData: class extends FormData {
             constructor(entries) {
@@ -94,7 +96,7 @@ test('printing uses the current report preview and waits for edits or an in-prog
     assert.equal(printed, 1);
 });
 
-test('draft autosave retains figure captions and placement without sending selected image files', () => {
+test('draft autosave retains figure files captions and placement', () => {
     const { state } = createState();
     const form = [
         ['figures[12][image]', 'selected-image'],
@@ -104,8 +106,46 @@ test('draft autosave retains figure captions and placement without sending selec
         ['figures[12][after_paragraph]', '2'],
     ];
     const data = state.narrativeDraftFormData(form);
-    assert.equal(data.has('figures[12][image]'), false);
-    assert.equal(data.has('photo_1'), false);
+    assert.equal(data.get('figures[12][image]'), 'selected-image');
+    assert.equal(data.get('photo_1'), 'legacy-image');
     assert.equal(data.get('figures[12][caption]'), 'Context diagram');
     assert.equal(data.get('figures[12][after_paragraph]'), '2');
+});
+
+test('reopened figures retain their saved image and preview', () => {
+    const { state } = createState({ initialFigures: [{ image_id: 'saved-image', previewUrl: '/private/image', imageName: 'diagram.png' }] });
+    assert.equal(state.figureRows[0].image_id, 'saved-image');
+    assert.equal(state.figureRows[0].previewUrl, '/private/image');
+    assert.equal(state.figureRows[0].imageName, 'diagram.png');
+});
+
+test('saved image acknowledgments follow reordered rows without replacing later selections or removed rows', () => {
+    const { state } = createState();
+    const file = { name: 'diagram.png', size: 10, lastModified: 1, type: 'image/png' };
+    const received = [];
+    const field = { name: 'figures[0][image]', files: [file], value: 'diagram.png', isConnected: true, closest: () => ({ dispatchEvent: event => received.push(event.detail) }) };
+    const snapshot = state.reportImageSnapshot({ querySelectorAll: () => [field] });
+    field.name = 'figures[1][image]';
+    const image = { id: 'saved', name: 'diagram.png', preview_url: '/private/image' };
+    state.acceptSavedReportImages({ figures: [{ image }] }, snapshot);
+    assert.equal(field.value, '');
+    assert.equal(received[0], image);
+    field.value = 'replacement.png';
+    field.files = [{ ...file, lastModified: 2 }];
+    state.acceptSavedReportImages({ figures: [{ image }] }, snapshot);
+    assert.equal(field.value, 'replacement.png');
+    field.files = [file];
+    field.isConnected = false;
+    state.acceptSavedReportImages({ figures: [{ image }] }, snapshot);
+    assert.equal(received.length, 1);
+});
+
+test('text-only save acknowledgments cannot restore a removed image or overwrite a reused image', () => {
+    const { state } = createState();
+    const received = [];
+    const field = { name: 'cover_image', files: [], value: '', isConnected: true, closest: () => ({ dispatchEvent: event => received.push(event.detail) }) };
+    const snapshot = state.reportImageSnapshot({ querySelectorAll: () => [field] });
+    state.acceptSavedReportImages({ cover_image: { id: 'earlier-image', preview_url: '/earlier-image' } }, snapshot);
+    assert.equal(snapshot.length, 0);
+    assert.equal(received.length, 0);
 });
