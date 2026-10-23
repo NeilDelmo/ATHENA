@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreResearchOfficeLrecFeedbackRequest;
+use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -65,9 +66,27 @@ class ResearchOfficeLrecFeedbackController extends Controller
 
             Gate::forUser($request->user())->authorize('recordLrecFeedback', $reviewedTopic);
 
-            if (! $reviewedTopic->latestVersion()->exists()) {
+            $latestVersion = $reviewedTopic->latestVersion()->with('files')->lockForUpdate()->first();
+
+            if (! $latestVersion) {
                 throw ValidationException::withMessages([
                     'committee_comments' => 'A submitted proposal version is required before LREC feedback can be recorded.',
+                ]);
+            }
+
+            $revisionCandidates = $latestVersion->files->whereNotIn('document_type', [
+                ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+                ...ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES,
+            ]);
+            $selectedIds = collect($request->validated('revision_file_ids', $revisionCandidates
+                ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->pluck('id')->all()))
+                ->map(fn ($id): int => (int) $id);
+            $selectedFiles = $revisionCandidates->whereIn('id', $selectedIds);
+
+            if ($selectedFiles->count() !== $selectedIds->count()) {
+                throw ValidationException::withMessages([
+                    'revision_file_ids' => 'Every selected paper must belong to the latest proposal version and be editable by faculty.',
                 ]);
             }
 
@@ -76,12 +95,17 @@ class ResearchOfficeLrecFeedbackController extends Controller
                 'lrec_cleared_at' => null,
             ]);
 
-            $reviewedTopic->reviews()->create([
+            $review = $reviewedTopic->reviews()->create([
                 'reviewer_id' => $request->user()->id,
                 'decision' => 'revision_requested',
                 'review_stage' => 'lrec',
                 'committee_comments' => $comments,
             ]);
+            $review->fileRevisions()->createMany($selectedFiles->map(fn (ProposalVersionFile $file): array => [
+                'proposal_version_file_id' => $file->id,
+                'document_type' => $file->document_type,
+                'original_filename' => $file->original_filename,
+            ])->all());
         });
 
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(

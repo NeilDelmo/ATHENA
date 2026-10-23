@@ -140,8 +140,15 @@ test('accepted assessments appear as signed papers while final signing requests 
         File::ensureDirectoryExists(storage_path('framework/testing'));
         file_put_contents(storage_path('framework/testing/signed-upload-layout.html'), $response->getContent());
     }
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $this->faculty->update(['college' => User::COLLEGES['CICS']]);
+    $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $office->assignRole('research_coordinator');
+    $signingResponse = $this->actingAs($office)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->get(route('topics.show', $this->topic))->assertOk();
     $dom = new DOMDocument;
-    @$dom->loadHTML($response->getContent());
+    @$dom->loadHTML($signingResponse->getContent());
     $xpath = new DOMXPath($dom);
     expect($xpath->query('//*[@data-signing-document]')->length)->toBe(3)
         ->and($xpath->query('//*[@data-signing-document][contains(., "Awaiting signed copy")]')->length)->toBe(3)
@@ -153,7 +160,7 @@ test('accepted assessments appear as signed papers while final signing requests 
         ->and($xpath->query('//*[@data-signing-document]//form')->length)->toBe(0)
         ->and($xpath->query('//*[@data-signing-document]//*[@data-signed-copy-preview]')->length)->toBe(0);
     expect($xpath->query('//button[@data-view-signed-papers]/svg')->length)->toBe(1);
-    $response->assertSee('View signed papers')
+    $signingResponse->assertSee('View signed papers')
         ->assertSee('Files save automatically.')
         ->assertDontSee('Upload PDF')
         ->assertDontSee('Replace signed PDF');
@@ -166,7 +173,9 @@ test('accepted assessments appear as signed papers while final signing requests 
         expect($signedDocuments->where('key', 'proposal-version-file-'.$file->id))->toHaveCount(1)
             ->and($library['documents']->where('filename', $file->original_filename))->toHaveCount(1);
     }
-    $this->patch(route('research_head.topics.finalizeApproval', $this->topic))->assertSessionHasErrors('status');
+    $this->actingAs($this->head)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.topics.finalizeApproval', $this->topic))->assertSessionHasErrors('status');
     foreach ($workflow->missingRequiredFiles($this->version->fresh()) as $source) {
         $path = 'signed/'.$source->id.'.pdf';
         Storage::disk('local')->put($path, '%PDF-1.4 signed');

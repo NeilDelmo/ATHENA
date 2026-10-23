@@ -246,6 +246,8 @@ body {
 }
 
 @media print {
+    body { zoom: 1 !important; }
+
     html,
     body {
         background: #fff;

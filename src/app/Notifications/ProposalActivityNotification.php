@@ -23,6 +23,8 @@ class ProposalActivityNotification extends Notification
 
     public const SIDEBAR_AREA_MY_PROJECTS = 'my_projects';
 
+    public const SIDEBAR_AREA_RMS_REPORTS = 'rms_reports';
+
     /**
      * @param  list<string>|string|null  $workspace
      */

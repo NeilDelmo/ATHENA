@@ -118,7 +118,6 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->assertSee(':inert="previewFullscreen"', false)
         ->assertDontSee('data-proposal-preview-drag-handle', false)
         ->assertSee('Preview paper')
-        ->assertDontSee('Download PDF')
         ->assertSee('Changes save automatically.')
         ->assertSee('data-expense-breakdown-autosave="true"', false)
         ->assertSee('data-expense-breakdown-autosave-form', false)
@@ -186,7 +185,7 @@ test('saving a smaller expense item list removes the deleted item from the worki
         ->assertOk()
         ->assertJsonPath('document_version', 2);
 
-    $document = $this->draft->documents()->sole()->fresh();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->sole()->fresh();
 
     expect($document->source_data['items'])->toHaveCount(2)
         ->and(collect($document->source_data['items'])->pluck('particulars')->all())
@@ -213,7 +212,7 @@ test('expense items are validated saved resumed and marked ready', function () {
         ->assertRedirect(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft))
         ->assertSessionHas('success', 'Estimated Expense Breakdown saved.');
 
-    $document = $this->draft->documents()->sole();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->sole();
 
     expect($document->document_type)->toBe(ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)
         ->and($document->source_data['items'])->toHaveCount(3)
@@ -239,7 +238,7 @@ test('expense items are validated saved resumed and marked ready', function () {
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Preview Estimated Expense Breakdown');
+        ->assertSee(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft), false);
 });
 
 test('the preview follows the supplied official table and calculates grouped totals', function () {

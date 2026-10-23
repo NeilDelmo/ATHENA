@@ -34,7 +34,7 @@
         </div>
         @forelse ($topics as $topic)
             @php
-                $latestVersion = $topic->versions->sortByDesc('version_number')->first();
+                $latestVersion = $topic->latestVersion;
                 $topicCategory = $topic->submissionCategory();
                 $statusLabel = $topic->isCompletedProject() ? 'Research completed' : ($topicCategory === 'monitoring' ? 'In monitoring' : ($topic->status === 'rejected' ? 'Proposal rejected' : $topic->workflowStatusLabel($latestVersion)));
             @endphp

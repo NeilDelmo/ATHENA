@@ -11,9 +11,10 @@
     class="relative"
     data-notification-menu
     @click.outside="open = false"
-    @keydown.escape.window="open = false"
+    @keydown.escape="if (open) { $event.preventDefault(); $event.stopPropagation(); open = false; $refs.trigger.focus() }"
 >
     <button
+        x-ref="trigger"
         type="button"
         @click="open = !open; if (open) refresh()"
         class="relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-gray-500 transition duration-150 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -46,8 +47,11 @@
                 <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400" x-text="unreadCount === 0 ? 'All caught up' : `${unreadCount} unread`"></p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-                <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">Mark all read</button>
-                <button @click="open = false" type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
+                <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-red-200 bg-red-50 px-2.5 text-xs font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:focus-visible:ring-offset-slate-900">
+                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
+                    <span>Mark all read</span>
+                </button>
+                <button @click="open = false; $refs.trigger.focus()" type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
                 </button>
             </div>

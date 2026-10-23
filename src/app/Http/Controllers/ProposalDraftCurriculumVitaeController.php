@@ -17,7 +17,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -70,10 +69,6 @@ class ProposalDraftCurriculumVitaeController extends Controller
     ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('curriculum-vitae');
-        $documents = $proposalDraft->documents()
-            ->where('document_type', $paper['document_type'])
-            ->get();
-        $stagedPaths = $documents->pluck('file_path')->filter()->all();
 
         $document = $saveProposalDraftDocument->handle(
             $proposalDraft,
@@ -96,8 +91,6 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ->where('document_type', $paper['document_type'])
             ->whereKeyNot($document->getKey())
             ->delete();
-
-        Storage::disk('local')->delete($stagedPaths);
 
         if ($request->expectsJson()) {
             return response()->json([

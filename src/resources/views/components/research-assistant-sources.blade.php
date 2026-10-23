@@ -19,7 +19,7 @@
                         <span class="block break-words text-sm font-medium leading-6 text-stone-900 dark:text-stone-100" x-text="source.title || source.reference || 'Reference material'"></span>
                         <span class="mt-0.5 flex flex-wrap gap-x-2 text-xs leading-5 text-stone-500 dark:text-stone-400">
                             <span class="min-w-0 break-words" x-text="source.category || 'ATHENA reference'"></span>
-                            <span x-show="source.reference && source.reference !== source.title" class="min-w-0 break-words text-red-900 dark:text-red-200" x-text="source.reference"></span>
+                            <span x-show="source.reference && source.reference !== source.title && !/^\[?ATHENA\s+\d+\]?$/i.test(source.reference)" class="min-w-0 break-words text-red-900 dark:text-red-200" x-text="source.reference"></span>
                         </span>
                     </span>
                     <svg x-show="$store.researchAssistant.sourceUrl(source)" class="mt-1 h-4 w-4 shrink-0 text-red-900 dark:text-red-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3h7v7m0-7L10 14M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5" /></svg>

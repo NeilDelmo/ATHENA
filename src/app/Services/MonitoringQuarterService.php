@@ -181,15 +181,7 @@ class MonitoringQuarterService
             ->where('report_type', 'progress')->sortByDesc('id');
 
         return $this->projectPeriods($topic)->map(function (array $period) use ($reports): array {
-            $report = $reports->first(fn (ProjectNarrativeReport $report): bool => $report->reporting_quarter === $period['quarter']);
-            $report ??= $reports->first(function (ProjectNarrativeReport $report) use ($period): bool {
-                if ($report->reporting_quarter !== null) {
-                    return false;
-                }
-                $date = $report->reporting_date ?? $report->period_end;
-
-                return $date !== null && $date->betweenIncluded($period['start'], $period['end']);
-            });
+            $report = $reports->first(fn (ProjectNarrativeReport $report): bool => $report->isForReportingPeriod($period));
             $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
             $editable = $report === null || $report->isPrepared() || $report->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED;
             $status = match (true) {

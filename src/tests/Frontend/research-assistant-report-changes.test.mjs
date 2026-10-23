@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { assistantReportEditor } from '../../resources/js/assistant-report-editor.js';
 import { normalizeAssistantReportChanges, reportContext, reportKey, reportChangeFieldLimit, reportChangeHandoff,
     researchAssistantReportChanges } from '../../resources/js/research-assistant-report-changes.js';
@@ -121,4 +122,32 @@ test('ordinary report chat preserves edits typed during the save before sending'
     state.prepareReportContext = async function (context) { this.requestSequence++; return context; };
     assert.equal(await state.send(), null);
     assert.equal(state.reportContext, null, 'An old report request must not change the new chat context.');
+});
+
+test('report review panel appears only while there are wording changes to review', { timeout: 30000 }, async () => {
+    const { chromium, expect } = await import('@playwright/test');
+    const component = readFileSync(new URL('../../resources/views/components/research-assistant-report-changes.blade.php', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.setContent(`<style>[x-cloak]{display:none!important}</style><main x-data="{ messages: window.fixtureMessages }"><template x-for="message in messages"><article>${component}</article></template></main>`);
+        await page.addScriptTag({ content: `window.fixtureMessages = ${JSON.stringify([
+            { report_changes: packet(undefined, undefined, { suggestions: [] }) },
+            { report_changes: packet() },
+        ])}; document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {
+            draft: '', proposalChangesBusy: () => false, proposalChangeBeforeText: suggestion => suggestion.before,
+            keepCurrentReportText(message, suggestion) { message.report_changes.suggestions = []; }
+        }));` });
+        await page.addScriptTag({ path: fileURLToPath(new URL('../../node_modules/alpinejs/dist/cdn.js', import.meta.url)) });
+        const panels = page.locator('[data-assistant-report-changes]');
+        await expect(panels.nth(0)).toBeHidden();
+        await expect(panels.nth(1)).toBeVisible();
+        await panels.nth(1).getByRole('button', { name: 'Keep current', exact: true }).click();
+        await expect(panels.nth(1)).toBeHidden();
+        assert.deepEqual(errors, []);
+    } finally {
+        await browser.close();
+    }
 });

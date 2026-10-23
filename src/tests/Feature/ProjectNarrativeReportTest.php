@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\PrepareProjectNarrativeReport;
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectNarrativeReportDraft;
@@ -10,6 +11,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
+use App\Services\ProjectMonitoringFormDataService;
 use App\Support\ProgressReportData;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -182,6 +185,62 @@ test('only corrections create a replacement Progress Report for an already submi
     expect($replacement->version_number)->toBe(2)->and($replacement->reporting_quarter)->toBe($original->reporting_quarter)
         ->and($original->fresh()->isSubmitted())->toBeTrue()->and($original->fresh()->official_pdf_checksum)->toBe($original->official_pdf_checksum);
 });
+
+test('opening Progress Report corrections keeps the submitted narrative and report details', function () {
+    $payload = ($this->progressReportPayload)(['tracking_number' => 'Retained tracking', 'results_discussion' => 'Quarter-specific results to correct.']);
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    $report->update(['submission_status' => 'submitted', 'review_status' => 'revision_requested']);
+
+    $defaults = $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'reporting_date' => $report->reporting_date->toDateString()]))
+        ->assertSuccessful()->viewData('progressDefaults');
+    foreach (['tracking_number', 'researchers', 'funding_agency', 'introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {
+        expect($defaults[$field] ?? null)->toBe($report->$field);
+    }
+    expect($defaults['implementation_start'] ?? null)->toBe($report->implementation_start->toDateString())
+        ->and($defaults['implementation_end'] ?? null)->toBe($report->implementation_end->toDateString());
+});
+
+test('legacy Progress Reports retain their quarter protections and correction evidence', function (string $status, bool $usesPeriodEnd) {
+    $payload = ($this->progressReportPayload)(['results_discussion' => 'Legacy findings to preserve.']);
+    $date = $payload['reporting_date'];
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    ($this->attachSubmissionProof)($report);
+    $report->update([
+        'submission_status' => 'submitted', 'review_status' => $status, 'reporting_quarter' => null,
+        'reporting_date' => $usesPeriodEnd ? null : $date, 'period_start' => null,
+    ]);
+    $this->getJson(route('project-report-drafts.edit-state', ['topic' => $this->topic, 'kind' => 'progress', 'reportingDate' => $date, 'source' => 0]))
+        ->assertSuccessful()->assertJsonPath('is_editable', $status === 'revision_requested');
+    $form = app(ProjectMonitoringFormDataService::class)->narrativeProgress($this->researcher, $this->topic, 'progress', $date);
+    $quarter = $form['quarterOptions']->firstWhere('quarter', 1);
+    if ($status !== 'revision_requested') {
+        expect($quarter)->toBeNull();
+        $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)
+            ->assertSessionHasErrorsIn('narrativeProgress', 'reporting_date');
+        $rejected = false;
+        try {
+            app(PrepareProjectNarrativeReport::class)->handle($this->topic, $this->researcher, [...$payload, 'photos' => []], []);
+        } catch (ValidationException $exception) {
+            $rejected = array_key_exists('reporting_date', $exception->errors());
+        }
+        expect($rejected)->toBeTrue()->and(ProjectNarrativeReport::count())->toBe(1);
+
+        return;
+    }
+    expect($quarter['report'] ?? null)->not->toBeNull();
+    expect($quarter['report']->id)->toBe($report->id)
+        ->and($form['progressDefaults']['results_discussion'])->toBe('Legacy findings to preserve.');
+    $accomplishments = array_map(fn (array $row): array => [...$row, 'evidence_ids' => array_column($row['evidence'], 'id')], $report->fresh()->accomplishments);
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), [
+        'draft_version' => 0, 'report_type' => 'progress', 'reporting_date' => $date, 'accomplishments' => $accomplishments,
+    ])->assertSuccessful()->assertJsonPath('accomplishments.0.evidence.0.id', $accomplishments[0]['evidence_ids'][0]);
+    $this->post(route('project-narrative-reports.prepare', $this->topic), [...$payload, 'accomplishments' => $accomplishments])->assertSessionHasNoErrors();
+    $replacement = ProjectNarrativeReport::latest('id')->firstOrFail();
+    expect($replacement->version_number)->toBe(2)->and($replacement->reporting_quarter)->toBe(1)
+        ->and($report->isLatestSubmittedVersion())->toBeFalse();
+})->with(['pending', 'reviewed', 'revision_requested'])->with([false, true]);
 
 test('accepted collaborators share prepared Progress Reports but only the project leader submits them', function () {
     $collaborator = User::factory()->create();

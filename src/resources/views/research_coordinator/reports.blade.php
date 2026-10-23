@@ -104,7 +104,7 @@
             data-proposal-paper-workspace data-document-writing-workspace
             data-assistant-report-type="college-quarterly" data-assistant-report-key="{{ $report ? 'college-quarterly:'.$report->id : '' }}" data-assistant-report-save-mode="manual"
             x-data="quarterlyReportForm({{ Illuminate\Support\Js::from([...$activities, 'rowProofs' => $rowProofs, 'removedProofs' => old('remove_evidence', [])]) }})"
-            @focusin="focusWritingField($event)">
+            @focusin="focusWritingField($event)" @formdata="serialize($event)">
             @csrf
             <input type="hidden" name="reporting_year" value="{{ $year }}">
             <input type="hidden" name="reporting_quarter" value="{{ $quarter }}">
@@ -222,6 +222,7 @@
             @unless ($submitted)
                 <p class="text-sm text-slate-500 dark:text-slate-400">Use the report toolbar to save, preview, download, or submit. Each row in a, b, and c needs proof before final submission, which preserves this quarter’s entries and faculty research records.</p>
             @endunless
+            <input type="hidden" name="form_complete" value="1">
         </form>
 
         @if ($report?->submissions->isNotEmpty())

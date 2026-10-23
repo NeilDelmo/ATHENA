@@ -8,8 +8,13 @@ export function reportLibrary(storageKey) {
         view: 'grid',
         size: 'medium',
         viewMenuOpen: false,
+        viewMenuReady: false,
         viewMenuX: 0,
         viewMenuY: 0,
+        menuLabel: 'View',
+        menuActions: [],
+        saving: false,
+        stale: false,
         init() {
             try {
                 const saved = JSON.parse(localStorage.getItem(storageKey));
@@ -59,6 +64,8 @@ export function reportLibrary(storageKey) {
             const selection = window.getSelection?.();
             if (selection?.toString() && event.currentTarget?.contains(selection.anchorNode)) return;
             event.preventDefault();
+            this.viewMenuReady = false;
+            this.prepareContextMenu?.(event);
             menuTarget = event.target?.closest?.('button, a, [tabindex], summary') || event.currentTarget;
             const anchor = menuTarget.getBoundingClientRect();
             this.viewMenuX = event.clientX || anchor.left;
@@ -70,12 +77,26 @@ export function reportLibrary(storageKey) {
                 const bounds = menu.getBoundingClientRect();
                 this.viewMenuX = Math.max(8, Math.min(this.viewMenuX, window.innerWidth - bounds.width - 8));
                 this.viewMenuY = Math.max(8, Math.min(this.viewMenuY, window.innerHeight - bounds.height - 8));
-                menu.querySelector('[aria-checked="true"]')?.focus({ preventScroll: true });
+                menu.querySelector(this.menuActions.length ? '[role="menuitem"]:not(:disabled)' : '[aria-checked="true"]')?.focus({ preventScroll: true });
+                window.requestAnimationFrame(() => { this.viewMenuReady = this.viewMenuOpen; });
             }));
+        },
+        activateMenuAction(action) {
+            if (action.disabled || this.saving || this.stale) return;
+            this.closeViewMenu();
+            return action.run?.();
+        },
+        documentDetails(item) {
+            const date = Date.parse(item.uploaded_at);
+            const bytes = Number(item.file_size);
+            const size = !Number.isFinite(bytes) || item.file_size == null ? '' : bytes < 1024 ? `${bytes} B`
+                : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+            return [item.source, item.uploaded_by, Number.isNaN(date) ? '' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date), size].filter(Boolean).join(' · ');
         },
         closeViewMenu(restoreFocus = true) {
             if (!this.viewMenuOpen) return;
             this.viewMenuOpen = false;
+            this.viewMenuReady = false;
             if (restoreFocus) menuTarget?.focus({ preventScroll: true });
         },
         handleViewMenuKey(event) {
@@ -86,7 +107,7 @@ export function reportLibrary(storageKey) {
                 this.closeViewMenu();
             } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
                 event.preventDefault();
-                const items = [...event.currentTarget.querySelectorAll('[role="menuitemradio"]')];
+                const items = [...event.currentTarget.querySelectorAll('[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)')];
                 const current = items.indexOf(event.target);
                 const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
                     : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;

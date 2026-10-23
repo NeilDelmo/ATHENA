@@ -68,7 +68,7 @@ function formatAssistantInlineMarkdown(value, sources) {
         } else if (reference !== undefined) {
             const index = sources.findIndex(source => String(source?.reference ?? '').replace(/^\[|\]$/g, '').trim() === reference.trim());
             const source = sources[index];
-            const label = reference.trim().replace(/^ATHENA\s*/i, '');
+            const label = source?.title || (/^ATHENA\s+\d+$/i.test(reference.trim()) ? 'Source' : reference.trim());
             html += source ? `<button type="button" class="assistant-citation" data-assistant-citation="${index}" aria-haspopup="dialog" aria-expanded="false" aria-label="View source: ${escapeAssistantHtml(source.title || reference)}">${escapeAssistantHtml(label)}</button>` : escapeAssistantHtml(match[0]);
         } else if (strong !== undefined || alternateStrong !== undefined) {
             html += `<strong>${formatAssistantInlineMarkdown(strong ?? alternateStrong, sources)}</strong>`;

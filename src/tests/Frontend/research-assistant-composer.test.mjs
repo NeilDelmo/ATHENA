@@ -72,7 +72,9 @@ test('closed project menus defer their options and retain search selection and k
         await page.addScriptTag({ content: `document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {
             drawerOpen: true, workspaceOpen: true, contextEnabled: false, selectedContextId: 0,
             contextOptions: Array.from({ length: 32 }, (_, id) => ({ id: id + 1, label: 'Project ' + (id + 1), meta: 'Research', status: 'pending' })),
+            contextOptionsLoading: false, contextOptionsError: '', contextOptionsLoaded: true,
             hasContextOptions() { return true; },
+            async loadContextOptions() { return true; }, resetContextOptions() {},
             selectedContext() { return this.contextOptions.find(project => project.id === this.selectedContextId); },
             closeDocumentPicker() {},
             selectProjectContext(id) { this.selectedContextId = id; this.contextEnabled = true; },

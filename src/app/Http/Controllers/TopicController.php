@@ -8,7 +8,6 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
-use App\Models\ProjectNarrativeReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileReviewCheck;
 use App\Models\ProposalSignatory;
@@ -41,6 +40,8 @@ use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalRevisionFileScope;
 use App\Support\WorkPlanData;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -186,7 +187,14 @@ class TopicController extends Controller
         $topics = $query->inSubmissionCategory($category)
             ->when($status === 'review', fn ($query) => $query->whereIn('status', TopicProposal::AWAITING_APPROVAL_STATUSES)->where('status', '!=', 'revision_requested'))
             ->when($status === 'revision_requested', fn ($query) => $query->where('status', 'revision_requested'))
-            ->with(['researchCall', 'versions'])
+            ->with([
+                'researchCall',
+                'latestVersion' => fn (HasOne $version): HasOne => $version
+                    ->select($version->getRelated()->qualifyColumns(['id', 'topic_id', 'version_number']))
+                    ->with(['files' => fn (HasMany $files): HasMany => $files
+                        ->select(['id', 'proposal_version_id', 'document_type', 'source_version_file_id', 'source_data'])
+                        ->whereIn('document_type', [ProposalVersionFile::TYPE_GAD_CHECKLIST, ProposalVersionFile::TYPE_HEAD_UPLOAD])]),
+            ])
             ->when($category === 'active', fn ($query) => $query->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', ['revision_requested']))
             ->latest()->latest('id')
             ->paginate(12)->appends(['category' => $category, 'status' => $status]);
@@ -624,6 +632,8 @@ class TopicController extends Controller
         ]);
 
         $revisionDraft = $this->revisionDraftForResubmission($request, $topic);
+        $revisionDraftVersion = $revisionDraft?->lock_version;
+        $revisionDocumentVersions = $revisionDraft?->documents->pluck('lock_version', 'id')->all() ?? [];
         $stagedRevisionFiles = ($revisionDraft?->documents ?? collect())
             ->filter(fn ($document): bool => filled($document->file_path))
             ->keyBy('document_type');
@@ -691,7 +701,10 @@ class TopicController extends Controller
         $result = ['updated' => false];
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $syncTopicCollaborators, $noChangeResponses, $permanentDirectory, &$result) {
+            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $revisionDraftVersion, $revisionDocumentVersions, $syncTopicCollaborators, $noChangeResponses, $permanentDirectory, &$result) {
+                $lockedRevisionDraft = $revisionDraft
+                    ? ProposalDraft::query()->whereKey($revisionDraft->id)->lockForUpdate()->first()
+                    : null;
                 $revisedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -699,6 +712,15 @@ class TopicController extends Controller
 
                 if ($revisedTopic->user_id !== $request->user()->id || $revisedTopic->status !== 'revision_requested') {
                     return;
+                }
+
+                if ($revisionDraft && ($lockedRevisionDraft === null
+                    || $lockedRevisionDraft->status !== ProposalDraft::STATUS_DRAFT
+                    || $lockedRevisionDraft->lock_version !== $revisionDraftVersion
+                    || $lockedRevisionDraft->documents()->lockForUpdate()->pluck('lock_version', 'id')->all() !== $revisionDocumentVersions)) {
+                    throw ValidationException::withMessages([
+                        'revision_draft_id' => 'The revision workspace changed while the submission files were being copied. Reload the revision and review the latest saved work before submitting.',
+                    ])->errorBag('resubmission');
                 }
 
                 $review = $revisedTopic->reviews()->where('decision', 'revision_requested')->latest('id')->lockForUpdate()->firstOrFail();
@@ -1502,14 +1524,14 @@ class TopicController extends Controller
     private function researchDashboard(User $user): View
     {
         $projects = TopicProposal::query()
-            ->accessibleTo($user)
+            ->accessibleTo($user);
+
+        $activeProjects = (clone $projects)->activeProject()
             ->with([
                 'latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,progress_percentage,reporting_date,submitted_at,created_at,budget_utilization',
-                'progressReports',
-                'narrativeReports',
-            ]);
-
-        $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
+                'progressReports:id,topic_id,reporting_date,reporting_year,reporting_quarter,period_start,period_end,version_number,supersedes_report_id,submission_status,review_status,review_stage,work_plan,created_at,submitted_at,reviewed_at,secretary_reviewed_at,forwarded_at',
+                'narrativeReports:id,topic_id,report_type,reporting_date,reporting_quarter,period_start,period_end,version_number,submission_status,review_status,review_stage,created_at,submitted_at,reviewed_at,secretary_reviewed_at,forwarded_at',
+            ])->latest('updated_at')->get();
         $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();
         $completedProjects = (clone $projects)->completedProject()->latest('updated_at')->get();
 

@@ -8,23 +8,22 @@
     $restoredRows = is_array($restoredRows) ? $restoredRows : [];
     $inputClass = 'block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-950 dark:text-white';
     $iconAction = 'workspace-icon focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
-    $crumbs = [
-        ['label' => 'Quarterly monitoring', 'url' => route('research_head.rms-quarterly-reports.index')],
-        ['label' => $year, 'url' => route('research_head.rms-quarterly-reports.index', ['year' => $year])],
-        ['label' => 'Q'.$quarter],
-    ];
+    $actionClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
     $errorSection = collect(['presentation' => 'presentations', 'publication' => 'publications', 'ip' => 'ip_assets'])
         ->first(fn (string $section, string $prefix): bool => $errors->has('row_details.'.$prefix.'-*.*'));
 @endphp
 
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Quarterly Monitoring Report" subtitle="Review college outputs and export the campus report.">
-            <x-slot name="actions"><a href="{{ route('research_head.quarterly-reports.index', ['year' => $year]) }}" class="{{ $iconAction }}" aria-label="Open college reports" title="College reports"><x-report-library-icon name="college" /></a></x-slot>
+        <x-page-header :title="'RMS quarterly report · Q'.$quarter.' '.$year" subtitle="Review submitted college outputs, complete the report details, and generate the campus Excel workbook.">
+            <x-slot name="actions">
+                <a href="{{ route('research_head.rms-quarterly-reports.index') }}" class="{{ $actionClass }} text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"><x-report-library-icon name="back" class="h-5 w-5" />All RMS reports</a>
+                <a href="{{ route('research_head.quarterly-reports.index', ['year' => $year]) }}" class="{{ $actionClass }} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><x-report-library-icon name="college" class="h-5 w-5" />College reports</a>
+            </x-slot>
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-5" data-rms-quarterly-reports data-report-library x-data="reportLibrary(@js('athena-report-library:'.auth()->id()))" data-view="grid" :data-view="view" data-size="medium" :data-size="size">
+    <div class="space-y-5" data-rms-quarterly-reports>
         @if (session('status'))
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-base text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
@@ -35,25 +34,49 @@
             </div>
         @endif
 
-        <div class="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-            <x-report-library-path :crumbs="$crumbs" :back-url="route('research_head.rms-quarterly-reports.index', ['year' => $year])">
-                <div class="flex gap-2" role="group" aria-label="Report actions">
-                    <button type="submit" form="rms-report-form" name="intent" value="save" class="{{ $iconAction }}" aria-label="Save draft" title="Save draft"><x-report-library-icon name="save" /></button>
-                    <button type="submit" form="rms-report-form" name="intent" value="download" class="{{ $iconAction }} !bg-brand !text-white" aria-label="Save and download spreadsheet" title="Save and download spreadsheet"><x-report-library-icon name="export" /></button>
+        <section aria-labelledby="rms-workbook-heading" class="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex flex-wrap items-start justify-between gap-5">
+                <div class="min-w-0">
+                    <h2 id="rms-workbook-heading" class="text-xl font-bold text-slate-950 dark:text-white">{{ $period['start']->format('F') }}–{{ $period['end']->format('F Y') }}</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $report ? 'Draft saved '.$report->updated_at->format('M j, Y g:i A') : 'Draft not yet saved' }}</p>
                 </div>
-            </x-report-library-path>
-        </div>
+                <div class="flex w-full flex-wrap gap-2 sm:w-auto" role="group" aria-label="Report actions">
+                    <button type="submit" form="rms-report-form" name="intent" value="save" class="{{ $actionClass }} border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"><x-report-library-icon name="save" class="h-5 w-5" />Save draft</button>
+                    <button type="submit" form="rms-report-form" name="intent" value="download" @disabled(! $reportStatus['ready']) aria-describedby="rms-export-readiness" class="{{ $actionClass }} bg-brand text-white hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50"><x-report-library-icon name="export" class="h-5 w-5" />Save &amp; download Excel</button>
+                </div>
+            </div>
+            <dl class="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-100 pt-5 sm:grid-cols-4 dark:border-slate-800">
+                @foreach (['College reports included' => $reportStatus['submitted_count'], 'Output records' => $rows->count(), 'Fields to complete' => $missingCount, 'Colleges pending' => count($reportStatus['missing_colleges'])] as $label => $count)
+                    <div><dt class="text-sm text-slate-500 dark:text-slate-400">{{ $label }}</dt><dd class="mt-1 text-2xl font-semibold tabular-nums text-slate-950 dark:text-white">{{ $count }}</dd></div>
+                @endforeach
+            </dl>
+            <div class="mt-5 space-y-3 border-t border-slate-100 pt-5 dark:border-slate-800" data-rms-readiness="{{ $reportStatus['ready'] ? 'ready' : 'waiting' }}">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="font-semibold text-slate-900 dark:text-white">{{ $reportStatus['submitted_count'] }} of {{ $reportStatus['total_count'] }} college reports received</p>
+                    @if ($reportStatus['outdated'])
+                        <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">Updated since last download</p>
+                    @endif
+                </div>
+                <p id="rms-export-readiness" class="text-sm font-medium {{ $reportStatus['ready'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300' }}">{{ $reportStatus['ready'] ? 'All college reports received. Excel download is available.' : 'Waiting for all colleges to submit. Returned reports must be resubmitted before downloading. You can still save a draft.' }}</p>
+                @if ($reportStatus['downloaded_at'])
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Last downloaded <time datetime="{{ $reportStatus['downloaded_at']->toISOString() }}">{{ $reportStatus['downloaded_at']->format('M j, Y · g:i A') }}</time></p>
+                @endif
+                <ul class="grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="College submission status">
+                    @foreach ($reportStatus['colleges'] as $college => $collegeStatus)
+                        <li class="flex items-start justify-between gap-3 text-sm">
+                            <span class="text-slate-600 dark:text-slate-300">{{ $college }}</span>
+                            <span class="shrink-0 rounded-md px-2 py-1 text-xs font-medium {{ match ($collegeStatus) { 'submitted' => 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300', 'returned' => 'bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300', default => 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' } }}">{{ match ($collegeStatus) { 'submitted' => 'Received', 'returned' => 'Returned', default => 'Pending' } }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+            <p class="mt-5 max-w-3xl text-sm leading-6 text-slate-500 dark:text-slate-400">One workbook for Q{{ $quarter }} {{ $year }}, with separate sheets for paper presentations, publications, and IP assets. Receiving all reports unlocks Excel; review report fields separately. Missing details stay blank.</p>
+        </section>
 
         <details class="dashboard-panel p-5" aria-labelledby="rms-source-heading">
             <summary class="disclosure-summary rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
-            <span class="inline-flex flex-wrap items-start justify-between gap-4 align-top">
-                <span>
-                    <span id="rms-source-heading" class="block text-xl font-bold text-gray-950 dark:text-white">{{ $period['start']->format('F') }}–{{ $period['end']->format('F Y') }} · Q{{ $quarter }}</span>
-                    <span class="mt-1 block text-base text-slate-600 dark:text-slate-400">{{ count($reportData['sources']) }} {{ Illuminate\Support\Str::plural('college report', count($reportData['sources'])) }} · {{ $rows->count() }} records · {{ $missingCount }} fields to complete · {{ count($reportData['missing_colleges']) }} colleges pending</span>
-                </span>
-            </span>
+                <span id="rms-source-heading" class="font-semibold text-slate-950 dark:text-white">Source college reports <span class="font-normal text-slate-500 dark:text-slate-400">({{ count($reportData['sources']) }} included · {{ count($reportData['missing_colleges']) }} pending)</span></span>
             </summary>
-            <p class="mt-4 text-base text-slate-500 dark:text-slate-400">{{ $report ? 'Draft saved '.$report->updated_at->format('M j, Y g:i A') : 'Draft not yet saved' }}</p>
             <p class="mt-3 max-w-4xl text-base leading-7 text-slate-600 dark:text-slate-400">Records come from submitted coordinator reports. Attached activity proof carries into RMS. Review authors, funding and SDGs before using the report. Blank details stay blank in Excel; you can save an incomplete draft.</p>
             @if ($reportData['sources'] !== [])
                 <details class="mt-4 border-t border-gray-200 pt-3 dark:border-slate-800">
@@ -77,37 +100,21 @@
             @endif
         </details>
 
-        {{-- Server validation reopens the folder containing an invalid field. --}}
-        <form method="POST" action="{{ route('research_head.rms-quarterly-reports.store') }}" novalidate class="space-y-5" id="rms-report-form" x-data="rmsQuarterlyReportForm" x-init="openSection(@js($errorSection))" @formdata="serialize($event)"
+        {{-- Server validation reopens the section containing an invalid field. --}}
+        <form method="POST" action="{{ route('research_head.rms-quarterly-reports.store') }}" novalidate class="space-y-5" id="rms-report-form" x-data="rmsQuarterlyReportForm" x-init="openSection(@js($errorSection ?? 'presentations'))" @formdata="serialize($event)"
             data-assistant-report-type="rms-quarterly" data-assistant-report-key="{{ $report ? 'rms-quarterly:'.$report->id : '' }}" data-assistant-report-save-mode="manual">
             @csrf
             <input type="hidden" name="reporting_year" value="{{ $year }}">
             <input type="hidden" name="reporting_quarter" value="{{ $quarter }}">
             <input type="hidden" name="source_token" value="{{ $reportData['source_token'] }}">
 
-            <nav data-rms-section-folders aria-label="Report sections" class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                <div class="flex min-w-0 flex-wrap items-center gap-3">
-                    <h2 x-show="section === null" class="text-xl font-semibold text-slate-950 dark:text-white">Report contents</h2>
-                    <div x-cloak x-show="section !== null" class="flex min-w-0 flex-wrap items-center gap-3">
-                        <button type="button" x-ref="sectionBack" @click="const previousSection = section; openSection(null); $nextTick(() => $refs[previousSection + 'Folder'].focus())" class="{{ $iconAction }}" aria-label="Back to report contents" title="Back to report contents"><x-report-library-icon name="back" /></button>
-                        <span class="hidden text-base text-slate-500 dark:text-slate-400 sm:inline">Report contents /</span>
-                        <span class="text-lg font-semibold text-slate-950 dark:text-white" x-text="{ presentations: 'Paper presentations', publications: 'Publications', ip_assets: 'IP assets' }[section]"></span>
-                    </div>
-                    <x-report-library-view-controls class="ml-auto" />
-                </div>
-                <div x-show="section === null">
-                    <div data-library-view-surface tabindex="0" aria-label="Report folders and files" @wheel="resizeWithWheel($event)" @contextmenu="openViewMenu($event)" class="report-library-items mt-4">
-                        @foreach ($sections as $section => $label)
-                            <button type="button" x-ref="{{ $section }}Folder" @click="openSection('{{ $section }}'); $nextTick(() => $refs.sectionBack.focus())" class="report-library-item" aria-label="Open {{ strtolower($label) }} folder">
-                                <x-report-library-icon name="folder" class="report-library-graphic" />
-                                <span class="min-w-0">
-                                    <span class="report-library-name"><span class="inline-flex items-center gap-2"><x-report-library-icon :name="match ($section) { 'presentations' => 'presentation', 'publications' => 'publication', default => 'ip' }" />{{ $label }}</span></span>
-                                    <span class="report-library-meta">{{ count($reportData[$section]) }} {{ Illuminate\Support\Str::plural('record', count($reportData[$section])) }}</span>
-                                </span>
-                            </button>
-                        @endforeach
-                    </div>
-                </div>
+            <nav data-rms-section-navigation aria-label="Report sections" class="flex flex-wrap gap-2">
+                @foreach ($sections as $section => $label)
+                    <button type="button" @click="openSection('{{ $section }}')" aria-controls="rms-{{ $section }}" :aria-pressed="section === '{{ $section }}'" :class="section === '{{ $section }}' ? 'border-brand bg-brand-wash text-brand dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'" class="{{ $actionClass }} border">
+                        <x-report-library-icon :name="match ($section) { 'presentations' => 'presentation', 'publications' => 'publication', default => 'ip' }" class="h-5 w-5" />
+                        {{ $label }}<span class="tabular-nums">({{ count($reportData[$section]) }})</span>
+                    </button>
+                @endforeach
             </nav>
 
             <x-assistant-report-editor :context="['report_type' => 'rms-quarterly', 'report_id' => $report?->id]" />
@@ -139,17 +146,16 @@
             @foreach ($sections as $section => $label)
                 <section id="rms-{{ $section }}" x-cloak x-show="section === '{{ $section }}'" class="dashboard-panel scroll-mt-6 overflow-hidden" aria-labelledby="rms-{{ $section }}-heading">
                     <div class="border-b border-gray-200 px-5 py-4 dark:border-slate-800"><h2 id="rms-{{ $section }}-heading" class="text-lg font-bold text-gray-950 dark:text-white">{{ $label }} <span class="font-normal text-slate-500 dark:text-slate-400">({{ count($reportData[$section]) }})</span></h2></div>
-                    <div data-library-view-surface tabindex="0" aria-label="Report folders and files" @wheel="resizeWithWheel($event)" @contextmenu="openViewMenu($event)" class="report-library-items report-library-files p-4">
+                    <div class="divide-y divide-slate-200 px-5 dark:divide-slate-800">
                         @forelse ($reportData[$section] as $row)
                             @php
                                 $key = $row['key'];
                                 $title = $row['values'][match ($section) {'presentations' => 'presentation_title', 'publications' => 'article_title', default => 'title'}] ?: 'Untitled record';
                             @endphp
-                            <details class="report-library-file group" @if ($errors->has('row_details.'.$key.'.*') || $errors->has('row_details.'.$key)) open @endif>
+                            <details class="py-4" @if ($errors->has('row_details.'.$key.'.*') || $errors->has('row_details.'.$key)) open @endif>
                                 <summary class="disclosure-summary rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
-                                    <x-document-file-icon class="report-library-file-graphic" />
-                                    <span class="min-w-0">
-                                        <span class="ml-1 font-semibold text-gray-900 dark:text-white">{{ $loop->iteration }}. {{ $title }}</span>
+                                    <span class="min-w-0 align-top">
+                                        <span class="font-semibold text-gray-900 dark:text-white">{{ $loop->iteration }}. {{ $title }}</span>
                                         <span class="mt-1 block text-base text-slate-500 dark:text-slate-400">{{ $row['college'] }} · {{ count($row['missing']) }} fields to complete</span>
                                     </span>
                                 </summary>
@@ -185,7 +191,10 @@
                                 </div>
                             </details>
                         @empty
-                            <p class="col-span-full flex min-h-[300px] items-center justify-center px-5 py-6 text-center text-base text-slate-500 dark:text-slate-400">No {{ strtolower($label) }} in the submitted college reports for this quarter.</p>
+                            <div class="flex flex-col items-start gap-3 py-8">
+                                <p class="text-base text-slate-500 dark:text-slate-400">No {{ strtolower($label) }} in the submitted college reports for this quarter.</p>
+                                <a href="{{ route('research_head.quarterly-reports.index', ['year' => $year]) }}" class="{{ $actionClass }} border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Review college submissions<x-report-library-icon name="open" class="h-4 w-4" /></a>
+                            </div>
                         @endforelse
                     </div>
                 </section>
@@ -193,8 +202,8 @@
 
             <input type="hidden" name="form_complete" value="1">
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 py-4 dark:border-slate-800">
-                <p class="text-base text-slate-500 dark:text-slate-400">{{ $missingCount }} fields to complete. Saving and export are available for partial drafts.</p>
-                <p class="text-base text-slate-500 dark:text-slate-400">Partial exports may contain blank fields. Review each folder before sending the report.</p>
+                <p class="text-base text-slate-500 dark:text-slate-400">{{ $missingCount }} fields to complete. You can save a draft at any time. Excel download requires all college reports.</p>
+                <p class="text-base text-slate-500 dark:text-slate-400">Review each section before sending the report.</p>
             </div>
         </form>
     </div>

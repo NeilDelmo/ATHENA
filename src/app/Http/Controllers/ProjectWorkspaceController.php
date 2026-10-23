@@ -36,6 +36,9 @@ class ProjectWorkspaceController extends Controller
             $workspace['assignments'] = array_map(fn (array $assignment): array => [
                 ...$assignment, 'project_id' => (int) $assignment['project_id'],
             ], $workspace['assignments']);
+            $workspace['shortcuts'] = array_map(fn (array $shortcut): array => [
+                ...$shortcut, 'project_id' => (int) $shortcut['project_id'],
+            ], $workspace['shortcuts'] ?? $current['shortcuts']);
             $user->forceFill(['project_workspace' => $workspace])->save();
 
             return response()->json(['workspace' => $workspace]);

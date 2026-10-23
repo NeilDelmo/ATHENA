@@ -131,6 +131,29 @@ class ProjectNarrativeReport extends Model
         return $query->where(fn (Builder $query): Builder => $query->where($type, 'terminal')->orWhereNull($stage)->orWhere($stage, 'head'));
     }
 
+    /** @param array{quarter: int, start: \Carbon\CarbonImmutable, end: \Carbon\CarbonImmutable} $period */
+    public function scopeForReportingPeriod(Builder $query, array $period): Builder
+    {
+        return $query->where(function (Builder $query) use ($period): void {
+            $query->where('reporting_quarter', $period['quarter'])
+                ->orWhere(function (Builder $legacy) use ($period): void {
+                    $dates = [$period['start']->toDateString(), $period['end']->toDateString()];
+                    $legacy->whereNull('reporting_quarter')->where(function (Builder $query) use ($dates): void {
+                        $query->whereBetween('reporting_date', $dates)
+                            ->orWhere(fn (Builder $query): Builder => $query->whereNull('reporting_date')->whereBetween('period_end', $dates));
+                    });
+                });
+        });
+    }
+
+    /** @param array{quarter: int, start: \Carbon\CarbonImmutable, end: \Carbon\CarbonImmutable} $period */
+    public function isForReportingPeriod(array $period): bool
+    {
+        return $this->reporting_quarter !== null
+            ? $this->reporting_quarter === $period['quarter']
+            : (($this->reporting_date ?? $this->period_end)?->betweenIncluded($period['start'], $period['end']) ?? false);
+    }
+
     public function scopeLatestSubmittedVersion(Builder $query): Builder
     {
         return $query->whereNotExists(function (QueryBuilder $newer): void {
@@ -147,6 +170,13 @@ class ProjectNarrativeReport extends Model
                                         ->orWhere(function (QueryBuilder $date): void {
                                             $date->whereNull('project_narrative_reports.period_start')
                                                 ->whereColumn('newer_report.reporting_date', 'project_narrative_reports.reporting_date');
+                                        })->orWhere(function (QueryBuilder $date): void {
+                                            $date->whereColumn('newer_report.period_start', '<=', 'project_narrative_reports.reporting_date')
+                                                ->whereColumn('newer_report.period_end', '>=', 'project_narrative_reports.reporting_date');
+                                        })->orWhere(function (QueryBuilder $date): void {
+                                            $date->whereNull('project_narrative_reports.reporting_date')
+                                                ->whereColumn('newer_report.period_start', '<=', 'project_narrative_reports.period_end')
+                                                ->whereColumn('newer_report.period_end', '>=', 'project_narrative_reports.period_end');
                                         });
                                 });
                         });

@@ -28,7 +28,7 @@
         'Planning & reports' => [
             ['Research targets', 'research_head.targets.index', 'target', null],
             ['College reports', 'research_head.quarterly-reports.index', 'document', null],
-            ['Quarterly monitoring', 'research_head.rms-quarterly-reports.index', 'chart', null],
+            ['RMS quarterly reports', 'research_head.rms-quarterly-reports.index', 'chart', 'rms_reports'],
             ['Analytics', 'research_head.analytics', 'chart', null],
         ],
         'Resources' => [

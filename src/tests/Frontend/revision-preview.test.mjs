@@ -4,6 +4,7 @@ import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { chromium } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
@@ -83,6 +84,38 @@ test('preview errors expose validation messages and never show an old paper', as
     }), /Complete the activity/);
     await assert.rejects(previewRevisionEditor(null), /still loading/);
     await assert.rejects(previewRevisionEditor({ generatePreview() {}, previewLoading: true }), /already being prepared/);
+});
+
+test('failed revision previews reject the last good paper retained by the real editor', async () => {
+    const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const component = source.indexOf("Alpine.data('proposalDraftWorkPlan',");
+    const start = source.indexOf('    async generatePreview()', component);
+    const method = source.slice(start, source.indexOf('    async downloadDocument()', start));
+
+    for (const failure of ['validation', 'network']) {
+        const editor = runInNewContext(`(config => ({ ${method} }))`, {
+            Error,
+            fetch: async () => {
+                if (failure === 'network') throw new Error('Connection interrupted.');
+                return { status: 422, json: async () => ({ errors: { activity: ['Complete the activity.'] } }) };
+            },
+        })({ previewUrl: '/preview' });
+        Object.assign(editor, {
+            previewHtml: '<p>Earlier activity</p>', previewLoading: false, previewReady: true,
+            previewRevision: 1, workPlanFormData: () => new FormData(),
+            scheduleProposalPaperPreview() {},
+        });
+
+        await assert.rejects(previewRevisionEditor(editor), failure === 'network' ? /Connection interrupted/ : /Complete the activity/);
+        assert.equal(editor.previewHtml, '<p>Earlier activity</p>', 'The editor keeps its earlier working paper for retry');
+    }
+});
+
+test('a revision preview changed during generation cannot be presented as the latest paper', async () => {
+    await assert.rejects(previewRevisionEditor({
+        previewHtml: '<p>Earlier activity</p>',
+        async generatePreview() { this.previewStale = true; },
+    }), /could not be generated/);
 });
 
 test('no-change preview uses the submitted paper even if the editor contains changes', async () => {

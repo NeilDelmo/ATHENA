@@ -31,6 +31,9 @@ class NotificationInbox
             ->when($recentOnly, fn (Builder $query): Builder => $query->limit(750))->get()
             ->groupBy(fn (DatabaseNotification $notification): string => $this->groupKey($notification))
             ->flatMap(fn (Collection $notifications): Collection => $notifications->chunk(50))
+            ->when($recentOnly, fn (Collection $groups): Collection => $groups
+                ->sortByDesc(fn (Collection $group): array => [$group->first()->created_at->toIso8601String(), $group->first()->id])
+                ->take(15))
             ->map(function (Collection $notifications) use ($actionsByEntity): array {
                 $history = $notifications->map(fn (DatabaseNotification $notification): array => $this->present($notification))->values();
                 $latest = $history->first();
@@ -72,6 +75,9 @@ class NotificationInbox
             }
 
             return 'call:'.$data['research_call_id'].':'.$notification->type;
+        }
+        if (isset($data['action_data']['rms_period_key'])) {
+            return 'rms:'.$data['action_data']['rms_period_key'];
         }
         if (isset($data['topic_id'])) {
             return 'topic:'.$data['topic_id'].':'.$this->category($notification);

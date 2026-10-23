@@ -102,6 +102,67 @@ test('unsupported report sections never fall through to unrelated narrative edit
 })->with(['Improve my objectives.', 'Revise the funding source.', 'Improve the actual accomplishment for row 99.', 'Revise my conclusions.',
     'Change the report names.', 'Update my approval.', 'Revise my signature.', 'Change the report dates.', 'Change the report amounts.']);
 
+test('withheld report edits cannot leave a summary claiming a suggestion is available', function (array $suggestions) {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode([
+        'summary' => 'One minor editorial clarification is proposed for review.', 'suggestions' => $suggestions,
+    ], JSON_THROW_ON_ERROR)], 'finish_reason' => 'stop']]])]);
+
+    $response = $this->postJson(route('research-support.chat'), ($this->payload)('progress-report', ['topic_id' => $this->topic->id]))
+        ->assertSuccessful()->assertJsonCount(0, 'report_changes.suggestions');
+
+    expect($response->json('reply'))->not->toContain('One minor editorial clarification is proposed')
+        ->toContain('No wording suggestions are available to apply.', 'Your report is unchanged.', 'No external sources were consulted.');
+})->with([
+    'no candidates' => [[]],
+    'changed fact' => [[['field' => 'results_discussion', 'before' => 'Interviewed 12 participants [1].',
+        'value' => 'Interviewed 20 participants [1].', 'reason' => 'Clarifies wording.']]],
+]);
+
+test('natural requests for precise wording improvements produce reviewable suggestions', function () {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    ($this->fakeChanges)([['field' => 'introduction', 'before' => 'Monitoring describes coastal conditions.',
+        'value' => 'Coastal conditions are described through monitoring.', 'reason' => 'Clarifies wording.']]);
+    $payload = ($this->payload)('progress-report', ['topic_id' => $this->topic->id]);
+    unset($payload['action']);
+    $payload['messages'][0]['content'] = 'Read this report and suggest precise improvements to its wording and organization. Preserve recorded facts and citations. Show changes for my review.';
+
+    $this->postJson(route('research-support.chat'), $payload)->assertSuccessful()
+        ->assertJsonPath('report_changes.suggestions.0.field', 'introduction');
+});
+
+test('unchanged terminal literature cannot claim a wording suggestion is available', function () {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    Http::fake(['generativelanguage.googleapis.com/*' => function ($request) {
+        $payload = json_decode($request['messages'][1]['content'], true, flags: JSON_THROW_ON_ERROR);
+
+        return Http::response(['choices' => [['message' => ['content' => json_encode([
+            'summary' => 'One minor editorial clarification is proposed for review.', 'blocks' => $payload['blocks'],
+        ], JSON_THROW_ON_ERROR)], 'finish_reason' => 'stop']]]);
+    }]);
+
+    $response = $this->postJson(route('research-support.chat'), ($this->payload)('terminal-report', ['topic_id' => $this->topic->id, 'field' => 'terminal_data.literature_review']))
+        ->assertSuccessful()->assertJsonCount(0, 'report_changes.suggestions');
+
+    expect($response->json('reply'))->not->toContain('One minor editorial clarification is proposed')
+        ->toContain('No wording suggestions are available to apply.', 'Your report is unchanged.');
+});
+
+test('RMS review identifies saved report sources without presenting evidence links as consulted external sources', function () {
+    $this->college->update(['submitted_at' => now(), 'snapshot' => ['college' => $this->college->college, 'ip_assets' => [$this->asset]]]);
+    ($this->selectWorkspace)($this->head, User::WORKSPACE_RESEARCH_HEAD);
+    ($this->fakeChanges)();
+
+    $response = $this->postJson(route('research-support.chat'), ($this->payload)('rms-quarterly', ['report_id' => $this->rms->id], 'review_report'))
+        ->assertSuccessful()->assertJsonPath('sources.0.title', 'RMS Quarterly Monitoring Report · Q3 2026')
+        ->assertJsonPath('sources.0.url', route('research_head.rms-quarterly-reports.index', ['year' => 2026, 'quarter' => 3]))
+        ->assertJsonPath('sources.1.title', $this->college->college.' · Quarterly Accomplishment Report · Q3 2026 · Version 1');
+
+    expect($response->json('reply'))->toContain('No external sources were consulted.', 'uploaded evidence was not checked.')
+        ->and($response->json('sources.1.url'))->toBe(route('research_head.quarterly-reports.index', ['year' => 2026, 'quarter' => 3, 'college' => $this->college->college]))
+        ->and(json_encode($response->json('sources')))->not->toContain('ATHENA 1', 'example.org/proof');
+});
+
 test('report wording suggestions preserve facts inside narrative fields', function (string $before, string $value, int $count) {
     ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
     $this->progress->update(['source_data' => ['results_discussion' => $before]]);
@@ -358,7 +419,7 @@ test('terminal writing revisions retain citations anchored in the approved propo
 
 test('saved college evidence captions persist through existing save and reject unrelated proof tokens', function () {
     ($this->selectWorkspace)($this->coordinator, User::WORKSPACE_RESEARCH_OFFICE);
-    $input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'saved_evidence_captions' => [hash('sha256', 'college/proof.jpg') => 'Reviewed presentation documentation.']];
+    $input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1', 'saved_evidence_captions' => [hash('sha256', 'college/proof.jpg') => 'Reviewed presentation documentation.']];
     $this->postJson(route('research_coordinator.reports.store'), $input)->assertRedirect()->assertSessionHasNoErrors();
     expect($this->college->fresh()->evidence[0]['caption'])->toBe('Reviewed presentation documentation.');
     $input['saved_evidence_captions'] = [str_repeat('a', 64) => 'Another proof.'];

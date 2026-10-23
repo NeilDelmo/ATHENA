@@ -23,7 +23,7 @@ test('the real revision page and editor automatically locate a reply in the offi
     const expectedLocations = matchingPassages(passages, [{ text: 'SDG4: Quality Education', context: 'III. Sustainable Development Goal:' }]);
     assert.equal(expectedLocations.length, 1, 'The official paper must have one identifiable SDG4 entry');
     const expected = expectedLocations[0];
-    const origin = 'http://athena-automation.test';
+    const origin = 'https://athena-automation.test';
     const html = (name) => fixture[name].replaceAll('http://localhost', origin);
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {

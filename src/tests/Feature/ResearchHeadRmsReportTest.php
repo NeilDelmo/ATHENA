@@ -5,6 +5,10 @@ use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\RmsQuarterlyReport;
 use App\Models\User;
 use App\Services\RmsQuarterlyReportData;
+use App\Services\RmsQuarterlyReportDocument;
+use App\Services\RmsQuarterlyReportStatus;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Event;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -22,16 +26,79 @@ beforeEach(function () {
         'source_token' => app(RmsQuarterlyReportData::class)->build(2026, 3)['source_token'],
         'campus' => 'ARASOF-Nasugbu', 'signatories' => [], 'row_details' => [], 'form_complete' => '1',
     ];
+    $this->submitMissingColleges = function (): void {
+        foreach (User::COLLEGES as $college) {
+            if (CollegeQuarterlyReport::where('college', $college)->where('reporting_year', 2026)->where('reporting_quarter', 3)->exists()) {
+                continue;
+            }
+            $source = CollegeQuarterlyReport::factory()->create([
+                'college' => $college, 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
+            ]);
+            CollegeQuarterlyReportSubmission::factory()->for($source, 'report')->create(['snapshot' => ['college' => $college]]);
+        }
+    };
 });
 
 test('research head can open the quarterly monitoring workspace with missing colleges clearly shown', function () {
-    $this->get(route('research_head.rms-quarterly-reports.index', $this->period))
+    $response = $this->get(route('research_head.rms-quarterly-reports.index', $this->period))
         ->assertOk()->assertViewIs('research_head.rms-quarterly-reports.index')
-        ->assertSeeText('Quarterly Monitoring Report')->assertSeeText('Awaiting college reports')
+        ->assertSeeText('RMS quarterly report · Q3 2026')->assertSeeText('Awaiting college reports')
         ->assertSeeText(User::COLLEGES['CICS'])
+        ->assertViewHas('reportStatus', fn (array $status): bool => ! $status['ready'] && $status['submitted_count'] === 0 && $status['total_count'] === 6)
         ->assertSee(route('research_head.quarterly-reports.index'));
+    if (getenv('ATHENA_EXPORT_RMS_UI') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/rms-editor-pending.html'), $response->getContent());
+    }
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//button[@name="intent" and @value="download" and @disabled]')->length)->toBe(1)
+        ->and($xpath->query('//button[@name="intent" and @value="save" and not(@disabled)]')->length)->toBe(1)
+        ->and(RmsQuarterlyReport::count())->toBe(0);
     $this->getJson(route('research_head.rms-quarterly-reports.index', ['year' => 1999, 'quarter' => 5]))
         ->assertUnprocessable()->assertJsonValidationErrors(['year', 'quarter']);
+});
+
+test('RMS editor exposes labeled save actions and category buttons with presentations open by default', function () {
+    $source = CollegeQuarterlyReport::factory()->create([
+        'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
+    ]);
+    CollegeQuarterlyReportSubmission::factory()->for($source, 'report')->create(['snapshot' => [
+        'college' => $source->college,
+        'manual_presentations' => [['id' => 'presentation-row', 'event' => 'Research Forum', 'research_title' => 'Health Research', 'date' => '2026-09-03', 'place' => 'Nasugbu', 'personnel' => 'Ana Researcher']],
+        'manual_publications' => [['id' => 'publication-row', 'event' => 'Research Journal', 'research_title' => 'Published Study', 'date' => '2026-09-03', 'personnel' => 'Ana Researcher']],
+        'ip_assets' => [['id' => 'ip-row', 'title' => 'Research Asset', 'type' => 'Copyright', 'inventors' => 'Ana Researcher', 'date' => '2026-09-03']],
+    ]]);
+    ($this->submitMissingColleges)();
+    $response = $this->get(route('research_head.rms-quarterly-reports.index', $this->period))->assertOk()
+        ->assertViewHas('reportStatus', fn (array $status): bool => $status['ready'] && $status['submitted_count'] === 6)
+        ->assertSeeText('All RMS reports')
+        ->assertDontSee('data-library-view-surface', false)
+        ->assertDontSee('@contextmenu="openViewMenu($event)"', false);
+    if (getenv('ATHENA_EXPORT_RMS_UI') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/rms-editor.html'), $response->getContent());
+    }
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $form = $xpath->query('//form[@id="rms-report-form"]')->item(0);
+    expect($form->getAttribute('x-data'))->toBe('rmsQuarterlyReportForm')
+        ->and($form->getAttribute('x-init'))->toContain('presentations');
+    foreach (['save' => 'Save draft', 'download' => 'Save & download Excel'] as $intent => $label) {
+        $button = $xpath->query('//button[@type="submit" and @form="rms-report-form" and @name="intent" and @value="'.$intent.'"]')->item(0);
+        expect($button)->not->toBeNull();
+        expect(trim($button->textContent))->toBe($label)
+            ->and($button->hasAttribute('disabled'))->toBeFalse();
+    }
+    foreach (['presentations' => 'Paper presentations', 'publications' => 'Publications', 'ip_assets' => 'IP assets'] as $section => $label) {
+        $button = $xpath->query('//nav[@data-rms-section-navigation]//button[@type="button" and @aria-controls="rms-'.$section.'"]')->item(0);
+        expect($button)->not->toBeNull();
+        expect($button->textContent)->toContain($label);
+        expect($button->hasAttribute(':aria-pressed') || $button->hasAttribute('x-bind:aria-pressed'))->toBeTrue();
+    }
+    expect($xpath->query('//a[@href="'.route('research_head.rms-quarterly-reports.index').'" and normalize-space(.)="All RMS reports"]')->length)->toBe(1);
 });
 
 test('only the research head workspace can read save or download monitoring reports', function (string $role, string $workspace) {
@@ -81,6 +148,36 @@ test('head drafts reject unknown rows and unsafe header values', function () {
     expect(RmsQuarterlyReport::count())->toBe(0);
 });
 
+test('RMS saving rechecks college sources after acquiring the saved draft', function () {
+    $source = CollegeQuarterlyReport::factory()->create([
+        'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
+    ]);
+    CollegeQuarterlyReportSubmission::factory()->for($source, 'report')->create(['snapshot' => ['college' => $source->college]]);
+    $draft = RmsQuarterlyReport::factory()->create([
+        'reporting_year' => 2026, 'reporting_quarter' => 3, 'campus' => 'Saved campus',
+    ]);
+    $input = [...($this->draftInput)(), 'campus' => 'Stale campus'];
+    $changed = false;
+    Event::listen('eloquent.retrieved: '.RmsQuarterlyReport::class, function (RmsQuarterlyReport $report) use ($source, $draft, &$changed): void {
+        if ($changed || $report->id !== $draft->id) {
+            return;
+        }
+
+        $changed = true;
+        $source->update(['submitted_at' => null]);
+    });
+
+    try {
+        $this->postJson(route('research_head.rms-quarterly-reports.store'), $input)
+            ->assertUnprocessable()->assertJsonValidationErrors('source_token');
+    } finally {
+        Event::forget('eloquent.retrieved: '.RmsQuarterlyReport::class);
+    }
+
+    expect($changed)->toBeTrue()
+        ->and($draft->fresh()->campus)->toBe('Saved campus');
+});
+
 test('head can complete source fields while college provenance stays read only', function () {
     $source = CollegeQuarterlyReport::factory()->create([
         'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
@@ -89,6 +186,7 @@ test('head can complete source fields while college provenance stays read only',
         'college' => $source->college,
         'manual_presentations' => [['id' => 'rms-row', 'event' => 'Research Forum', 'research_title' => 'Health Research', 'date' => '2026-09-03', 'place' => 'Nasugbu', 'personnel' => 'Ana Researcher']],
     ]]);
+    ($this->submitMissingColleges)();
     $row = app(RmsQuarterlyReportData::class)->build(2026, 3)['presentations'][0];
     $this->get(route('research_head.rms-quarterly-reports.index', $this->period))
         ->assertOk()->assertSeeText('Health Research')->assertSee('row_details['.$row['key'].'][source_of_fund]', false)
@@ -136,6 +234,7 @@ test('publication and IP dates must fall inside the selected monitoring quarter 
 ]);
 
 test('research head can download the original Excel report format with a partial draft', function () {
+    ($this->submitMissingColleges)();
     RmsQuarterlyReport::factory()->create(['reporting_year' => 2026, 'reporting_quarter' => 3, 'campus' => 'Nasugbu']);
     $response = $this->get(route('research_head.rms-quarterly-reports.download', $this->period))
         ->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -143,7 +242,87 @@ test('research head can download the original Excel report format with a partial
     expect(substr($response->getContent(), 0, 2))->toBe('PK');
 });
 
-test('invalid input reopens its report folder and preserves the saved draft', function () {
+test('direct RMS exports are blocked until every college has a current submitted report', function () {
+    $this->mock(RmsQuarterlyReportDocument::class)->shouldNotReceive('generate');
+    $this->getJson(route('research_head.rms-quarterly-reports.download', $this->period))
+        ->assertUnprocessable()->assertJsonValidationErrors('college_reports');
+    $this->get(route('research_head.rms-quarterly-reports.download', $this->period))
+        ->assertRedirect(route('research_head.rms-quarterly-reports.index', $this->period))
+        ->assertSessionHasErrors('college_reports');
+    expect(RmsQuarterlyReport::count())->toBe(0);
+});
+
+test('a blocked save and download request preserves the quarterly draft', function (bool $json) {
+    $this->mock(RmsQuarterlyReportDocument::class)->shouldNotReceive('generate');
+    $input = [...($this->draftInput)(),
+        'intent' => 'download', 'campus' => 'Draft kept while waiting',
+    ];
+    if ($json) {
+        $this->postJson(route('research_head.rms-quarterly-reports.store'), $input)
+            ->assertUnprocessable()->assertJsonValidationErrors('college_reports');
+    } else {
+        $this->post(route('research_head.rms-quarterly-reports.store'), $input)
+            ->assertRedirect(route('research_head.rms-quarterly-reports.index', $this->period))
+            ->assertSessionHasErrors('college_reports');
+    }
+    expect(RmsQuarterlyReport::sole()->campus)->toBe('Draft kept while waiting')
+        ->and(RmsQuarterlyReport::sole()->downloaded_at)->toBeNull();
+})->with(['browser' => false, 'JSON' => true]);
+
+test('six submitted reports with no outputs can be exported and record the generated version', function () {
+    ($this->submitMissingColleges)();
+    $this->get(route('research_head.rms-quarterly-reports.download', $this->period))->assertOk();
+    $report = RmsQuarterlyReport::sole();
+    $status = app(RmsQuarterlyReportStatus::class)->forPeriod(2026, 3, $report);
+    expect($report->downloaded_at)->not->toBeNull()
+        ->and($report->downloaded_fingerprint)->toHaveLength(64)
+        ->and($status['outdated'])->toBeFalse();
+});
+
+test('failed Excel generation does not record a successful export', function (bool $savedDraft) {
+    ($this->submitMissingColleges)();
+    $report = $savedDraft ? RmsQuarterlyReport::factory()->create(['reporting_year' => 2026, 'reporting_quarter' => 3]) : null;
+    $this->mock(RmsQuarterlyReportDocument::class)->shouldReceive('generate')->once()->andThrow(new RuntimeException('Workbook generation failed'));
+    $this->withoutExceptionHandling();
+    expect(fn () => $this->get(route('research_head.rms-quarterly-reports.download', $this->period)))
+        ->toThrow(RuntimeException::class, 'Workbook generation failed');
+    expect(RmsQuarterlyReport::count())->toBe($savedDraft ? 1 : 0);
+    if ($report !== null) {
+        expect($report->fresh()->downloaded_at)->toBeNull()
+            ->and($report->fresh()->downloaded_fingerprint)->toBeNull();
+    }
+})->with(['saved draft' => true, 'unsaved report' => false]);
+
+test('saved RMS changes and returned college reports make the downloaded workbook outdated', function () {
+    ($this->submitMissingColleges)();
+    $url = route('research_head.rms-quarterly-reports.download', $this->period);
+    $this->get($url)->assertOk();
+    $report = RmsQuarterlyReport::sole();
+    $status = app(RmsQuarterlyReportStatus::class);
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(), 'campus' => 'Updated campus'])
+        ->assertSessionHasNoErrors();
+    expect($status->forPeriod(2026, 3, $report->fresh())['outdated'])->toBeTrue();
+    $this->get($url)->assertOk();
+    expect($status->forPeriod(2026, 3, $report->fresh())['outdated'])->toBeFalse();
+
+    $collegeReport = CollegeQuarterlyReport::where('college', User::COLLEGES['CICS'])->sole();
+    $this->patch(route('research_head.quarterly-reports.return', $collegeReport), [
+        'submission_id' => $collegeReport->latestSubmission->id, 'reason' => 'Correct the submitted report.',
+    ])->assertSessionHasNoErrors();
+    $returned = $status->forPeriod(2026, 3, $report->fresh());
+    expect($returned['ready'])->toBeFalse()->and($returned['outdated'])->toBeTrue();
+    $this->getJson($url)->assertUnprocessable()->assertJsonValidationErrors('college_reports');
+    $collegeReport->refresh()->update(['submitted_at' => now()]);
+    CollegeQuarterlyReportSubmission::factory()->for($collegeReport, 'report')->create([
+        'version_number' => 2, 'snapshot' => ['college' => $collegeReport->college],
+    ]);
+    expect($status->forPeriod(2026, 3, $report->fresh())['ready'])->toBeTrue()
+        ->and($status->forPeriod(2026, 3, $report->fresh())['outdated'])->toBeTrue();
+    $this->get($url)->assertOk();
+    expect($status->forPeriod(2026, 3, $report->fresh())['outdated'])->toBeFalse();
+});
+
+test('invalid input reopens its report category and preserves the saved draft', function () {
     $source = CollegeQuarterlyReport::factory()->create([
         'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
     ]);
@@ -159,6 +338,10 @@ test('invalid input reopens its report folder and preserves the saved draft', fu
     ])->assertRedirect($workspace)->assertSessionHasErrors('row_details.'.$row['key'].'.evidence_url');
     expect($saved->fresh()->campus)->toBe('Saved campus');
     $response = $this->get($workspace)->assertOk()->assertSee('not-a-link');
+    if (getenv('ATHENA_EXPORT_RMS_UI') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/rms-editor-errors.html'), $response->getContent());
+    }
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);

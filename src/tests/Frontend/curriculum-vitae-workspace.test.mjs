@@ -12,7 +12,7 @@ const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), '
 const app = read('resources/js/app.js');
 const factory = (name) => {
     const start = app.indexOf(`Alpine.data('${name}',`);
-    return app.slice(start, app.indexOf('Alpine.data(', start + 1));
+    return app.slice(start, app.indexOf('\n}));', start) + '\n}));'.length);
 };
 const controller = factory('proposalDraftCurriculumVitae');
 const dates = factory('datePicker');

@@ -1,7 +1,7 @@
 <section x-show="citationSource" x-cloak x-ref="citationPanel" :id="$id('assistant-citation-panel')" data-assistant-citation-panel role="dialog" aria-label="Source details" tabindex="-1" @keydown.escape.stop.prevent="closeCitation()" class="relative my-3 min-w-0 rounded-lg border border-red-200 bg-red-50/60 p-4 text-sm text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-900 dark:bg-red-950/20 dark:text-stone-200">
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-            <p class="text-xs font-semibold text-red-900 dark:text-red-200" x-text="citationSource?.reference || 'Source'"></p>
+            <p x-show="citationSource?.reference && citationSource.reference !== citationSource.title && !/^\[?ATHENA\s+\d+\]?$/i.test(citationSource.reference)" class="text-xs font-semibold text-red-900 dark:text-red-200" x-text="citationSource?.reference || ''"></p>
             <h3 class="mt-1 break-words font-semibold leading-6 text-stone-950 dark:text-stone-100" x-text="citationSource?.title || 'Reference material'"></h3>
             <p x-show="citationLocation(citationSource)" class="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400" x-text="citationLocation(citationSource)"></p>
         </div>

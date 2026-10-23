@@ -13,6 +13,7 @@ use App\Notifications\ResearchCallUpdatedNotification;
 use App\Services\DashboardCalendar;
 use App\Services\ResearchCallImageParser;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,8 +69,8 @@ class ResearchCallController extends Controller
                     ->orWhereHas('proposalDrafts', fn ($drafts) => $drafts->accessibleTo($user));
             })
             ->with([
-                'topics' => fn ($topics) => $topics->accessibleTo($user)->latest(),
-                'proposalDrafts' => fn ($drafts) => $drafts->accessibleTo($user)->latest(),
+                'topics' => fn (HasMany $topics): HasMany => $topics->accessibleTo($user)->latest()->select(['id', 'research_call_id', 'title']),
+                'proposalDrafts' => fn (HasMany $drafts): HasMany => $drafts->accessibleTo($user)->latest()->select(['id', 'research_call_id', 'project_title']),
             ])
             ->orderByDesc('opens_at')
             ->get();

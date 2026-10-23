@@ -184,7 +184,10 @@ class ProposalDraftController extends Controller
         $recentActivity = $proposalDraft->documentVersions()
             ->with('creator:id,name')
             ->limit(5)
-            ->get();
+            ->get([
+                'id', 'proposal_draft_id', 'created_by', 'document_type', 'change_summary',
+                'completed_at', 'file_path', 'created_at',
+            ]);
 
         return view('faculty.proposal-drafts.show', compact(
             'proposalDraft',

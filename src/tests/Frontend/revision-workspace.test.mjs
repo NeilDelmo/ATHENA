@@ -7,7 +7,50 @@ import { chromium } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
-import initializeRevisionWorkspace, { synchronizeRevisionNoChangeResponses, initializeRevisionPanelResize, initializeRevisionWorkflow, applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, revealRevisionResponseFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, embeddedRevisionFileSaved } from '../../resources/js/revision-workspace.js';
+import initializeRevisionWorkspace, { synchronizeRevisionNoChangeResponses, initializeRevisionPanelResize, initializeRevisionWorkflow, applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, revealRevisionResponseFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, revisionChangedPassages } from '../../resources/js/revision-workspace.js';
+import { embeddedRevisionFileSaved } from '../../resources/js/revision-editor-context.js';
+
+test('embedded revision baselines wait for lazy proposal rows before reporting changes', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('https://athena.test/**', route => {
+            const path = new URL(route.request().url()).pathname;
+            if (path.startsWith('/resources/js/') && path.endsWith('.js')) {
+                return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve(`.${path}`)) });
+            }
+            return route.fulfill({ contentType: 'text/html', body: `<main data-paper-editor x-ignore>
+                <div data-revision-editor-context data-topic-id="7" data-draft-id="8" data-document-type="detailed_proposal"
+                    data-targets='{"13":{"target":"methodology-specific-methods"}}'
+                    data-original-source='{"general_objective":"Understand monitoring.","specific_method_objectives":[{"heading":"Field research","methods":[{"description":"Conduct surveys."}]}]}'></div>
+                <form data-paper-form><textarea id="general-objective" name="general_objective"></textarea>
+                    <section id="methodology-specific-methods"></section>
+                </form>
+            </main>` });
+        });
+        await page.goto('https://athena.test/editor');
+        await page.addScriptTag({ type: 'module', content: `import initialize from '/resources/js/revision-workspace.js';
+            window.initializeRevision = initialize; initialize(); window.revisionModuleLoaded = true;` });
+        await page.waitForFunction(() => window.revisionModuleLoaded);
+        assert.equal(await page.evaluate(() => Boolean(window.athenaRevisionEditor)), false, 'The parent must not receive an API with an incomplete form baseline');
+        await page.evaluate(() => {
+            document.querySelector('[data-paper-editor]').removeAttribute('x-ignore');
+            document.querySelector('#general-objective').value = 'Understand monitoring.';
+            document.querySelector('#methodology-specific-methods').innerHTML = `
+                <textarea name="specific_method_objectives[0][heading]">Field research</textarea>
+                <textarea name="specific_method_objectives[0][methods][0][description]">Conduct surveys.</textarea>`;
+            window.initializeRevision();
+        });
+        assert.deepEqual(await page.evaluate(() => window.athenaRevisionEditor.modificationStates()), { __document__: false, 13: false });
+        await page.locator('[name="specific_method_objectives[0][methods][0][description]"]').fill('Conduct interviews.');
+        assert.deepEqual(await page.evaluate(() => window.athenaRevisionEditor.modificationStates()), { __document__: true, 13: true });
+        assert.deepEqual(errors, []);
+    } finally {
+        await browser.close();
+    }
+});
 
 test('revision stepper shows current completed and upcoming steps without overflow in both themes', async () => {
     const rendered = spawnSync('php', ['-r', String.raw`
@@ -672,6 +715,16 @@ test('workspace-only version metadata does not create a false change badge', () 
         { type: 'hidden', name: 'draft_version', id: '', value: '6', disabled: false },
         { type: 'hidden', name: 'methodology_images_present', id: '', value: '1', disabled: false },
         { type: 'hidden', name: 'staff', id: '', value: '', disabled: false },
+        { type: 'hidden', name: 'sdgs', id: '', value: '', disabled: false },
+        { type: 'checkbox', name: 'sdgs[]', id: '', value: '13', checked: true, disabled: false },
+        { type: 'hidden', name: 'expected_outputs', id: '', value: '', disabled: false },
+        { type: 'text', name: 'expected_outputs[publication][0][description]', id: '', value: 'Journal article', disabled: false },
+        { type: 'hidden', name: 'custom_mooe_items', id: '', value: '', disabled: false },
+        { type: 'text', name: 'custom_mooe_items[0][label]', id: '', value: 'Materials', disabled: false },
+        { type: 'hidden', name: 'custom_co_items', id: '', value: '', disabled: false },
+        { type: 'text', name: 'custom_co_items[0][label]', id: '', value: 'Equipment', disabled: false },
+        { type: 'hidden', name: 'mooe_total_override', id: '', value: '', disabled: false },
+        { type: 'number', name: 'mooe_total_override', id: '', value: '6000', disabled: false },
         { type: 'hidden', name: 'literature_research_history', id: '', value: '[]', disabled: false },
         { type: 'hidden', name: 'literature_citations', id: '', value: '[]', disabled: false },
         { type: 'hidden', name: 'methodology[specific_methods]', id: '', value: '<p><strong>A. Field research</strong></p><ol><li>Conduct surveys.</li></ol>', disabled: false },
@@ -683,6 +736,11 @@ test('workspace-only version metadata does not create a false change badge', () 
     const returnedSource = {
         project_title: 'Fruit Drop Detection',
         staff: [{ name: 'Faculty Member' }],
+        sdgs: [13],
+        expected_outputs: { publication: [{ description: 'Journal article' }] },
+        custom_mooe_items: [{ label: 'Materials' }],
+        custom_co_items: [{ label: 'Equipment' }],
+        mooe_total_override: 6000,
         literature_research_history: '[{"query":"original"}]',
         literature_citations: '[{"id":"original"}]',
         methodology: { specific_methods: '<p>A. Field research<br>1. Conduct surveys.</p>' },
@@ -698,6 +756,30 @@ test('workspace-only version metadata does not create a false change badge', () 
         revisionCurrentSourceFingerprint(documentRoot, null, returnedSource),
         revisionSourceFingerprint(documentRoot, null, returnedSource),
     );
+});
+
+test('removing a manual budget override counts as a paper change', () => {
+    const override = { type: 'number', name: 'mooe_total_override', value: '6000', disabled: false };
+    const form = { matches: () => false, querySelectorAll: () => [override] };
+    const root = { getElementById: () => null, querySelector: () => form };
+    const source = { mooe_total_override: 6000 };
+    assert.equal(revisionCurrentSourceFingerprint(root, null, source), revisionSourceFingerprint(root, null, source));
+    override.disabled = true;
+    assert.notEqual(revisionCurrentSourceFingerprint(root, null, source), revisionSourceFingerprint(root, null, source));
+    assert.deepEqual(revisionChangedPassages(root, null, source), []);
+});
+
+test('removing the final expected output counts as a paper change', () => {
+    const controls = [
+        { type: 'hidden', name: 'expected_outputs', value: '', disabled: false },
+        { type: 'text', name: 'expected_outputs[publication][0][description]', value: 'Journal article', disabled: false },
+    ];
+    const form = { matches: () => false, querySelectorAll: () => controls };
+    const root = { getElementById: () => null, querySelector: () => form };
+    const source = { expected_outputs: { publication: [{ description: 'Journal article' }] } };
+    assert.equal(revisionCurrentSourceFingerprint(root, null, source), revisionSourceFingerprint(root, null, source));
+    controls.pop();
+    assert.notEqual(revisionCurrentSourceFingerprint(root, null, source), revisionSourceFingerprint(root, null, source));
 });
 
 test('method comparison detects a removed last method after reopening an autosaved draft', () => {

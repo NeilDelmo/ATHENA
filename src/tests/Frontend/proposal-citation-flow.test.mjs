@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 
-const app = readFileSync(resolve('resources/js/app.js'), 'utf8');
+const app = (readFileSync(resolve('resources/js/app.js'), 'utf8') + '\n' + readFileSync(resolve('resources/js/detailed-proposal-editor.js'), 'utf8').replace(/^ {4}/gm, ''));
 const factoryStart = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
 const factoryEnd = app.indexOf('\n}));', factoryStart) + '\n}));'.length;
 const semantic = app.slice(app.indexOf('function sanitizedSemanticHtml('), app.indexOf('\nconst semanticEditorObserver'));

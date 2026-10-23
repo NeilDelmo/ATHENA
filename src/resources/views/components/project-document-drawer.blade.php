@@ -9,7 +9,7 @@
 @endphp
 
 <div
-    x-data="projectDocumentDrawer({ inline: @js($inline), initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()), displayStorageKey: @js('athena-report-library:'.auth()->id()) })"
+    x-data="projectDocumentDrawer({ topicId: @js($topic->id), documents: @js($documents->map(fn (array $document) => \Illuminate\Support\Arr::only($document, ['key', 'filename', 'view_url', 'download_url']))->values()), inline: @js($inline), initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()), displayStorageKey: @js('athena-report-library:'.auth()->id()) })"
     data-workspace-sizing data-size="medium" :data-size="size"
     @open-project-documents.window="openDrawer($event.detail?.category || 'all')"
     @keydown.escape.window="if (open && !document.querySelector('[data-project-document-preview-content]')) closeDrawer()"

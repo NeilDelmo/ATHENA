@@ -247,12 +247,17 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
             ->assertSee(route('topics.notice-to-proceed.download', $this->topic), false)
             ->assertDontSee('Released documents')->assertDontSee('Open researcher workspace')
             ->assertDontSee('id="notice-to-proceed-tab-button"', false)->assertDontSee('id="notice-to-proceed-tab"', false)
-            ->assertSee('activeTopicTab: '.Js::from('details')->toHtml(), false)
+            ->assertSee('activeTopicTab: '.Js::from($workspace === User::WORKSPACE_FACULTY ? 'details' : 'files')->toHtml(), false)
             ->assertViewHas('projectDocumentLibrary', fn ($library): bool => $library['documents']->contains('key', 'notice-to-proceed-'.$this->topic->id));
     }
-    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD, 'topic_tab' => 'notice'])
+        ->withCookie(config('session.cookie'), session()->getId())
         ->actingAs($this->head)->get(route('topics.show', $this->topic))->assertOk()
-        ->assertSee('id="notice-to-proceed-tab-button"', false)->assertSee('Download signed PDF');
+        ->assertDontSee('id="notice-to-proceed-tab-button"', false)
+        ->assertDontSee('id="notice-to-proceed-tab"', false)
+        ->assertSee('id="project-files-tab-button"', false)
+        ->assertSee('activeTopicTab: '.Js::from('files')->toHtml(), false)
+        ->assertViewHas('projectDocumentLibrary', fn ($library): bool => $library['documents']->contains('key', 'notice-to-proceed-'.$this->topic->id));
 });
 
 test('issuing the Notice to Proceed promotes every accepted linked collaborator into the shared researcher workspace', function () {

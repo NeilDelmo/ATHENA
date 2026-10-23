@@ -10,7 +10,7 @@ import loadConfig from 'tailwindcss/loadConfig.js';
 import { allowedProposalChangeField, normalizeAssistantProposalChanges, proposalChangeRichTextValue } from '../../resources/js/research-assistant-proposal-changes.js';
 import { sameOriginPaperUrl } from '../../resources/js/research-assistant-paper-insertion.js';
 
-const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
 const methodSource = (name) => {
     const match = app.match(new RegExp(`    (?:async )?${name}\\(([^)]*)\\) \\{([\\s\\S]*?)\\n    \\},`));
     assert.ok(match, `Missing method: ${name}`);
@@ -447,6 +447,7 @@ test('the compiled preview applies, saves, reports save failure and refreshes st
     const proposalHelpers = readFileSync(resolvePath('resources/js/research-assistant-proposal-changes.js'), 'utf8').replace(/^import .+;\r?\n/gm, '').replace(/^export /gm, '');
     const markdownHelpers = readFileSync(resolvePath('resources/js/research-assistant-markdown.js'), 'utf8').replace(/^export /gm, '');
     const paperHelpers = readFileSync(resolvePath('resources/js/proposal-paper-autosave.js'), 'utf8').replace(/^export /gm, '');
+    const uploadHelpers = readFileSync(resolvePath('resources/js/file-upload.js'), 'utf8').replace(/^export /gm, '');
     const storeMethods = ['proposalChangesBusy', 'proposalChangeBeforeText', 'proposalChangeReplacementText', 'keepCurrentProposalText', 'proposalRrlAssessmentText', 'proposalRrlRequirementSource', 'findProposalStudies', 'refreshProposalChanges', 'applyProposalChange'].map(methodSource).join('\n');
     const editorMethods = ['proposalChangeFieldValue', 'setProposalChangeFieldValue', 'applyAssistantProposalChange',
         'saveDetailedProposalNow', 'saveDetailedProposal', 'detailedProposalAutoSaveStatus'].map(methodSource).join('\n');
@@ -466,7 +467,7 @@ test('the compiled preview applies, saves, reports save failure and refreshes st
                     requirement_reference: 'Manual RRL', sources: [{ reference: 'Manual RRL', title: 'Research Manual — Detailed Research Proposal (p. 92)', page_start: 92, page_end: 92 }] } },
             }) };
             await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="csrf"><style>${styles.css}[x-cloak]{display:none!important}</style></head><body class="p-3 dark:bg-stone-950" data-research-assistant-proposal-changes-url="https://athena.test/resolve"><div data-detailed-proposal-workspace data-paper-editor data-proposal-draft-id="12" data-detailed-proposal-autosave="true" style="position:fixed;left:-10000px;width:1px;height:1px;overflow:hidden" x-data="proposalEditor" @athena-apply-proposal-change.window="$event.detail.promise = applyAssistantProposalChange($event.detail)"><form x-ref="form"><input type="hidden" name="document_version" value="3"><input type="hidden" name="draft_version" value="7"><textarea name="rationale" data-semantic-editor>&lt;p&gt;Existing rationale.&lt;/p&gt;</textarea></form></div><main x-data="proposalMessage" class="mx-auto max-w-3xl">${compiled.stdout}</main></body></html>`);
-            await page.addScriptTag({ content: `${markdownHelpers}\n${proposalHelpers}\n${paperHelpers}\n${sameOriginPaperUrl.toString()}\n${resolverSource}
+            await page.addScriptTag({ content: `${markdownHelpers}\n${proposalHelpers}\n${paperHelpers}\n${uploadHelpers}\n${sameOriginPaperUrl.toString()}\n${resolverSource}
                 const config = { proposalDraftId: 12, updateUrl: 'https://athena.test/save', csrfToken: 'csrf' };
                 const sanitizedSemanticHtml = value => value;
                 window.applyRequests = [];

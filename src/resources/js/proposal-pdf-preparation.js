@@ -30,7 +30,7 @@ export default function initializeProposalPdfPreparation() {
     async function update(root, start = false, retry = false) {
         const url = safeProposalReadinessUrl(root.dataset.stateUrl);
         const prepare = safeProposalReadinessUrl(root.dataset.prepareUrl);
-        if (!url || pending.has(url)) return;
+        if (!url || pending.has(url) || abort.signal.aborted || !root.isConnected || (document.hidden && !(start && prepare))) return;
         pending.set(url, true);
         try {
             if (start && prepare) {
@@ -109,12 +109,22 @@ export default function initializeProposalPdfPreparation() {
         for (const root of document.querySelectorAll('[data-proposal-pdf-preparation]')) void update(root);
     };
     window.addEventListener('online', onOnline);
+    const onVisibility = () => {
+        if (document.hidden) return;
+        for (const root of document.querySelectorAll('[data-proposal-pdf-preparation]')) {
+            try {
+                if (pollingStatuses.includes(JSON.parse(root.dataset.pdfState).status)) void update(root);
+            } catch { /* Saved content remains available if status is unavailable. */ }
+        }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     dispose = () => {
         abort.abort();
         timers.forEach(clearTimeout);
         window.removeEventListener('proposal-readiness-updated', onReadiness);
         document.removeEventListener('click', onRetry);
         window.removeEventListener('online', onOnline);
+        document.removeEventListener('visibilitychange', onVisibility);
     };
     return dispose;
 }

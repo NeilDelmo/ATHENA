@@ -49,7 +49,7 @@ test('mixed researcher notes and quotations cite only the sources with academic 
 });
 
 function browserCode() {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const helpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
     const escape = readFileSync(new URL('../../resources/js/research-assistant-markdown.js', import.meta.url), 'utf8');
     const escaping = escape.slice(escape.indexOf('export function escapeAssistantHtml('), escape.indexOf('\n}', escape.indexOf('export function escapeAssistantHtml(')) + 2).replace('export ', '');

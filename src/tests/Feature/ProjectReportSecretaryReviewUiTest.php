@@ -50,11 +50,16 @@ beforeEach(function () {
 });
 
 test('the college office dashboard and review forms stay separate from project team secretary duties', function () {
+    $largeText = str_repeat('Full report details are not needed in the secretary queue. ', 900);
     $monitoring = ProjectProgressReport::create([
         ...$this->reportData, 'reporting_year' => 2026, 'progress_percentage' => 25,
-        'accomplishments' => 'Quarter completed.', 'work_plan' => [], 'budget_utilization' => [],
+        'accomplishments' => $largeText, 'issues' => $largeText, 'work_plan' => [], 'budget_utilization' => [],
     ]);
-    $progress = ProjectNarrativeReport::create($this->progressData);
+    $progress = ProjectNarrativeReport::create([
+        ...$this->progressData, 'introduction' => $largeText, 'objectives' => $largeText,
+        'methodology' => $largeText, 'results_discussion' => $largeText,
+        'terminal_data' => ['abstract' => $largeText],
+    ]);
     $outsideOwner = User::factory()->create(['college' => 'CTE']);
     $outside = TopicProposal::create([
         'user_id' => $outsideOwner->id, 'title' => 'Other college private report', 'status' => 'approved',
@@ -66,13 +71,20 @@ test('the college office dashboard and review forms stay separate from project t
         'period_start' => '2026-04-01', 'period_end' => '2026-06-30', 'review_stage' => 'head',
     ]);
 
-    $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+    $response = $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('research_secretary.dashboard'))->assertOk()
         ->assertViewHas('reportReviewTasks', fn ($reports): bool => $reports->count() === 2)
         ->assertSee('Implementation reports to review')->assertSee($this->topic->title)
+        ->assertSee('Jan 1, 2026 – Mar 31, 2026')->assertSee('Version 1')->assertSee($this->owner->name)
         ->assertDontSee($outside->title)
         ->assertSee(route('project-progress.monitoring-tool.view', $monitoring), false)
         ->assertSee(route('project-narrative-reports.view', $progress), false);
+    $loadedReports = $response->viewData('reportReviewTasks')
+        ->map(fn (ProjectProgressReport|ProjectNarrativeReport $report): array => $report->getAttributes());
+    foreach ($loadedReports as $attributes) {
+        expect(array_intersect(['accomplishments', 'issues', 'work_plan', 'budget_utilization', 'introduction', 'objectives', 'methodology', 'results_discussion', 'photos', 'terminal_data'], array_keys($attributes)))->toBe([]);
+    }
+    expect(strlen(json_encode($loadedReports->all(), JSON_THROW_ON_ERROR)))->toBeLessThan(3000);
     $this->get(route('topics.show', $this->topic))->assertOk()
         ->assertSee(route('research_secretary.monitoring-reports.review', $monitoring), false)
         ->assertSee(route('research_secretary.narrative-reports.review', $progress), false)

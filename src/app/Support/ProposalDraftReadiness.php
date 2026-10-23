@@ -445,7 +445,18 @@ class ProposalDraftReadiness
             $this->workPlanProposalObjectives->forDraft($draft),
         );
 
-        return $entries !== [] && collect($entries)->every(fn (array $entry): bool => filled($entry['expected_output'])
-            && filled($entry['activity']) && is_array($entry['months']) && $entry['months'] !== []);
+        $rules = WorkPlanRules::rules();
+        $rules['entries.*.objective'] = ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')];
+        $validator = Validator::make([
+            'project_title' => $draft->project_title,
+            'total_duration_months' => $draft->duration_months,
+            'planned_start' => $draft->planned_start?->toDateString(),
+            'planned_end' => $draft->planned_end?->toDateString(),
+            'prepared_by' => $draft->project_leader,
+            'entries' => $entries,
+        ], $rules, [], WorkPlanRules::attributes());
+        $validator->after(WorkPlanRules::afterCallbacks($entries, $draft->duration_months));
+
+        return $validator->passes();
     }
 }

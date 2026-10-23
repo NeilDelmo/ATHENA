@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
+import { fileURLToPath } from 'node:url';
+import { chromium, expect } from '@playwright/test';
 
 const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
 const source = app.slice(
@@ -123,15 +125,14 @@ test('broadcast updates refresh server grouping instead of appending duplicate p
     assert.equal(menu.unreadCount, 1);
 });
 
-test('out of order refresh responses cannot replace the latest grouped feed', async () => {
+test('overlapping refreshes share one request and keep the current grouped feed', async () => {
     const replies = [];
     const { menu } = createMenu({ fetcher: () => new Promise((resolve) => replies.push(resolve)) });
     const oldPoll = menu.refresh();
     const newPoll = menu.refresh();
-    replies[1]({ ok: true, json: async () => ({ notifications: [{ id: 'latest-group' }], unread_count: 2 }) });
-    await newPoll;
-    replies[0]({ ok: true, json: async () => ({ notifications: [{ id: 'old-group' }], unread_count: 1 }) });
-    await oldPoll;
+    assert.equal(replies.length, 1, 'Only one grouped feed request may be pending');
+    replies[0]({ ok: true, json: async () => ({ notifications: [{ id: 'latest-group' }], unread_count: 2 }) });
+    await Promise.all([oldPoll, newPoll]);
     assert.equal(menu.notifications[0].id, 'latest-group');
     assert.equal(menu.unreadCount, 2);
 });
@@ -146,4 +147,62 @@ test('a refresh begun before marking notifications read cannot restore old unrea
     await poll;
     assert.ok(menu.notifications[0].read_at);
     assert.equal(menu.unreadCount, 0);
+});
+
+test('opening the menu after a read queues a fresh feed behind the invalidated request', async () => {
+    const replies = [];
+    const { menu } = createMenu({ fetcher: () => new Promise(resolve => replies.push(resolve)) });
+    const previous = menu.refresh();
+    menu.request = async () => ({ ok: true, json: async () => ({ read: true, unread_count: 0 }) });
+    await menu.markAllRead();
+    const opening = menu.refresh();
+    assert.equal(replies.length, 1, 'An invalidated request must finish before the next feed request starts');
+    replies[0]({ ok: true, json: async () => ({ notifications: [{ id: 'stale', read_at: null }], unread_count: 1 }) });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(replies.length, 2, 'Opening the menu must obtain a fresh feed after its read invalidated the pending response');
+    replies[1]({ ok: true, json: async () => ({ notifications: [{ id: 'fresh', read_at: '2026-10-22' }], unread_count: 0 }) });
+    await Promise.all([previous, opening]);
+    assert.equal(menu.notifications[0].id, 'fresh');
+    assert.equal(menu.unreadCount, 0);
+});
+
+test('notification dismissal restores focus without collapsing navigation, while mobile sidebar Escape still works', async () => {
+    const template = readFileSync(new URL('../../resources/views/components/notification-menu.blade.php', import.meta.url), 'utf8')
+        .replace(/\{\{ Js::from\(\$notificationItems\) \}\}/, '[]')
+        .replace(/\{\{ \$unreadNotificationCount \}\}/, '1')
+        .replace(/\{\{[\s\S]*?\}\}/g, "'/notifications'")
+        .replaceAll('@csrf', '');
+    const layout = readFileSync(new URL('../../resources/views/layouts/app.blade.php', import.meta.url), 'utf8');
+    const escapeHandler = layout.match(/@keydown.escape.window="([^"]+)"/)[1];
+    const sidebar = app.slice(app.indexOf("const sidebarStorageKey ="), app.indexOf("Alpine.data('journalFinder'"));
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [1280, 390]) {
+            const page = await browser.newPage({ viewport: { width, height: 800 } });
+            await page.setContent(`<style>[x-cloak]{display:none!important}</style><body x-data @keydown.escape.window="${escapeHandler}">
+                <button @click="$store.sidebar.setOpen(true)" :aria-expanded="$store.sidebar.open" aria-label="Navigation">Menu</button>
+                ${template}<button>Outside</button></body>`);
+            await page.addScriptTag({ content: `document.addEventListener('alpine:init', () => { ${sidebar}\n${source} });` });
+            await page.addScriptTag({ path: fileURLToPath(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url)) });
+            const navigation = page.getByRole('button', { name: 'Navigation', exact: true });
+            const bell = page.getByRole('button', { name: 'Notifications', exact: true });
+            const dialog = page.getByRole('dialog', { name: 'Notifications', exact: true });
+            await navigation.click();
+            for (const dismissal of ['Escape', 'close button']) {
+                await bell.click();
+                await expect(dialog).toBeVisible();
+                await bell.press('Tab');
+                if (dismissal === 'Escape') await page.keyboard.press('Escape');
+                else await page.getByRole('button', { name: 'Close notifications', exact: true }).click();
+                await expect(dialog).toBeHidden();
+                await expect(bell).toBeFocused();
+                await expect(navigation).toHaveAttribute('aria-expanded', 'true');
+            }
+            await page.getByRole('button', { name: 'Outside', exact: true }).press('Escape');
+            await expect(navigation).toHaveAttribute('aria-expanded', width < 640 ? 'false' : 'true');
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+    }
 });

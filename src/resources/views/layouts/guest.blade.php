@@ -12,7 +12,7 @@
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" />
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', Auth::check() ? 'resources/js/app.js' : 'resources/js/guest.js'])
         @livewireStyles
     </head>
     <body class="font-sans antialiased" data-auth-user-id="{{ Auth::id() }}">

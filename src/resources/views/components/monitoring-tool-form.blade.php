@@ -116,7 +116,7 @@
         draftSaveUrl: @js(route('project-progress.draft', $topic)),
         initialDraftVersion: @js((int) ($monitoringDraft?->lock_version ?? 0)),
         csrfToken: @js(csrf_token()),
-        periodEntries: @js($approvedWorkPlanByPeriod),
+        initialReportingDate: @js(old('reporting_date', $defaultReportingDate)),
         approvedWorkPlanAvailable: @js($approvedWorkPlanAvailable),
         initialPeriodKey: @js($selectedPeriodKey),
         reportCount: @js($monitoringReportCount),
@@ -217,7 +217,9 @@
                             name="reporting_date"
                             required
                             autocomplete="off"
-                            @change="selectReportingPeriod($event.target.selectedOptions[0]?.dataset.planKey); submissionOpen = $event.target.selectedOptions[0]?.dataset.submissionOpen === 'true'; submissionOpensAt = $event.target.selectedOptions[0]?.dataset.opensAt || ''"
+                            @input.stop
+                            @change="selectReportingPeriod($event)"
+                            :aria-busy="switchingPeriod"
                             class="mt-2 block w-full rounded-xl border-slate-300 bg-white text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                         >
                             @foreach ($quarterOptions as $quarter)
@@ -225,7 +227,7 @@
                                     $periodKey = $quarter['year'].'-'.$quarter['quarter'];
                                     $selected = $periodKey === $selectedPeriodKey;
                                 @endphp
-                                <option data-plan-key="{{ $periodKey }}" data-submission-open="{{ $schedule->canSubmitForDate($topic, $quarter['reporting_date']) ? 'true' : 'false' }}" data-opens-at="{{ $quarter['opens_at']->format('M j, Y') }}" value="{{ $selected ? old('reporting_date', $defaultReportingDate) : $quarter['reporting_date'] }}" @selected($selected)>{{ $quarter['label'] }} · {{ $quarter['period'] }}</option>
+                                <option data-editor-url="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $quarter['reporting_date']]) }}" value="{{ $selected ? old('reporting_date', $defaultReportingDate) : $quarter['reporting_date'] }}" @selected($selected)>{{ $quarter['label'] }} · {{ $quarter['period'] }}</option>
                             @endforeach
                         </select>
                     @endif

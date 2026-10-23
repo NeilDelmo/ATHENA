@@ -102,3 +102,105 @@ test('PDF status reconnects after a temporary outage and keeps polling stalled a
         await browser.close();
     }
 });
+
+test('PDF status pauses in hidden tabs and resumes once while preparation and retry remain queued', { timeout: 60000 }, async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    let posts = 0;
+    let gets = 0;
+    let holdReview = false;
+    let releaseReview;
+    await page.route('https://athena.test/**', async route => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.endsWith('.js')) return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve('resources/js', path.slice(1)), 'utf8') });
+        if (path === '/prepare') {
+            posts++;
+            assert.equal(route.request().method(), 'POST');
+            assert.equal(route.request().postDataJSON().retry, posts > 1);
+            return route.fulfill({ status: 202, json: { preparation: { status: 'queued', message: 'Queued', prepared: 0, total: 7 } } });
+        }
+        if (path === '/review') {
+            const request = ++gets;
+            if (holdReview) await new Promise(resolve => { releaseReview = resolve; });
+            return route.fulfill({ json: { preparation: { status: 'preparing', message: `Preparing ${request}`, prepared: 2, total: 7 } } });
+        }
+        return route.fulfill({ contentType: 'text/html', body: `<meta name="csrf-token" content="csrf">
+            <div data-proposal-pdf-preparation data-state-url="/review" data-prepare-url="/prepare"
+                data-pdf-state='{"status":"needed","message":"Waiting","prepared":0,"total":7}'>
+                <p data-pdf-preparation-message></p><span data-pdf-preparation-count></span>
+                <button data-pdf-preparation-retry hidden>Retry PDF preparation</button>
+            </div>` });
+    });
+    try {
+        await page.goto('https://athena.test/editor');
+        await page.clock.install();
+        await page.evaluate(() => {
+            window.testHidden = true;
+            Object.defineProperty(document, 'hidden', { configurable: true, get: () => window.testHidden });
+        });
+        await page.addScriptTag({ type: 'module', content: "import init from '/proposal-pdf-preparation.js'; window.disposePdfPreparation = init(); window.pdfLoaded = true;" });
+        await page.waitForFunction(() => window.pdfLoaded);
+        await expect.poll(() => posts).toBe(1);
+        await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('Queued');
+        for (let tick = 0; tick < 2; tick++) {
+            await page.clock.fastForward(3000);
+            await page.waitForTimeout(50);
+        }
+        assert.equal(gets, 0, 'hidden tabs must not request repeated PDF status updates');
+
+        holdReview = true;
+        await page.evaluate(() => {
+            window.testHidden = false;
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await expect.poll(() => gets).toBe(1);
+        await page.evaluate(() => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await page.waitForTimeout(50);
+        assert.equal(gets, 1, 'visibility changes must share an in-flight status check');
+        holdReview = false;
+        releaseReview();
+        await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('Preparing 1');
+        await page.clock.fastForward(3000);
+        await expect.poll(() => gets).toBe(2);
+        await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('Preparing 2');
+
+        await page.evaluate(() => {
+            window.testHidden = true;
+            document.dispatchEvent(new Event('visibilitychange'));
+            window.dispatchEvent(new Event('online'));
+            window.dispatchEvent(new CustomEvent('proposal-readiness-updated', { detail: {
+                url: 'https://athena.test/review', data: { preparation: { status: 'failed', message: 'Retry required', prepared: 2, total: 7 } },
+            } }));
+        });
+        await page.getByRole('button', { name: 'Retry PDF preparation' }).click();
+        await expect.poll(() => posts).toBe(2);
+        await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('Queued');
+        await page.clock.fastForward(9000);
+        await page.waitForTimeout(50);
+        assert.equal(gets, 2);
+
+        await page.evaluate(() => {
+            window.testHidden = false;
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await expect.poll(() => gets).toBe(3);
+        await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('Preparing 3');
+        await page.evaluate(() => window.disposePdfPreparation());
+        await page.clock.fastForward(9000);
+        await page.evaluate(() => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            window.dispatchEvent(new Event('online'));
+        });
+        await page.waitForTimeout(50);
+        assert.equal(gets, 3, 'disposed PDF panels must release polling timers and visibility listeners');
+        assert.deepEqual(errors, []);
+    } finally {
+        releaseReview?.();
+        await browser.close();
+    }
+});

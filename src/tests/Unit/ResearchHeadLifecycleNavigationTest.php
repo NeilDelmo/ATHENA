@@ -37,7 +37,7 @@ test('report review queue renders specific report links and honest empty states'
     $html = view('research_head.report-reviews.queue', [
         'reports' => new LengthAwarePaginator($rows, $rows->count(), 15), 'pendingByType' => collect(['quarterly' => $populated ? 1 : 0, 'progress' => $populated ? 1 : 0, 'terminal' => $populated ? 1 : 0]), 'search' => '', 'status' => 'pending', 'type' => '',
     ])->render();
-    expect($html)->toContain('Reports awaiting review', 'Oldest submissions first.', 'All report types', 'Filter', 'Reset')->not->toContain('target="_blank"');
+    expect($html)->toContain('Reports awaiting review', 'Oldest submissions first.', 'All report types', 'Filter', 'Reset', 'Progress report')->not->toContain('target="_blank"', 'Progress narrative');
     if ($populated) {
         expect($html)->toContain('#monitoring-tool-10', '#narrative-report-11', '#narrative-report-12', 'Review report');
     } else {

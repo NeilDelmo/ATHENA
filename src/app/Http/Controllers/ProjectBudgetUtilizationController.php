@@ -46,7 +46,10 @@ class ProjectBudgetUtilizationController extends Controller
             ->where('review_status', 'pending')
             ->whereHas('topic', $reviewableProject)
             ->with(['topic.user:id,name,college', 'submitter:id,name'])
-            ->get();
+            ->get([
+                'id', 'topic_id', 'submitted_by', 'reporting_date', 'reporting_year', 'reporting_quarter',
+                'period_start', 'period_end', 'version_number', 'research_head_remarks', 'submitted_at', 'created_at',
+            ]);
         $progressReports = ProjectNarrativeReport::query()
             ->submitted()
             ->latestSubmittedVersion()
@@ -55,7 +58,10 @@ class ProjectBudgetUtilizationController extends Controller
             ->where('review_status', 'pending')
             ->whereHas('topic', $reviewableProject)
             ->with(['topic.user:id,name,college', 'submitter:id,name'])
-            ->get();
+            ->get([
+                'id', 'topic_id', 'submitted_by', 'reporting_date', 'reporting_quarter',
+                'period_start', 'period_end', 'version_number', 'research_head_remarks', 'submitted_at', 'created_at',
+            ]);
         $reportReviewTasks = $monitoringReports->toBase()->concat($progressReports)
             ->sortBy(fn (ProjectProgressReport|ProjectNarrativeReport $report) => $report->submitted_at ?? $report->created_at)
             ->values();

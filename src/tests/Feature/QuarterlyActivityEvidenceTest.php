@@ -23,7 +23,7 @@ beforeEach(function () {
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $this->coordinator->assignRole('research_coordinator');
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save'];
+    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
     $this->row = ['id' => (string) Str::uuid(), 'event' => 'Faculty forum', 'research_title' => 'External research', 'date' => '2026-08-14', 'place' => 'Lipa', 'personnel' => 'Ana'];
 });
 

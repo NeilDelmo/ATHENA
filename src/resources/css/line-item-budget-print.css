@@ -93,6 +93,8 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 }
 
 @media print {
+    body { zoom: 1 !important; }
+
     html,
     body { background: #fff; }
     .line-budget-preview-page { min-width: 0; padding: 0; }

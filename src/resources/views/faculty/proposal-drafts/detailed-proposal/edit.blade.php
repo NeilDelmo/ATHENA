@@ -154,6 +154,8 @@
             <input x-ref="methodologyImagePicker" type="file" accept="image/jpeg,image/png,image/gif,image/bmp" multiple class="sr-only" x-on:change="addMethodologyImages($event.target.files, methodologyImageTarget)">
             <input type="hidden" name="methodology_images_present" value="1">
             <input type="hidden" name="staff" value="">
+            <input type="hidden" name="sdgs" value="">
+            <input type="hidden" name="expected_outputs" value="">
             <input type="hidden" name="literature_research_history" x-bind:value="JSON.stringify(literatureSearchHistory)">
             <input id="literature-citations" type="hidden" name="literature_citations" x-bind:value="JSON.stringify(literatureCitations)">
 

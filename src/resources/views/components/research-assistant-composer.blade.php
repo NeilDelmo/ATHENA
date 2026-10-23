@@ -1,6 +1,6 @@
 @props(['id', 'inputId'])
 
-<div class="relative rounded-xl border border-stone-400 border-t-2 border-t-red-900 bg-white p-2 transition focus-within:border-red-700 dark:border-stone-600 dark:border-t-red-400 dark:bg-stone-950 dark:focus-within:border-red-400" data-assistant-composer-shell>
+<div class="relative rounded-xl border border-stone-400 bg-white p-2 transition focus-within:border-red-700 dark:border-stone-600 dark:bg-stone-950 dark:focus-within:border-red-400" data-assistant-composer-shell>
     <div data-assistant-active-document x-show="$store.researchAssistant.activeDocument" x-cloak class="mx-2 mb-1 flex min-w-0 items-center gap-2 border-b border-stone-200 pb-1 text-xs text-stone-700 dark:border-stone-700 dark:text-stone-200">
         <svg class="h-4 w-4 shrink-0 text-red-900 dark:text-red-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
         <span class="min-w-0 flex-1"><span class="block text-[11px] text-stone-500 dark:text-stone-400">Asking about this document</span><span class="block truncate font-medium" :title="$store.researchAssistant.activeDocument?.label" x-text="$store.researchAssistant.activeDocument?.label"></span></span>

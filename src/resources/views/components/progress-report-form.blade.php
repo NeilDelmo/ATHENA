@@ -106,6 +106,7 @@
         previewTitle: 'Progress Report preview',
         draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)),
         initialDraftVersion: @js((int) ($narrativeReportDraft?->lock_version ?? 0)),
+        initialReportingDate: @js(old('reporting_date', $selectedReportingDate)),
         csrfToken: @js(csrf_token()),
         submissionOpen: @js((bool) $submissionOpen),
         submissionOpensAt: @js($submissionOpensAt),
@@ -150,10 +151,10 @@
         <div class="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
             <label for="progress-reporting-date" class="block text-base font-semibold text-gray-950 dark:text-white">Reporting quarter</label>
             <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-slate-300">Use the same three-month period as the Monitoring Tool. Submit during the final week, by the period's last day; the final period may be shorter.</p>
-            <select id="progress-reporting-date" @change="submissionOpen = $event.target.selectedOptions[0]?.dataset.submissionOpen === 'true'; submissionOpensAt = $event.target.selectedOptions[0]?.dataset.opensAt || ''" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+            <select id="progress-reporting-date" @input.stop @change="selectReportingPeriod($event)" :aria-busy="switchingPeriod" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                 <option value="">Choose a quarter</option>
                 @foreach ($quarterOptions as $period)
-                    <option data-submission-open="{{ $schedule->canSubmitForDate($topic, $period['reporting_date']) ? 'true' : 'false' }}" data-opens-at="{{ $period['opens_at']->format('M j, Y') }}" value="{{ $period['reporting_date'] }}" @selected(old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
+                    <option data-editor-url="{{ route('project-narrative-reports.create', ['topic' => $topic, 'reporting_date' => $period['reporting_date']]) }}" value="{{ $period['reporting_date'] }}" @selected(old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
                 @endforeach
             </select>
             @error('reporting_date', 'narrativeProgress')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror

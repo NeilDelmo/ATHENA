@@ -11,11 +11,11 @@ use App\Observers\ProposalPdfPreparationObserver;
 use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\NotificationInbox;
 use App\Services\ProposalPdfPreparation;
+use App\Services\ResearchAssistantContexts;
 use App\Services\ResearchHeadReportQueue;
 use App\Services\SidebarAttentionService;
 use App\Services\WorkspaceActionItems;
 use App\Support\ResearchCallDeadlineNotice;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Queue\Events\JobPopping;
 use Illuminate\Support\Arr;
@@ -75,7 +75,8 @@ class AppServiceProvider extends ServiceProvider
             $actions = request()->attributes->get('athena.workspace_actions') ?? app(WorkspaceActionItems::class)->for($user);
             $items = app(NotificationInbox::class)->for($user, $actions, recentOnly: true);
             $view->with('notificationItems', $items->take(15)->map(fn (array $item): array => Arr::except($item, 'history')));
-            $view->with('unreadNotificationCount', $user->visibleNotificationsQuery()->whereNull('read_at')->count());
+            $view->with('unreadNotificationCount', request()->attributes->get('athena.unread_notification_count')
+                ?? $user->visibleNotificationsQuery()->whereNull('read_at')->count());
         });
 
         View::composer('layouts.app', function ($view) use ($researchCallDeadlineNotice): void {
@@ -138,56 +139,9 @@ class AppServiceProvider extends ServiceProvider
                 default => null,
             };
 
-            $contextRelations = [
-                'category:id,name',
-                'researchCall:id,academic_year',
-                'latestVersion' => fn (HasOne $relation): HasOne => $relation->select(
-                    $relation->getRelated()->qualifyColumns(['id', 'topic_id', 'version_number']),
-                ),
-            ];
-            $contextTopics = TopicProposal::query()
-                ->when(
-                    ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD),
-                    fn ($query) => $query->accessibleTo($user),
-                )
-                ->when(
-                    $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER),
-                    fn ($query) => $query->visibleInResearcherWorkspace(),
-                )
-                ->with($contextRelations)
-                ->latest()
-                ->get(['id', 'user_id', 'title', 'status', 'project_status', 'notice_to_proceed_issued_at', 'research_category_id', 'research_call_id']);
-
-            if ($activeContextTopic) {
-                $contextTopics->prepend($activeContextTopic);
-            }
-
-            $contextTopics = $contextTopics
-                ->unique(fn (TopicProposal $topic): int => $topic->getKey())
-                ->values();
-            $contextTopics->loadMissing($contextRelations);
-
-            $contexts = $contextTopics
-                ->map(fn (TopicProposal $topic) => [
-                    'id' => $topic->id,
-                    'label' => $topic->title,
-                    'status' => str_replace('_', ' ', $topic->status),
-                    'dissemination' => $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
-                        && $topic->isDisseminationAvailable() ? [
-                            'journal_search_url' => route('research.dissemination.journals.search', $topic),
-                            'journal_save_url' => route('research.dissemination.journal-submissions.store', $topic),
-                            'conference_search_url' => route('research.dissemination.conferences.search', $topic),
-                            'conference_save_url' => route('research.dissemination.conferences.store', $topic),
-                            'journal_project_url' => route('research-support.index', ['topic' => $topic->id]).'#journal-submissions',
-                            'conference_project_url' => route('research.dissemination.show', $topic).'#conferences',
-                        ] : null,
-                    'meta' => collect([
-                        $topic->category?->name,
-                        $topic->researchCall?->academic_year,
-                        $topic->latestVersion ? 'v'.$topic->latestVersion->version_number : null,
-                    ])->filter()->join(' · '),
-                ]);
-
+            $contexts = $activeContextTopic
+                ? collect([app(ResearchAssistantContexts::class)->summary($activeContextTopic, $user)])
+                : collect();
             $view->with('researchAssistantContexts', $contexts);
             $view->with('activeResearchAssistantContextId', $activeContextTopic?->getKey());
         });

@@ -124,6 +124,12 @@
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $lineItemBudgetDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
+            <input type="hidden" name="staff" value="">
+            <input type="hidden" name="custom_mooe_items" value="">
+            <input type="hidden" name="custom_co_items" value="">
+            <input type="hidden" name="mooe_total_override" value="">
+            <input type="hidden" name="co_total_override" value="">
+            <input type="hidden" name="project_total_override" value="">
 
             <section data-revision-section="section-project-team" class="budget-writing-section rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="budget-writing-section-heading flex flex-col gap-3">

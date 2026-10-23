@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class ResearchHeadReportQueue
 {
-    public const TYPES = ['quarterly' => 'Quarterly monitoring', 'progress' => 'Progress narrative', 'terminal' => 'Terminal report'];
+    public const TYPES = ['quarterly' => 'Quarterly monitoring', 'progress' => 'Progress report', 'terminal' => 'Terminal report'];
 
     public const STATUSES = ['pending' => 'Awaiting review', 'revision_requested' => 'Corrections requested', 'reviewed' => 'Reviewed'];
 

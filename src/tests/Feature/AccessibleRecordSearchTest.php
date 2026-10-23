@@ -4,6 +4,7 @@ use App\Models\ProjectDocument;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftMember;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
@@ -13,7 +14,9 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\AccessibleRecordSearch;
 use App\Services\ResearchManualLibrary;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
 
@@ -97,7 +100,7 @@ test('proposal drafts and staged filenames are visible only to owners and accept
     expect(app(AccessibleRecordSearch::class)->search($this->owner, 'Mangrove')->total())->toBe(2);
     expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(0);
     $invitation->update(['accepted_at' => now()]);
-    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(2);
+    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove'))->toHaveCount(2);
     expect(app(AccessibleRecordSearch::class)->search($stranger, 'Mangrove')->total())->toBe(0);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
     expect(app(AccessibleRecordSearch::class)->search($this->owner, 'Mangrove')->total())->toBe(0);
@@ -111,11 +114,11 @@ test('search follows project collaborators and active workspace rather than the 
     searchProject(User::factory()->create(), ['title' => 'Mangrove confidential']);
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
-    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(1);
+    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove'))->toHaveCount(1);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
     expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(0);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
-    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(2);
+    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove'))->toHaveCount(2);
 });
 
 test('results distinguish prior proposal versions filenames metadata and assigned manual editions', function () {
@@ -147,7 +150,11 @@ test('unreleased and superseded signed filenames do not leak to faculty while si
     $secretary = User::factory()->create(['college' => 'CICS']);
     $secretary->assignRole('research_secretary');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
-    expect(app(AccessibleRecordSearch::class)->search($secretary, 'SecretSignatures')->total())->toBe(1);
+    expect(app(AccessibleRecordSearch::class)->search($secretary, 'SecretSignatures'))->toHaveCount(1);
+    $assignedSecretary = User::factory()->create(['college' => 'CTE']);
+    $assignedSecretary->assignRole('research_secretary');
+    $topic->update(['research_secretary_id' => $assignedSecretary->id]);
+    expect(app(AccessibleRecordSearch::class)->search($assignedSecretary, 'SecretSignatures'))->toHaveCount(1);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
     $topic->update(['status' => 'approved', 'notice_to_proceed_issued_at' => now()]);
     expect(app(AccessibleRecordSearch::class)->search($this->owner, 'SecretSignatures')->total())->toBe(1);
@@ -172,10 +179,10 @@ test('report metadata respects secretary forwarding college and terminal visibil
     expect(app(AccessibleRecordSearch::class)->search($head, 'Monitoring', 'reports')->total())->toBe(0);
     $monitoring->update(['review_stage' => 'head']);
     $narrative->update(['review_stage' => 'head']);
-    expect(app(AccessibleRecordSearch::class)->search($head, 'SEARCH-', 'reports')->total())->toBe(2);
+    expect(app(AccessibleRecordSearch::class)->search($head, 'SEARCH-', 'reports'))->toHaveCount(2);
     expect(app(AccessibleRecordSearch::class)->search($head, 'SECRET-PREPARED', 'reports')->total())->toBe(0);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
-    expect(app(AccessibleRecordSearch::class)->search($secretary, 'SEARCH-', 'reports')->total())->toBe(2);
+    expect(app(AccessibleRecordSearch::class)->search($secretary, 'SEARCH-', 'reports'))->toHaveCount(2);
     expect(app(AccessibleRecordSearch::class)->search($otherSecretary, 'SEARCH-', 'reports')->total())->toBe(0);
     $narrative->update(['report_type' => 'terminal']);
     expect(app(AccessibleRecordSearch::class)->search($secretary, 'SEARCH-NARRATIVE', 'reports')->total())->toBe(0);
@@ -230,15 +237,23 @@ test('search paginates before hydrating records and preserves category and query
     foreach (range(1, 23) as $number) {
         searchProject($this->owner, ['title' => $number === 23 ? 'Mangrove <img src=x onerror=alert(1)> '.str_repeat('LongResearchProject', 7) : 'Mangrove project '.$number]);
     }
+    $retrievedTopicIds = [];
+    Event::listen('eloquent.retrieved: '.TopicProposal::class, function (TopicProposal $topic) use (&$retrievedTopicIds): void {
+        $retrievedTopicIds[] = $topic->id;
+    });
     DB::flushQueryLog();
     DB::enableQueryLog();
-    $results = app(AccessibleRecordSearch::class)->search($this->owner, 'Mangrove', 'projects');
-    $queries = collect(DB::getQueryLog())->pluck('query');
-    DB::disableQueryLog();
+    try {
+        $results = app(AccessibleRecordSearch::class)->search($this->owner, 'Mangrove', 'projects');
+        $queries = collect(DB::getQueryLog())->pluck('query');
+    } finally {
+        DB::disableQueryLog();
+        Event::forget('eloquent.retrieved: '.TopicProposal::class);
+    }
     expect($results->total())->toBe(23);
     expect($results->count())->toBe(20);
     expect($queries->contains(fn (string $sql): bool => str_contains($sql, 'limit 20')))->toBeTrue();
-    expect($queries->filter(fn (string $sql): bool => str_contains($sql, 'select * from `topics`'))->count())->toBe(1);
+    expect($retrievedTopicIds)->toHaveCount(20);
     $response = $this->get(route('search.index', ['q' => 'Mangrove', 'category' => 'projects']));
     $response->assertOk()->assertSee('q=Mangrove&amp;category=projects&amp;page=2', false);
     $this->get(route('search.index', ['q' => 'Mangrove', 'category' => 'projects', 'page' => 2]))
@@ -248,4 +263,91 @@ test('search paginates before hydrating records and preserves category and query
         File::ensureDirectoryExists(storage_path('framework/testing'));
         File::put(storage_path('framework/testing/search-results.html'), $response->getContent());
     }
+});
+
+test('search results omit bodies from every hydrated record and parent while retaining searchable metadata', function () {
+    $body = str_repeat('Saved research narrative. ', 500);
+    $manual = ResearchManual::factory()->create([
+        'title' => 'Mangrove research manual', 'edition' => '2026', 'activated_at' => now(),
+        'guidance_check_results' => ['guidance' => $body], 'unindexed_pages' => range(1, 100),
+    ]);
+    $topic = searchProject($this->owner, [
+        'research_manual_id' => $manual->id, 'description' => 'Topic searchable passage '.$body,
+        'notice_to_proceed_data' => ['notes' => $body],
+    ]);
+    $version = searchVersion($topic, 1, [
+        'description' => 'Version searchable passage '.$body, 'change_summary' => $body,
+    ]);
+    $version->forceFill(['research_head_screening' => ['narrative' => $body]])->save();
+    $file = $version->files()->create([
+        'document_type' => 'work_plan', 'file_path' => 'private/work-plan.pdf',
+        'original_filename' => 'mangrove-work-plan.pdf', 'source_data' => ['narrative' => $body],
+    ]);
+    $draft = ProposalDraft::create([
+        'user_id' => $this->owner->id, 'research_manual_id' => $manual->id,
+        'project_title' => 'Mangrove working draft', 'project_leader' => 'Draft searchable leader',
+        'signatory_selections' => ['notes' => $body],
+    ]);
+    $draft->forceFill(['pdf_preparation_state' => ['notes' => $body]])->save();
+    $draft->documents()->create([
+        'document_type' => 'detailed_proposal', 'original_filename' => 'mangrove-draft.pdf',
+        'lock_version' => 4, 'source_data' => ['narrative' => $body],
+    ]);
+    $monitoring = searchMonitoring($topic, [
+        'reporting_year' => 2026, 'reporting_quarter' => 2, 'accomplishments' => $body,
+        'work_plan' => [['activity' => $body]], 'budget_utilization' => [['purpose' => $body]],
+    ]);
+    $narrative = searchNarrative($topic, [
+        'reporting_quarter' => 2, 'period_start' => '2026-04-01', 'period_end' => '2026-06-30',
+        'introduction' => $body, 'photos' => [['caption' => $body]], 'terminal_data' => ['abstract' => $body],
+    ]);
+    $document = ProjectDocument::factory()->create([
+        'topic_id' => $topic->id, 'title' => 'Mangrove field itinerary',
+        'original_filename' => 'field-itinerary.pdf', 'category' => ProjectDocument::CATEGORY_SUPPORTING_FILES,
+        'note' => 'Document searchable note '.$body,
+    ]);
+    $attributes = [];
+    $models = [TopicProposal::class, ProposalDraft::class, ProposalVersion::class, ProjectDocument::class, ResearchManual::class,
+        ProposalDraftDocument::class, ProposalVersionFile::class, ProjectProgressReport::class, ProjectNarrativeReport::class];
+    foreach ($models as $model) {
+        Event::listen('eloquent.retrieved: '.$model, function (Model $record) use (&$attributes): void {
+            $attributes[$record::class][] = $record->getAttributes();
+        });
+    }
+    try {
+        $results = app(AccessibleRecordSearch::class)->search($this->owner, 'Mangrove');
+    } finally {
+        foreach ($models as $model) {
+            Event::forget('eloquent.retrieved: '.$model);
+        }
+    }
+
+    if (getenv('ATHENA_PERFORMANCE_BASELINE') === '1') {
+        fwrite(STDERR, 'Search result hydrated bytes: '.strlen(json_encode($attributes, JSON_THROW_ON_ERROR)).PHP_EOL);
+    }
+    expect($results)->toHaveCount(9)
+        ->and($attributes)->toHaveCount(9)
+        ->and($results->firstWhere('url', route('topics.show', $topic))['title'])->toBe($topic->title)
+        ->and($results->firstWhere('url', route('topics.versions.download', [$topic, $version]))['location'])->toBe('Submitted proposals · Version 1')
+        ->and($results->firstWhere('url', route('topics.versions.files.download', [$topic, $version, $file]))['title'])->toBe('mangrove-work-plan.pdf')
+        ->and($results->firstWhere('url', route('faculty.proposal-drafts.show', $draft))['context'])->toBe('Mangrove working draft')
+        ->and($results->firstWhere('url', route('topics.documents.download', [$topic, $document]))['location'])->toBe('Project files · Supporting files · field-itinerary.pdf')
+        ->and($results->firstWhere('url', route('research-manuals.read', $manual->version))['context'])->toBe('Edition 2026 · Activated edition')
+        ->and($results->firstWhere('url', route('project-progress.monitoring-tool.view', $monitoring))['title'])->toBe('Monitoring Tool · Q2 · 2026')
+        ->and($results->firstWhere('url', route('project-narrative-reports.show', $narrative))['title'])->toBe('Progress report · Q2 · Apr 1, 2026 – Jun 30, 2026');
+    expect($results->every(fn (array $result): bool => $result['edition'] === 'Manual edition 2026'))->toBeTrue();
+    foreach ($attributes as $records) {
+        foreach ($records as $recordAttributes) {
+            expect($recordAttributes)->not->toHaveKeys([
+                'source_data', 'description', 'notice_to_proceed_data', 'signatory_selections', 'pdf_preparation_state',
+                'change_summary', 'research_head_screening', 'note', 'guidance_check_results', 'unindexed_pages',
+                'accomplishments', 'work_plan', 'budget_utilization', 'introduction', 'photos', 'terminal_data',
+            ]);
+        }
+    }
+
+    expect(app(AccessibleRecordSearch::class)->search($this->owner, 'Topic searchable passage')->sole()['url'])->toBe(route('topics.show', $topic));
+    expect(app(AccessibleRecordSearch::class)->search($this->owner, 'Version searchable passage')->sole()['url'])->toBe(route('topics.versions.download', [$topic, $version]));
+    expect(app(AccessibleRecordSearch::class)->search($this->owner, 'Draft searchable leader')->sole()['url'])->toBe(route('faculty.proposal-drafts.show', $draft));
+    expect(app(AccessibleRecordSearch::class)->search($this->owner, 'Document searchable note')->sole()['url'])->toBe(route('topics.documents.download', [$topic, $document]));
 });

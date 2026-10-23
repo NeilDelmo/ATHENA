@@ -19,7 +19,7 @@ class ProjectReportDraftState
         $period = $kind !== 'terminal' && filled($reportingDate) ? $schedule->forDate($reportingDate, $topic) : null;
         $query = $kind === 'monitoring' ? ProjectProgressReport::query()->whereBelongsTo($topic, 'topic')
             : ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->where('report_type', $kind);
-        $reports = $query->get(['id', 'reporting_date', 'reporting_quarter', 'submission_status', 'review_status']);
+        $reports = $query->get(['id', 'reporting_date', 'period_end', 'reporting_quarter', 'submission_status', 'review_status']);
         $prepared = $reports->first(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => $report->isPrepared());
         $latest = $reports->filter(function (ProjectProgressReport|ProjectNarrativeReport $report) use ($kind, $period): bool {
             if ($kind === 'terminal') {
@@ -28,8 +28,8 @@ class ProjectReportDraftState
             if ($period === null) {
                 return false;
             }
-            if ($report instanceof ProjectNarrativeReport && $report->reporting_quarter !== null) {
-                return $report->reporting_quarter === $period['quarter'];
+            if ($report instanceof ProjectNarrativeReport) {
+                return $report->isForReportingPeriod($period);
             }
 
             return $report->reporting_date?->betweenIncluded($period['start'], $period['end']) ?? false;

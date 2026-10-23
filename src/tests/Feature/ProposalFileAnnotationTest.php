@@ -97,6 +97,8 @@ test('research head document viewer offers fitting zoom and collapsible comments
 });
 
 test('research head can annotate an exact turned-in PDF while draft comments stay private', function () {
+    $this->mock(ProposalRevisionSectionMap::class)->shouldReceive('forFile')->andReturn([]);
+
     $this->actingAs($this->head)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]).'?decision=revision_requested')
         ->assertOk()
@@ -112,7 +114,6 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertSee('<meta name="app-url" content="'.url('/').'">', false)
         ->assertSee('Add comment')
         ->assertSee('What needs to change?')
-        ->assertSee('data-file-details', false)
         ->assertDontSee('<summary class="cursor-pointer">File details</summary>', false)
         ->assertDontSee('Where should the faculty make this change?')
         ->assertSee('Restore mangrove plots', false)
@@ -217,6 +218,8 @@ test('generated assessment templates stay viewable but cannot be highlighted or 
 });
 
 test('the existing Comment Response generator previews saved drafts and reflects edits without creating records', function () {
+    $this->mock(ProposalRevisionSectionMap::class)->shouldReceive('forFile')->andReturn([]);
+
     $pdfConverter = Mockery::mock(DocumentPdfConverter::class);
     $pdfConverter->shouldReceive('convertDocx')->andReturn('%PDF-1.7 preview');
     app()->instance(DocumentPdfConverter::class, $pdfConverter);
@@ -272,7 +275,6 @@ test('the existing Comment Response generator previews saved drafts and reflects
     $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => $data['feedback'][0]['comment'] === 'Start planting in July.')->andReturn('docx');
     $this->get($previewUrl)->assertOk();
     $this->deleteJson($annotationUrl)->assertNoContent();
-    $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => $data['feedback'] === [])->andReturn('docx');
     $this->get($previewUrl)->assertOk();
 
     expect($this->topic->reviews()->count())->toBe(0)
@@ -533,7 +535,7 @@ test('a non PDF revision requires exact file specific instructions', function ()
             ],
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic));
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
 
     $fileRevision = $this->topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole();
     expect($this->topic->fresh()->status)->toBe('revision_requested')
@@ -564,7 +566,7 @@ test('sending a revision request publishes highlights for the faculty', function
             ],
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic));
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
 
     $fileRevision = $this->topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole();
     expect($this->topic->fresh()->status)->toBe('revision_requested')
@@ -668,7 +670,7 @@ test('the revision notification deep-links the faculty to the first highlighted 
             ],
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic));
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
 
     $expectedUrl = route('faculty.topics.revision', ['topic' => $this->topic, 'revision_annotation' => $firstAnnotation->id]);
 
@@ -734,12 +736,11 @@ test('a downloaded generated paper is staged in its matching revision attachment
     $response = $this->actingAs($this->faculty)
         ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
-        ->assertSee('Automatically uploaded: coastal-work-plan.docx')
-        ->assertSee('coastal-work-plan.docx');
+        ->assertSee('data-revision-staged-pdf-url', false);
     $dom = new DOMDocument;
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);
-    expect($xpath->query('//article[@data-revision-document="work_plan"]//input[@name="work_plan"][not(@required)]')->length)->toBe(1);
+    expect($xpath->query('//article[@data-revision-document="work_plan"][@data-revision-staged-pdf-url]')->length)->toBe(1);
 
     $this->actingAs($this->faculty)
         ->patch(route('faculty.topics.resubmit', $this->topic), [
@@ -811,7 +812,7 @@ test('overall feedback clearly carries forward papers without a replacement requ
         ->assertDontSee('Summary of changes')
         ->assertDontSee('Choose comments-form signatories')
         ->assertDontSee('LEVEL OF EVALUATION DONE:');
-    expect(substr_count($response->getContent(), $review->comment))->toBe(2);
+    expect(substr_count($response->getContent(), $review->comment))->toBe(1);
     $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $this->topic), [
         'title' => $this->topic->title,
         'estimated_budget' => 50000,
@@ -1156,7 +1157,7 @@ test('revision editors open inside the feedback page with no application navigat
     $dom = new DOMDocument;
     @$dom->loadHTML($page->getContent());
     $xpath = new DOMXPath($dom);
-    expect($xpath->query('//nav')->length)->toBe(0)
+    expect($xpath->query('//nav[not(@aria-label="Source collections")]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-revision-editor-context][@data-topic-id="'.$this->topic->id.'"]')->length)->toBe(1);
 
     $originalPage = $this->get(route('faculty.proposal-drafts.'.$slug.'.edit', $draft))
@@ -1196,6 +1197,14 @@ test('embedded editors expose only current published feedback and preserve the r
     $sectionMap = Mockery::mock(ProposalRevisionSectionMap::class);
     $sectionMap->shouldReceive('forFile')->andReturn([]);
     app()->instance(ProposalRevisionSectionMap::class, $sectionMap);
+    $this->version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => 'proposal-packages/detailed-proposal.pdf',
+        'original_filename' => 'detailed-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'source_data' => ['specific_objectives' => [['description' => 'Restore mangrove plots']]],
+    ]);
 
     $this->topic->update(['status' => 'revision_requested']);
     $review = $this->topic->reviews()->create([

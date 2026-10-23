@@ -4,7 +4,7 @@
         <link rel="icon" type="image/png" href="http://localhost/images/athena-favicon-circle.png">
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="1H0H0sMXq17yrwVryCucY5esDCZ49pcz9gljrwsW">
+        <meta name="csrf-token" content="w8aSu6theu5UtPnquFvqiDqibqWHDWeeDCfXgq7j">
         <meta name="app-url" content="http://localhost">
 
         <title>Laravel</title>
@@ -48,16 +48,19 @@
         </script>
 
         <link rel="preconnect" href="https://fonts.bunny.net">
-<link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" />
 
-        <link rel="preload" as="style" href="http://localhost/build/assets/app-D1Yd03Iz.css" /><link rel="preload" as="style" href="http://localhost/build/assets/app-D08fpjIS.css" /><link rel="modulepreload" as="script" href="http://localhost/build/assets/app-uxwNit9Y.js" /><link rel="stylesheet" href="http://localhost/build/assets/app-D1Yd03Iz.css" data-navigate-track="reload" /><link rel="stylesheet" href="http://localhost/build/assets/app-D08fpjIS.css" data-navigate-track="reload" /><script type="module" src="http://localhost/build/assets/app-uxwNit9Y.js" data-navigate-track="reload"></script>        <!-- Livewire Styles --><style >[wire\:loading][wire\:loading], [wire\:loading\.delay][wire\:loading\.delay], [wire\:loading\.list-item][wire\:loading\.list-item], [wire\:loading\.inline-block][wire\:loading\.inline-block], [wire\:loading\.inline][wire\:loading\.inline], [wire\:loading\.block][wire\:loading\.block], [wire\:loading\.flex][wire\:loading\.flex], [wire\:loading\.table][wire\:loading\.table], [wire\:loading\.grid][wire\:loading\.grid], [wire\:loading\.inline-flex][wire\:loading\.inline-flex] {display: none;}[wire\:loading\.delay\.none][wire\:loading\.delay\.none], [wire\:loading\.delay\.shortest][wire\:loading\.delay\.shortest], [wire\:loading\.delay\.shorter][wire\:loading\.delay\.shorter], [wire\:loading\.delay\.short][wire\:loading\.delay\.short], [wire\:loading\.delay\.default][wire\:loading\.delay\.default], [wire\:loading\.delay\.long][wire\:loading\.delay\.long], [wire\:loading\.delay\.longer][wire\:loading\.delay\.longer], [wire\:loading\.delay\.longest][wire\:loading\.delay\.longest] {display: none;}[wire\:offline][wire\:offline] {display: none;}[wire\:dirty]:not(textarea):not(input):not(select) {display: none;}:root {--livewire-progress-bar-color: #2299dd;}[x-cloak] {display: none !important;}[wire\:cloak] {display: none !important;}dialog#livewire-error::backdrop {background-color: rgba(0, 0, 0, .6);}</style>
+<link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" media="print" onload="this.onload=null;this.sheet.media.mediaText='all'" />
+<noscript><link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" /></noscript>
+
+        <link rel="preload" as="style" href="http://localhost/build/assets/app-r_Pri6T3.css" /><link rel="preload" as="style" href="http://localhost/build/assets/app-BivFKyUS.css" /><link rel="modulepreload" as="script" href="http://localhost/build/assets/app-DPH3NoT8.js" /><link rel="stylesheet" href="http://localhost/build/assets/app-r_Pri6T3.css" data-navigate-track="reload" /><link rel="stylesheet" href="http://localhost/build/assets/app-BivFKyUS.css" data-navigate-track="reload" /><script type="module" src="http://localhost/build/assets/app-DPH3NoT8.js" data-navigate-track="reload"></script>        <!-- Livewire Styles --><style >[wire\:loading][wire\:loading], [wire\:loading\.delay][wire\:loading\.delay], [wire\:loading\.list-item][wire\:loading\.list-item], [wire\:loading\.inline-block][wire\:loading\.inline-block], [wire\:loading\.inline][wire\:loading\.inline], [wire\:loading\.block][wire\:loading\.block], [wire\:loading\.flex][wire\:loading\.flex], [wire\:loading\.table][wire\:loading\.table], [wire\:loading\.grid][wire\:loading\.grid], [wire\:loading\.inline-flex][wire\:loading\.inline-flex] {display: none;}[wire\:loading\.delay\.none][wire\:loading\.delay\.none], [wire\:loading\.delay\.shortest][wire\:loading\.delay\.shortest], [wire\:loading\.delay\.shorter][wire\:loading\.delay\.shorter], [wire\:loading\.delay\.short][wire\:loading\.delay\.short], [wire\:loading\.delay\.default][wire\:loading\.delay\.default], [wire\:loading\.delay\.long][wire\:loading\.delay\.long], [wire\:loading\.delay\.longer][wire\:loading\.delay\.longer], [wire\:loading\.delay\.longest][wire\:loading\.delay\.longest] {display: none;}[wire\:offline][wire\:offline] {display: none;}[wire\:dirty]:not(textarea):not(input):not(select) {display: none;}:root {--livewire-progress-bar-color: #2299dd;}[x-cloak] {display: none !important;}[wire\:cloak] {display: none !important;}dialog#livewire-error::backdrop {background-color: rgba(0, 0, 0, .6);}</style>
     </head>
         <body
         x-data
-        @keydown.escape.window="$store.sidebar.setOpen(false)"
+        @keydown.escape.window="if (window.innerWidth < 640 && !$event.defaultPrevented) $store.sidebar.setOpen(false)"
         @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
-         data-faculty-shell         data-auth-user-id="4262"
+         data-faculty-shell         data-auth-user-id="115"
+        data-active-workspace="faculty"
                     data-research-assistant-url="http://localhost/research-support/chat"
             data-research-assistant-history-url="http://localhost/research-support/history"
             data-research-assistant-documents-url="http://localhost/research-support/documents"
@@ -66,8 +69,8 @@
                                          data-literature-search-url="http://localhost/research-support/literature-search"                 class="bg-[#F5F7FA] font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
                     <script>
-                window.athenaResearchAssistantContexts = JSON.parse('[{\u0022id\u0022:1595,\u0022label\u0022:\u0022Revision loading regression\u0022,\u0022status\u0022:\u0022revision requested\u0022,\u0022dissemination\u0022:null,\u0022meta\u0022:\u0022v1\u0022}]');
-                window.athenaResearchAssistantActiveContextId = 1595;
+                window.athenaResearchAssistantContexts = JSON.parse('[{\u0022id\u0022:28,\u0022label\u0022:\u0022Revision loading regression\u0022,\u0022status\u0022:\u0022revision requested\u0022,\u0022dissemination\u0022:null,\u0022meta\u0022:\u0022v1\u0022}]');
+                window.athenaResearchAssistantActiveContextId = 28;
                 window.athenaResearchAssistantHistory = [];
                 window.athenaResearchAssistantPageActions = [];
             </script>
@@ -324,14 +327,14 @@
                 <div
     x-data="{ avatarFailed: false }"
         role="img"
-    aria-label="Profile photo for Myrtice Crona"
+    aria-label="Profile photo for Prof. Dortha Wisozk PhD"
     data-user-avatar
     class="relative inline-flex shrink-0 items-center justify-center overflow-hidden font-black uppercase text-white h-8 w-8 shrink-0 rounded-full bg-[#7A0019] text-xs text-white"
 >
-    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">M</span>
+    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">P</span>
 
     </div>                <span x-show="$store.sidebar.open" class="min-w-0">
-                    <span class="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">Myrtice Crona</span>
+                    <span class="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">Prof. Dortha Wisozk PhD</span>
                     <span class="block truncate text-[11px] text-slate-500">Account Profile</span>
                 </span>
             </a>
@@ -362,7 +365,7 @@
                     style="-webkit-mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%); mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%);"
                     aria-hidden="true"
                 >
-                    <img src="http://localhost/images/front.jpg" alt="" class="absolute inset-0 h-full w-full object-cover object-center" />
+                    <img src="http://localhost/images/front.jpg" alt="" class="absolute inset-0 h-full w-full object-cover object-center" loading="lazy" decoding="async" />
                     <div class="absolute inset-0 bg-gradient-to-r from-red-950/65 via-red-700/25 to-red-600/60"></div>
                     <div class="absolute -bottom-14 right-20 h-32 w-32 rotate-45 rounded-3xl border border-white/20 bg-white/10"></div>
                     <div class="absolute -top-16 left-24 h-36 w-36 rounded-full border-[18px] border-white/10"></div>
@@ -395,12 +398,25 @@
                             class="font-bold tabular-nums text-white"
                             data-timezone="Asia/Manila"
                             aria-live="off"
-                        >Oct 18, 2026 | 09:39:24 AM</time>
+                        >Oct 22, 2026 | 09:05:28 AM</time>
                         <span class="ml-1 text-[10px] font-black uppercase tracking-wider text-red-200">PHT</span>
                     </div>
                 </div>
 
                 <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-1.5 sm:gap-3 lg:gap-4">
+
+                    <div class="shrink-0" data-global-search>
+    <form method="GET" action="http://localhost/search" role="search" aria-label="Quick search" class="hidden items-center rounded-xl border border-white/30 bg-white/10 lg:flex">
+        <label for="header-search-query" class="sr-only">Search ATHENA</label>
+        <input id="header-search-query" name="q" type="search" maxlength="120" placeholder="Search ATHENA" value="" class="h-11 w-44 rounded-l-xl border-0 bg-transparent text-sm text-white placeholder:text-red-100 focus:ring-2 focus:ring-inset focus:ring-white xl:w-56" />
+        <button type="submit" aria-label="Submit quick search" class="inline-flex h-11 w-11 items-center justify-center rounded-r-xl text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path stroke-linecap="round" d="m16 16 4 4" /></svg>
+        </button>
+    </form>
+    <a href="http://localhost/search" aria-label="Search ATHENA" title="Search ATHENA" class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white lg:hidden">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path stroke-linecap="round" d="m16 16 4 4" /></svg>
+    </a>
+</div>
 
                     <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -424,9 +440,10 @@
     class="relative"
     data-notification-menu
     @click.outside="open = false"
-    @keydown.escape.window="open = false"
+    @keydown.escape="if (open) { $event.preventDefault(); $event.stopPropagation(); open = false; $refs.trigger.focus() }"
 >
     <button
+        x-ref="trigger"
         type="button"
         @click="open = !open; if (open) refresh()"
         class="relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-gray-500 transition duration-150 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -460,7 +477,7 @@
             </div>
             <div class="flex shrink-0 items-center gap-2">
                 <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">Mark all read</button>
-                <button @click="open = false" type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
+                <button @click="open = false; $refs.trigger.focus()" type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
                 </button>
             </div>
@@ -476,7 +493,10 @@
 
             <template x-for="item in notifications" :key="item.id">
                 <form method="POST" :action="notificationOpenUrl(item)" @submit="openNotification($event, item)">
-                    <input type="hidden" name="_token" value="1H0H0sMXq17yrwVryCucY5esDCZ49pcz9gljrwsW" autocomplete="off">                    <button
+                    <input type="hidden" name="_token" value="w8aSu6theu5UtPnquFvqiDqibqWHDWeeDCfXgq7j" autocomplete="off">                    <template x-for="notificationId in item.notification_ids || [item.id]" :key="notificationId">
+                        <input type="hidden" name="notification_ids[]" :value="notificationId">
+                    </template>
+                    <button
                         type="submit"
                         class="group flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800"
                         :class="item.read_at
@@ -490,6 +510,7 @@
                                 <span class="shrink-0 pt-0.5 text-[10px] text-slate-400 dark:text-slate-500" x-text="item.created_at"></span>
                             </span>
                             <span class="mt-0.5 block line-clamp-2 text-xs leading-5" :class="item.read_at ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300'" x-text="item.data.message"></span>
+                            <span class="mt-1.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400" x-text="`${item.update_count || 1} ${(item.update_count || 1) === 1 ? 'update' : 'updates'} · ${item.needs_action ? 'Needs your action' : 'Information'}`"></span>
                             <span x-show="item.data.action_url && !item.data.action_completed" class="mt-1.5 inline-block text-[10px] font-semibold text-red-700 dark:text-red-300">Review invitation</span>
                         </span>
                     </button>
@@ -514,13 +535,13 @@
                             <div
     x-data="{ avatarFailed: false }"
         role="img"
-    aria-label="Profile photo for Myrtice Crona"
+    aria-label="Profile photo for Prof. Dortha Wisozk PhD"
     data-user-avatar
     class="relative inline-flex shrink-0 items-center justify-center overflow-hidden font-black uppercase text-white h-8 w-8 rounded-full border border-gray-200 bg-red-600 text-xs shadow-sm"
 >
-    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">M</span>
+    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">P</span>
 
-    </div>                            <span class="hidden min-w-0 max-w-20 truncate text-sm font-bold text-white sm:block lg:max-w-[120px]" title="Myrtice Crona">Myrtice Crona</span>
+    </div>                            <span class="hidden min-w-0 max-w-20 truncate text-sm font-bold text-white sm:block lg:max-w-[120px]" title="Prof. Dortha Wisozk PhD">Prof. Dortha Wisozk PhD</span>
                             <svg class="hidden h-4 w-4 text-red-100 sm:block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                             </svg>
@@ -529,7 +550,7 @@
                         <div x-cloak x-show="open" @click.away="open = false" x-transition role="menu" class="absolute right-0 z-50 mt-2 w-56 max-w-[calc(100vw-6rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
                             <div class="border-b border-gray-100 px-4 py-2 dark:border-slate-800">
                                 <p class="text-xs text-gray-400 font-semibold uppercase">Account Profile</p>
-                                <p class="text-xs font-bold text-gray-800 truncate mt-0.5">armando86@example.org</p>
+                                <p class="text-xs font-bold text-gray-800 truncate mt-0.5">labadie.arnold@example.com</p>
                                 <p class="mt-1 text-[11px] font-bold text-red-600 dark:text-red-300">Using Faculty</p>
                             </div>
                             
@@ -539,7 +560,7 @@
 
                                                         
                             <form method="POST" action="http://localhost/logout" data-proposal-confirm data-confirm-title="Log out of ATHENA?" data-confirm-text="You will need to sign in again to continue working in ATHENA." data-confirm-button="Log out" data-cancel-button="Stay signed in" data-confirm-icon="warning">
-                                <input type="hidden" name="_token" value="1H0H0sMXq17yrwVryCucY5esDCZ49pcz9gljrwsW" autocomplete="off">                                <button type="submit" class="block w-full cursor-pointer px-4 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
+                                <input type="hidden" name="_token" value="w8aSu6theu5UtPnquFvqiDqibqWHDWeeDCfXgq7j" autocomplete="off">                                <button type="submit" class="block w-full cursor-pointer px-4 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
                                     Log Out
                                 </button>
                             </form>
@@ -569,7 +590,7 @@
         <div class="mx-auto max-w-6xl space-y-5">
             <a
     data-back-link
-     data-fixed-back-link     class="group inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-black text-gray-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-800 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:focus:ring-offset-slate-950 fixed bottom-4 right-4 z-40 w-auto max-w-[calc(100vw-2rem)] shadow-xl ring-1 ring-black/10 sm:bottom-6 sm:right-6 print:hidden" href="http://localhost/topics/1595#proposal-review"
+     data-fixed-back-link     class="group inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-black text-gray-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-800 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:focus:ring-offset-slate-950 fixed bottom-4 right-4 z-40 w-auto max-w-[calc(100vw-2rem)] shadow-xl ring-1 ring-black/10 sm:bottom-6 sm:right-6 print:hidden" href="http://localhost/topics/28#proposal-review"
 >
     <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition group-hover:bg-red-100 group-hover:text-red-700 dark:bg-red-950/60 dark:text-red-300 dark:group-hover:bg-red-950" aria-hidden="true">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24">
@@ -588,10 +609,10 @@
                         <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Research proposal</p>
                         <h1 id="revision-workspace-title" class="mt-1 max-w-4xl text-xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-2xl">Revision loading regression</h1>
                         <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /></svg>Proposal #1595</span>
+                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /></svg>Proposal #28</span>
                             <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" /><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 15a7 7 0 0 0 12.9 2.3M18.5 9A7 7 0 0 0 5.6 6.7" /></svg>Version 1</span>
-                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2" /><path stroke-linecap="round" d="M5 20c1-3.5 4-5.5 7-5.5s6 2 7 5.5" /></svg>Requested by Myrtice Crona</span>
-                                                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path stroke-linecap="round" d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></svg>Submitted Oct 18, 2026 · 09:39 AM</span>
+                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2" /><path stroke-linecap="round" d="M5 20c1-3.5 4-5.5 7-5.5s6 2 7 5.5" /></svg>Requested by Prof. Dortha Wisozk PhD</span>
+                                                            <span class="inline-flex items-center gap-1.5"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path stroke-linecap="round" d="M3.5 9.5h17M8 3v3.5M16 3v3.5" /></svg>Submitted Oct 22, 2026 · 09:05 AM</span>
                                                     </div>
                     </div>
                 </div>
@@ -604,15 +625,15 @@
             <main class="min-w-0">
                 <form
     id="submit-revision"
-    action="http://localhost/faculty/topics/1595/resubmit"
+    action="http://localhost/faculty/topics/28/resubmit"
     method="POST"
     enctype="multipart/form-data"
     novalidate
     aria-labelledby="faculty-revision-heading"
     data-faculty-revision-required
-    data-revision-workspace="1595"
+    data-revision-workspace="28"
     data-assistant-report-type="comment-response"
-    data-assistant-report-key="comment-response:topic:1595"
+    data-assistant-report-key="comment-response:topic:28"
     data-revision-start-step="1"
     data-confirm-title="Submit this revision to the Research Head?"
     data-confirm-text="Edited papers will generate PDFs for the new version. Uploaded replacements and unchanged papers will be included too."
@@ -621,7 +642,7 @@
     @invalid.capture="if ($event.target.closest('[data-revision-proposal-details-fields]')) window.dispatchEvent(new CustomEvent('open-revision-proposal-details'))"
     class="space-y-4"
 >
-    <input type="hidden" name="_token" value="1H0H0sMXq17yrwVryCucY5esDCZ49pcz9gljrwsW" autocomplete="off">    <input type="hidden" name="_method" value="PATCH">    <input type="hidden" name="redirect_to" value="topic">
+    <input type="hidden" name="_token" value="w8aSu6theu5UtPnquFvqiDqibqWHDWeeDCfXgq7j" autocomplete="off">    <input type="hidden" name="_method" value="PATCH">    <input type="hidden" name="redirect_to" value="topic">
     <input type="hidden" name="topic_tab" value="review">
     <input type="hidden" name="revision_draft_id" value="">
     <h2 id="faculty-revision-heading" class="sr-only">Prepare the corrected project</h2>
@@ -670,16 +691,16 @@
         </header>
 
         <div class="space-y-4 p-5 sm:p-6">
-                            <input type="hidden" name="feedback_review_id" value="342">
+                            <input type="hidden" name="feedback_review_id" value="14">
                 <div class="space-y-4">
                                             <section data-comment-response-source="research_head" aria-label="Research Head Comment Response paper">
-                                                            <dialog open role="region" data-comment-response-paper class="revision-comment-response-paper" aria-labelledby="revision-comment-response-heading-1595-research_head">
+                                                            <dialog open role="region" data-comment-response-paper class="revision-comment-response-paper" aria-labelledby="revision-comment-response-heading-28-research_head">
                                     <header class="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900 sm:px-5">
-                                        <h4 id="revision-comment-response-heading-1595-research_head" class="text-base font-bold text-slate-900 dark:text-white">Research Head Comment Response paper</h4>
+                                        <h4 id="revision-comment-response-heading-28-research_head" class="text-base font-bold text-slate-900 dark:text-white">Research Head Comment Response paper</h4>
                                         <button type="button" data-comment-response-paper-close hidden class="min-h-11 shrink-0 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Minimize preview</button>
                                     </header>
                                     <div data-comment-response-paper-open role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-label="Enlarge Research Head Comment Response paper" class="revision-comment-response-paper-content">
-                                        <div x-data="commentResponsePaperPreview('http:\/\/localhost\/faculty\/topics\/1595\/comment-response-form\/preview?source=research_head\u0026review=342\u0026embedded=1')" @comment-response-paper-view-change="setPaperExpanded($event.detail.expanded)" data-comment-response-preview data-comment-response-preview-url="http://localhost/faculty/topics/1595/comment-response-form/preview?source=research_head&amp;review=342&amp;embedded=1" class="revision-pdf-viewer">
+                                        <div x-data="commentResponsePaperPreview('http:\/\/localhost\/faculty\/topics\/28\/comment-response-form\/preview?source=research_head\u0026review=14\u0026embedded=1')" @comment-response-paper-view-change="setPaperExpanded($event.detail.expanded)" data-comment-response-preview data-comment-response-preview-url="http://localhost/faculty/topics/28/comment-response-form/preview?source=research_head&amp;review=14&amp;embedded=1" class="revision-pdf-viewer">
     <p x-show="!previewReady && !previewError" role="status" class="absolute inset-x-0 top-5 z-10 text-center text-sm text-gray-700 dark:text-slate-300">Loading Comment Response paper…</p>
     <div x-show="previewError" x-cloak role="alert" class="m-4 rounded-lg bg-red-50 p-4 text-base text-red-800">
         <p x-text="previewError"></p>
@@ -716,8 +737,8 @@
             </div>
         </header>
                             <div class="border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6">
-                <div data-assistant-report-editor data-assistant-report-context="{&quot;report_type&quot;:&quot;comment-response&quot;,&quot;topic_id&quot;:1595}"
-    x-data="assistantReportEditor(JSON.parse('{\u0022context\u0022:{\u0022report_type\u0022:\u0022comment-response\u0022,\u0022topic_id\u0022:1595},\u0022editable\u0022:true,\u0022unsaved\u0022:false}'))"
+                <div data-assistant-report-editor data-assistant-report-context="{&quot;report_type&quot;:&quot;comment-response&quot;,&quot;topic_id&quot;:28}"
+    x-data="assistantReportEditor(JSON.parse('{\u0022context\u0022:{\u0022report_type\u0022:\u0022comment-response\u0022,\u0022topic_id\u0022:28},\u0022editable\u0022:true,\u0022unsaved\u0022:false}'))"
     @athena-prepare-report.window="onPrepare($event)" @athena-apply-report-change.window="onApply($event)" @athena-report-navigation.window="onNavigate($event)"
     class="flex flex-wrap items-center gap-2 border-b border-stone-200 pb-4 dark:border-stone-700">
     <button type="button" @click="reviewReport()" :disabled="working || !context"
@@ -741,7 +762,7 @@
                             <article
     data-revision-document="detailed_proposal"
     data-revision-label="Detailed Research Proposal"
-            data-revision-preview-upload-url="http://localhost/faculty/topics/1595/revision/preview"
+            data-revision-preview-upload-url="http://localhost/faculty/topics/28/revision/preview"
     data-topic-file-dropzone="detailed_proposal"
         class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
 >
@@ -836,7 +857,7 @@
                                     <span class="revision-loading-spinner" aria-hidden="true"></span>
                                     <span>Loading revision editor…</span>
                                 </div>
-                                <iframe data-revision-editor-frame data-revision-editor-src="http://localhost/faculty/proposal-drafts/revision/1595?document_type=detailed_proposal&amp;revision_embed=1" title="Edit Detailed Research Proposal alongside Research Head feedback" class="revision-editor-frame"></iframe>
+                                <iframe data-revision-editor-frame data-revision-editor-src="http://localhost/faculty/proposal-drafts/revision/28?document_type=detailed_proposal&amp;revision_embed=1" title="Edit Detailed Research Proposal alongside Research Head feedback" class="revision-editor-frame"></iframe>
                             </div>
                                                 </div>
                     </section>
@@ -848,27 +869,27 @@
                         <div class="revision-comment-strip" data-revision-feedback>
                                                             <label for="revision-comment-detailed_proposal" class="sr-only">Reviewer comment</label>
                                 <select id="revision-comment-detailed_proposal" data-revision-comment  class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950">
-                                                                            <option value="file-54" data-annotation-id="" data-pdf-url="http://localhost/topics/1595/versions/696/files/2142/annotations?revision_embed=1">1 of 2 · detailed_proposal.pdf</option>
-                                                                            <option value="53" data-annotation-id="53" data-pdf-url="http://localhost/topics/1595/versions/696/files/2142/annotations?revision_embed=1">2 of 2 · Research Head · Page 1 · XII. Methodology:</option>
+                                                                            <option value="file-22" data-annotation-id="" data-pdf-url="http://localhost/topics/28/versions/16/files/24/annotations?revision_embed=1">1 of 2 · detailed_proposal.pdf</option>
+                                                                            <option value="14" data-annotation-id="14" data-pdf-url="http://localhost/topics/28/versions/16/files/24/annotations?revision_embed=1">2 of 2 · Research Head · Page 1 · XII. Methodology:</option>
                                                                     </select>
-                                                                    <div data-revision-comment-body="file-54"  class="revision-comment-body">
+                                                                    <div data-revision-comment-body="file-22"  class="revision-comment-body">
                                         <div class="revision-comment-context">
                                             <p>Reviewer <span>· Comment 1 of 2</span></p>
                                             <p>detailed_proposal.pdf</p>
                                         </div>
-                                        <span hidden data-revision-modification-status="file-54" data-annotation-id="" data-modified="false" data-reviewed="false"></span>
+                                        <span hidden data-revision-modification-status="file-22" data-annotation-id="" data-modified="false" data-reviewed="false"></span>
                                         <blockquote class="revision-reviewer-comment whitespace-pre-line">Update this paper.</blockquote>
-                                                                                                                            <div data-revision-response-key="file_54" data-revision-response-source="research_head" class="space-y-3">
+                                                                                                                            <div data-revision-response-key="file_22" data-revision-response-source="research_head" class="space-y-3">
     <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
         Your response <span aria-hidden="true" class="text-brand dark:text-rose-300">*</span><span class="sr-only"> (required)</span>
-        <textarea data-revision-response-document="detailed_proposal" name="feedback_responses[file_54][response]" rows="4" maxlength="5000" required placeholder="Explain your change or why the submitted paper already addresses this comment." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+        <textarea data-revision-response-document="detailed_proposal" name="feedback_responses[file_22][response]" rows="4" maxlength="5000" required placeholder="Explain your change or why the submitted paper already addresses this comment." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
     </label>
-    <fieldset data-comment-response-location data-response-key="file_54" data-response-document="detailed_proposal" aria-label="Automatic change location" class="space-y-2">
-        <input type="hidden" name="feedback_responses[file_54][no_change]" value="0">
-        <input type="checkbox" data-comment-response-action data-comment-response-no-change name="feedback_responses[file_54][no_change]" value="1" hidden tabindex="-1" >
+    <fieldset data-comment-response-location data-response-key="file_22" data-response-document="detailed_proposal" aria-label="Automatic change location" class="space-y-2">
+        <input type="hidden" name="feedback_responses[file_22][no_change]" value="0">
+        <input type="checkbox" data-comment-response-action data-comment-response-no-change name="feedback_responses[file_22][no_change]" value="1" hidden tabindex="-1" >
         <input type="hidden" data-location-document value="detailed_proposal">
-        <input type="hidden" data-comment-response-page name="feedback_responses[file_54][page]" value="" >
-        <input type="hidden" data-comment-response-paragraph name="feedback_responses[file_54][paragraph]" value="" >
+        <input type="hidden" data-comment-response-page name="feedback_responses[file_22][page]" value="" >
+        <input type="hidden" data-comment-response-paragraph name="feedback_responses[file_22][paragraph]" value="" >
         <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-500 dark:text-slate-400">The page and paragraph will be added automatically when you finish this paper.</p>
         <button type="button" data-location-retry hidden class="revision-location-button">Try again</button>
         <div data-location-confirm hidden aria-label="Choose the updated passage" class="revision-location-confirm"></div>
@@ -876,25 +897,25 @@
     <button type="button" data-comment-response-preview-open="research_head" aria-haspopup="dialog" class="revision-location-button">Preview Comment Response</button>
 </div>
                                                                             </div>
-                                                                    <div data-revision-comment-body="53"  hidden  class="revision-comment-body">
+                                                                    <div data-revision-comment-body="14"  hidden  class="revision-comment-body">
                                         <div class="revision-comment-context">
                                             <p>Research Head <span>· Comment 2 of 2</span></p>
                                             <p>Page 1 · XII. Methodology:</p>
                                         </div>
-                                        <span hidden data-revision-modification-status="53" data-annotation-id="53" data-modified="false" data-reviewed="false"></span>
+                                        <span hidden data-revision-modification-status="14" data-annotation-id="14" data-modified="false" data-reviewed="false"></span>
                                         <blockquote class="revision-reviewer-comment whitespace-pre-line">Clarify the sampling method.</blockquote>
                                                                                     <p class="text-xs leading-5 text-slate-500 dark:text-slate-400"><span class="font-semibold">In the submitted paper:</span> “Proposed methods”</p>
-                                                                                                                            <div data-revision-response-key="annotation_53" data-revision-response-source="research_head" class="space-y-3">
+                                                                                                                            <div data-revision-response-key="annotation_14" data-revision-response-source="research_head" class="space-y-3">
     <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
         Your response <span aria-hidden="true" class="text-brand dark:text-rose-300">*</span><span class="sr-only"> (required)</span>
-        <textarea data-revision-response-document="detailed_proposal" name="feedback_responses[annotation_53][response]" rows="4" maxlength="5000" required placeholder="Explain your change or why the submitted paper already addresses this comment." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+        <textarea data-revision-response-document="detailed_proposal" name="feedback_responses[annotation_14][response]" rows="4" maxlength="5000" required placeholder="Explain your change or why the submitted paper already addresses this comment." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
     </label>
-    <fieldset data-comment-response-location data-response-key="annotation_53" data-response-document="detailed_proposal" aria-label="Automatic change location" class="space-y-2">
-        <input type="hidden" name="feedback_responses[annotation_53][no_change]" value="0">
-        <input type="checkbox" data-comment-response-action data-comment-response-no-change name="feedback_responses[annotation_53][no_change]" value="1" hidden tabindex="-1" >
+    <fieldset data-comment-response-location data-response-key="annotation_14" data-response-document="detailed_proposal" aria-label="Automatic change location" class="space-y-2">
+        <input type="hidden" name="feedback_responses[annotation_14][no_change]" value="0">
+        <input type="checkbox" data-comment-response-action data-comment-response-no-change name="feedback_responses[annotation_14][no_change]" value="1" hidden tabindex="-1" >
         <input type="hidden" data-location-document value="detailed_proposal">
-        <input type="hidden" data-comment-response-page name="feedback_responses[annotation_53][page]" value="" >
-        <input type="hidden" data-comment-response-paragraph name="feedback_responses[annotation_53][paragraph]" value="" >
+        <input type="hidden" data-comment-response-page name="feedback_responses[annotation_14][page]" value="" >
+        <input type="hidden" data-comment-response-paragraph name="feedback_responses[annotation_14][paragraph]" value="" >
         <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-500 dark:text-slate-400">The page and paragraph will be added automatically when you finish this paper.</p>
         <button type="button" data-location-retry hidden class="revision-location-button">Try again</button>
         <div data-location-confirm hidden aria-label="Choose the updated passage" class="revision-location-confirm"></div>
@@ -933,7 +954,7 @@
                             <article
     data-revision-document="work_plan"
     data-revision-label="Attachment A: Work Plan"
-     data-revision-single-reply         data-revision-preview-upload-url="http://localhost/faculty/topics/1595/revision/preview"
+     data-revision-single-reply         data-revision-preview-upload-url="http://localhost/faculty/topics/28/revision/preview"
     data-topic-file-dropzone="work_plan"
         class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
 >
@@ -1028,7 +1049,7 @@
                                     <span class="revision-loading-spinner" aria-hidden="true"></span>
                                     <span>Loading revision editor…</span>
                                 </div>
-                                <iframe data-revision-editor-frame data-revision-editor-src="http://localhost/faculty/proposal-drafts/revision/1595?document_type=work_plan&amp;revision_embed=1" title="Edit Attachment A: Work Plan alongside Research Head feedback" class="revision-editor-frame"></iframe>
+                                <iframe data-revision-editor-frame data-revision-editor-src="http://localhost/faculty/proposal-drafts/revision/28?document_type=work_plan&amp;revision_embed=1" title="Edit Attachment A: Work Plan alongside Research Head feedback" class="revision-editor-frame"></iframe>
                             </div>
                                                 </div>
                     </section>
@@ -1040,26 +1061,26 @@
                         <div class="revision-comment-strip" data-revision-feedback>
                                                             <label for="revision-comment-work_plan" class="sr-only">Reviewer comment</label>
                                 <select id="revision-comment-work_plan" data-revision-comment  hidden  class="w-full rounded-lg border-slate-300 text-xs dark:border-slate-700 dark:bg-slate-950">
-                                                                            <option value="file-55" data-annotation-id="" data-pdf-url="http://localhost/topics/1595/versions/696/files/2143/annotations?revision_embed=1">1 of 1 · work_plan.pdf</option>
+                                                                            <option value="file-23" data-annotation-id="" data-pdf-url="http://localhost/topics/28/versions/16/files/25/annotations?revision_embed=1">1 of 1 · work_plan.pdf</option>
                                                                     </select>
-                                                                    <div data-revision-comment-body="file-55"  class="revision-comment-body">
+                                                                    <div data-revision-comment-body="file-23"  class="revision-comment-body">
                                         <div class="revision-comment-context">
                                             <p>Reviewer <span>· Comment 1 of 1</span></p>
                                             <p>work_plan.pdf</p>
                                         </div>
-                                        <span hidden data-revision-modification-status="file-55" data-annotation-id="" data-modified="false" data-reviewed="false"></span>
+                                        <span hidden data-revision-modification-status="file-23" data-annotation-id="" data-modified="false" data-reviewed="false"></span>
                                         <blockquote class="revision-reviewer-comment whitespace-pre-line">Update this paper.</blockquote>
-                                                                                                                            <div data-revision-response-key="file_55" data-revision-response-source="research_head" class="space-y-3">
+                                                                                                                            <div data-revision-response-key="file_23" data-revision-response-source="research_head" class="space-y-3">
     <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
         Your response <span aria-hidden="true" class="text-brand dark:text-rose-300">*</span><span class="sr-only"> (required)</span>
-        <textarea data-revision-response-document="work_plan" name="feedback_responses[file_55][response]" rows="4" maxlength="5000" required placeholder="Explain your change or why the submitted paper already addresses this comment." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+        <textarea data-revision-response-document="work_plan" name="feedback_responses[file_23][response]" rows="4" maxlength="5000" required placeholder="Explain your change or why the submitted paper already addresses this comment." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
     </label>
-    <fieldset data-comment-response-location data-response-key="file_55" data-response-document="work_plan" aria-label="Automatic change location" class="space-y-2">
-        <input type="hidden" name="feedback_responses[file_55][no_change]" value="0">
-        <input type="checkbox" data-comment-response-action data-comment-response-no-change name="feedback_responses[file_55][no_change]" value="1" hidden tabindex="-1" >
+    <fieldset data-comment-response-location data-response-key="file_23" data-response-document="work_plan" aria-label="Automatic change location" class="space-y-2">
+        <input type="hidden" name="feedback_responses[file_23][no_change]" value="0">
+        <input type="checkbox" data-comment-response-action data-comment-response-no-change name="feedback_responses[file_23][no_change]" value="1" hidden tabindex="-1" >
         <input type="hidden" data-location-document value="work_plan">
-        <input type="hidden" data-comment-response-page name="feedback_responses[file_55][page]" value="" >
-        <input type="hidden" data-comment-response-paragraph name="feedback_responses[file_55][paragraph]" value="" >
+        <input type="hidden" data-comment-response-page name="feedback_responses[file_23][page]" value="" >
+        <input type="hidden" data-comment-response-paragraph name="feedback_responses[file_23][paragraph]" value="" >
         <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-500 dark:text-slate-400">The page and paragraph will be added automatically when you finish this paper.</p>
         <button type="button" data-location-retry hidden class="revision-location-button">Try again</button>
         <div data-location-confirm hidden aria-label="Choose the updated passage" class="revision-location-confirm"></div>
@@ -1222,7 +1243,7 @@
 <div
     x-cloak
     x-show="$store.researchAssistant.drawerOpen"
-    @keydown.escape.window="if ($store.researchAssistant.drawerOpen) $store.researchAssistant.closeDrawer()"
+    @keydown.escape.window="if ($store.researchAssistant.drawerOpen && !$store.researchAssistant.sourcePreviewOpen && !$event.defaultPrevented) $store.researchAssistant.closeDrawer()"
     class="athena-readable pointer-events-none fixed inset-0 z-[70] print:hidden"
 >
     <aside
@@ -1326,7 +1347,7 @@
                         <div data-assistant-user-message x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100"><p class="whitespace-pre-wrap" x-text="message.content"></p></div>
                         <div x-show="message.role === 'assistant'" class="flex w-full gap-3">
                             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white dark:bg-slate-200 dark:text-slate-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
-                            <div data-assistant-response class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                            <div data-assistant-response x-data="researchAssistantCitations" @click="openCitation($event, message)" class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-semibold text-gray-900 dark:text-white">Athena</p>
                                 <details x-show="message.review" x-cloak class="group mb-4 border-b border-stone-200 pb-3 text-stone-800 dark:border-stone-700 dark:text-stone-100" data-assistant-review-coverage>
     <summary class="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
@@ -1367,6 +1388,23 @@
     </div>
 </details>
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <section x-show="citationSource" x-cloak x-ref="citationPanel" :id="$id('assistant-citation-panel')" data-assistant-citation-panel role="dialog" aria-label="Source details" tabindex="-1" @keydown.escape.stop.prevent="closeCitation()" class="relative my-3 min-w-0 rounded-lg border border-red-200 bg-red-50/60 p-4 text-sm text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-900 dark:bg-red-950/20 dark:text-stone-200">
+    <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+            <p class="text-xs font-semibold text-red-900 dark:text-red-200" x-text="citationSource?.reference || 'Source'"></p>
+            <h3 class="mt-1 break-words font-semibold leading-6 text-stone-950 dark:text-stone-100" x-text="citationSource?.title || 'Reference material'"></h3>
+            <p x-show="citationLocation(citationSource)" class="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400" x-text="citationLocation(citationSource)"></p>
+        </div>
+        <button type="button" @click="closeCitation()" class="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-stone-500 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-400 dark:hover:bg-red-950" aria-label="Close source details"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg></button>
+    </div>
+    <p x-show="citationSource?.excerpt" class="mt-3 text-xs font-medium text-stone-500 dark:text-stone-400">Retrieved excerpt</p>
+    <blockquote x-show="citationSource?.excerpt" class="mt-2 max-h-60 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-red-300 pl-3 leading-6 dark:border-red-800" x-text="citationSource?.excerpt"></blockquote>
+    <p x-show="!citationSource?.excerpt" class="mt-3 leading-6 text-stone-500 dark:text-stone-400">No excerpt was saved with this reference.<span x-show="$store.researchAssistant.sourceUrl(citationSource)"> Open the source to check the supporting text.</span></p>
+    <div class="mt-3 flex flex-wrap gap-2">
+        <button x-show="canPreviewCitation(citationSource)" type="button" @click="$store.researchAssistant.openSourcePreview(citationSource, $event)" class="inline-flex min-h-11 items-center gap-2 rounded-md bg-red-900 px-3 py-2 text-xs font-semibold text-white hover:bg-red-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" aria-haspopup="dialog"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview source</button>
+        <a x-show="!canPreviewCitation(citationSource) && $store.researchAssistant.sourceUrl(citationSource)" :href="$store.researchAssistant.sourceUrl(citationSource) || null" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-950">Open source<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3h7v7m0-7L10 14M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5" /></svg></a>
+    </div>
+</section>
                                 <div x-show="message.literature" x-cloak class="mt-4 text-sm leading-6">
     <template x-if="message.literature">
         <section class="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700" aria-label="Literature review assistance">
@@ -1592,24 +1630,36 @@
         <a x-show="message.dissemination.project_url" :href="message.dissemination.project_url" class="justify-self-start text-xs font-semibold text-red-700 underline underline-offset-4 dark:text-red-300">Open project shortlist</a>
     </section>
 </template>
-                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
-                                    <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800">
-                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
-                                        <span>Reference material</span>
-                                        <span class="text-gray-500" x-text="`(${message.sources?.length || 0})`"></span>
-                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                                    </summary>
-                                    <p class="mt-2 text-xs leading-5 text-stone-600 dark:text-stone-300">These are the records and references Athena could consult for this reply. The number counts reference items, not verified citations.</p>
-                                    <div class="mt-2 grid gap-1.5">
-                                        <template x-for="source in message.sources" :key="source.reference">
-                                            <span class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200">
-                                                <span class="min-w-0 flex-1"><span class="block font-medium" x-text="source.title || source.reference"></span><span class="block text-stone-600 dark:text-stone-300" x-text="source.category || source.reference"></span></span>
-                                                <a x-show="$store.researchAssistant.sourceUrl(source)" :href="$store.researchAssistant.sourceUrl(source)" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-stone-300 bg-white px-3 py-2 text-red-900 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-red-200 dark:hover:bg-stone-800">Open source
-                                                </a>
-                                            </span>
-                                        </template>
-                                    </div>
-                                </details>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-stone-200 pt-2 dark:border-stone-700" data-assistant-sources>
+    <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md py-2 text-sm font-semibold text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-red-200">
+        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-2.6-1.75-5.4-2.25-9-1.5V19.5c3.6-.75 6.4-.25 9 1.5m0-14.25c2.6-1.75 5.4-2.25 9-1.5V19.5c-3.6-.75-6.4-.25-9 1.5m0-14.25V21" /></svg>
+        <span>Sources</span>
+        <span class="font-normal text-stone-500 dark:text-stone-400" x-text="`(${message.sources?.length || 0})`"></span>
+        <svg class="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+    </summary>
+    <p class="pb-2 text-xs leading-5 text-stone-500 dark:text-stone-400">Reference material available for this reply.</p>
+    <ul class="divide-y divide-stone-200 dark:divide-stone-700" aria-label="Sources and reference material">
+        <template x-for="(source, index) in message.sources || []" :key="index">
+            <li class="min-w-0" data-assistant-source>
+                <a :href="$store.researchAssistant.sourceUrl(source) || null" target="_blank" rel="noopener noreferrer"
+                    @click="$store.researchAssistant.openSourcePreview(source, $event)"
+                    :aria-label="$store.researchAssistant.sourceUrl(source) ? `${({ 'Official Research Manual': 'Open manual', proposal_paper: 'Open paper', project_record: 'Open project' })[source.type] || 'Open source'}: ${source.title || source.reference || 'Reference material'}` : null"
+                    :class="$store.researchAssistant.sourceUrl(source) ? 'hover:bg-red-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-red-950/20' : ''"
+                    class="flex min-h-11 min-w-0 items-start gap-3 rounded-md py-3 text-left">
+                    <svg class="mt-0.5 h-4 w-4 shrink-0 text-stone-400 dark:text-stone-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
+                    <span class="min-w-0 flex-1">
+                        <span class="block break-words text-sm font-medium leading-6 text-stone-900 dark:text-stone-100" x-text="source.title || source.reference || 'Reference material'"></span>
+                        <span class="mt-0.5 flex flex-wrap gap-x-2 text-xs leading-5 text-stone-500 dark:text-stone-400">
+                            <span class="min-w-0 break-words" x-text="source.category || 'ATHENA reference'"></span>
+                            <span x-show="source.reference && source.reference !== source.title" class="min-w-0 break-words text-red-900 dark:text-red-200" x-text="source.reference"></span>
+                        </span>
+                    </span>
+                    <svg x-show="$store.researchAssistant.sourceUrl(source)" class="mt-1 h-4 w-4 shrink-0 text-red-900 dark:text-red-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3h7v7m0-7L10 14M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5" /></svg>
+                </a>
+            </li>
+        </template>
+    </ul>
+</details>
                                 <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-800">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
                                     <span x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></span>
@@ -1668,7 +1718,7 @@
         <button
             x-ref="trigger"
             type="button"
-            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => $refs.search.focus())"
+            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => { if (open) $refs.search.focus() })"
             :aria-expanded="open"
             aria-controls="assistant-projects-drawer"
             :aria-label="$store.researchAssistant.contextEnabled ? `Change project: ${$store.researchAssistant.selectedContext()?.label || ''}` : 'Add project context'"
@@ -1774,7 +1824,7 @@
     aria-labelledby="assistant-heading"
     role="dialog"
     aria-modal="true"
-    x-trap.inert.noreturn="$store.researchAssistant.workspaceOpen"
+    x-trap.inert.noreturn="$store.researchAssistant.workspaceOpen && !$store.researchAssistant.sourcePreviewOpen"
     @keydown.escape.prevent="$store.researchAssistant.closeWorkspace()"
     data-assistant-workspace
 >
@@ -1943,7 +1993,7 @@
                             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-900 text-white">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
                             </div>
-                            <div data-assistant-response class="min-w-0 flex-1 text-base leading-relaxed text-stone-950 dark:text-stone-100">
+                            <div data-assistant-response x-data="researchAssistantCitations" @click="openCitation($event, message)" class="min-w-0 flex-1 text-base leading-relaxed text-stone-950 dark:text-stone-100">
                                 <p class="mb-1 text-xs font-semibold text-red-900 dark:text-red-200">Athena</p>
                                 <details x-show="message.review" x-cloak class="group mb-4 border-b border-stone-200 pb-3 text-stone-800 dark:border-stone-700 dark:text-stone-100" data-assistant-review-coverage>
     <summary class="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
@@ -1984,6 +2034,23 @@
     </div>
 </details>
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <section x-show="citationSource" x-cloak x-ref="citationPanel" :id="$id('assistant-citation-panel')" data-assistant-citation-panel role="dialog" aria-label="Source details" tabindex="-1" @keydown.escape.stop.prevent="closeCitation()" class="relative my-3 min-w-0 rounded-lg border border-red-200 bg-red-50/60 p-4 text-sm text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-900 dark:bg-red-950/20 dark:text-stone-200">
+    <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+            <p class="text-xs font-semibold text-red-900 dark:text-red-200" x-text="citationSource?.reference || 'Source'"></p>
+            <h3 class="mt-1 break-words font-semibold leading-6 text-stone-950 dark:text-stone-100" x-text="citationSource?.title || 'Reference material'"></h3>
+            <p x-show="citationLocation(citationSource)" class="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400" x-text="citationLocation(citationSource)"></p>
+        </div>
+        <button type="button" @click="closeCitation()" class="-mr-2 -mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-stone-500 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-400 dark:hover:bg-red-950" aria-label="Close source details"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg></button>
+    </div>
+    <p x-show="citationSource?.excerpt" class="mt-3 text-xs font-medium text-stone-500 dark:text-stone-400">Retrieved excerpt</p>
+    <blockquote x-show="citationSource?.excerpt" class="mt-2 max-h-60 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-red-300 pl-3 leading-6 dark:border-red-800" x-text="citationSource?.excerpt"></blockquote>
+    <p x-show="!citationSource?.excerpt" class="mt-3 leading-6 text-stone-500 dark:text-stone-400">No excerpt was saved with this reference.<span x-show="$store.researchAssistant.sourceUrl(citationSource)"> Open the source to check the supporting text.</span></p>
+    <div class="mt-3 flex flex-wrap gap-2">
+        <button x-show="canPreviewCitation(citationSource)" type="button" @click="$store.researchAssistant.openSourcePreview(citationSource, $event)" class="inline-flex min-h-11 items-center gap-2 rounded-md bg-red-900 px-3 py-2 text-xs font-semibold text-white hover:bg-red-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" aria-haspopup="dialog"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview source</button>
+        <a x-show="!canPreviewCitation(citationSource) && $store.researchAssistant.sourceUrl(citationSource)" :href="$store.researchAssistant.sourceUrl(citationSource) || null" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-950">Open source<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3h7v7m0-7L10 14M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5" /></svg></a>
+    </div>
+</section>
                                 <div x-show="message.literature" x-cloak class="mt-4 text-sm leading-6">
     <template x-if="message.literature">
         <section class="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700" aria-label="Literature review assistance">
@@ -2209,24 +2276,36 @@
         <a x-show="message.dissemination.project_url" :href="message.dissemination.project_url" class="justify-self-start text-xs font-semibold text-red-700 underline underline-offset-4 dark:text-red-300">Open project shortlist</a>
     </section>
 </template>
-                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
-                                    <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800">
-                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
-                                        <span>Reference material</span>
-                                        <span class="text-gray-500" x-text="`(${message.sources?.length || 0})`"></span>
-                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                                    </summary>
-                                    <p class="mt-2 text-xs leading-5 text-stone-600 dark:text-stone-300">These are the records and references Athena could consult for this reply. The number counts reference items, not verified citations.</p>
-                                    <div class="mt-2 grid gap-1.5">
-                                        <template x-for="source in message.sources" :key="source.reference">
-                                            <span class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-700 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200">
-                                                <span class="min-w-0 flex-1"><span class="block font-medium" x-text="source.title || source.reference"></span><span class="block text-stone-600 dark:text-stone-300" x-text="source.category || source.reference"></span></span>
-                                                <a x-show="$store.researchAssistant.sourceUrl(source)" :href="$store.researchAssistant.sourceUrl(source)" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-stone-300 bg-white px-3 py-2 text-red-900 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-red-200 dark:hover:bg-stone-800">Open source
-                                                </a>
-                                            </span>
-                                        </template>
-                                    </div>
-                                </details>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-stone-200 pt-2 dark:border-stone-700" data-assistant-sources>
+    <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md py-2 text-sm font-semibold text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-red-200">
+        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-2.6-1.75-5.4-2.25-9-1.5V19.5c3.6-.75 6.4-.25 9 1.5m0-14.25c2.6-1.75 5.4-2.25 9-1.5V19.5c-3.6-.75-6.4-.25-9 1.5m0-14.25V21" /></svg>
+        <span>Sources</span>
+        <span class="font-normal text-stone-500 dark:text-stone-400" x-text="`(${message.sources?.length || 0})`"></span>
+        <svg class="ml-auto h-4 w-4 shrink-0 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+    </summary>
+    <p class="pb-2 text-xs leading-5 text-stone-500 dark:text-stone-400">Reference material available for this reply.</p>
+    <ul class="divide-y divide-stone-200 dark:divide-stone-700" aria-label="Sources and reference material">
+        <template x-for="(source, index) in message.sources || []" :key="index">
+            <li class="min-w-0" data-assistant-source>
+                <a :href="$store.researchAssistant.sourceUrl(source) || null" target="_blank" rel="noopener noreferrer"
+                    @click="$store.researchAssistant.openSourcePreview(source, $event)"
+                    :aria-label="$store.researchAssistant.sourceUrl(source) ? `${({ 'Official Research Manual': 'Open manual', proposal_paper: 'Open paper', project_record: 'Open project' })[source.type] || 'Open source'}: ${source.title || source.reference || 'Reference material'}` : null"
+                    :class="$store.researchAssistant.sourceUrl(source) ? 'hover:bg-red-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-red-950/20' : ''"
+                    class="flex min-h-11 min-w-0 items-start gap-3 rounded-md py-3 text-left">
+                    <svg class="mt-0.5 h-4 w-4 shrink-0 text-stone-400 dark:text-stone-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
+                    <span class="min-w-0 flex-1">
+                        <span class="block break-words text-sm font-medium leading-6 text-stone-900 dark:text-stone-100" x-text="source.title || source.reference || 'Reference material'"></span>
+                        <span class="mt-0.5 flex flex-wrap gap-x-2 text-xs leading-5 text-stone-500 dark:text-stone-400">
+                            <span class="min-w-0 break-words" x-text="source.category || 'ATHENA reference'"></span>
+                            <span x-show="source.reference && source.reference !== source.title" class="min-w-0 break-words text-red-900 dark:text-red-200" x-text="source.reference"></span>
+                        </span>
+                    </span>
+                    <svg x-show="$store.researchAssistant.sourceUrl(source)" class="mt-1 h-4 w-4 shrink-0 text-red-900 dark:text-red-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3h7v7m0-7L10 14M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5" /></svg>
+                </a>
+            </li>
+        </template>
+    </ul>
+</details>
                                 <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
                             </div>
                         </div>
@@ -2290,7 +2369,7 @@
         <button
             x-ref="trigger"
             type="button"
-            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => $refs.search.focus())"
+            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => { if (open) $refs.search.focus() })"
             :aria-expanded="open"
             aria-controls="assistant-projects-workspace"
             :aria-label="$store.researchAssistant.contextEnabled ? `Change project: ${$store.researchAssistant.selectedContext()?.label || ''}` : 'Add project context'"
@@ -2408,7 +2487,130 @@
     </div>
 </section>
             </div>
+            <div
+    x-data="{
+        show: false,
+        trigger: null,
+        focusables() {
+            // All focusable element types...
+            let selector = 'a, button, input:not([type=\'hidden\']), textarea, select, details, [tabindex]:not([tabindex=\'-1\'])'
+            return [...$el.querySelectorAll(selector)]
+                // All non-disabled elements...
+                .filter(el => ! el.hasAttribute('disabled'))
+        },
+        firstFocusable() { return this.focusables()[0] },
+        lastFocusable() { return this.focusables().slice(-1)[0] },
+        nextFocusable() { return this.focusables()[this.nextFocusableIndex()] || this.firstFocusable() },
+        prevFocusable() { return this.focusables()[this.prevFocusableIndex()] || this.lastFocusable() },
+        nextFocusableIndex() { return (this.focusables().indexOf(document.activeElement) + 1) % (this.focusables().length + 1) },
+        prevFocusableIndex() { return Math.max(0, this.focusables().indexOf(document.activeElement)) -1 },
+    }"
+    x-init="$watch('show', value => {
+        if (value) {
+            document.body.classList.add('overflow-y-hidden');
+            setTimeout(() =&gt; { if (show) firstFocusable()?.focus(); }, 100)
+        } else {
+            document.body.classList.remove('overflow-y-hidden');
+            $nextTick(() => trigger?.focus());
+        }
+    })"
+    x-on:open-modal.window="if ($event.detail == 'assistant-source-preview') { trigger = document.activeElement; show = true; }"
+    x-on:close-modal.window="$event.detail == 'assistant-source-preview' ? show = false : null"
+    x-on:close.stop="show = false"
+    x-on:keydown.escape.window="show = false"
+    x-on:keydown.tab.prevent="$event.shiftKey || nextFocusable().focus()"
+    x-on:keydown.shift.tab.prevent="prevFocusable().focus()"
+    x-show="show"
+    class="fixed inset-0 overflow-y-auto px-4 py-6 sm:px-0 z-50 !z-[150] sm:!py-[5vh]" focusable="focusable" data-assistant-source-preview="data-assistant-source-preview" x-effect="if (!show) $store.researchAssistant.sourcePreviewOpen = false"
+    style="display: none;"
+>
+    <div
+        x-show="show"
+        class="fixed inset-0 transform transition-all"
+        x-on:click="show = false"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+    >
+        <div class="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+    </div>
+
+    <div
+        x-show="show"
+        class="relative mb-6 overflow-hidden rounded-lg bg-white shadow-xl transition-all dark:bg-gray-800 sm:mx-auto sm:w-full sm:max-w-4xl"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+    >
+        <template x-if="show && $store.researchAssistant.sourcePreview">
+        <div  x-data="pdfAnnotationWorkspace({ ...JSON.parse('{\u0022pdfUrl\u0022:\u0022\u0022,\u0022annotations\u0022:[],\u0022canAnnotate\u0022:false,\u0022fitWidth\u0022:true,\u0022loadWhenVisible\u0022:false,\u0022firstPageOnly\u0022:false,\u0022wheelZoom\u0022:true,\u0022maxZoom\u0022:400,\u0022searchable\u0022:true}'),  pdfUrl: $store.researchAssistant.sourcePreview.pdfUrl,  initialPage: $store.researchAssistant.sourcePreview.page })"  x-init="previewFit = 'width'" data-pdf-annotation-config='{"pdfUrl":"","annotations":[],"canAnnotate":false,"fitWidth":true,"loadWhenVisible":false,"firstPageOnly":false,"wheelZoom":true,"maxZoom":400,"searchable":true}' data-submitted-report-document  data-submitted-report-preview   @pdf-preview-page.window="if ($event.detail.url === config.pdfUrl) goToPage($event.detail.page)" @keydown.ctrl.f.prevent="$refs.find.focus()" @keydown.meta.f.prevent="$refs.find.focus()"  class="proposal-preview-dock submitted-report-preview proposal-preview-dock-expanded">
+    <section  role="dialog" aria-modal="true"  aria-labelledby="assistant-source-preview-heading">
+        <header class="proposal-preview-dock-heading">
+            <div class="min-w-0">
+                <h3 id="assistant-source-preview-heading"  x-text="$store.researchAssistant.sourcePreview.title" >Source document</h3>
+                <p x-show="$store.researchAssistant.sourcePreview.description" x-text="$store.researchAssistant.sourcePreview.description"></p>            </div>
+                            <button type="button" @click="$dispatch('close')" aria-label="Close PDF preview" class="shrink-0">
+                    <svg class="proposal-preview-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                    <span>Close preview</span>
+                </button>
+                    </header>
+                    <div class="proposal-preview-dock-actions"  role="search" aria-label="Search source" x-id="['pdf-find', 'pdf-page']" >
+                <a  :href="$store.researchAssistant.sourcePreview.downloadUrl"  class="proposal-preview-download">
+                    <svg class="proposal-preview-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" /></svg>
+                    <span>Download PDF</span>
+                </a>
+                                    <div class="proposal-preview-search">
+                        <label :for="$id('pdf-find')" class="sr-only">Search source</label>
+                        <svg class="proposal-preview-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10.5" cy="10.5" r="6.5" /><path stroke-linecap="round" d="m16 16 4 4" /></svg>
+                        <input :id="$id('pdf-find')" x-ref="find" data-manual-find type="search" x-model="searchQuery" @input.debounce.200ms="findText()" @keydown.enter.prevent="findText($event.shiftKey, true)" @keydown.escape.stop.prevent="searchQuery = ''; findText()" :disabled="loading || !!loadError" placeholder="Search source">
+                    </div>
+                    <button type="button" @click="findText(true, true)" :disabled="loading || !searchQuery.trim()" aria-label="Previous match" class="proposal-preview-icon-button">
+                        <svg class="proposal-preview-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 15 6-6 6 6" /></svg>
+                    </button>
+                    <button type="button" @click="findText(false, true)" :disabled="loading || !searchQuery.trim()" aria-label="Next match" class="proposal-preview-icon-button">
+                        <svg class="proposal-preview-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <label :for="$id('pdf-page')" class="text-sm text-slate-600 dark:text-slate-300">Page</label>
+                        <input :id="$id('pdf-page')" data-manual-page type="number" min="1" :max="pageCount" :value="currentPage" @change="goToPage($event.target.value); $event.target.value = currentPage" @keydown.enter.prevent="goToPage($event.target.value); $event.target.value = currentPage" :disabled="loading || !!loadError" class="proposal-preview-page-input">
+                        <span class="text-sm text-slate-600 dark:text-slate-300">of <span x-text="pageCount"></span></span>
+                    </div>
+                    <span x-show="searchQuery.trim()" x-text="searchStatus" data-manual-find-status role="status" class="basis-full text-sm text-slate-600 dark:text-slate-300"></span>
+                            </div>
+                <div class="proposal-preview-paper" :aria-busy="loading">
+            <p x-show="loading" role="status" class="absolute inset-x-0 top-0 z-10 text-center">Loading source…</p>
+            <div x-show="loadError" x-cloak role="alert" class="proposal-preview-error">
+                <p x-text="loadError"></p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <button x-show="viewerRefreshRequired" type="button" @click="window.location.reload()">Reload page</button>
+                    <button x-show="!viewerRefreshRequired" type="button" @click="loadPdf()">Try again</button>
+                    <a  :href="$store.researchAssistant.sourcePreview.downloadUrl"  class="proposal-preview-download">Download PDF</a>
+                </div>
+            </div>
+            <div x-ref="viewer" tabindex="0"  aria-label="Source PDF" class="pdf-annotation-viewer revision-pdf-pages"></div>
+                    </div>
+                    <footer class="proposal-preview-dock-footer">
+                <div class="proposal-preview-zoom" role="group" aria-label="Document zoom controls">
+                    <button type="button" @click="setPaperZoom(previewZoom - 10)" :disabled="loading || !!loadError || previewZoom <= 50" aria-label="Zoom out">−</button>
+                    <output x-text="`${previewZoom}%`" aria-live="polite">100%</output>
+                    <button type="button" @click="setPaperZoom(previewZoom + 10)" :disabled="loading || !!loadError || previewZoom >= maxPaperZoom" aria-label="Zoom in">+</button>
+                    <button type="button" @click="fitPaper('page')" :disabled="loading || !!loadError" :aria-pressed="previewFit === 'page'">Fit page</button>
+                    <button type="button" @click="fitPaper('width')" :disabled="loading || !!loadError" :aria-pressed="previewFit === 'width'">Fit width</button>
+                </div>
+                <p class="submitted-report-wheel-hint">Scroll to read · Pinch or Ctrl + wheel to zoom</p>
+            </footer>
+            </section>
+</div>
+    </template>
+    </div>
+</div>
         
-        <script  data-navigate-once="true">window.livewireScriptConfig = {"csrf":"1H0H0sMXq17yrwVryCucY5esDCZ49pcz9gljrwsW","uri":"http:\/\/localhost\/livewire-d7275e0f\/update","moduleUrl":"http:\/\/localhost\/livewire-d7275e0f","progressBar":"","nonce":""};</script>
+        <script  data-navigate-once="true">window.livewireScriptConfig = {"csrf":"w8aSu6theu5UtPnquFvqiDqibqWHDWeeDCfXgq7j","uri":"http:\/\/localhost\/livewire-d7275e0f\/update","moduleUrl":"http:\/\/localhost\/livewire-d7275e0f","progressBar":"","nonce":""};</script>
     </body>
 </html>

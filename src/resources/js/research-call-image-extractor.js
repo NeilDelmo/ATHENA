@@ -566,7 +566,7 @@ function initializeResearchCallImageExtractors() {
             }
         };
 
-        imageInput.addEventListener('change', () => {
+        const refreshSelection = () => {
             const image = imageInput.files?.[0];
 
             if (activeRequest instanceof AbortController) {
@@ -605,7 +605,9 @@ function initializeResearchCallImageExtractors() {
             updatePreview(image);
             setExtracting(false);
             displayExtractionStatus(statusElement, 'Poster selected. Click Read image when you are ready.');
-        });
+        };
+        imageInput.addEventListener('change', refreshSelection);
+        if (imageInput.files?.[0]) refreshSelection();
         extractButton.addEventListener('click', () => void extractImage());
         clearScheduleButton?.addEventListener('click', () => {
             if (extractedScheduleFields.size === 0 && pendingSuggestions.size === 0) return;

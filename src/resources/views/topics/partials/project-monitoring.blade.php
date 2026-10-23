@@ -1,8 +1,7 @@
-<section id="project-monitoring" class="space-y-5">
+<section id="project-monitoring" class="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
     @php
         $storedProjectStatus = $topic->project_status ?: 'ongoing';
         $latestProgressPercentage = $projectHealth ? $projectHealth['progress'] : $topic->progressReports->first()?->progress_percentage;
-        $projectStatus = $projectHealth['status'] ?? $topic->monitoringStatusForProgress($latestProgressPercentage);
         $monitoringIssues = $projectHealth['issues'] ?? collect();
         if ($monitoringIssues->whereIn('type', ['quarterly', 'progress_quarterly', 'report_review', 'narrative_review', 'terminal', 'terminal_review'])->isNotEmpty()) {
             $monitoringIssues = $monitoringIssues->reject(fn ($issue) => $issue['type'] === 'completion');
@@ -12,15 +11,6 @@
             ? 'Corrections needed'
             : (($issue['review_stage'] ?? 'head') === 'secretary' ? 'Office review' : 'Head review'));
         $otherIssues = $monitoringIssues->whereNotIn('type', ['report_review', 'narrative_review', 'terminal_review']);
-        $projectStatusLabel = match (true) {
-            $projectStatus === 'completed' => 'Completed',
-            $projectStatus === 'delayed' => 'Delayed / overdue',
-            $otherIssues->whereIn('type', ['quarterly', 'progress_quarterly'])->isNotEmpty() => 'Reports overdue',
-            $reviewGroups->has('Corrections needed') => 'Corrections needed',
-            $reviewGroups->isNotEmpty() => 'Review pending',
-            $projectStatus === 'awaiting' => 'Closeout pending',
-            default => 'Ongoing',
-        };
         $schedule = app(\App\Services\MonitoringQuarterService::class);
         $window = $schedule->reportingWindow($topic);
         $terminalDate = $schedule->terminalOpensAt($topic);
@@ -53,6 +43,9 @@
         $canAssignProjectSecretary = Auth::id() === $topic->user_id
             && ! Auth::user()->isUsingWorkspace('research_head')
             && $topic->isMonitoringAvailable();
+        $hasBudgetTasks = ! Auth::user()->isUsingWorkspace('research_head')
+            && $topic->canPrepareMonitoringBudget(Auth::user())
+            && $topic->preparedProgressReports->isNotEmpty();
         $projectSecretaryCandidates = $topic->collaborators
             ->filter(fn ($collaborator) => $collaborator->accepted_at !== null && $collaborator->user !== null)
             ->pluck('user')
@@ -80,61 +73,14 @@
             ->merge($narrativeReportHistory->map(fn ($report) => '#narrative-report-'.$report->id))->values();
     @endphp
 
-    <header data-monitoring-overview class="rounded-xl border border-t-4 border-slate-200 border-t-brand bg-white px-5 py-5 dark:border-slate-700 dark:border-t-brand-soft dark:bg-slate-900 sm:px-6">
-        <div data-project-monitoring-heading class="flex flex-wrap items-center justify-between gap-3">
+    <header data-monitoring-overview class="rounded-t-xl border-t-4 border-t-brand bg-brand-wash px-5 py-5 dark:border-t-brand-soft dark:bg-slate-800 sm:px-6">
+        <div data-project-monitoring-heading data-monitoring-actions class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h3 class="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">{{ $topic->isCompletedProject() ? 'Project archive' : 'Project monitoring' }}</h3>
-                <p class="mt-1 text-base leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Completed project archive. Reports are read-only.' : 'Track quarterly submissions and prepare the final project report.' }}</p>
+                <h3 class="text-2xl font-bold tracking-tight text-brand dark:text-white">{{ $topic->isCompletedProject() ? 'Project archive' : 'Project monitoring' }}</h3>
+                @if ($topic->isCompletedProject())
+                    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Reports are read-only.</p>
+                @endif
             </div>
-            <span @class(['rounded-lg border px-3 py-1.5 text-base font-semibold', 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' => in_array($projectStatusLabel, ['Reports overdue', 'Delayed / overdue', 'Corrections needed']), 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' => ! in_array($projectStatusLabel, ['Reports overdue', 'Delayed / overdue', 'Corrections needed'])])>{{ $projectStatusLabel }}</span>
-        </div>
-        <dl data-project-monitoring-details class="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-4">
-            <div><dt class="text-base text-slate-500 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-base text-slate-500 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
-            <div><dt class="text-base text-slate-500 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
-            <div><dt class="text-base text-slate-500 dark:text-slate-400">Latest reported project progress</dt><dd class="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
-        </dl>
-        @if ($projectHealth && ! $projectHealth['has_schedule'])
-            <p class="mt-4 text-base text-amber-800 dark:text-amber-300">No project schedule recorded. Project deadline checks are unavailable.</p>
-        @endif
-        @if ($monitoringIssues->isNotEmpty())
-            <div data-monitoring-attention class="mt-4 grid min-w-0 gap-x-6 gap-y-2 rounded-lg border border-red-100 bg-red-50/50 px-3 py-2 dark:border-red-900 dark:bg-red-950/20 xl:grid-cols-2" aria-label="Pending project tasks">
-                @foreach ($otherIssues as $issue)
-                    @php
-                        $taskUrl = match ($issue['type']) {
-                            'quarterly', 'progress_quarterly', 'delayed' => '#progress-reports',
-                            'terminal', 'completion' => '#terminal-reports',
-                            'budget' => '#monitoring-tool-'.$projectHealth['report_id'],
-                            default => $issue['url'],
-                        };
-                    @endphp
-                    <a data-monitoring-task-link href="{{ $taskUrl }}" class="flex min-h-11 min-w-0 items-center gap-3 rounded-md py-1 text-base text-red-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-200">
-                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v6m0 4h.01"/></svg>
-                        <span class="min-w-0"><span class="block font-semibold">{{ $issue['issue'] }}</span><span class="block text-base font-normal text-slate-600 dark:text-slate-300">{{ in_array($issue['type'], ['quarterly', 'progress_quarterly']) ? 'Oldest missing report · ' : '' }}{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></span>
-                    </a>
-                @endforeach
-                @foreach ($reviewGroups as $label => $issues)
-                    <details data-monitoring-review-group="{{ $label }}" class="monitoring-disclosure group min-w-0">
-                        <summary>
-                            <span class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><span>{{ $label }}</span><span class="font-normal text-slate-600 dark:text-slate-300">{{ $issues->count() }} {{ str('report')->plural($issues->count()) }}</span></span>
-                            <svg class="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
-                        </summary>
-                        <ul class="divide-y divide-red-100 border-t border-red-100 dark:divide-red-900 dark:border-red-900">
-                            @foreach ($issues as $issue)
-                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? '#progress-reports' : $issue['url'] }}" class="flex min-h-11 flex-col justify-center gap-1 rounded-md py-2 text-base hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
-                            @endforeach
-                        </ul>
-                    </details>
-                @endforeach
-            </div>
-        @endif
-        <div data-monitoring-actions class="mt-4 flex flex-wrap items-start gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
-        @if ($topic->hasIssuedNoticeToProceed())
-            <a data-monitoring-notice-link href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="monitoring-secondary-action">
-                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 15l2 2 5-5" /></svg>
-                Notice to Proceed &amp; signed papers
-            </a>
-        @endif
     @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject())
         <div
             x-data="projectStatusManager(@js(old('project_status', $storedProjectStatus)), @js($errors->has('project_status') || $errors->has('completion_confirmed')))"
@@ -173,7 +119,7 @@
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <h4 id="project-status-manager-heading-{{ $topic->id }}" class="text-lg font-semibold text-gray-950 dark:text-white">Manage project status</h4>
-                        <p class="mt-1 text-base leading-6 text-gray-500 dark:text-slate-400">Completion requires 100% progress, a reviewed Terminal Report, and its fully signed PDF.</p>
+                        <p class="mt-1 text-base leading-6 text-gray-500 dark:text-slate-400">Completion requires 100% progress, accepted quarterly reports, a reviewed Terminal Report, and its fully signed PDF.</p>
                     </div>
                     <button type="button" x-on:click="statusManagerOpen = false; $refs.statusTrigger.focus()" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close status manager">
                         <span aria-hidden="true">&times;</span>
@@ -203,16 +149,91 @@
         </div>
     @endif
         </div>
+        <dl data-project-monitoring-details class="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 border-t border-brand/10 pt-4 dark:border-slate-700 sm:grid-cols-4">
+            <div><dt class="text-base text-slate-600 dark:text-slate-400">Monitoring starts</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-base text-slate-600 dark:text-slate-400">Project ends</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $projectHealth && ! $projectHealth['has_schedule'] ? 'Not recorded' : $window['end']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-base text-slate-600 dark:text-slate-400">Next submission</dt><dd class="mt-1 text-base font-semibold text-slate-900 dark:text-white">{{ $nextSubmission }}</dd></div>
+            <div><dt class="text-base text-slate-600 dark:text-slate-400">Latest reported progress</dt><dd class="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">{{ $latestProgressPercentage !== null ? $latestProgressPercentage.'%' : 'No report yet' }}</dd></div>
+        </dl>
+        @if ($projectHealth && ! $projectHealth['has_schedule'])
+            <p class="mt-4 text-base text-amber-800 dark:text-amber-300">No project schedule recorded. Project deadline checks are unavailable.</p>
+        @endif
+        @if ($monitoringIssues->isNotEmpty() || count($overdueWorkPlanActivities ?? []) > 0)
+            <details data-monitoring-attention class="monitoring-disclosure mt-4 border-t border-brand/10 dark:border-slate-700">
+                <summary class="py-2">
+                    <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span class="text-red-700 dark:text-red-300">Needs attention</span><span class="font-normal text-slate-600 dark:text-slate-400">{{ $monitoringIssues->count() + count($overdueWorkPlanActivities ?? []) }} {{ Str::plural('item', $monitoringIssues->count() + count($overdueWorkPlanActivities ?? [])) }}</span></span>
+                    <svg class="h-4 w-4 shrink-0 transition-transform [[open]>summary>&]:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <div class="monitoring-attention-items grid min-w-0 gap-x-6 gap-y-2 pb-3 xl:grid-cols-2">
+                @foreach ($otherIssues as $issue)
+                    @php
+                        $taskUrl = match ($issue['type']) {
+                            'quarterly', 'progress_quarterly', 'delayed' => '#progress-reports',
+                            'terminal', 'completion' => '#terminal-reports',
+                            'budget' => '#monitoring-tool-'.$projectHealth['report_id'],
+                            default => $issue['url'],
+                        };
+                    @endphp
+                    <a data-monitoring-task-link href="{{ $taskUrl }}" class="flex min-h-11 min-w-0 items-center gap-3 rounded-md py-1 text-base text-red-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-200">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v6m0 4h.01"/></svg>
+                        <span class="min-w-0"><span class="block font-semibold">{{ $issue['issue'] }}</span><span class="block text-base font-normal text-slate-600 dark:text-slate-300">{{ in_array($issue['type'], ['quarterly', 'progress_quarterly']) ? 'Oldest missing report · ' : '' }}{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></span>
+                    </a>
+                @endforeach
+                @foreach ($reviewGroups as $label => $issues)
+                    <details data-monitoring-review-group="{{ $label }}" class="monitoring-disclosure group min-w-0">
+                        <summary>
+                            <span class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><span>{{ $label }}</span><span class="font-normal text-slate-600 dark:text-slate-300">{{ $issues->count() }} {{ str('report')->plural($issues->count()) }}</span></span>
+                            <svg class="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                        </summary>
+                        <ul class="divide-y divide-red-100 border-t border-red-100 dark:divide-red-900 dark:border-red-900">
+                            @foreach ($issues as $issue)
+                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? '#progress-reports' : $issue['url'] }}" class="flex min-h-11 flex-col justify-center gap-1 rounded-md py-2 text-base hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
+                            @endforeach
+                        </ul>
+                    </details>
+                @endforeach
+                <x-monitoring-work-plan-alert :activities="$overdueWorkPlanActivities ?? []" />
+                </div>
+            </details>
+        @endif
     </header>
 
-    <x-monitoring-work-plan-alert :activities="$overdueWorkPlanActivities ?? []" />
+    <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :progress-quarter-rows="$progressQuarterRows" :topic="$topic" :can-report="$canReport" />
+
+    <section id="terminal-reports" aria-labelledby="terminal-reports-heading" class="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
+        @if ($latestTerminalReport)
+            <x-narrative-report-summary :report="$latestTerminalReport" heading-id="terminal-reports-heading" class="!border-0" />
+        @else
+        <header class="flex flex-wrap items-start justify-between gap-3 px-5 py-5 sm:px-6">
+            <div class="max-w-2xl">
+                <h3 id="terminal-reports-heading" class="text-lg font-bold text-slate-950 dark:text-white">Terminal Report</h3>
+                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Final report and signed document.' : 'Project completion requires 100% progress, accepted quarterly reports, Research Head review of the Terminal Report, and its fully signed PDF.' }}</p>
+                @if (! $topic->isCompletedProject())
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $terminalOpen ? 'Submission is open after all quarterly reports are complete.' : 'Submission opens '.$terminalDate->format('M j, Y').'. You can draft now.' }}</p>
+                @endif
+            </div>
+            @if ($canReport)
+                <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'terminal']) }}" aria-label="Open terminal report" class="monitoring-secondary-action">{{ $terminalOpen ? 'Start terminal report' : 'Draft terminal report' }}</a>
+            @endif
+        </header>
+        @endif
+        @if ($canReport && $latestTerminalReport?->review_status === \App\Models\ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
+            <div class="border-t border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6">
+                <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'terminal']) }}" aria-label="Revise terminal report" class="rh-button !rounded-lg">Revise terminal report</a>
+            </div>
+        @endif
+    </section>
 
     @if (! Auth::user()->isUsingWorkspace('research_head'))
-    <section data-monitoring-budget-section aria-labelledby="project-secretary-heading" class="rounded-xl border border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+    <details data-monitoring-budget-section class="monitoring-disclosure border-t border-slate-200 dark:border-slate-700" @if ($errors->has('research_secretary_id') || $hasBudgetTasks) open @endif>
+        <summary class="bg-slate-100/80 px-5 py-3 dark:bg-slate-800/60 sm:px-6">
+            <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span id="project-secretary-heading">Monitoring budget</span><span class="text-sm font-normal text-slate-600 dark:text-slate-400">{{ $topic->researchSecretary?->name ?? 'No secretary assigned' }}</span></span>
+            <svg class="h-4 w-4 shrink-0 transition-transform [[open]>summary>&]:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="px-5 py-5 sm:px-6">
         <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,auto)]">
             <div class="min-w-0 max-w-xl">
-                <h4 id="project-secretary-heading" class="text-lg font-semibold text-slate-950 dark:text-white">Monitoring budget</h4>
-                <p class="mt-1 text-base leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Budget utilization is recorded in the submitted Monitoring Tools.' : 'The project secretary completes and confirms budget utilization before the Monitoring Tool is submitted. Confirmed project staff can also complete it.' }}</p>
+                <p class="text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Budget utilization is recorded in the submitted Monitoring Tools.' : 'The project secretary or confirmed project staff completes and confirms budget utilization before submission.' }}</p>
             </div>
             <div class="flex min-w-0 flex-wrap items-center gap-3">
                 @if ($topic->researchSecretary)
@@ -263,7 +284,7 @@
                 @endif
             </div>
         </div>
-        @if (! Auth::user()->isUsingWorkspace('research_head') && $topic->canPrepareMonitoringBudget(Auth::user()) && $topic->preparedProgressReports->isNotEmpty())
+        @if ($hasBudgetTasks)
             <div data-monitoring-budget-tasks class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 @foreach ($topic->preparedProgressReports->sortBy('reporting_date') as $budgetReport)
                     <a data-monitoring-budget-task="{{ $budgetReport->id }}" href="{{ route(Auth::user()->isUsingWorkspace('research_secretary') ? 'research_secretary.projects.budget.edit' : 'project-budget.edit', [$topic, $budgetReport]) }}" class="monitoring-secondary-action">
@@ -273,39 +294,14 @@
                 @endforeach
             </div>
         @endif
-    </section>
+        </div>
+    </details>
     @endif
 
-    <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :progress-quarter-rows="$progressQuarterRows" :topic="$topic" :can-report="$canReport" />
-
-    <section id="terminal-reports" aria-labelledby="terminal-reports-heading" class="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-        @if ($latestTerminalReport)
-            <x-narrative-report-summary :report="$latestTerminalReport" heading-id="terminal-reports-heading" class="!border-0" />
-        @else
-        <header class="flex flex-wrap items-start justify-between gap-3 px-5 py-5 sm:px-6">
-            <div class="max-w-2xl">
-                <h3 id="terminal-reports-heading" class="text-lg font-bold text-slate-950 dark:text-white">Terminal Report</h3>
-                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $topic->isCompletedProject() ? 'Final report and signed document for the completed project.' : 'Close the project with a final report, Research Head review, and signed PDF.' }}</p>
-                @if (! $topic->isCompletedProject())
-                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $terminalOpen ? 'Submission is open. Complete all quarterly reports before submitting.' : 'Draft now. Submission opens '.$terminalDate->format('M j, Y').'.' }}</p>
-                @endif
-            </div>
-            @if ($canReport)
-                <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'terminal']) }}" aria-label="Open terminal report" class="rh-button !rounded-lg">{{ $terminalOpen ? 'Start terminal report' : 'Draft terminal report' }}</a>
-            @endif
-        </header>
-        @endif
-        @if ($canReport && $latestTerminalReport?->review_status === \App\Models\ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
-            <div class="border-t border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6">
-                <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'terminal']) }}" aria-label="Revise terminal report" class="rh-button !rounded-lg">Revise terminal report</a>
-            </div>
-        @endif
-    </section>
-
     @if ($reportHistoryHashes->isNotEmpty())
-        <details id="narrative-report-history" class="monitoring-disclosure group rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900" x-data="{ historyOpen: @js($reportHistoryHashes).includes(window.location.hash) }" x-bind:open="historyOpen" x-on:toggle="historyOpen = $el.open" x-on:hashchange.window="if (@js($reportHistoryHashes).includes(window.location.hash)) { historyOpen = true }">
-            <summary class="px-5 py-3 sm:px-6">
-                <span>Report history <span class="ml-2 font-normal text-slate-500 dark:text-slate-400">{{ $reportHistoryHashes->count() }} previous {{ Str::plural('submission', $reportHistoryHashes->count()) }}</span></span>
+        <details id="narrative-report-history" class="monitoring-disclosure group border-t border-slate-200 dark:border-slate-700" x-data="{ historyOpen: @js($reportHistoryHashes).includes(window.location.hash) }" x-bind:open="historyOpen" x-on:toggle="historyOpen = $el.open" x-on:hashchange.window="if (@js($reportHistoryHashes).includes(window.location.hash)) { historyOpen = true }">
+            <summary class="bg-slate-100/80 px-5 py-3 dark:bg-slate-800/60 sm:px-6">
+                <span>Report history <span class="ml-2 font-normal text-slate-600 dark:text-slate-400">{{ $reportHistoryHashes->count() }} previous {{ Str::plural('submission', $reportHistoryHashes->count()) }}</span></span>
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M5 12h14" /><path class="group-open:hidden" stroke-linecap="round" d="M12 5v14" /></svg>
             </summary>
             <div class="space-y-3 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6">

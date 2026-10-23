@@ -97,7 +97,7 @@ test('project folders preserve the folder grid, mouse scrolling, previews and qu
                 const filesTab = page.locator('#project-files-tab-button');
                 const chooseView = async (target, name) => {
                     await target.click({ button: 'right' });
-                    await expect(page.getByRole('menu', { name: 'View', exact: true })).toBeVisible();
+                    await expect(page.getByRole('menu', { name: 'File actions', exact: true })).toBeVisible();
                     await page.getByRole('menuitemradio', { name, exact: true }).click();
                 };
                 const drawerState = () => fileBrowser.evaluate(element => {

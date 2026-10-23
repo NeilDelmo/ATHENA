@@ -6,23 +6,16 @@ import test from 'node:test';
 import { chromium } from '@playwright/test';
 import { loadRevisionEditorFrame } from '../../resources/js/revision-workspace.js';
 
-function commentResponsePdf() {
-    const stream = 'BT /F1 16 Tf 72 720 Td (COMMENT RESPONSE FORM) Tj /F1 12 Tf 0 -40 Td (Project: Revision loading regression) Tj 0 -32 Td (Reviewer comments) Tj 0 -24 Td (Clarify the proposed methods and schedule.) Tj 0 -24 Td (Clarify the sampling method.) Tj 0 -48 Td (Action and response) Tj ET';
-    const objects = [
-        '<< /Type /Catalog /Pages 2 0 R >>',
-        '<< /Type /Pages /Kids [4 0 R] /Count 1 >>',
-        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>',
-        `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    ];
-    let pdf = '%PDF-1.7\n';
-    const offsets = objects.map((object, index) => {
-        const offset = pdf.length;
-        pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-        return offset;
-    });
-    const xref = pdf.length;
-    return Buffer.from(pdf + `xref\n0 6\n0000000000 65535 f \n${offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+function commentResponsePaper() {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+        html, body { margin: 0; padding: 0; }
+        body { font: 14px Arial, sans-serif; }
+        .comment-response-sheet { box-sizing: border-box; width: 816px; min-height: 1056px; padding: 40px; background: white; }
+    </style></head><body><main class="comment-response-sheet">
+        <h1>COMMENT RESPONSE FORM</h1><p>Project: Revision loading regression</p>
+        <h2>Reviewer comments</h2><p>Clarify the proposed methods and schedule.</p>
+        <p>Clarify the sampling method.</p><h2>Action and response</h2>
+    </main></body></html>`;
 }
 
 function deferredCard() {
@@ -72,7 +65,8 @@ test('the full revision page makes no editor requests until a paper or annotatio
         cwd: resolve('.'), encoding: 'utf8',
         env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_REVISION_BROWSER_FIXTURE: fixturePath },
     });
-    const html = readFileSync(fixturePath, 'utf8').replaceAll('http://localhost', 'http://athena-revision.test');
+    const origin = 'https://athena-revision.test';
+    const html = readFileSync(fixturePath, 'utf8').replaceAll('http://localhost', origin);
     const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
     const assets = new Set(Object.values(manifest).map((entry) => entry.file));
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -81,15 +75,20 @@ test('the full revision page makes no editor requests until a paper or annotatio
         const errors = [];
         const editorRequests = [];
         const paperRequests = [];
+        const pdfRequests = [];
         page.on('pageerror', (error) => errors.push(error.message));
         await page.route('**/*', async (route) => {
             const url = new URL(route.request().url());
             const asset = url.pathname.replace(/^\/build\//, '');
             if (assets.has(asset) || asset.startsWith('assets/pdf.worker-')) {
+                if (asset === manifest['resources/js/revision-workspace.js'].file) await new Promise((resolve) => setTimeout(resolve, 250));
                 await route.fulfill({ body: readFileSync(resolve('public/build', asset)), contentType: asset.endsWith('.css') ? 'text/css' : 'text/javascript' });
-            } else if (url.pathname.endsWith('/comment-response-form/pdf')) {
+            } else if (url.pathname.endsWith('/comment-response-form/preview')) {
                 paperRequests.push(url);
-                await route.fulfill({ contentType: 'application/pdf', body: commentResponsePdf() });
+                await route.fulfill({ contentType: 'text/html; charset=utf-8', body: commentResponsePaper() });
+            } else if (url.pathname.endsWith('/comment-response-form/pdf')) {
+                pdfRequests.push(url);
+                await route.fulfill({ status: 500, body: 'Unexpected Comment Response PDF request' });
             } else if (url.hostname === 'fonts.bunny.net') {
                 await route.fulfill({ contentType: 'text/css', body: '' });
             } else if (route.request().isNavigationRequest() && route.request().frame() !== page.mainFrame()) {
@@ -108,31 +107,35 @@ test('the full revision page makes no editor requests until a paper or annotatio
                 await route.fulfill({ json: { notifications: [], unread_count: 0 } });
             }
         });
-        await page.goto('http://athena-revision.test/revision');
+        await page.goto(`${origin}/revision`);
         await page.waitForFunction(() => document.querySelector('[data-revision-workspace]')?.dataset.revisionInitialized === 'true');
         assert.deepEqual(editorRequests, []);
         const paper = page.locator('[data-comment-response-paper]');
+        const viewer = paper.locator('[data-comment-response-preview]');
+        const frame = viewer.locator('iframe');
         const waitForPaperFit = () => page.waitForFunction(() => {
-            const viewer = document.querySelector('[data-comment-response-paper] .revision-pdf-pages');
-            const sheet = viewer?.querySelector('.pdf-annotation-page');
-            if (!sheet) return false;
-            const style = getComputedStyle(viewer);
-            const available = viewer.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-            return Math.abs(sheet.getBoundingClientRect().width - available) < 1;
+            const frame = document.querySelector('[data-comment-response-preview] iframe');
+            const sheet = frame?.contentDocument?.querySelector('.comment-response-sheet');
+            return sheet && frame.contentDocument.body.style.zoom !== ''
+                && Math.abs(sheet.getBoundingClientRect().width - Math.min(816, frame.clientWidth)) < 1;
         });
         await paper.scrollIntoViewIfNeeded();
         await page.waitForFunction(() => {
-            const viewer = document.querySelector('[data-comment-response-paper] [data-pdf-annotation-config]');
-            return viewer.querySelector('canvas') || window.Alpine.$data(viewer).loadError;
+            const viewer = document.querySelector('[data-comment-response-preview]');
+            const state = window.Alpine.$data(viewer);
+            return state.previewReady || state.previewError;
         });
-        assert.equal(await paper.locator('[data-pdf-annotation-config]').evaluate((element) => window.Alpine.$data(element).loadError), '');
-        await paper.locator('.pdf-annotation-page canvas').waitFor();
+        assert.equal(await viewer.evaluate((element) => window.Alpine.$data(element).previewError), '');
+        await paper.frameLocator('iframe').getByRole('heading', { name: 'COMMENT RESPONSE FORM', exact: true }).waitFor();
         await waitForPaperFit();
+        await frame.evaluate((element) => { window.originalPreviewFrame = element; });
         assert.equal(paperRequests.length, 1);
         assert.equal(paperRequests[0].searchParams.get('source'), 'research_head');
         assert.ok(Number(paperRequests[0].searchParams.get('review')) > 0);
-        assert.equal(await page.locator('[data-revision-step="1"] blockquote, [data-comment-response-preview]').count(), 0);
-        await paper.locator('.pdf-annotation-page').click({ position: { x: 20, y: 20 } });
+        assert.equal(await page.locator('[data-revision-step="1"] blockquote').count(), 0);
+        assert.equal(await viewer.count(), 1);
+        assert.equal(pdfRequests.length, 0);
+        await viewer.click({ position: { x: 20, y: 20 } });
         assert.equal(await paper.evaluate((element) => element.matches(':modal')), true);
         assert.equal(await page.locator('[data-comment-response-paper-close]').isVisible(), true);
         await page.keyboard.press('Escape');
@@ -142,7 +145,8 @@ test('the full revision page makes no editor requests until a paper or annotatio
         assert.equal(await paper.evaluate((element) => element.matches(':modal')), true);
         await paper.locator('[data-comment-response-paper-close]').click();
         assert.equal(await paper.evaluate((element) => element.matches(':modal')), false);
-        await paper.locator('.pdf-annotation-page canvas').waitFor();
+        await waitForPaperFit();
+        assert.equal(await frame.evaluate((element) => element === window.originalPreviewFrame), true);
         assert.equal(paperRequests.length, 1);
         await page.locator('[data-revision-step-continue]').click();
         const detailed = page.locator('[data-revision-document="detailed_proposal"]');
@@ -161,13 +165,12 @@ test('the full revision page makes no editor requests until a paper or annotatio
 
         await detailed.locator('[data-revision-close]').click();
         await page.locator('[data-revision-step-back]').click();
-        await paper.locator('.pdf-annotation-page canvas').waitFor();
+        await waitForPaperFit();
         assert.equal(paperRequests.length, 1);
         for (const width of [390, 1440]) {
             await page.setViewportSize({ width, height: 1000 });
             for (const dark of [false, true]) {
                 await page.evaluate((enabled) => document.documentElement.classList.toggle('dark', enabled), dark);
-                await paper.locator('.pdf-annotation-page canvas').waitFor();
                 await waitForPaperFit();
                 await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth);
                 await paper.locator('[data-comment-response-paper-open]').press('Space');
@@ -186,15 +189,18 @@ test('the full revision page makes no editor requests until a paper or annotatio
                 }
             }
         }
+        assert.equal(await frame.evaluate((element) => element === window.originalPreviewFrame), true);
+        assert.equal(pdfRequests.length, 0);
 
         const annotationId = await detailed.locator('[data-revision-comment] option[data-annotation-id]').last().getAttribute('data-annotation-id');
         editorRequests.length = 0;
         paperRequests.length = 0;
-        await page.goto(`http://athena-revision.test/revision?revision_annotation=${annotationId}`);
+        await page.goto(`${origin}/revision?revision_annotation=${annotationId}`);
         await page.locator('[data-revision-document="detailed_proposal"] [data-revision-dialog][open]').waitFor();
         await page.frameLocator('[data-revision-document="detailed_proposal"] [data-revision-editor-frame]').getByRole('textbox', { name: 'Paper text' }).waitFor();
         assert.deepEqual(editorRequests, ['detailed_proposal']);
         assert.equal(paperRequests.length, 0);
+        assert.equal(pdfRequests.length, 0);
         assert.deepEqual(errors, []);
     } finally {
         await browser.close();

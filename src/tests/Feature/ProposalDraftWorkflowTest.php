@@ -21,8 +21,10 @@ use App\Models\ResearchManual;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\CommentResponseFeedback;
 use App\Services\LibreOfficeDocumentPdfConverter;
+use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPdfPreparation;
 use App\Services\ProposalSignatureWorkflow;
@@ -3130,48 +3132,65 @@ test('an rrl backed proposal completes submission revision approval notice and m
     $revisedDetailedProposal = $revisedVersion->files
         ->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
 
+    $topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
+    foreach ([
+        ProposalVersionFile::TYPE_GAD_CHECKLIST => ['purpose' => 'gad_assessment', 'gad_signature_confirmed' => true, 'gad_outcome' => 'passed', 'gad_score' => 12],
+        ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM => ['purpose' => 'evaluation', 'narrative_evaluation' => 'Recommended for endorsement.', 'recommended_action' => 'for_endorsement'],
+    ] as $type => $assessment) {
+        $source = $revisedVersion->files->firstWhere('document_type', $type);
+        $path = 'assessments/'.$type.'.pdf';
+        Storage::disk('local')->put($path, '%PDF-1.7 completed assessment');
+        $revisedVersion->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'source_version_file_id' => $source->id,
+            'position' => $source->id,
+            'file_path' => $path,
+            'original_filename' => 'completed-'.$type.'.pdf',
+            'mime_type' => 'application/pdf',
+            'source_data' => ['target_document_type' => $type, ...$assessment],
+        ]);
+    }
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$revisedDetailedProposal->id],
-            'evaluation_document' => UploadedFile::fake()->create('final-evaluation.pdf', 100, 'application/pdf'),
+            'lrec_clearance_confirmed' => true,
         ])
         ->assertRedirect(route('research_head.dashboard'))
         ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->head)
-        ->post(route('topics.head-uploads.store', $topic), [
-            'source_file_id' => $revisedDetailedProposal->id,
-            'review_file' => UploadedFile::fake()->create('signed-detailed-proposal.pdf', 100, 'application/pdf'),
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $this->faculty->update(['college' => User::COLLEGES['CICS']]);
+    $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $office->assignRole('research_coordinator');
+    $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
+    foreach (['detailed_proposal', 'work_plan', 'line_item_budget'] as $type) {
+        $formText = 'Research Project Title: '.$topic->title.' '.match ($type) {
+            'detailed_proposal' => 'Research Agenda: Environment BatStateU-FO-RES-02 Detailed Research Proposal Project Leader Proponent Agency Sustainable Development Goal Research Agenda',
+            'work_plan' => 'Total Duration: 12 BatStateU-FO-RES-02 Major Activities Work Plan Planned Start Planned End Expected Output',
+            'line_item_budget' => 'Project Leader: Faculty Owner BatStateU-FO-RES-02 Line Item Budget Particulars Amount Maintenance and Other Operating Expenses Capital Outlays',
+        };
+        Process::fake(['*' => $formText.' Prepared by: Faculty Owner Checked and verified by: Research Head Approved by the Research Council']);
+        $this->postJson(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $revisedVersion->files->firstWhere('document_type', $type)->id,
+            'review_file' => UploadedFile::fake()->create('signed-'.$type.'.pdf', 100, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
-        ])
-        ->assertRedirect(route('topics.show', $topic).'#proposal-review')
-        ->assertSessionHasNoErrors();
+        ])->assertOk();
+    }
 
-    $this->actingAs($this->head)
-        ->patch(route('research_head.topics.finalizeApproval', $topic))
-        ->assertRedirect(route('topics.show', $topic).'#proposal-review')
-        ->assertSessionHasNoErrors();
-
-    expect($topic->fresh()->status)->toBe('approved')
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($topic->fresh()->isMonitoringAvailable())->toBeFalse()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
-    expect(Notification::sent($this->faculty, ProposalActivityNotification::class)
-        ->map(fn (ProposalActivityNotification $notification): string => $notification->title)
-        ->all())->toContain('Signed documents ready');
 
     $notice = app(NoticeToProceedDataService::class)->defaults($topic->fresh());
     $notice['resolution_number'] = $notice['resolution_number'] ?: '01';
 
-    $this->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.store', $topic), $notice)
+    $this->post(route('topics.notice-to-proceed.store', $topic), $notice)
         ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed')
         ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $topic), [
-            'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
-        ])
+    $this->post(route('topics.notice-to-proceed.upload-signed', $topic), [
+        'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
+    ])
         ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed')
         ->assertSessionHasNoErrors();
 
@@ -3184,21 +3203,22 @@ test('an rrl backed proposal completes submission revision approval notice and m
     Notification::assertSentTo(
         $this->faculty,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Signed Notice to Proceed issued',
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Signed papers and Notice to Proceed released',
     );
 
+    $period = app(MonitoringQuarterService::class)->projectPeriods($topic)->first();
+    $this->travelTo($period['end']);
+    Role::firstOrCreate(['name' => 'research_secretary']);
+    $secretary = User::factory()->create(['college' => $this->faculty->college]);
+    $secretary->assignRole('research_secretary');
     $monitoringPayload = [
         'reporting_date' => now()->toDateString(),
         'tracking_number' => 'LIFECYCLE-2026-001',
-        'work_plan' => [[
-            'activity' => 'Conduct community mangrove monitoring',
-            'percent_weight' => 100,
-            'physical_target' => 'Complete the first monitoring cycle',
-            'target_completion_date' => now()->addMonth()->toDateString(),
+        'work_plan' => array_map(fn (array $row): array => [...$row,
             'actual_accomplishment' => 'Completed the baseline monitoring cycle',
-            'accomplished_percentage' => 25,
+            'accomplished_percentage' => (float) $row['percent_weight'] * .25,
             'findings' => 'Community monitors completed the planned observations.',
-        ]],
+        ], app(ApprovedWorkPlanMonitoringService::class)->defaultsForDate($topic, now())),
         'budget_utilization' => [
             ['type' => 'Purchase Request', 'details' => 'Monitoring supplies', 'amount_requested' => 1000, 'actual_amount' => 900, 'remarks' => 'Delivered'],
             ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
@@ -3227,7 +3247,7 @@ test('an rrl backed proposal completes submission revision approval notice and m
 
     expect($report->topic_id)->toBe($topic->id)
         ->and($report->review_status)->toBe('pending')
-        ->and($report->progress_percentage)->toBe(25)
+        ->and($report->progress_percentage)->toBe(0)
         ->and($report->isPrepared())->toBeTrue();
     expect(Notification::sent($this->head, ProposalActivityNotification::class)->count())
         ->toBe($headNotificationCountBeforePreparation);
@@ -3246,18 +3266,20 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->assertSessionHasNoErrors();
 
     Notification::assertSentTo(
-        $this->head,
+        $secretary,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'New '.$report->quarter_label.' Monitoring Tool Submitted'
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Report submitted for Research Office Secretary review'
             && $notification->url === route('topics.show', $topic).'#monitoring-tool-'.$report->id,
     );
+    $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->patch(route('research_secretary.monitoring-reports.review', $report), ['decision' => 'forward'])
+        ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->head)
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('research_head.projects.index'))
         ->assertOk()
         ->assertSee($topic->title)
-        ->assertSee('25%')
-        ->assertSee('1 awaiting review');
+        ->assertSee('0%');
 });
 
 test('an independent proposal can be prepared submitted reviewed and revised', function () {
@@ -3386,6 +3408,10 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
         expect($topic->fresh()->status)->toBe($expectedStatus)
             ->and($version()->version_number)->toBe($previous->version_number + 1)
             ->and($review->fileRevisions()->whereNull('resolved_at')->count())->toBe(0);
+        if (! $noChange) {
+            expect($version()->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->source_data['executive_brief'])
+                ->toContain('Revised summary '.$round.'.');
+        }
         if ($revisionDraft) {
             expect(ProposalDraft::withTrashed()->whereKey($revisionDraft->id)->exists())->toBeFalse();
             Storage::disk('local')->assertDirectoryEmpty($revisionDraft->storageDirectory());

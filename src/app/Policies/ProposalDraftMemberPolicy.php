@@ -10,7 +10,9 @@ class ProposalDraftMemberPolicy
     public function review(User $user, ProposalDraftMember $proposalDraftMember): bool
     {
         return $user->canUseWorkspace(User::WORKSPACE_FACULTY)
-            && $proposalDraftMember->draft()->exists()
+            && ($proposalDraftMember->relationLoaded('draft')
+                ? $proposalDraftMember->draft !== null
+                : $proposalDraftMember->draft()->exists())
             && $proposalDraftMember->user_id === $user->getKey();
     }
 

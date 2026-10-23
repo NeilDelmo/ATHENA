@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium } from '@playwright/test';
 
-const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
 const moduleSource = (name) => readFileSync(new URL(`../../resources/js/${name}.js`, import.meta.url), 'utf8')
     .replace(/^import .+;\r?\n/gm, '').replace(/^export /gm, '');
 const methodSource = (name) => {
@@ -59,6 +59,7 @@ test('accepting a reordered RRL preserves source locators and saves synchronized
             ${moduleSource('research-assistant-proposal-changes')}
             ${moduleSource('proposal-semantic-editor')}
             ${moduleSource('proposal-paper-autosave')}
+            ${moduleSource('file-upload')}
             ${semanticEditor}
             ${markerSync}
             ${finishSave}
@@ -105,7 +106,7 @@ test('accepting a reordered RRL preserves source locators and saves synchronized
             };
         }, candidate);
         assert.equal(result.applied.applied, true);
-        assert.equal(result.applied.saved, true);
+        assert.equal(result.applied.saved, true, JSON.stringify(result.applied));
         assert.deepEqual(result.markers, [
             { id: '43', locator: 'pp. 3, 5', label: '[1, pp. 3, 5]' },
             { id: '42', locator: 'p. 8', label: '[2, p. 8]' },

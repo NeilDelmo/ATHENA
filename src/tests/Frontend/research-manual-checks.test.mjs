@@ -91,3 +91,88 @@ test('manual result refresh preserves focused questions and source links without
         await browser.close();
     }
 });
+
+test('manual checks pause while hidden and resume once without retaining disposed or completed polling', { timeout: 30000 }, async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    const page = await browser.newPage();
+    let requests = 0;
+    let holdResponse = true;
+    let completed = false;
+    let releaseResponse;
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.route('https://athena.test/**', async route => {
+        if (route.request().url().endsWith('.js')) {
+            return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve('resources/js/research-manual-checks.js'), 'utf8') });
+        }
+        if (route.request().headers().accept === 'application/json') {
+            const request = ++requests;
+            if (holdResponse) await new Promise(resolve => { releaseResponse = resolve; });
+            const status = completed ? 'completed' : 'running';
+            return route.fulfill({ json: {
+                status, html: `<section data-manual-checks data-check-status="${status}" data-status-url="/review"><p>Result ${request}</p></section>`,
+            } });
+        }
+        return route.fulfill({ contentType: 'text/html', body: '<section data-manual-checks data-check-status="pending" data-status-url="/review"><p>Queued</p></section>' });
+    });
+    try {
+        await page.goto('https://athena.test/review');
+        await page.clock.install();
+        await page.evaluate(() => {
+            window.testHidden = true;
+            Object.defineProperty(document, 'hidden', { configurable: true, get: () => window.testHidden });
+        });
+        await page.addScriptTag({ type: 'module', content: "import init from '/research-manual-checks.js'; window.initializeChecks = init; window.disposeChecks = init(); window.checksLoaded = true;" });
+        await page.waitForFunction(() => window.checksLoaded);
+        await page.clock.fastForward(60000);
+        await page.waitForTimeout(50);
+        assert.equal(requests, 0, 'hidden tabs must not request manual-check status');
+
+        await page.evaluate(() => {
+            window.testHidden = false;
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await expect.poll(() => requests).toBe(1);
+        await page.evaluate(() => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await page.clock.fastForward(4000);
+        await page.waitForTimeout(50);
+        assert.equal(requests, 1, 'visibility changes must share the pending request');
+        holdResponse = false;
+        releaseResponse();
+        await expect(page.locator('[data-manual-checks]')).toContainText('Result 1');
+
+        await page.evaluate(() => {
+            window.testHidden = true;
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await page.clock.fastForward(60000);
+        await page.waitForTimeout(50);
+        assert.equal(requests, 1, 'hiding an active panel must pause its next request');
+        await page.evaluate(() => {
+            window.testHidden = false;
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await expect(page.locator('[data-manual-checks]')).toContainText('Result 2');
+        await page.evaluate(() => window.disposeChecks());
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await page.clock.fastForward(60000);
+        await page.waitForTimeout(50);
+        assert.equal(requests, 2, 'disposed panels must release their timer and visibility listener');
+
+        completed = true;
+        await page.evaluate(() => { window.disposeChecks = window.initializeChecks(); });
+        await page.clock.fastForward(4000);
+        await expect(page.locator('[data-manual-checks]')).toContainText('Result 3');
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await page.clock.fastForward(60000);
+        await page.waitForTimeout(50);
+        assert.equal(requests, 3, 'completed checks must remain stopped after a visibility change');
+        assert.deepEqual(errors, []);
+    } finally {
+        releaseResponse?.();
+        await browser.close();
+    }
+});

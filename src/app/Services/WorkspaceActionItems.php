@@ -11,6 +11,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Gate;
 
 class WorkspaceActionItems
@@ -36,8 +37,10 @@ class WorkspaceActionItems
 
         if ($workspace === User::WORKSPACE_RESEARCH_HEAD) {
             $topics = TopicProposal::query()->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE])
-                ->with('latestVersion')->oldest('status_started_at')->get();
-            $topics->where('status', TopicProposal::STATUS_READY_FOR_SIGNATURE)->load('latestVersion.files');
+                ->with(['latestVersion' => fn (HasOne $relation): HasOne => $relation->select(
+                    $relation->getRelated()->qualifyColumns(['id', 'topic_id']),
+                )])->oldest('status_started_at')->get(['id', 'title', 'status']);
+            $topics->where('status', TopicProposal::STATUS_READY_FOR_SIGNATURE)->loadMissing('latestVersion.files');
             foreach ($topics as $topic) {
                 if ($topic->latestVersion === null || ($topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE && ! app(ProposalSignatureWorkflow::class)->isComplete($topic->latestVersion))) {
                     continue;
@@ -126,10 +129,16 @@ class WorkspaceActionItems
             $topics = TopicProposal::query()->monitoringAvailable()
                 ->when($workspace === User::WORKSPACE_FACULTY_RESEARCHER, fn (Builder $query): Builder => $query->whereBelongsTo($user))
                 ->with([
+                    'latestVersion' => fn (HasOne $relation): HasOne => $relation->select(
+                        $relation->getRelated()->qualifyColumns(['id', 'topic_id']),
+                    ),
                     'latestVersion.files' => fn (HasMany $query): HasMany => $query->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
                         ->select('id', 'proposal_version_id', 'document_type', 'source_data'),
                     'progressReports' => fn (HasMany $query): HasMany => $query->select('id', 'topic_id', 'reporting_date', 'period_start', 'version_number', 'submission_status', 'work_plan'),
-                ])->oldest()->get();
+                ])->oldest()->get([
+                    'id', 'title', 'status', 'project_status', 'notice_to_proceed_issued_at',
+                    'notice_to_proceed_data', 'estimated_duration_months', 'created_at',
+                ]);
             foreach ($topics as $topic) {
                 foreach (app(ApprovedWorkPlanMonitoringService::class)->overdueActivities($topic) as $activity) {
                     $items[] = $this->item('overdue:'.$topic->id.':'.$activity['source_work_plan_index'].':'.$activity['target_completion_date'],

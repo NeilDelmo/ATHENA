@@ -29,7 +29,7 @@
     @php($isFacultyWorkspace = Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher']))
     <body
         x-data
-        @keydown.escape.window="$store.sidebar.setOpen(false)"
+        @keydown.escape.window="if (window.innerWidth < 640 && !$event.defaultPrevented) $store.sidebar.setOpen(false)"
         @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
         @if ($isFacultyWorkspace) data-faculty-shell @endif
@@ -38,6 +38,9 @@
         @auth
             data-research-assistant-url="{{ route('research-support.chat') }}"
             data-research-assistant-history-url="{{ route('research-support.history') }}"
+            @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher', 'research_head']))
+                data-research-assistant-contexts-url="{{ route('research-support.contexts') }}"
+            @endif
             data-research-assistant-documents-url="{{ route('research-support.documents') }}"
             data-research-assistant-proposal-changes-url="{{ route('research-support.proposal-changes.resolve') }}"
             data-research-assistant-report-changes-url="{{ route('research-support.report-changes.resolve') }}"
@@ -90,7 +93,7 @@
                     style="-webkit-mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%); mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%);"
                     aria-hidden="true"
                 >
-                    <img src="{{ asset('images/front.jpg') }}" alt="" class="absolute inset-0 h-full w-full object-cover object-center" />
+                    <img src="{{ asset('images/front.jpg') }}" alt="" class="absolute inset-0 h-full w-full object-cover object-center" loading="lazy" decoding="async" />
                     <div class="absolute inset-0 bg-gradient-to-r from-red-950/65 via-red-700/25 to-red-600/60"></div>
                     <div class="absolute -bottom-14 right-20 h-32 w-32 rotate-45 rounded-3xl border border-white/20 bg-white/10"></div>
                     <div class="absolute -top-16 left-24 h-36 w-36 rounded-full border-[18px] border-white/10"></div>

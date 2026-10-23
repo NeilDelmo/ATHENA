@@ -210,8 +210,8 @@ class ProgressReportEvidenceService
         $parsed = is_string($date) ? DateTimeImmutable::createFromFormat('!Y-m-d', $date) : false;
         if ($request->user() && $parsed && $parsed->format('Y-m-d') === $date && $request->input('report_type', 'progress') === 'progress') {
             $period = $this->schedule->forDate($date, $topic);
-            $source = $topic->narrativeReports()->submitted()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])
-                ->where('review_status', ProjectNarrativeReport::STATUS_REVISION_REQUESTED)->latest('id')->first();
+            $source = $topic->narrativeReports()->submitted()->where('report_type', 'progress')->forReportingPeriod($period)
+                ->where('review_status', ProjectNarrativeReport::STATUS_REVISION_REQUESTED)->reorder()->latest('id')->first();
             $paths = array_unique([...$paths, ...$this->paths($source?->accomplishments ?? [])]);
             $savedDate = data_get($draft?->source_data, 'reporting_date');
             $samePeriod = $savedDate && $this->schedule->forDate($savedDate, $topic)['start']->eq($period['start']);

@@ -15,9 +15,14 @@ class SidebarAttentionService
      */
     public function countsFor(User $user): array
     {
+        $areas = $this->availableAreasFor($user);
+        if ($areas === []) {
+            return [];
+        }
+
         $notifications = $this->unreadVisibleNotifications($user);
 
-        return collect($this->availableAreasFor($user))
+        return collect($areas)
             ->mapWithKeys(fn (string $area): array => [$area => $this->notificationsFor($user, $area, $notifications)->count()])
             ->all();
     }
@@ -78,6 +83,7 @@ class SidebarAttentionService
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE => 'faculty.proposal-drafts.index',
             ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS => 'faculty.submissions',
             ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS => 'research.index',
+            ProposalActivityNotification::SIDEBAR_AREA_RMS_REPORTS => 'research_head.rms-quarterly-reports.index',
         };
     }
 
@@ -90,6 +96,7 @@ class SidebarAttentionService
             User::WORKSPACE_RESEARCH_HEAD => [
                 ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
                 ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+                ProposalActivityNotification::SIDEBAR_AREA_RMS_REPORTS,
             ],
             User::WORKSPACE_FACULTY => [
                 ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
@@ -199,6 +206,7 @@ class SidebarAttentionService
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
             ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
             ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
+            ProposalActivityNotification::SIDEBAR_AREA_RMS_REPORTS,
         ];
     }
 }

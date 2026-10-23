@@ -12,13 +12,13 @@ class RmsQuarterlyReport extends Model
     /** @use HasFactory<RmsQuarterlyReportFactory> */
     use HasFactory;
 
-    protected $fillable = ['reporting_year', 'reporting_quarter', 'campus', 'signatories', 'row_details', 'updated_by'];
+    protected $fillable = ['reporting_year', 'reporting_quarter', 'campus', 'signatories', 'row_details', 'updated_by', 'downloaded_at', 'downloaded_fingerprint'];
 
     protected $attributes = ['campus' => 'ARASOF-Nasugbu'];
 
     protected function casts(): array
     {
-        return ['reporting_year' => 'integer', 'reporting_quarter' => 'integer', 'signatories' => 'array', 'row_details' => 'array'];
+        return ['reporting_year' => 'integer', 'reporting_quarter' => 'integer', 'signatories' => 'array', 'row_details' => 'array', 'downloaded_at' => 'datetime'];
     }
 
     public function updatedBy(): BelongsTo

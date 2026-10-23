@@ -73,6 +73,9 @@ function createAssistantTopicFor(User $user, array $overrides = []): TopicPropos
 /** @return list<array{id: int, label: string, status: string, meta: string}> */
 function assistantContexts(TestResponse $response): array
 {
+    if (str_contains($response->getContent(), 'window.athenaResearchAssistantContexts = [];')) {
+        return [];
+    }
     $matched = preg_match(
         "/window\\.athenaResearchAssistantContexts = JSON\\.parse\\('([^']*)'\\);/",
         $response->getContent(),
@@ -119,11 +122,13 @@ test('assistant venue actions expose project routes only for accessible dissemin
     DB::flushQueryLog();
     $response = $this->actingAs($researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty_researcher'])
         ->get(route('research-support.index'));
+    $contextResponse = $this->getJson(route('research-support.contexts'))->assertSuccessful();
     $queries = collect(DB::getQueryLog());
     DB::disableQueryLog();
 
     $response->assertOk();
-    $contexts = collect(assistantContexts($response));
+    expect(assistantContexts($response))->toBe([]);
+    $contexts = collect($contextResponse->json('contexts'));
     foreach ($sharedProjects->prepend($eligible) as $project) {
         $dissemination = $contexts->firstWhere('id', $project->id)['dissemination'];
         expect($dissemination['journal_save_url'])->toBe(route('research.dissemination.journal-submissions.store', $project))
@@ -376,7 +381,7 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Collapse to side panel')
         ->assertSee('Chat history')
         ->assertSee('Search history')
-        ->assertSee('Chats are saved to your ATHENA account.')
+        ->assertDontSee('Chats are saved to your ATHENA account.')
         ->assertSee('Analyze document')
         ->assertSee('Choose a saved paper before PDF generation, or a PDF or DOCX.')
         ->assertSee('data-assistant-active-document', false)
@@ -500,7 +505,8 @@ test('assistant project selection preserves complete titles and identifying deta
     $second->update(['research_category_id' => $category->id]);
 
     $response = $this->actingAs($user)->get(route('profile.edit'))->assertOk();
-    $context = collect(assistantContexts($response))->firstWhere('id', $topic->id);
+    expect(assistantContexts($response))->toBe([]);
+    $context = collect($this->getJson(route('research-support.contexts'))->assertSuccessful()->json('contexts'))->firstWhere('id', $topic->id);
 
     expect($context['label'])->toBe($title)
         ->and($context['status'])->toBe('revision requested')
@@ -532,7 +538,9 @@ test('assistant project selection includes older accessible projects beyond eigh
     $unapprovedTopic = $role === 'faculty_researcher' ? createAssistantTopicFor($user) : null;
 
     $response = $this->actingAs($user)->get(route('profile.edit'))->assertOk();
-    $contextIds = assistantContextIds($response);
+    expect(assistantContexts($response))->toBe([]);
+    $contextResponse = $this->getJson(route('research-support.contexts'))->assertSuccessful();
+    $contextIds = collect($contextResponse->json('contexts'))->pluck('id')->all();
     foreach ($topics as $topic) {
         expect($contextIds)->toContain($topic->id);
     }
@@ -563,6 +571,7 @@ test('assistant project selection includes older accessible projects beyond eigh
     if (getenv('ATHENA_EXPORT_ASSISTANT_LAYOUT') === '1' && $role === 'faculty') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
         File::put(storage_path('framework/testing/research-assistant-projects.html'), $response->getContent());
+        File::put(storage_path('framework/testing/research-assistant-contexts.json'), $contextResponse->getContent());
     }
 })->with(['faculty', 'faculty_researcher', 'research_head']);
 
@@ -707,10 +716,10 @@ test('the current authorized record stays selected while every accessible contex
 
     $contextIds = assistantContextIds($response);
 
-    expect(count($contextIds))
-        ->toBeGreaterThanOrEqual(9)
-        ->and($contextIds[0])->toBe($currentTopic->id)
-        ->and($contextIds)->toContain($currentTopic->id);
+    expect($contextIds)->toBe([$currentTopic->id]);
+    $this->getJson(route('research-support.contexts', ['active_topic_id' => $currentTopic->id]))
+        ->assertSuccessful()->assertJsonPath('contexts.0.id', $currentTopic->id)
+        ->assertJsonCount(9, 'contexts');
 })->with([
     'proposal owner' => 'owner',
     'proposal collaborator editing a draft' => 'collaborator draft',

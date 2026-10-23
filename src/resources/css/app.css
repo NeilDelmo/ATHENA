@@ -52,7 +52,11 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarterly-reports [data-report-controls] {
-        @apply min-h-11 w-full flex-nowrap items-center gap-0 rounded-lg border border-red-200 bg-white dark:border-red-900 dark:bg-slate-900;
+        @apply min-h-11 w-full flex-nowrap items-center gap-0 rounded-lg border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-900;
+    }
+
+    .quarterly-reports [data-report-controls] .monitoring-report-control {
+        @apply text-slate-600 transition-colors hover:bg-brand-wash hover:text-brand dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-rose-200;
     }
 
     .quarterly-reports [data-report-controls]:has([aria-disabled="true"]) {
@@ -71,8 +75,12 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         @apply text-slate-400 dark:text-slate-500;
     }
 
-    .quarterly-reports .monitoring-report-control[aria-expanded="true"] {
-        @apply border-red-700 bg-red-50 text-red-800 dark:border-red-400 dark:bg-red-950/40 dark:text-red-200;
+    .quarterly-reports [data-report-controls] .monitoring-report-control[aria-expanded="true"] {
+        @apply bg-brand-wash text-brand dark:bg-rose-950/30 dark:text-rose-200;
+    }
+
+    .quarterly-reports [data-report-controls]:has([aria-expanded="true"]) {
+        @apply border-brand/40 dark:border-rose-700;
     }
 
     .quarterly-reports .monitoring-report-dot {
@@ -80,7 +88,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarterly-report-quarter {
-        @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-700 text-base font-bold text-white;
+        @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-wash text-base font-bold text-brand dark:bg-rose-950/40 dark:text-rose-200;
     }
 
     .quarterly-report-mobile-label {
@@ -108,7 +116,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .quarterly-reports .quarterly-report-secondary {
-        @apply h-11 min-h-11 w-11 min-w-11 shrink-0 rounded-none rounded-r-lg border-0 border-l border-red-200 p-2 dark:border-red-900;
+        @apply h-11 min-h-11 w-11 min-w-11 shrink-0 rounded-none rounded-r-lg border-0 border-l border-slate-200 p-2 dark:border-slate-600;
     }
 
     .quarterly-report-primary > span:first-child:not(.report-review-status),
@@ -161,6 +169,14 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 
     .monitoring-disclosure > summary {
         @apply flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-base font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-slate-200;
+    }
+
+    .monitoring-attention-items > [data-monitoring-work-plan-alert] {
+        @apply col-span-full rounded-none border-0 px-0 py-3;
+    }
+
+    .quarterly-reports [data-quarter-targets] > .report-review-status {
+        @apply border-0 bg-transparent px-0 font-normal dark:bg-transparent;
     }
 
     .quarter-report-document {
@@ -399,6 +415,60 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 
     .dashboard-action {
         @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+    }
+
+    .research-target-table[data-target-manager-table] {
+        table-layout: fixed;
+    }
+
+    .research-target-table[data-target-manager-table] thead th:first-child,
+    .research-target-table[data-target-manager-table] .target-indicator-label {
+        width: 29%;
+    }
+
+    .research-target-table[data-target-manager-table] thead th:nth-child(2),
+    .research-target-table[data-target-manager-table] .target-overall-value {
+        width: 20%;
+    }
+
+    .target-mobile-label {
+        @apply hidden;
+    }
+
+    .target-editor-section[open] > summary {
+        @apply rounded-b-none bg-rose-50/60 text-brand dark:bg-rose-950/20 dark:text-rose-200;
+    }
+
+    @media (max-width: 1023px) {
+        .research-target-table[data-target-manager-table],
+        .research-target-table[data-target-manager-table] tbody {
+            @apply block;
+        }
+
+        .research-target-table[data-target-manager-table] thead {
+            @apply sr-only;
+        }
+
+        .research-target-table[data-target-manager-table] tr {
+            @apply grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 p-3;
+        }
+
+        .research-target-table[data-target-manager-table] .target-indicator-label,
+        .research-target-table[data-target-manager-table] .target-overall-value {
+            @apply w-auto p-0;
+        }
+
+        .research-target-table[data-target-manager-table] .target-overall-value {
+            @apply text-right;
+        }
+
+        .research-target-table[data-target-manager-table] .target-college-values {
+            @apply col-span-2 p-0;
+        }
+
+        .research-target-table[data-target-manager-table] .target-mobile-label {
+            @apply mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400;
+        }
     }
 
     .rh-panel {

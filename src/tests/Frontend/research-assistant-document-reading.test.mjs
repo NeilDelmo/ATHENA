@@ -50,12 +50,14 @@ function assistant(fetchReply = async () => response({ reply: 'The work plan inc
         draft: '', messages: [], documentOptions: [{ token: 'saved-paper', label: 'Attachment A: Work Plan', format: 'SAVED' }],
         selectedDocumentToken: 'saved-paper', activeDocument: null, documentAnalysisPending: false,
         documentRequestSequence: 0, requestSequence: 0, nextMessageId: 1, contextOptions: [{ id: 12, label: 'Research' }],
+        contextOptionsLoading: false, contextOptionsError: '', contextOptionsLoaded: true,
         contextEnabled: true, selectedContextId: 12, proposalDraftId: 42, currentConversationId: null,
         retryAction: null, retryContext: null, retryAfter: 0, isLoading: false, sendInProgress: false, error: '',
         contextPayload: () => ({ proposal_draft_id: 42 }), formContext: () => null,
         historyUrl: () => '', historyConversationUrl: (id) => `/history/${id}`,
         hasConversation() { return this.messages.length > 0; },
         scrollToLatest() {}, resetComposers() {}, syncPageScroll() {}, restoreReviewContext() {}, upsertHistory() {},
+        async loadContextOptions() { return true; }, resetContextOptions() {},
         setError(title, message) { this.error = `${title}: ${message}`; },
         ...overrides,
     };
@@ -174,6 +176,65 @@ test('new chat, page navigation, workspace switching and history reopening disca
     await store.openConversation(7);
     assert.equal(store.activeDocument, null);
     assert.deepEqual(store.messages[0].document_reading, reading);
+});
+
+test('history keeps the current conversation when its saved project cannot be restored', async () => {
+    const messages = [{ role: 'user', content: 'Keep this current conversation.' }];
+    const store = assistant(async () => response({ conversation: {
+        id: 7, context: { topic_id: 24 }, messages: [{ role: 'assistant', content: 'Saved project answer.' }],
+    } }), {
+        messages, currentConversationId: 8,
+        saveConversation: async () => ({ id: 8 }),
+        loadContextOptions: async () => false,
+    });
+
+    await store.openConversation(7);
+
+    assert.equal(store.messages, messages);
+    assert.equal(store.currentConversationId, 8);
+    assert.equal(store.selectedContextId, 12);
+    assert.equal(store.contextEnabled, true);
+    assert.match(store.error, /History unavailable:.*Projects could not be loaded/);
+    assert.match(store.error, /Retry opening this chat/);
+});
+
+test('stopped or switched workspaces discard history still waiting for project options', async () => {
+    for (const invalidate of [(store) => store.stop(), (store) => store.syncWorkspaceContext()]) {
+        let releaseContexts;
+        let startLoading;
+        const loading = new Promise((resolve) => { startLoading = resolve; });
+        const originalMessages = [{ role: 'user', content: 'Previous workspace conversation.' }];
+        const store = assistant(async () => response({ conversation: {
+            id: 7, context: { topic_id: 12 }, messages: [{ role: 'assistant', content: 'Old workspace answer.' }],
+        } }), {
+            messages: originalMessages, currentConversationId: 8, workspaceOpen: false,
+            saveConversation: async () => ({ id: 8 }),
+            loadContextOptions: () => new Promise((resolve) => { releaseContexts = resolve; startLoading(); }),
+        }, {
+            window: { athenaResearchAssistantContexts: [{ id: 90, label: 'Current workspace project' }],
+                athenaResearchAssistantActiveContextId: 90 },
+        });
+        const pending = store.openConversation(7);
+        await loading;
+        assert.equal(store.messages, originalMessages);
+        const sequence = store.requestSequence;
+        invalidate(store);
+        assert.ok(store.requestSequence > sequence);
+        const currentMessages = [{ role: 'user', content: 'Current workspace conversation.' }];
+        store.messages = currentMessages;
+        store.currentConversationId = 90;
+        store.selectedContextId = 90;
+        store.contextEnabled = true;
+        releaseContexts(true);
+        await pending;
+
+        assert.equal(store.messages, currentMessages);
+        assert.equal(store.currentConversationId, 90);
+        assert.equal(store.selectedContextId, 90);
+        assert.equal(store.contextEnabled, true);
+        assert.equal(store.workspaceOpen, false);
+        assert.equal(store.error, '');
+    }
 });
 
 test('a stale document-list response cannot repopulate choices after a workspace change', async () => {

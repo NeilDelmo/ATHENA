@@ -61,7 +61,7 @@ test('athena retrieves matching approved knowledge and discloses its sources', f
     Http::fake([
         'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
-                'message' => ['content' => 'Secure clearance before data collection [ATHENA 1].'],
+                'message' => ['content' => 'Secure clearance before data collection [Institutional ethics clearance process].'],
             ]],
             'usage' => ['prompt_tokens' => 80, 'completion_tokens' => 10],
         ]),
@@ -78,8 +78,8 @@ test('athena retrieves matching approved knowledge and discloses its sources', f
             ]],
         ])
         ->assertOk()
-        ->assertJsonPath('reply', 'Secure clearance before data collection [ATHENA 1].')
-        ->assertJsonPath('sources.0.reference', 'ATHENA 1')
+        ->assertJsonPath('reply', 'Secure clearance before data collection [Institutional ethics clearance process].')
+        ->assertJsonPath('sources.0.reference', 'Institutional ethics clearance process')
         ->assertJsonPath('sources.0.title', 'Institutional ethics clearance process')
         ->assertJsonPath('sources.0.url', 'https://example.edu/research-ethics');
 
@@ -87,7 +87,8 @@ test('athena retrieves matching approved knowledge and discloses its sources', f
         $prompt = collect($request['messages'])->pluck('content')->join("\n");
 
         return str_contains($prompt, 'Faculty researchers must secure ethics clearance')
-            && str_contains($prompt, 'cite the supporting reference inline')
+            && str_contains($prompt, '[Institutional ethics clearance process]')
+            && ! preg_match('/\[ATHENA\s+(?:\d+|n)\]/i', $prompt)
             && ! str_contains($prompt, 'archived instruction');
     });
 });
@@ -99,11 +100,32 @@ test('the built-in paper field guide explains expense units with practical examp
 
     expect($sources)->not->toBeEmpty()
         ->and($sources[0]['title'])->toBe('Estimated Expense Breakdown — Unit')
+        ->and($sources[0]['reference'])->toBe('Estimated Expense Breakdown — Unit')
         ->and($sources[0]['type'])->toBe('ATHENA paper field guide')
         ->and($sources[0]['content'])->toContain('how one expense item is counted or measured')
         ->and($sources[0]['content'])->toContain('10 reams at PHP 250 per ream')
         ->and($sources[0]['content'])->toContain('Entering PHP or a peso amount as the unit')
         ->and($sources[0]['content'])->toContain('Item Total = Quantity × Unit Cost');
+});
+
+test('different documents with the same title have distinct named source references', function () {
+    $creator = User::factory()->create();
+    foreach (['https://first.example.edu/policy', 'https://second.example.edu/policy'] as $url) {
+        ResearchKnowledgeEntry::create([
+            'title' => 'Participant recruitment guidance', 'category' => 'ethics',
+            'content' => 'Participant recruitment needs documented consent.', 'source_url' => $url,
+            'is_active' => true, 'created_by' => $creator->id,
+        ]);
+    }
+    $sources = collect(app(ResearchKnowledgeService::class)->retrieve('Participant recruitment guidance'))
+        ->where('type', 'Approved knowledge entry')->values();
+
+    expect($sources)->toHaveCount(2)
+        ->and($sources->pluck('reference')->unique())->toHaveCount(2)
+        ->and($sources->pluck('reference')->all())->toContain(
+            'Participant recruitment guidance · https://first.example.edu/policy',
+            'Participant recruitment guidance · https://second.example.edu/policy',
+        );
 });
 
 test('focused paper context resolves vague questions to a trusted field definition', function () {

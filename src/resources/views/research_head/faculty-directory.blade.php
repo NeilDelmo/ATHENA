@@ -41,15 +41,15 @@
 
                 window.history.replaceState(null, '', url.toString());
             },
-            visibleMembers() {
+            matchesMember(member) {
                 const query = this.search.trim().toLowerCase();
+                const matchesCollege = this.selectedCollege === 'all' || member.college === this.selectedCollege;
+                const matchesSearch = query === '' || member.search.includes(query);
 
-                return this.members.filter((member) => {
-                    const matchesCollege = this.selectedCollege === 'all' || member.college === this.selectedCollege;
-                    const matchesSearch = query === '' || member.search.includes(query);
-
-                    return matchesCollege && matchesSearch;
-                });
+                return matchesCollege && matchesSearch;
+            },
+            visibleMembers() {
+                return this.members.filter((member) => this.matchesMember(member));
             },
             openRoleDialog(name, url, assigned, role, college = '', replacement = '') {
                 this.memberName = name;
@@ -145,6 +145,7 @@
                                 $isSecretary = $member->hasRole('research_secretary');
                                 $isResearchHead = $member->hasRole('research_head');
                                 $memberCollege = array_search($member->college, $colleges, true) ?: '';
+                                $memberFilter = ['college' => $memberCollege, 'search' => Str::lower($member->name.' '.$member->email)];
                                 $existingCoordinator = $member->college ? $coordinatorsByCollege->get($member->college) : null;
                                 $replacementCoordinator = $existingCoordinator && $existingCoordinator['id'] !== $member->getKey()
                                     ? $existingCoordinator['name']
@@ -152,7 +153,7 @@
                                 $canManageCoordinator = $isCoordinator || (filled($member->college) && ! $isResearchHead);
                             @endphp
                             <tr
-                                x-show="visibleMembers().some((member) => member.id === @js($member->getKey()))"
+                                x-show="matchesMember(@js($memberFilter))"
                                 class="transition hover:bg-gray-50 dark:hover:bg-slate-800/60"
                                 data-member-row
                                 data-college="{{ $memberCollege }}"

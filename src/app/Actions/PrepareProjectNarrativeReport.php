@@ -44,7 +44,7 @@ class PrepareProjectNarrativeReport
                     throw ValidationException::withMessages(['reporting_date' => 'This reporting quarter is not open.']);
                 }
                 $period = $schedule->forDate($validated['reporting_date'], $topic);
-                $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
+                $existing = $topic->narrativeReports()->where('report_type', 'progress')->forReportingPeriod($period)->reorder()->latest('id')->first();
                 if ($existing !== null && (! $existing->isSubmitted() || $existing->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED)) {
                     throw ValidationException::withMessages(['reporting_date' => 'This quarter already has a prepared or submitted Progress Report.']);
                 }
@@ -54,6 +54,10 @@ class PrepareProjectNarrativeReport
                 throw ValidationException::withMessages(['preparation' => 'A prepared report of this type already exists.']);
             }
             if ($type === 'terminal') {
+                $latest = $topic->narrativeReports()->where('report_type', 'terminal')->reorder()->latest('id')->first();
+                if ($latest !== null && $latest->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED) {
+                    throw ValidationException::withMessages(['preparation' => 'The latest Terminal Report must have corrections requested before preparing a replacement.']);
+                }
                 if (app(MonitoringQuarterService::class)->missingTerminalReportPeriods($topic) !== []) {
                     throw ValidationException::withMessages(['preparation' => 'Complete all quarterly Monitoring Tools and Progress Reports before preparing the Terminal Report.']);
                 }

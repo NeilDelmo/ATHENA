@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\ProjectDocument;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
@@ -33,6 +35,14 @@ beforeEach(function () {
         'sort' => 'attention',
     ];
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $this->makeDocument = function (): ProjectDocument {
+        Storage::fake('local');
+        Storage::disk('local')->put('project-documents/source.pdf', '%PDF-1.7 source document');
+
+        return ProjectDocument::factory()->for($this->project, 'topic')->for($this->researcher, 'uploadedBy')->create([
+            'file_path' => 'project-documents/source.pdf',
+        ]);
+    };
 });
 
 test('a project workspace persists privately without changing project status', function () {
@@ -57,7 +67,7 @@ test('a project workspace persists privately without changing project status', f
         ->assertViewHas('workspacePreferences', $response->json('workspace'));
     $this->actingAs($otherHead)->get(route('research_head.projects.index'))->assertSuccessful()
         ->assertViewHas('workspacePreferences', [
-            'revision' => 0, 'folders' => [], 'assignments' => [],
+            'revision' => 0, 'folders' => [], 'assignments' => [], 'shortcuts' => [],
             'view' => 'grid', 'grouping' => 'year', 'sort' => 'attention',
         ]);
 });
@@ -112,6 +122,196 @@ test('nested folders permit matching names in separate parents', function () {
         ->assertSuccessful()->assertJsonCount(3, 'workspace.folders');
 });
 
+test('the same project can be referenced in separate personal folders', function () {
+    $otherFolderId = (string) Str::uuid();
+    $this->workspace['folders'][] = ['id' => $otherFolderId, 'name' => 'Copies', 'parent_id' => null];
+    $this->workspace['assignments'][] = ['project_id' => (string) $this->project->id, 'folder_id' => strtoupper($otherFolderId)];
+    $original = $this->project->fresh()->getAttributes();
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertSuccessful()->assertJsonCount(2, 'workspace.assignments')
+        ->assertJsonPath('workspace.assignments.1.project_id', $this->project->id)
+        ->assertJsonPath('workspace.assignments.1.folder_id', $otherFolderId);
+
+    expect($this->project->fresh()->getAttributes())->toBe($original);
+});
+
+test('the same project cannot be referenced twice in one folder using alternate ID forms', function () {
+    $this->workspace['assignments'][] = [
+        'project_id' => (string) $this->project->id,
+        'folder_id' => strtoupper($this->folderId),
+    ];
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertUnprocessable()->assertJsonValidationErrors('assignments.1.project_id');
+    expect($this->head->fresh()->project_workspace)->toBeNull();
+});
+
+test('document shortcuts persist source identities without copying the source file or project', function () {
+    $document = ($this->makeDocument)();
+    $shortcutId = (string) Str::uuid();
+    $otherFolderId = (string) Str::uuid();
+    $this->workspace['folders'][] = ['id' => $otherFolderId, 'name' => 'Copies', 'parent_id' => null];
+    $this->workspace['shortcuts'] = [
+        ['id' => strtoupper($shortcutId), 'folder_id' => strtoupper($this->folderId), 'project_id' => (string) $this->project->id, 'document_key' => 'project-document-'.$document->id],
+        ['id' => (string) Str::uuid(), 'folder_id' => $otherFolderId, 'project_id' => $this->project->id, 'document_key' => 'project-document-'.$document->id],
+    ];
+    $originalProject = $this->project->fresh()->getAttributes();
+    $originalDocument = $document->fresh()->getAttributes();
+
+    $response = $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertSuccessful()->assertJsonCount(2, 'workspace.shortcuts')
+        ->assertJsonPath('workspace.shortcuts.0.id', $shortcutId)
+        ->assertJsonPath('workspace.shortcuts.0.folder_id', $this->folderId)
+        ->assertJsonPath('workspace.shortcuts.0.project_id', $this->project->id)
+        ->assertJsonMissingPath('workspace.shortcuts.0.file_path')
+        ->assertJsonMissingPath('workspace.shortcuts.0.download_url');
+
+    expect($this->head->fresh()->project_workspace['shortcuts'])->toBe($response->json('workspace.shortcuts'))
+        ->and($this->project->fresh()->getAttributes())->toBe($originalProject)
+        ->and($document->fresh()->getAttributes())->toBe($originalDocument)
+        ->and($this->project->projectDocuments()->count())->toBe(1)
+        ->and(Storage::disk('local')->allFiles('project-documents'))->toBe(['project-documents/source.pdf']);
+});
+
+test('document shortcut validation rejects unavailable sources and untrusted metadata', function (string $condition, string $field) {
+    $document = ($this->makeDocument)();
+    $this->workspace['assignments'] = [];
+    $this->workspace['shortcuts'] = [[
+        'id' => (string) Str::uuid(), 'folder_id' => $this->folderId,
+        'project_id' => $this->project->id, 'document_key' => 'project-document-'.$document->id,
+    ]];
+
+    if ($condition === 'forged key') {
+        $this->workspace['shortcuts'][0]['document_key'] = 'project-document-999999';
+    } elseif ($condition === 'missing folder') {
+        $this->workspace['shortcuts'][0]['folder_id'] = (string) Str::uuid();
+    } elseif ($condition === 'missing project') {
+        $this->workspace['shortcuts'][0]['project_id'] = $this->project->id + 999;
+    } elseif ($condition === 'unissued project') {
+        $this->project->update(['notice_to_proceed_issued_at' => null]);
+    } elseif ($condition === 'forbidden project') {
+        Gate::before(fn (User $user, string $ability): ?bool => $ability === 'view' ? false : null);
+    } elseif ($condition === 'wrong project') {
+        $other = $this->project->replicate();
+        $other->fill(['title' => 'Other project'])->save();
+        $this->workspace['shortcuts'][0]['project_id'] = $other->id;
+    } elseif ($condition === 'missing source file') {
+        Storage::disk('local')->delete($document->file_path);
+    } elseif ($condition === 'duplicate shortcut ID') {
+        $this->workspace['shortcuts'][] = [...$this->workspace['shortcuts'][0], 'id' => strtoupper($this->workspace['shortcuts'][0]['id'])];
+    } elseif ($condition === 'missing key') {
+        unset($this->workspace['shortcuts'][0]['document_key']);
+    } elseif ($condition === 'oversized key') {
+        $this->workspace['shortcuts'][0]['document_key'] = str_repeat('x', 201);
+    } else {
+        $this->workspace['shortcuts'][0][$condition] = 'https://example.com/untrusted.pdf';
+    }
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+    expect($this->head->fresh()->project_workspace)->toBeNull();
+})->with([
+    'forged key' => ['forged key', 'shortcuts.0.document_key'],
+    'missing folder' => ['missing folder', 'shortcuts.0.folder_id'],
+    'missing project' => ['missing project', 'shortcuts.0.project_id'],
+    'unissued project' => ['unissued project', 'shortcuts.0.project_id'],
+    'forbidden project' => ['forbidden project', 'shortcuts.0.project_id'],
+    'wrong project' => ['wrong project', 'shortcuts.0.document_key'],
+    'missing source file' => ['missing source file', 'shortcuts.0.document_key'],
+    'duplicate shortcut ID' => ['duplicate shortcut ID', 'shortcuts.0.id'],
+    'missing key' => ['missing key', 'shortcuts.0.document_key'],
+    'oversized key' => ['oversized key', 'shortcuts.0.document_key'],
+    'download URL' => ['download_url', 'shortcuts.0'],
+    'file path' => ['file_path', 'shortcuts.0'],
+]);
+
+test('legacy workspace saves retain existing document shortcuts when the field is omitted', function () {
+    $document = ($this->makeDocument)();
+    $shortcuts = [[
+        'id' => (string) Str::uuid(), 'folder_id' => $this->folderId,
+        'project_id' => $this->project->id, 'document_key' => 'project-document-'.$document->id,
+    ]];
+    $this->head->forceFill(['project_workspace' => [...$this->workspace, 'shortcuts' => $shortcuts]])->save();
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertSuccessful()->assertJsonPath('workspace.shortcuts', $shortcuts);
+    expect($this->head->fresh()->project_workspace['shortcuts'])->toBe($shortcuts);
+});
+
+test('an explicit empty shortcuts list clears personal references', function () {
+    $document = ($this->makeDocument)();
+    $this->head->forceFill(['project_workspace' => [...$this->workspace, 'shortcuts' => [[
+        'id' => (string) Str::uuid(), 'folder_id' => $this->folderId,
+        'project_id' => $this->project->id, 'document_key' => 'project-document-'.$document->id,
+    ]]]])->save();
+    Storage::disk('local')->delete($document->file_path);
+    $this->workspace['shortcuts'] = [];
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertSuccessful()->assertJsonPath('workspace.shortcuts', []);
+    expect($document->fresh())->not->toBeNull();
+});
+
+test('an unavailable saved document reference does not block personal workspace changes', function (string $condition, bool $copyReference) {
+    $document = ($this->makeDocument)();
+    $shortcut = [
+        'id' => (string) Str::uuid(), 'folder_id' => $this->folderId,
+        'project_id' => $this->project->id, 'document_key' => 'project-document-'.$document->id,
+    ];
+    $this->head->forceFill(['project_workspace' => [...$this->workspace, 'shortcuts' => [$shortcut]]])->save();
+    if ($condition === 'missing file') {
+        Storage::disk('local')->delete($document->file_path);
+    } elseif ($condition === 'deleted project') {
+        $this->project->delete();
+    } elseif ($condition === 'unissued project') {
+        $this->project->update(['notice_to_proceed_issued_at' => null]);
+    } else {
+        Gate::before(fn (User $user, string $ability): ?bool => $ability === 'view' ? false : null);
+    }
+    $this->workspace['assignments'] = [];
+    if ($copyReference) {
+        $folderId = (string) Str::uuid();
+        $this->workspace['folders'][] = ['id' => $folderId, 'name' => 'Saved references', 'parent_id' => null];
+        $shortcut = [...$shortcut, 'id' => (string) Str::uuid(), 'folder_id' => $folderId];
+    }
+    $this->workspace['shortcuts'] = [$shortcut];
+    $this->workspace['view'] = 'list';
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertSuccessful()->assertJsonPath('workspace.shortcuts', [$shortcut])
+        ->assertJsonPath('workspace.view', 'list');
+    if ($condition === 'forbidden project') {
+        $this->get(route('topics.documents.view', [$this->project, $document]))->assertForbidden();
+    }
+})->with([
+    'missing file' => ['missing file', false],
+    'deleted project' => ['deleted project', false],
+    'unissued project' => ['unissued project', false],
+    'forbidden project' => ['forbidden project', false],
+    'copy after access revoked' => ['forbidden project', true],
+]);
+
+test('an existing shortcut ID cannot authorize a changed source identity', function () {
+    $document = ($this->makeDocument)();
+    $shortcut = [
+        'id' => (string) Str::uuid(), 'folder_id' => $this->folderId,
+        'project_id' => $this->project->id, 'document_key' => 'project-document-'.$document->id,
+    ];
+    $this->head->forceFill(['project_workspace' => [...$this->workspace, 'shortcuts' => [$shortcut]]])->save();
+    $this->workspace['shortcuts'] = [[...$shortcut, 'document_key' => 'project-document-999999']];
+
+    $this->putJson(route('research_head.projects.workspace.update'), $this->workspace)
+        ->assertUnprocessable()->assertJsonValidationErrors('shortcuts.0.document_key');
+    expect($this->head->fresh()->project_workspace['shortcuts'])->toBe([$shortcut]);
+});
+
+test('legacy stored workspace preferences include an empty shortcuts list', function () {
+    $this->head->forceFill(['project_workspace' => $this->workspace])->save();
+
+    expect($this->head->fresh()->projectWorkspacePreferences()['shortcuts'])->toBe([]);
+});
+
 test('invalid folder structures and preferences are rejected', function (Closure $invalidate, string $field) {
     $this->putJson(route('research_head.projects.workspace.update'), $invalidate($this->workspace))
         ->assertUnprocessable()->assertJsonValidationErrors($field);
@@ -141,7 +341,7 @@ test('invalid folder structures and preferences are rejected', function (Closure
         $p['assignments'][] = $p['assignments'][0];
 
         return $p;
-    }, 'assignments.0.project_id'],
+    }, 'assignments.1.project_id'],
     'unknown folder key' => [fn (array $p): array => array_replace_recursive($p, ['folders' => [['shared' => true]]]), 'folders.0'],
     'unknown assignment key' => [fn (array $p): array => array_replace_recursive($p, ['assignments' => [['status' => 'completed']]]), 'assignments.0'],
     'unknown top level key' => [fn (array $p): array => [...$p, 'user_id' => 999], 'user_id'],

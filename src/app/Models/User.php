@@ -18,7 +18,7 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'contact_number', 'department', 'professional_title', 'cv_defaults', 'email_verified_at'])]
-#[Hidden(['password', 'remember_token', 'project_workspace', 'cv_defaults'])]
+#[Hidden(['password', 'remember_token', 'project_workspace', 'report_library_workspace', 'cv_defaults'])]
 /**
  * A single `User` row represents one person regardless of how many roles they
  * hold. The `college` and `contact_number` columns are GLOBAL to the account:
@@ -68,23 +68,24 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'project_workspace' => 'array',
+            'report_library_workspace' => 'array',
             'cv_defaults' => 'array',
         ];
     }
 
     /**
-     * @return array{revision: int, folders: list<array{id: string, name: string, parent_id: ?string}>, assignments: list<array{project_id: int, folder_id: string}>, view: string, grouping: string, sort: string}
+     * @return array{revision: int, folders: list<array{id: string, name: string, parent_id: ?string}>, assignments: list<array{project_id: int, folder_id: string}>, shortcuts: list<array{id: string, folder_id: string, project_id: int, document_key: string}>, view: string, grouping: string, sort: string}
      */
     public function projectWorkspacePreferences(): array
     {
-        return $this->project_workspace ?? [
+        return ($this->project_workspace ?? [
             'revision' => 0,
             'folders' => [],
             'assignments' => [],
             'view' => 'grid',
             'grouping' => 'year',
             'sort' => 'attention',
-        ];
+        ]) + ['shortcuts' => []];
     }
 
     public function scopeAssignedToRole(Builder $query, string $role, ?string $guard = null): Builder

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { researchAssistantHistory } from '../../resources/js/research-assistant-history.js';
 import { createProposalDialog } from '../../resources/js/proposal-dialog.js';
 import { createManilaClock } from '../../resources/js/manila-clock.js';
@@ -192,6 +192,112 @@ test('the built app loads history and dialogs on demand across page navigation',
         assert.equal(dialogRequests, 1);
         assert.deepEqual(errors, []);
     } finally {
+        await browser.close();
+    }
+});
+
+test('research call image tools download only on their page and survive delayed chunks and navigation', { timeout: 60000 }, async () => {
+    const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
+    const appEntry = manifest['resources/js/app.js'];
+    const extractorFile = manifest['resources/js/research-call-image-extractor.js']?.file;
+    const allowedAssets = new Set(Object.values(manifest).map(entry => entry.file));
+    const origin = 'https://athena-loading.test';
+    let extractorRequests = 0;
+    let extractionRequests = 0;
+    let holdExtractor = true;
+    let releaseExtractor;
+    const poster = {
+        name: 'poster.png', mimeType: 'image/png',
+        buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jE9sAAAAASUVORK5CYII=', 'base64'),
+    };
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route(`${origin}/**`, async route => {
+            const path = new URL(route.request().url()).pathname.slice(1);
+            if (allowedAssets.has(path)) {
+                if (path === extractorFile) {
+                    extractorRequests++;
+                    if (holdExtractor) await new Promise(resolve => { releaseExtractor = resolve; });
+                }
+                return route.fulfill({ body: readFileSync(resolve('public/build', path)), contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript' });
+            }
+            if (path === 'extract') {
+                extractionRequests++;
+                assert.equal(route.request().method(), 'POST');
+                assert.equal(route.request().headers()['x-csrf-token'], 'test');
+                assert.ok(route.request().postDataBuffer().includes(Buffer.from('poster.png')));
+                return route.fulfill({ json: { fields: { title: `Detected call ${extractionRequests}` }, detected_fields: ['Call title'], missing_fields: [], warnings: [] } });
+            }
+            const callsPage = path === 'calls';
+            return route.fulfill({ contentType: 'text/html', body: `<!DOCTYPE html><html><head>
+                <meta name="csrf-token" content="test"><meta name="app-url" content="${origin}">
+                <script data-navigate-once>window.livewireScriptConfig = { csrf: 'test', uri: '/livewire/update', progressBar: '' };</script>
+                <script type="module" src="/${appEntry.file}"></script>
+            </head><body x-data data-app-shell data-auth-user-id="1">
+                <h1>${callsPage ? 'Research calls' : 'Dashboard'}</h1>
+                <a wire:navigate href="/calls">Open research calls</a>
+                <a wire:navigate href="/dashboard">Open dashboard</a>
+                ${callsPage ? `<form data-research-call-form data-extract-url="/extract" method="post" action="/save">
+                    <label>Call title<input name="title"></label>
+                    <label>Poster image<input type="file" name="reference_image" accept="image/png" data-research-call-image></label>
+                    <img data-research-call-image-preview alt="Selected poster">
+                    <p data-research-call-image-name></p><p data-research-call-image-status></p>
+                    <button type="button" data-research-call-extract disabled>Read image</button>
+                </form>` : ''}
+            </body></html>` });
+        });
+        const extractPoster = async (expected, selectPoster = true) => {
+            await expect(page.locator('[data-research-call-form]')).toHaveAttribute('data-research-call-image-ready', 'true');
+            if (selectPoster) await page.getByLabel('Poster image').setInputFiles(poster);
+            await expect(page.locator('[data-research-call-image-name]')).toHaveText('poster.png');
+            await expect(page.locator('[data-research-call-image-preview]')).toHaveAttribute('src', /^blob:/);
+            await expect(page.getByRole('button', { name: 'Read image', exact: true })).toBeEnabled();
+            await page.getByRole('button', { name: 'Read image', exact: true }).click();
+            await expect(page.getByLabel('Call title')).toHaveValue(`Detected call ${expected}`);
+            await page.waitForTimeout(50);
+            assert.equal(extractionRequests, expected, 'each click must send one extraction request');
+        };
+
+        await page.goto(`${origin}/dashboard`);
+        await page.waitForFunction(() => window.Alpine?.store('researchAssistant'));
+        assert.equal(extractorRequests, 0, 'ordinary pages must not download image extraction tools');
+        await page.getByRole('link', { name: 'Open research calls', exact: true }).click();
+        await page.getByRole('heading', { name: 'Research calls', exact: true }).waitFor();
+        await expect.poll(() => extractorRequests).toBe(1);
+        await expect(page.locator('[data-research-call-form]')).not.toHaveAttribute('data-research-call-image-ready');
+        await page.getByRole('link', { name: 'Open dashboard', exact: true }).click();
+        await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
+        holdExtractor = false;
+        const chunkLoaded = page.waitForResponse(`${origin}/${extractorFile}`);
+        releaseExtractor();
+        await chunkLoaded;
+        assert.deepEqual(errors, []);
+
+        await page.getByRole('link', { name: 'Open research calls', exact: true }).click();
+        await extractPoster(1);
+        await page.getByRole('link', { name: 'Open dashboard', exact: true }).click();
+        await page.getByRole('heading', { name: 'Dashboard', exact: true }).waitFor();
+        await page.getByRole('link', { name: 'Open research calls', exact: true }).click();
+        await page.evaluate(() => document.dispatchEvent(new Event('livewire:navigated')));
+        await extractPoster(2);
+        assert.equal(extractorRequests, 1, 'page navigation must reuse the loaded extractor chunk');
+        assert.deepEqual(errors, []);
+
+        holdExtractor = true;
+        await page.goto(`${origin}/calls`);
+        await expect.poll(() => extractorRequests).toBe(2);
+        await page.getByLabel('Poster image').setInputFiles(poster);
+        await expect(page.getByRole('button', { name: 'Read image', exact: true })).toBeDisabled();
+        holdExtractor = false;
+        releaseExtractor();
+        await extractPoster(3, false);
+        assert.equal(extractorRequests, 2, 'a direct visit must initialize image tools from its lazy chunk');
+        assert.deepEqual(errors, []);
+    } finally {
+        releaseExtractor?.();
         await browser.close();
     }
 });

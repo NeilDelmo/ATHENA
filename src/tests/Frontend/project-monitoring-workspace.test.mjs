@@ -9,6 +9,34 @@ import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 import { projectStatusManager } from '../../resources/js/project-status-manager.js';
 
+test('legacy released-document links override a saved project section', async () => {
+    if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
+        execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=monitoring prioritizes'], {
+            encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
+        });
+    }
+    const source = readFileSync(resolve('storage/framework/testing/monitoring-completed-research_head.html'), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        for (const savedTab of ['details', 'review', 'history']) {
+            const state = await page.evaluate(({ source, savedTab }) => {
+                history.replaceState(history.state, '', '#notice-to-proceed');
+                const document = new DOMParser().parseFromString(source, 'text/html');
+                const configuration = document.querySelector('[data-topic-workspace]').getAttribute('x-data');
+                const workspace = new Function(`return (${configuration})`)();
+                workspace.activeTopicTab = savedTab;
+                workspace.init();
+                return { tab: workspace.activeTopicTab, hash: location.hash };
+            }, { source, savedTab });
+            assert.deepEqual(state, { tab: 'files', hash: '#project-files' });
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('the rendered monitoring workspace prioritizes reports and supports disclosure and tab navigation in both themes', async () => {
     if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', 'tests/Feature/MonitoringObjectiveAlertTest.php', 'tests/Feature/PostApprovalUiDemoSeederTest.php', 'tests/Feature/ProjectReportSecretaryReviewUiTest.php', 'tests/Feature/ProjectMonitoringHealthPresentationTest.php', '--filter=post approval UI|monitoring prioritizes|progress quarter rows|a revised Monitoring Tool remains|monitoring alerts are visible|forwarded reports offer|monitoring summary groups'], {
@@ -43,11 +71,11 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         frame.setAttribute('x-data', workspace.getAttribute('x-data'));
                         frame.setAttribute('@hashchange.window', 'syncTopicTab()');
                         frame.append(workspace.querySelector('nav').cloneNode(true));
-                        for (const tab of ['proposal-details', 'proposal-review', 'notice-to-proceed', 'version-history']) {
+                        for (const tab of ['proposal-details', 'proposal-review', 'project-files', 'version-history']) {
                             const panel = document.createElement('section');
                             panel.id = `${tab}-tab`;
                             panel.setAttribute('x-cloak', '');
-                            const key = { 'proposal-details': 'details', 'proposal-review': 'review', 'notice-to-proceed': 'notice', 'version-history': 'history' }[tab];
+                            const key = { 'proposal-details': 'details', 'proposal-review': 'review', 'project-files': 'files', 'version-history': 'history' }[tab];
                             panel.setAttribute('x-show', `activeTopicTab === '${key}'`);
                             panel.textContent = `${tab} content`;
                             frame.append(panel);
@@ -56,8 +84,7 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         if (alertHtml) {
                             const alert = new DOMParser().parseFromString(alertHtml, 'text/html').querySelector('[data-monitoring-work-plan-alert]');
                             monitoring.querySelector('[data-monitoring-work-plan-alert]')?.remove();
-                            const budget = monitoring.querySelector('[data-monitoring-budget-section]');
-                            budget.before(alert);
+                            monitoring.querySelector('.monitoring-attention-items').append(alert);
                         }
                         frame.append(monitoring);
                         frame.append(workspace.querySelector('[x-ref="workspaceBackLink"]').cloneNode(true));
@@ -88,9 +115,9 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     await expect(tab).toHaveCSS('border-radius', '12px');
                     await expect(tab).toHaveCSS('border-bottom-width', '0px');
                     await expect(page.locator('[data-project-monitoring-details] dd').first()).toHaveCSS('font-size', '16px');
-                    assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Latest reported project progress/);
-                    assert.ok(await page.locator('#quarterly-reports > span svg').isVisible());
-                    assert.ok(await page.locator('#quarterly-reporting-schedule-heading').evaluate(el => parseFloat(getComputedStyle(el).fontSize)) >= 24);
+                    assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Latest reported progress/);
+                    await expect(page.locator('#quarterly-reporting-schedule-heading')).toHaveCSS('font-size', '20px');
+                    await expect(page.locator('[data-monitoring-overview]')).toHaveCSS('background-color', dark ? 'rgb(30, 41, 59)' : 'rgb(254, 242, 244)');
                     assert.equal(await page.getByRole('tab').first().getAttribute('id'), 'project-monitoring-tab-button');
                     assert.equal(await page.locator('[data-reporting-quarter]').count(), fixture === 'summary-head' ? 2 : (['history', 'delayed-head', 'head-review'].includes(fixture) ? 4 : 3));
                     assert.equal(await page.locator('#terminal-reports').isVisible(), true);
@@ -98,12 +125,31 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     assert.equal(await page.locator('[data-monitoring-budget-section]').count(), ['completed-research_head', 'delayed-head', 'head-review', 'summary-head'].includes(fixture) ? 0 : 1, `${fixture} budget visibility at ${width}px`);
                     const recordMenu = page.locator('[data-project-record-menu]');
                     assert.equal(await recordMenu.getAttribute('open'), null);
+                    const recordTrigger = recordMenu.locator('summary');
+                    await expect(recordTrigger).toHaveAttribute('aria-label', 'Project details and history');
+                    assert.equal(await recordTrigger.innerText(), '');
+                    assert.equal(await recordTrigger.locator('svg').count(), 1);
+                    const recordBounds = await recordTrigger.boundingBox();
+                    assert.ok(recordBounds.width >= 44 && recordBounds.height >= 44);
+                    assert.equal(await recordMenu.locator('[role="tab"]').count(), 3);
+                    for (const option of await recordMenu.locator('[role="tab"]').all()) {
+                        assert.equal(await option.locator('svg').count(), 1);
+                    }
+                    assert.equal(await page.locator('#notice-to-proceed-tab-button').count(), 0);
                     assert.equal(await page.getByRole('tab', { name: 'Proposal', exact: true }).isVisible(), false);
                     assert.equal(await page.locator('#terminal-reports ol').count(), 0);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 
                     const overview = page.locator('[data-monitoring-overview]');
                     assert.doesNotMatch(await overview.innerText(), /completion decision needed|Awaiting required report \/ review|Awaiting Research Head review/);
+                    const attention = overview.locator('[data-monitoring-attention]');
+                    if (await attention.count()) {
+                        assert.equal(await attention.getAttribute('open'), null);
+                        await expect(attention.locator('[data-monitoring-task-link]').first()).toBeHidden();
+                        await attention.locator(':scope > summary').focus();
+                        await page.keyboard.press('Enter');
+                        assert.equal(await attention.getAttribute('open'), '');
+                    }
                     for (const group of await overview.locator('[data-monitoring-review-group]').all()) {
                         assert.equal(await group.getAttribute('open'), null);
                         const summary = group.locator('summary');
@@ -119,10 +165,14 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         await page.keyboard.press('Space');
                         assert.equal(await group.getAttribute('open'), null);
                     }
+                    if (await attention.count()) {
+                        await attention.locator(':scope > summary').click();
+                        assert.equal(await attention.getAttribute('open'), null);
+                    }
                     if (width >= 1280 && await overview.locator('[data-project-status-manager]').count()) {
-                        const notice = await overview.locator('[data-monitoring-notice-link]').boundingBox();
+                        const title = await overview.locator('[data-project-monitoring-heading] h3').boundingBox();
                         const manage = await overview.getByRole('button', { name: 'Manage status', exact: true }).boundingBox();
-                        assert.ok(Math.abs(notice.y - manage.y) <= 1, 'Monitoring actions should share one row');
+                        assert.ok(Math.abs(title.y + title.height / 2 - manage.y - manage.height / 2) <= 1, 'Manage status should align with the project heading');
                     }
 
                     const rows = page.locator('[data-reporting-quarter]');
@@ -376,10 +426,15 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         assert.equal(await summary.evaluate(element => getComputedStyle(element, '::marker').content), '""');
                         assert.equal(await summary.locator('svg').count(), 1);
                     }
-                    const noticeLink = page.locator('[data-monitoring-notice-link]');
-                    assert.equal(await noticeLink.evaluate(element => getComputedStyle(element).borderTopStyle), 'solid');
+                    assert.equal(await page.locator('[data-monitoring-notice-link]').count(), 0);
+                    assert.doesNotMatch(await overview.locator('[data-project-monitoring-heading]').innerText(), /Reports overdue/);
                     const budget = page.locator('[data-monitoring-budget-section]');
+                    if (await budget.count()) {
+                        assert.equal(await budget.getAttribute('open'), null);
+                        assert.equal(await budget.locator(':scope > summary').isVisible(), true);
+                    }
                     if (fixture === 'active') {
+                        await attention.locator(':scope > summary').click();
                         const alert = page.locator('[data-monitoring-work-plan-alert]');
                         const disclosure = alert.locator('details');
                         assert.equal(await alert.evaluate(element => getComputedStyle(element).backgroundColor), dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
@@ -393,28 +448,42 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         }
                         await page.keyboard.press('Space');
                         assert.equal(await disclosure.getAttribute('open'), null);
+                        await attention.locator(':scope > summary').click();
+                        await budget.locator(':scope > summary').focus();
+                        await page.keyboard.press('Enter');
                         const pickerTrigger = budget.getByRole('button', { name: 'Select project staff' });
                         await pickerTrigger.click();
                         const search = budget.getByRole('searchbox');
                         await search.waitFor({ state: 'visible' });
                         const bounds = await search.boundingBox();
                         assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
+                        await expect(search).toBeFocused();
                         await page.keyboard.press('Escape');
                         await search.waitFor({ state: 'hidden' });
-                        assert.equal(await pickerTrigger.evaluate(element => document.activeElement === element), true);
+                        await expect(pickerTrigger).toBeFocused();
+                        await budget.locator(':scope > summary').click();
                     }
                     await recordMenu.locator('summary').focus();
                     await page.keyboard.press('Enter');
+                    await expect(recordTrigger).toHaveAttribute('aria-expanded', 'true');
                     assert.equal(await page.getByRole('tab', { name: 'Proposal', exact: true }).isVisible(), true);
+                    const recordOptions = page.locator(`#${await recordTrigger.getAttribute('aria-controls')}`);
+                    const optionsBounds = await recordOptions.boundingBox();
+                    assert.ok(optionsBounds.x >= 0 && optionsBounds.x + optionsBounds.width <= width, 'Project options must fit within the viewport');
+                    if (process.env.MONITORING_SCREENSHOT_DIRECTORY && [390, 1440].includes(width)) {
+                        await recordOptions.screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `project-options-${width}-${dark ? 'dark' : 'light'}.png`) });
+                    }
                     await page.keyboard.press('Escape');
                     assert.equal(await recordMenu.getAttribute('open'), null);
                     await recordMenu.locator('summary').click();
                     await page.getByRole('tab', { name: 'Proposal', exact: true }).click();
                     await monitoring.waitFor({ state: 'hidden' });
                     assert.equal(await recordMenu.getAttribute('open'), null);
-                    assert.match(await recordMenu.locator('summary').innerText(), /Proposal/);
+                    assert.equal(await recordTrigger.innerText(), '');
+                    await expect(recordTrigger).toHaveAttribute('aria-expanded', 'false');
+                    await expect(recordTrigger).toHaveClass(/bg-brand-wash/);
                     assert.equal(await recordMenu.locator('summary').evaluate(element => document.activeElement === element), true);
-                    for (const recordId of ['proposal-review', 'notice-to-proceed', 'version-history']) {
+                    for (const recordId of ['proposal-review', 'version-history']) {
                         const recordTab = page.locator(`#${recordId}-tab-button`);
                         if (await recordTab.count() === 0) continue;
                         await recordMenu.locator('summary').click();
@@ -423,6 +492,10 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         assert.equal(await recordMenu.getAttribute('open'), null);
                         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     }
+                    await page.evaluate(() => { location.hash = '#notice-to-proceed'; });
+                    await expect(page.locator('#project-files-tab')).toBeVisible();
+                    await expect(page.locator('#project-files-tab-button')).toHaveAttribute('aria-selected', 'true');
+                    assert.equal(await page.evaluate(() => location.hash), '#project-files');
                     await page.evaluate(() => { location.hash = '#terminal-reports'; });
                     await monitoring.waitFor({ state: 'visible' });
                     assert.equal(await tab.getAttribute('aria-selected'), 'true');
@@ -520,7 +593,10 @@ test('submitted report previews render real PDFs and resize their pages with the
                         await loadingTask.destroy();
                         return count;
                     }, documentSelector);
-                    const waitForPages = (expectedCount = count) => page.waitForFunction(({ selector, count }) => document.querySelector(selector).querySelectorAll('.pdf-annotation-page').length === count, { selector: documentSelector, count: expectedCount });
+                    const waitForPages = (expectedCount = count) => page.waitForFunction(({ selector, count }) => {
+                        const pages = [...document.querySelector(selector).querySelectorAll('.pdf-annotation-page')];
+                        return pages.length === count && pages.every(page => !page.style.zoom || page.style.zoom === '1');
+                    }, { selector: documentSelector, count: expectedCount });
                     let maximize;
                     if (inline) {
                         await waitForPages(1);
@@ -573,7 +649,7 @@ test('submitted report previews render real PDFs and resize their pages with the
                     await page.waitForFunction(({ selector, width }) => document.querySelector(selector).querySelector('.pdf-annotation-page')?.getBoundingClientRect().width > width + 1, { selector: documentSelector, width: initial.width });
                     await waitForPages();
                     assert.equal(await zoom.locator('output').innerText(), '110%');
-                    const buttonZoomWidth = (await pages.first().boundingBox()).width;
+                    const buttonZoomWidth = await pages.first().evaluate(element => element.getBoundingClientRect().width);
                     await scrollViewport.hover();
                     await page.keyboard.down('Control');
                     try {

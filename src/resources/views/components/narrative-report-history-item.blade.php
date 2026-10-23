@@ -133,12 +133,16 @@
                             <fieldset class="flex flex-wrap gap-x-6 gap-y-2">
                                 <legend class="mb-2 text-sm font-semibold text-gray-700 dark:text-slate-200">Decision</legend>
                                 @foreach (['reviewed' => $isTerminalReport ? 'Mark reviewed' : 'Accept report', 'revision_requested' => ! $isTerminalReport ? 'Send concerns to Research Office Secretary' : 'Request corrections'] as $value => $label)
+                                    @continue($isTerminalReport && $report->review_status === 'reviewed' && $value === 'reviewed')
                                     <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                                        <input type="radio" name="review_status" value="{{ $value }}" required @checked($report->review_status === $value || ($report->review_status === 'pending' && $value === 'reviewed')) class="h-4 w-4 shrink-0 border-red-300 text-brand focus:ring-brand dark:border-red-800 dark:bg-slate-950">
+                                        <input type="radio" name="review_status" value="{{ $value }}" required @checked($report->review_status === $value || ($report->review_status === 'pending' && $value === 'reviewed') || ($isTerminalReport && $report->review_status === 'reviewed' && $value === 'revision_requested')) class="h-4 w-4 shrink-0 border-red-300 text-brand focus:ring-brand dark:border-red-800 dark:bg-slate-950">
                                         <span>{{ $label }}</span>
                                     </label>
                                 @endforeach
                             </fieldset>
+                            @if ($isTerminalReport && $signedCopy)
+                                <p class="text-sm text-slate-600 dark:text-slate-300">Requesting corrections removes the signed copy. Upload a new fully signed PDF after the corrected report is reviewed.</p>
+                            @endif
                             <div class="space-y-2">
                                 <label for="narrative-review-notes-{{ $report->id }}" class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Feedback</label>
                                 <textarea id="narrative-review-notes-{{ $report->id }}" name="research_head_remarks" rows="4" maxlength="5000" placeholder="Write the feedback or corrections needed." class="block w-full rounded-lg border-slate-200 bg-white text-base leading-7 text-slate-900 placeholder:text-slate-400 focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-900 dark:text-white">{{ old('research_head_remarks', $report->research_head_remarks) }}</textarea>

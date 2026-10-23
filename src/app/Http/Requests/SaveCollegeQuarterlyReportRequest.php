@@ -9,9 +9,12 @@ use App\Support\ProposalRichText;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
+use JsonException;
 
 class SaveCollegeQuarterlyReportRequest extends FormRequest
 {
@@ -34,6 +37,8 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
         $rules = [
             'reporting_year' => ['required', 'integer', 'between:2000,2100'],
             'reporting_quarter' => ['required', 'integer', 'between:1,4'],
+            'form_complete' => ['required', Rule::in(['1'])],
+            'evidence_file_count' => ['required_with:report_details_json', 'integer', 'between:0,1510'],
             'intent' => ['required', Rule::in(['save', 'preview', 'download', 'submit'])],
             'other_accomplishments' => ['nullable', 'string', 'max:100000'],
             'reviewed_by' => ['nullable', 'string', 'max:255'],
@@ -86,6 +91,28 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->exists('report_details_json')) {
+            $json = $this->input('report_details_json');
+            if (! is_string($json) || strlen($json) > 5 * 1024 * 1024 || ! str_starts_with(ltrim($json), '{')) {
+                throw ValidationException::withMessages(['report_details_json' => 'The report details could not be read. Reload the report before saving.']);
+            }
+            try {
+                $details = json_decode($json, true, 32, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                throw ValidationException::withMessages(['report_details_json' => 'The report details could not be read. Reload the report before saving.']);
+            }
+            if (array_diff(array_keys($details), ['presentations', 'publications', 'seminars', 'manual_research', 'ip_assets', 'saved_evidence_captions', 'remove_evidence', 'evidence_captions']) !== []) {
+                throw ValidationException::withMessages(['report_details_json' => 'The report details contain unsupported fields. Reload the report before saving.']);
+            }
+            array_walk_recursive($details, function (mixed &$value): void {
+                if (is_string($value)) {
+                    $value = trim($value);
+                    $value = $value === '' ? null : $value;
+                }
+            });
+            $this->merge($details);
+        }
+
         foreach (['presentations', 'publications', 'seminars', 'manual_research', 'ip_assets'] as $section) {
             if (is_array($this->input($section))) {
                 $this->merge([$section => collect($this->input($section))->reject(
@@ -99,6 +126,11 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
     {
         return [function (Validator $validator): void {
             if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+            if ($this->has('evidence_file_count') && $this->integer('evidence_file_count') !== count(Arr::flatten($this->allFiles()))) {
+                $validator->errors()->add('evidence_file_count', 'Some selected files did not reach the server. Upload fewer files at a time before submitting.');
+
                 return;
             }
 
@@ -132,5 +164,10 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
                 }
             }
         }];
+    }
+
+    public function messages(): array
+    {
+        return ['form_complete.required' => 'The report form was incomplete. Reload the report before saving.'];
     }
 }

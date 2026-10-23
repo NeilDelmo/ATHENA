@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\NotifyRmsQuarterlyReportStatus;
 use App\Actions\StoreProjectDocuments;
 use App\Http\Requests\SaveCollegeQuarterlyReportRequest;
 use App\Models\CollegeQuarterlyReport;
@@ -86,7 +87,7 @@ class ResearchCoordinatorReportController extends Controller
             : response()->download(Storage::disk('local')->path($evidence['path']), $evidence['original_filename'], $headers);
     }
 
-    public function store(SaveCollegeQuarterlyReportRequest $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters, ProposalRichText $richText, StoreProjectDocuments $storeProjectDocuments): RedirectResponse
+    public function store(SaveCollegeQuarterlyReportRequest $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters, ProposalRichText $richText, StoreProjectDocuments $storeProjectDocuments, NotifyRmsQuarterlyReportStatus $notifyRmsStatus): RedirectResponse
     {
         $validated = $request->validated();
         if (is_string($validated['other_accomplishments'] ?? null) && strip_tags($validated['other_accomplishments']) !== $validated['other_accomplishments']) {
@@ -193,6 +194,9 @@ class ResearchCoordinatorReportController extends Controller
             throw $exception;
         }
         Storage::disk('local')->delete($removedPaths);
+        if ($submitting) {
+            $notifyRmsStatus->handle($validated['reporting_year'], $validated['reporting_quarter']);
+        }
 
         $destination = match ($validated['intent']) {
             'preview' => 'research_coordinator.reports.print',
@@ -213,7 +217,9 @@ class ResearchCoordinatorReportController extends Controller
         $quarter = (int) ($validated['quarter'] ?? now()->quarter);
         $coordinator = $request->user();
         $reports = CollegeQuarterlyReport::where('college', $coordinator->college)->where('reporting_year', $year)
-            ->with(['preparedBy', 'submissions' => fn ($query) => $query->orderByDesc('version_number')])->get()->keyBy('reporting_quarter');
+            ->with(['preparedBy:id,name', 'submissions' => fn ($query) => $query
+                ->select(['id', 'report_id', 'version_number', 'submitted_at', 'returned_at', 'return_reason'])
+                ->orderByDesc('version_number')])->get()->keyBy('reporting_quarter');
         $report = $reports->get($quarter);
         $reportData = $report?->submitted_at !== null ? $report->snapshot : $data->build($coordinator, $year, $quarter);
         $automaticResearch = $report?->submitted_at !== null ? [] : $reportData['research'];
@@ -229,6 +235,10 @@ class ResearchCoordinatorReportController extends Controller
         if ($report?->submitted_at === null) {
             $reportEvidence = [...array_values(array_filter($reportEvidence, fn (array $file): bool => ($file['source'] ?? null) !== 'faculty_report')),
                 ...app(CollegeQuarterlyReportFacultyEvidence::class)->forQuarter($coordinator, $year, $quarter)];
+        } elseif (($submission = $report->submissions->first()) !== null) {
+            $reportEvidence = array_map(fn (array $file, int $index): array => [
+                ...$file, 'url' => route('college-quarterly-submissions.evidence', ['submission' => $submission, 'index' => $index]),
+            ], $reportEvidence, array_keys($reportEvidence));
         }
 
         return [

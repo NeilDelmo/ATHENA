@@ -143,6 +143,11 @@ class ResearchHeadTopicController extends Controller
                 ->merge($savedHighlightFileIds)
                 ->unique()
                 ->values();
+            if ($selectedIds->isEmpty() && $committeeComments !== []) {
+                $selectedIds = $revisionCandidateFiles
+                    ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+                    ->pluck('id');
+            }
             $selectedRevisionFiles = $revisionCandidateFiles->whereIn('id', $selectedIds)->values();
 
             if ($revisionCandidateFiles->isEmpty()) {
@@ -226,9 +231,13 @@ class ResearchHeadTopicController extends Controller
                 throw ValidationException::withMessages(['status' => 'This action is no longer available. Refresh the proposal and follow its current review stage.']);
             }
 
-            $lockedVersion = $reviewedTopic->latestVersion()->lockForUpdate()->firstOrFail();
+            $lockedVersion = $reviewedTopic->latestVersion()->with('files')->lockForUpdate()->firstOrFail();
             if ($lockedVersion->id !== $latestVersion->id) {
                 throw ValidationException::withMessages(['status' => 'A newer version was submitted. Review it before continuing.']);
+            }
+
+            if ($this->assessmentFingerprint($lockedVersion) !== $this->assessmentFingerprint($latestVersion)) {
+                throw ValidationException::withMessages(['status' => 'The GAD assessment or co-evaluator review changed. Reload the proposal and review the latest results before continuing.']);
             }
 
             $reviewStage = $reviewedTopic->review_stage;
@@ -462,6 +471,23 @@ class ResearchHeadTopicController extends Controller
         }
 
         return route('faculty.topics.revision', ['topic' => $topic, 'revision_annotation' => $annotation->id]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function assessmentFingerprint(ProposalVersion $version): array
+    {
+        return $version->files
+            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && in_array($file->source_data['purpose'] ?? null, [
+                    ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                    ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+                ], true))
+            ->sortBy('id')
+            ->map(fn (ProposalVersionFile $file): array => $file->only([
+                'id', 'source_version_file_id', 'source_data', 'file_path', 'checksum',
+            ]))
+            ->values()
+            ->all();
     }
 
     private function canAnnotateRevisionFile(ProposalVersionFile $file): bool

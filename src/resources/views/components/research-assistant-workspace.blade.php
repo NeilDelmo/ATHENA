@@ -9,7 +9,7 @@
     @keydown.escape.prevent="$store.researchAssistant.closeWorkspace()"
     data-assistant-workspace
 >
-    <aside id="assistant-history-sidebar" x-show="historyVisible" class="hidden w-56 shrink-0 flex-col border-r border-stone-300 bg-stone-100 dark:border-stone-700 dark:bg-stone-900 lg:flex" data-assistant-history-sidebar>
+    <aside id="assistant-history-sidebar" x-show="historyVisible" class="hidden w-64 shrink-0 flex-col border-r border-stone-300 bg-stone-100 dark:border-stone-700 dark:bg-stone-900 lg:flex" data-assistant-history-sidebar>
         <div class="p-4">
             <div class="flex items-center gap-3 px-1 py-2">
                 <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-900 text-white">
@@ -27,23 +27,23 @@
             </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-4">
+        <div class="min-h-0 flex-1 overflow-y-auto p-4">
             <div class="flex items-center justify-between gap-2 px-2">
                 <p class="text-xs font-medium text-gray-500">Chat history</p>
                 <span class="text-xs font-semibold text-gray-500" x-text="$store.researchAssistant.history.length ? `${$store.researchAssistant.history.length} chats` : ''"></span>
             </div>
 
-            <button type="button" @click="$store.researchAssistant.openHistorySearch()" class="mt-3 flex w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white">
+            <button type="button" @click="$store.researchAssistant.openHistorySearch()" class="mt-3 flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 text-left text-xs font-medium text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-white">
                 <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
                 Search history
-                <kbd class="ml-auto rounded border border-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:border-slate-700">Ctrl K</kbd>
+                <kbd class="ml-auto shrink-0 whitespace-nowrap rounded border border-stone-300 px-1.5 py-0.5 text-xs font-medium text-stone-500 dark:border-stone-600 dark:text-stone-400">Ctrl K</kbd>
             </button>
 
             <div class="mt-3 space-y-1">
                 <template x-for="conversation in $store.researchAssistant.history" :key="conversation.id">
-                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'bg-red-900 text-white' : 'text-stone-700 hover:bg-stone-200 dark:text-stone-200 dark:hover:bg-stone-800'" class="w-full rounded-lg px-3 py-2.5 text-left transition">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" :aria-current="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'true' : null" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'bg-stone-200 text-stone-950 dark:bg-stone-800 dark:text-white' : 'text-stone-700 hover:bg-stone-200 dark:text-stone-200 dark:hover:bg-stone-800'" class="w-full rounded-lg px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                         <span class="block truncate text-xs font-medium" x-text="conversation.title"></span>
-                        <span class="mt-1 block text-xs font-normal" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'text-red-100' : 'text-stone-500 dark:text-stone-400'" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                        <span class="mt-1 block text-xs font-normal text-stone-600 dark:text-stone-400" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
                     </button>
                 </template>
                 <p x-show="$store.researchAssistant.historyLoading" role="status" class="px-2 py-6 text-center text-xs leading-5 text-gray-500 dark:text-slate-400">Loading saved chats…</p>
@@ -61,16 +61,10 @@
             </div>
 
         </div>
-
-        <div class="space-y-1 border-t border-gray-200 p-4 dark:border-slate-800">
-            <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-left text-xs font-semibold text-stone-700 hover:bg-stone-100 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
-            <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-left text-xs font-semibold text-stone-700 hover:bg-stone-100 disabled:opacity-40 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800">Export .txt</button>
-            <p class="px-3 pt-3 text-xs leading-4 text-gray-500"><span class="font-medium">Privacy:</span> Chats are saved to your ATHENA account. Each workspace has its own history.</p>
-        </div>
     </aside>
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-stone-100 dark:bg-stone-950">
-        <header class="relative flex min-h-16 shrink-0 items-center justify-between border-b-2 border-red-900 bg-white px-4 sm:px-6 dark:border-red-800 dark:bg-stone-900" data-assistant-header>
+        <header class="relative flex min-h-16 shrink-0 items-center justify-between border-b border-stone-300 bg-white px-4 sm:px-6 dark:border-stone-700 dark:bg-stone-900" data-assistant-header>
             <div class="flex min-w-0 items-center gap-3">
                 <button type="button" @click="historyVisible = !historyVisible" :aria-expanded="historyVisible" aria-controls="assistant-history-sidebar" aria-label="Toggle chat history" title="Toggle chat history" class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-800 lg:inline-flex" data-assistant-history-toggle>
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16" /></svg>
@@ -110,7 +104,7 @@
             <x-research-assistant-proposal-help />
             <div x-show="!$store.researchAssistant.proposalHelpOpen"><x-research-assistant-welcome /></div>
 
-            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6" data-assistant-thread>
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6" data-assistant-thread>
                 <template x-for="message in $store.researchAssistant.messages" :key="message.id">
                     <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-6 flex">
                         <div data-assistant-user-message x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-stone-100 px-5 py-3 text-sm leading-6 text-stone-900 dark:bg-stone-800 dark:text-stone-100 sm:max-w-[75%]">
@@ -131,7 +125,7 @@
                                 <x-research-assistant-report-changes />
                                 <x-research-assistant-dissemination />
                                 <x-research-assistant-sources />
-                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex min-h-11 items-center rounded-lg px-2 py-2 text-xs font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
                             </div>
                         </div>
                     </article>
@@ -151,7 +145,7 @@
         </div>
 
         <footer class="shrink-0 border-t border-stone-300 bg-stone-100 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-stone-700 dark:bg-stone-900 sm:px-6 sm:pb-3">
-            <div class="mx-auto max-w-6xl">
+            <div class="mx-auto max-w-4xl">
                 <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
                     <div><p class="font-semibold" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
                     <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-red-700 bg-red-900 px-3 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-red-400" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>

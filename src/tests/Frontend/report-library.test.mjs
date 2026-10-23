@@ -221,3 +221,43 @@ test('busy and stale project workspaces cannot open a menu with disabled choices
         state[status] = false;
     }
 });
+
+test('file menus prepare the clicked selection and focus the first available action', () => {
+    const state = library(storage());
+    let focused = null;
+    let prepared = false;
+    state.menuActions = [{ id: 'open', label: 'Open', run() {} }];
+    state.prepareContextMenu = () => { prepared = true; };
+    state.$nextTick = callback => callback();
+    state.$refs = { libraryViewMenu: {
+        getBoundingClientRect: () => ({ width: 240, height: 220 }),
+        querySelector: selector => ({ focus() { focused = selector; } }),
+    } };
+    const target = { getBoundingClientRect: () => ({ left: 20, bottom: 40 }) };
+    state.openViewMenu({ target, currentTarget: target, preventDefault() {} });
+    assert.equal(prepared, true);
+    assert.match(focused, /menuitem/);
+    assert.doesNotMatch(focused, /aria-checked/);
+});
+
+test('menu actions close before executing and disabled actions cannot run', () => {
+    const state = library(storage());
+    let calls = 0;
+    const action = { id: 'paste', disabled: true, run() { calls++; assert.equal(state.viewMenuOpen, false); } };
+    state.viewMenuOpen = true;
+    state.activateMenuAction(action);
+    assert.equal(calls, 0);
+    assert.equal(state.viewMenuOpen, true);
+    action.disabled = false;
+    state.activateMenuAction(action);
+    assert.equal(calls, 1);
+});
+
+test('document details include source uploader date and size without invalid metadata', () => {
+    const state = library(storage());
+    const details = state.documentDetails({ source: 'Submitted report', uploaded_by: 'Dr. Santos', uploaded_at: '2025-10-20T12:00:00Z', file_size: 24576 });
+    assert.match(details, /Submitted report · Dr\. Santos/);
+    assert.match(details, /2025/);
+    assert.match(details, /24(?:\.0)? KB/);
+    assert.equal(state.documentDetails({ source: 'Generated', uploaded_at: 'invalid', file_size: null }), 'Generated');
+});

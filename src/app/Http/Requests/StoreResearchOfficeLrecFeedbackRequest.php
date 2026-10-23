@@ -21,7 +21,8 @@ class StoreResearchOfficeLrecFeedbackRequest extends FormRequest
             'committee_comments.*.comment' => ['required', 'string', 'max:5000'],
             'committee_comments.*.location' => ['nullable', 'string', 'max:300'],
             'status' => ['prohibited'],
-            'revision_file_ids' => ['prohibited'],
+            'revision_file_ids' => ['sometimes', 'array', 'min:1', 'max:100'],
+            'revision_file_ids.*' => ['required', 'integer', 'distinct'],
         ];
     }
 }

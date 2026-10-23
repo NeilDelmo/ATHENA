@@ -3,12 +3,58 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { chromium, expect } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
 const read = path => readFileSync(resolve(path), 'utf8');
+
+test('large user directories check each row once while preserving college and name or email filters', () => {
+    const template = read('resources/views/research_head/faculty-directory.blade.php');
+    const expression = template.match(/x-data="([\s\S]*?)"\s+class="space-y-5"/)[1]
+        .replace('@js($selectedCollege)', "'all'")
+        .replace('@js($search)', "''")
+        .replace('@js($colleges)', '{}')
+        .replace('@js($memberFilters)', '[]');
+    const state = runInNewContext(`(${expression})`);
+    const rowExpression = template.match(/<tr\s+x-show="([^"]+)"/)[1]
+        .replace('@js($member->getKey())', 'row.id')
+        .replace('@js($memberFilter)', 'row');
+    const isVisible = runInNewContext(`(function (row) { with (this) { return ${rowExpression}; } })`);
+    let searchChecks = 0;
+    state.members = Array.from({ length: 1000 }, (_, index) => ({
+        id: index + 1,
+        college: index % 2 ? 'CTE' : 'CICS',
+        get search() { searchChecks++; return `faculty ${index + 1} faculty${index + 1}@example.test`; },
+    }));
+    const visibleIds = () => state.members.filter(member => isVisible.call(state, member)).map(member => member.id);
+
+    state.search = 'faculty';
+    assert.equal(visibleIds().length, 1000);
+    assert.equal(searchChecks, 1000, 'Row visibility must not rescan the whole directory for every member');
+    state.selectedCollege = 'CICS';
+    assert.equal(visibleIds().length, 500);
+    state.search = '  FACULTY 101  ';
+    assert.deepEqual(visibleIds(), [101]);
+    state.search = 'FACULTY101@EXAMPLE.TEST';
+    assert.deepEqual(visibleIds(), [101]);
+    state.selectedCollege = 'CTE';
+    assert.deepEqual(visibleIds(), []);
+    state.selectedCollege = 'all';
+    assert.deepEqual(visibleIds(), [101]);
+    state.search = 'no such directory member';
+    assert.deepEqual(visibleIds(), []);
+    state.search = '';
+    assert.equal(visibleIds().length, 1000);
+    assert.deepEqual(Array.from(state.visibleMembers(), member => member.id), visibleIds());
+    state.members.push({ id: 1001, college: '', search: "dr. o'neil <script>alert('name')</script> quoted@example.test" });
+    state.search = "O'NEIL <SCRIPT>";
+    assert.deepEqual(visibleIds(), [1001]);
+    state.search = 'QUOTED@EXAMPLE.TEST';
+    assert.deepEqual(visibleIds(), [1001]);
+});
 
 test('user directory aligns roles and actions while preserving filters and confirmation dialogs', async () => {
     if (process.env.ATHENA_USER_DIRECTORY_FIXTURE_READY !== '1') {

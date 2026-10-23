@@ -1,13 +1,16 @@
 <?php
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -109,6 +112,65 @@ test('Research Office records LREC comments into a faculty revision and Comment 
         ->assertOk()
         ->assertSee('Clarify the sampling procedure.');
 })->with(['named panelist' => ['Dr. External Panelist'], 'unnamed committee' => [null]]);
+
+test('LREC feedback opens the selected paper for revision and preserves the replacement in the next version', function (string $type, bool $selectFile) {
+    Notification::fake();
+    Storage::fake('local');
+    $version = $this->topic->latestVersion;
+    Storage::disk('local')->put($version->file_path, '%PDF-1.7 original');
+    $file = $version->files()->create([
+        'document_type' => $type, 'position' => 0, 'file_path' => $version->file_path,
+        'original_filename' => 'original.pdf', 'mime_type' => 'application/pdf',
+        'checksum' => hash('sha256', '%PDF-1.7 original'),
+    ]);
+    $this->actingAs($this->office)
+        ->withSession(['active_role' => 'research_coordinator', 'active_workspace' => User::WORKSPACE_RESEARCH_OFFICE])
+        ->post(route('research_coordinator.topics.lrec-feedback.store', $this->topic), [
+            'committee_comments' => [['comment' => 'Clarify the submitted paper.']],
+            ...($selectFile ? ['revision_file_ids' => [$file->id]] : []),
+        ])->assertSessionHasNoErrors();
+    $review = $this->topic->reviews()->latest('id')->firstOrFail();
+    expect($review->fileRevisions()->where('proposal_version_file_id', $file->id)->exists())->toBeTrue();
+
+    $this->actingAs($this->faculty)->withSession(['active_workspace' => User::WORKSPACE_FACULTY])
+        ->get(route('faculty.topics.revision', $this->topic))
+        ->assertOk()->assertDontSee('No paper changes were requested.');
+    $responses = collect(app(CommentResponseFeedback::class)->rows($review))->mapWithKeys(
+        fn (array $row): array => [$row['key'] => ['response' => 'Clarified the paper.', 'no_change' => false, 'page' => 1, 'paragraph' => 1]],
+    )->all();
+    $uploadField = $type === ProposalVersionFile::TYPE_WORK_PLAN ? 'work_plan' : 'detailed_proposal';
+    $this->patch(route('faculty.topics.resubmit', $this->topic), [
+        'title' => $this->topic->title, 'estimated_budget' => 10000, 'estimated_duration_months' => 12,
+        'feedback_review_id' => $review->id, 'feedback_responses' => $responses,
+        $uploadField => UploadedFile::fake()->createWithContent('corrected.pdf', '%PDF-1.7 corrected paper'),
+    ])->assertSessionHasNoErrors();
+
+    $replacement = $this->topic->fresh()->latestVersion->files->firstWhere('document_type', $type);
+    expect($replacement->checksum)->toBe(hash('sha256', '%PDF-1.7 corrected paper'))
+        ->and($replacement->is_carried_forward)->toBeFalse()
+        ->and($review->fileRevisions()->whereNull('resolved_at')->exists())->toBeFalse();
+})->with([
+    'default detailed proposal' => [ProposalVersionFile::TYPE_DETAILED_PROPOSAL, false],
+    'selected work plan' => [ProposalVersionFile::TYPE_WORK_PLAN, true],
+]);
+
+test('LREC feedback cannot request a paper from another proposal', function () {
+    $other = $this->topic->replicate();
+    $other->save();
+    $otherVersion = $this->topic->latestVersion->replicate();
+    $other->versions()->save($otherVersion);
+    $file = $otherVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL, 'position' => 0,
+        'file_path' => 'other.pdf', 'original_filename' => 'other.pdf', 'mime_type' => 'application/pdf',
+    ]);
+    $this->actingAs($this->office)
+        ->withSession(['active_role' => 'research_coordinator', 'active_workspace' => User::WORKSPACE_RESEARCH_OFFICE])
+        ->post(route('research_coordinator.topics.lrec-feedback.store', $this->topic), [
+            'committee_comments' => [['comment' => 'Clarify the paper.']], 'revision_file_ids' => [$file->id],
+        ])->assertSessionHasErrors('revision_file_ids');
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_REVIEW)
+        ->and($this->topic->reviews()->exists())->toBeFalse();
+});
 
 test('Research Office can preview its saved LREC Comment Response paper', function () {
     $review = $this->topic->reviews()->create([

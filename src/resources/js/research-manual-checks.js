@@ -4,13 +4,17 @@ export default function initializeResearchManualChecks() {
     dispose();
     const abort = new AbortController();
     let timer;
+    let checking = false;
     let panel = document.querySelector('[data-manual-checks]');
     if (!panel || !['pending', 'running'].includes(panel.dataset.checkStatus)) return;
     const url = new URL(panel.dataset.statusUrl, window.location.href);
     if (url.origin !== window.location.origin) return;
 
     async function update() {
-        if (!panel.isConnected || abort.signal.aborted) return;
+        if (!panel.isConnected || abort.signal.aborted) return stop();
+        if (document.hidden || checking) return;
+        clearTimeout(timer);
+        checking = true;
         let delay = 4000;
         try {
             const response = await fetch(url.href, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: abort.signal });
@@ -33,17 +37,29 @@ export default function initializeResearchManualChecks() {
                 panel = next;
                 nextFocus?.focus({ preventScroll: true });
             }
-            if (!['pending', 'running'].includes(data.status)) return;
+            if (!['pending', 'running'].includes(data.status)) return stop();
         } catch {
             if (abort.signal.aborted) return;
             const error = panel.querySelector('[data-manual-checks-poll-error]');
             if (error) error.hidden = false;
             delay = 15000;
+        } finally {
+            checking = false;
         }
-        timer = setTimeout(update, delay);
+        if (!document.hidden) timer = setTimeout(update, delay);
     }
 
-    timer = setTimeout(update, 4000);
-    dispose = () => { abort.abort(); clearTimeout(timer); };
+    const visibilityChanged = () => {
+        clearTimeout(timer);
+        if (!document.hidden) void update();
+    };
+    const stop = () => {
+        abort.abort();
+        clearTimeout(timer);
+        document.removeEventListener('visibilitychange', visibilityChanged);
+    };
+    document.addEventListener('visibilitychange', visibilityChanged);
+    if (!document.hidden) timer = setTimeout(update, 4000);
+    dispose = stop;
     return dispose;
 }

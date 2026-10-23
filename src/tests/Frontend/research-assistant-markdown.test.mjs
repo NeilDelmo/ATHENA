@@ -102,12 +102,30 @@ test('hostile URLs and evidence labels stay inert while safe query strings survi
     assert.equal((html.match(/data-assistant-citation=/g) || []).length, 2);
 });
 
-test('inline manual references stay compact and only bind a supplied source', () => {
+test('legacy inline references show the supplied source name and only bind supplied evidence', () => {
     const html = formatAssistantMarkdown('Get clearance [ATHENA 1]. Unknown [ATHENA 8].', [{ reference: 'ATHENA 1', title: '<Ethics>', excerpt: 'Exact policy text', url: null }]);
-    assert.match(html, /<button[^>]*data-assistant-citation="0"[^>]*>1<\/button>/);
+    assert.match(html, /<button[^>]*data-assistant-citation="0"[^>]*>&lt;Ethics&gt;<\/button>/);
     assert.match(html, /aria-label="View source: &lt;Ethics&gt;"/);
     assert.match(html, /Unknown \[ATHENA 8\]/);
     assert.doesNotMatch(html, /href=|<Ethics>/);
+});
+
+test('named inline references retain their exact source title and page', () => {
+    const title = 'Approved Research Manual (2023) — Ethics clearance (p. 62)';
+    const html = formatAssistantMarkdown(`Get clearance [${title}].`, [{ reference: title, title, url: 'https://athena.test/manual#page=62' }]);
+    assert.match(html, /data-assistant-citation="0"/);
+    assert.match(html, />Approved Research Manual \(2023\) — Ethics clearance \(p\. 62\)<\/button>/);
+});
+
+test('identically titled documents use their full named reference to select the correct source', () => {
+    const title = 'Participant recruitment guidance';
+    const sources = [
+        { title, reference: `${title} · https://first.example.edu/policy`, excerpt: 'First institution guidance.' },
+        { title, reference: `${title} · https://second.example.edu/policy`, excerpt: 'Second institution guidance.' },
+    ];
+    const html = formatAssistantMarkdown(`Compare [${sources[0].reference}] with [${sources[1].reference}].`, sources);
+    assert.match(html, /data-assistant-citation="0"/);
+    assert.match(html, /data-assistant-citation="1"/);
 });
 
 test('source URL validation rejects executable, relative, credential, and control-character URLs', () => {

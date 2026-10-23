@@ -31,15 +31,21 @@ class AccessibleRecordSearch
         'manuals' => 'Research manuals',
     ];
 
+    private const TOPIC_COLUMNS = 'id,user_id,research_manual_id,title,status,project_status,notice_to_proceed_issued_at,research_secretary_id,review_stage';
+
+    private const DRAFT_COLUMNS = 'id,user_id,research_manual_id,project_title,deleted_at';
+
+    private const VERSION_COLUMNS = 'id,topic_id,title,version_number';
+
     private const SOURCES = [
         'topic' => [TopicProposal::class, 'projects', ['user:id,college', 'researchManual:id,title,edition,version']],
         'draft' => [ProposalDraft::class, 'projects', ['researchManual:id,title,edition,version']],
-        'draft_file' => [ProposalDraftDocument::class, 'files', ['draft.researchManual:id,title,edition,version']],
-        'version' => [ProposalVersion::class, 'projects', ['topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
-        'version_file' => [ProposalVersionFile::class, 'files', ['version.topic.user:id,college', 'version.topic.researchManual:id,title,edition,version']],
-        'document' => [ProjectDocument::class, 'files', ['topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
-        'monitoring' => [ProjectProgressReport::class, 'reports', ['topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
-        'narrative' => [ProjectNarrativeReport::class, 'reports', ['topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
+        'draft_file' => [ProposalDraftDocument::class, 'files', ['draft:'.self::DRAFT_COLUMNS, 'draft.researchManual:id,title,edition,version']],
+        'version' => [ProposalVersion::class, 'projects', ['topic:'.self::TOPIC_COLUMNS, 'topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
+        'version_file' => [ProposalVersionFile::class, 'files', ['version:'.self::VERSION_COLUMNS, 'version.topic:'.self::TOPIC_COLUMNS, 'version.topic.user:id,college', 'version.topic.researchManual:id,title,edition,version']],
+        'document' => [ProjectDocument::class, 'files', ['topic:'.self::TOPIC_COLUMNS, 'topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
+        'monitoring' => [ProjectProgressReport::class, 'reports', ['topic:'.self::TOPIC_COLUMNS, 'topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
+        'narrative' => [ProjectNarrativeReport::class, 'reports', ['topic:'.self::TOPIC_COLUMNS, 'topic.user:id,college', 'topic.researchManual:id,title,edition,version']],
         'manual' => [ResearchManual::class, 'manuals', []],
     ];
 
@@ -74,7 +80,18 @@ class AccessibleRecordSearch
                 continue;
             }
             [$model, , $relations] = self::SOURCES[$kind];
-            $records[$kind] = $model::query()->with($relations)->whereKey($matches->pluck('id'))->get()->keyBy('id');
+            $records[$kind] = $model::query()->with($relations)->whereKey($matches->pluck('id'))
+                ->get(match ($kind) {
+                    'topic' => explode(',', self::TOPIC_COLUMNS),
+                    'draft' => explode(',', self::DRAFT_COLUMNS),
+                    'version' => explode(',', self::VERSION_COLUMNS),
+                    'document' => ['id', 'topic_id', 'title', 'original_filename', 'category'],
+                    'draft_file' => ['id', 'proposal_draft_id', 'document_type', 'original_filename', 'lock_version'],
+                    'version_file' => ['id', 'proposal_version_id', 'document_type', 'original_filename'],
+                    'monitoring' => ['id', 'topic_id', 'reporting_date', 'reporting_year', 'reporting_quarter', 'period_start', 'period_end', 'version_number', 'official_pdf_filename'],
+                    'narrative' => ['id', 'topic_id', 'report_type', 'reporting_date', 'reporting_quarter', 'period_start', 'period_end', 'submission_date', 'version_number', 'official_pdf_filename'],
+                    'manual' => ['id', 'title', 'edition', 'version', 'activated_at'],
+                })->keyBy('id');
         }
 
         $authorized = [];

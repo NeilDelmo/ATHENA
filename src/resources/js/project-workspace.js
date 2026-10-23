@@ -26,6 +26,7 @@ export function projectWorkspace(config = {}) {
         revision: 0,
         folders: [],
         assignments: [],
+        shortcuts: [],
         view: 'grid',
         grouping: 'year',
         sort: 'attention',
@@ -49,6 +50,7 @@ export function projectWorkspace(config = {}) {
 
     return {
         ...display,
+        menuLabel: 'File actions',
         projects: config.projects || [],
         workspace: initialWorkspace,
         location: 'all',
@@ -56,12 +58,15 @@ export function projectWorkspace(config = {}) {
         historyIndex: 0,
         query: '',
         statusFilter: 'all',
+        documentSort: 'name',
         page: 1,
         pageSize: 24,
         selectedIds: [],
         selectedFolderId: null,
         selectedYear: null,
         selectedDocumentKey: null,
+        selectedShortcutId: null,
+        clipboard: null,
         previewDocument: null,
         documentsByProject: {},
         projectParentLocations: {},
@@ -91,6 +96,7 @@ export function projectWorkspace(config = {}) {
             this.$watch?.('query', () => { this.page = 1; this.clearSelection(); });
             this.$watch?.('statusFilter', () => { this.page = 1; this.clearSelection(); });
             for (const field of ['query', 'statusFilter', 'location']) this.$watch?.(field, () => continuity.write({ query: this.query.slice(0, 200), statusFilter: this.statusFilter, location: this.location }));
+            if (this.currentFolder) this.loadShortcuts();
         },
 
         setItemSize(size) {
@@ -99,6 +105,7 @@ export function projectWorkspace(config = {}) {
         },
 
         get folders() { return this.workspace.folders; },
+        get shortcuts() { return this.workspace.shortcuts || []; },
         get view() { return this.workspace.view; },
         get grouping() { return this.workspace.grouping; },
         get sort() { return this.workspace.sort; },
@@ -109,7 +116,7 @@ export function projectWorkspace(config = {}) {
         get documentGroups() {
             const query = this.query.trim().toLocaleLowerCase();
             const documents = this.projectDocuments.filter((document) => !query || [document.title, document.filename, document.note, document.source, document.uploaded_by]
-                .some((value) => String(value || '').toLocaleLowerCase().includes(query)));
+                .some((value) => String(value || '').toLocaleLowerCase().includes(query))).sort((first, second) => this.compareDocuments(first, second));
             const categories = [...this.documentCategories];
             documents.forEach((document) => {
                 if (!categories.some((category) => category.key === document.category)) categories.push({ key: document.category, label: 'Files', description: '' });
@@ -117,14 +124,26 @@ export function projectWorkspace(config = {}) {
             return categories.map((category) => ({ ...category, documents: documents.filter((document) => document.category === category.key) }))
                 .filter((category) => category.documents.length);
         },
-        get selectedCount() { return this.selectedIds.length + Number(Boolean(this.selectedFolderId)) + Number(Boolean(this.selectedYear)) + Number(Boolean(this.selectedDocumentKey)); },
+        get folderShortcuts() {
+            const query = this.query.trim().toLocaleLowerCase();
+            return this.shortcuts.filter(shortcut => shortcut.folder_id === this.currentFolder?.id).flatMap(shortcut => {
+                const document = this.documentsByProject[shortcut.project_id]?.documents.find(item => item.key === shortcut.document_key);
+                if (!document || (query && ![document.filename, document.title, document.note, document.source, document.uploaded_by].some(value => String(value || '').toLocaleLowerCase().includes(query)))) return [];
+                return [{ ...document, ...shortcut, key: shortcut.id }];
+            }).sort((first, second) => this.compareDocuments(first, second));
+        },
+        get selectedCount() { return this.selectedIds.length + Number(Boolean(this.selectedFolderId)) + Number(Boolean(this.selectedYear)) + Number(Boolean(this.selectedDocumentKey)) + Number(Boolean(this.selectedShortcutId)); },
         get selectedProject() { return this.selectedIds.length === 1 ? this.projects.find((project) => project.id === this.selectedIds[0]) || null : null; },
         get selectedFolder() { return this.folders.find((folder) => folder.id === this.selectedFolderId) || null; },
         get selectedDocument() { return this.projectDocuments.find((document) => document.key === this.selectedDocumentKey) || null; },
-        get canOpenSelection() { return this.selectedCount === 1 && Boolean(this.selectedFolder || this.selectedYear || this.selectedDocument || this.selectedProject); },
-        get canMoveSelection() { return Boolean(this.selectedFolder || this.selectedIds.length); },
+        get selectedShortcut() { return this.folderShortcuts.find(shortcut => shortcut.id === this.selectedShortcutId) || null; },
+        get canOpenSelection() { return this.selectedCount === 1 && Boolean(this.selectedFolder || this.selectedYear || this.selectedDocument || this.selectedProject || this.selectedShortcut); },
+        get canMoveSelection() { return Boolean(this.selectedFolder || this.selectedIds.length || this.selectedShortcut); },
         get canRenameSelection() { return Boolean(this.selectedFolder); },
-        get selectionLabel() { return this.selectedFolder?.name || this.selectedProject?.title || this.selectedDocument?.filename || this.selectedYear || (this.selectedCount ? `${this.selectedCount} projects selected` : ''); },
+        get canCopySelection() { return !this.saving && !this.stale && Boolean(this.selectedFolder || this.selectedIds.length || this.selectedDocument || this.selectedShortcut); },
+        get canCutSelection() { return this.canCopySelection && !this.selectedDocument; },
+        get canPaste() { return !this.saving && !this.stale && Boolean(this.clipboard) && !this.activeProject && (Boolean(this.currentFolder) || (this.location === 'all' && (this.clipboard.type === 'folder' || (this.clipboard.type === 'projects' && this.clipboard.mode === 'cut')))); },
+        get selectionLabel() { return this.selectedFolder?.name || this.selectedProject?.title || this.selectedDocument?.filename || this.selectedShortcut?.filename || this.selectedYear || (this.selectedCount ? `${this.selectedCount} projects selected` : ''); },
         get locationLabel() { return this.activeProject?.title || this.currentFolder?.name || (this.location.startsWith('year:') ? this.location.slice(5) : this.location === 'unfiled' ? 'Unfiled' : 'Projects'); },
         get canGoBack() { return this.locationHistory.slice(0, this.historyIndex).some((id) => this.isLocation(id)); },
         get canGoUp() { return this.location !== 'all'; },
@@ -135,10 +154,16 @@ export function projectWorkspace(config = {}) {
         },
 
         get folderTree() {
+            const children = new Map();
+            this.folders.forEach((folder) => {
+                const parentId = folder.parent_id;
+                if (!children.has(parentId)) children.set(parentId, []);
+                children.get(parentId).push(folder);
+            });
             const tree = [];
             const visited = new Set();
             const appendChildren = (parentId, depth) => {
-                this.folders.filter((folder) => folder.parent_id === parentId).sort(byName).forEach((folder) => {
+                (children.get(parentId) || []).sort(byName).forEach((folder) => {
                     if (visited.has(folder.id)) return;
                     visited.add(folder.id);
                     tree.push({ ...folder, depth });
@@ -162,7 +187,8 @@ export function projectWorkspace(config = {}) {
         },
         get childFolders() {
             if (this.location !== 'all' && !this.currentFolder) return [];
-            return this.folders.filter((folder) => folder.parent_id === (this.currentFolder?.id || null)).sort(byName);
+            const query = this.query.trim().toLocaleLowerCase();
+            return this.folders.filter((folder) => folder.parent_id === (this.currentFolder?.id || null) && (!query || folder.name.toLocaleLowerCase().includes(query))).sort(byName);
         },
 
         get years() {
@@ -177,11 +203,13 @@ export function projectWorkspace(config = {}) {
 
         get filteredProjects() {
             const query = this.query.trim().toLocaleLowerCase();
-            const assignments = new Map(this.workspace.assignments.map((item) => [item.project_id, item.folder_id]));
+            const filed = new Set(this.workspace.assignments.map(item => item.project_id));
+            const currentFolder = this.currentFolder;
+            const folderProjects = currentFolder ? new Set(this.workspace.assignments.filter(item => item.folder_id === currentFolder.id).map(item => item.project_id)) : null;
             const result = this.projects.filter((project) => {
-                if (this.location === 'unfiled' && assignments.has(project.id)) return false;
+                if (this.location === 'unfiled' && filed.has(project.id)) return false;
                 if (this.location.startsWith('year:') && projectYear(project) !== this.location.slice(5)) return false;
-                if (this.currentFolder && assignments.get(project.id) !== this.currentFolder.id) return false;
+                if (folderProjects && !folderProjects.has(project.id)) return false;
                 if (this.statusFilter !== 'all' && project.status !== this.statusFilter) return false;
                 return !query || [project.title, project.researcher, project.call, project.secretary]
                     .some((value) => String(value || '').toLocaleLowerCase().includes(query));
@@ -246,17 +274,17 @@ export function projectWorkspace(config = {}) {
         folderCount(id) {
             const descendants = this.descendantIds(id);
             const projectIds = new Set(this.projects.map((project) => project.id));
-            return this.workspace.assignments.filter((item) => descendants.has(item.folder_id) && projectIds.has(item.project_id)).length;
+            return new Set(this.workspace.assignments.filter((item) => descendants.has(item.folder_id) && projectIds.has(item.project_id)).map(item => item.project_id)).size;
         },
         projectFolderLabel(id) {
-            const assignment = this.workspace.assignments.find((item) => item.project_id === id);
-            return assignment ? this.folderPath(assignment.folder_id).map((folder) => folder.name).join(' / ') : 'Unfiled';
+            const assignments = this.workspace.assignments.filter((item) => item.project_id === id);
+            return assignments.length ? assignments.map(assignment => this.folderPath(assignment.folder_id).map(folder => folder.name).join(' / ')).join(' · ') : 'Unfiled';
         },
 
         isLocation(id) { return ['all', 'unfiled'].includes(id) || this.years.some((item) => `year:${item.year}` === id) || this.folders.some((folder) => folder.id === id) || this.projects.some((project) => `project:${project.id}` === id); },
         openLocation(id, remember = true) {
             if (!this.isLocation(id)) return;
-            if (id !== this.location && (id.startsWith('project:') || this.activeProject)) this.query = '';
+            if (id !== this.location) this.query = '';
             if (remember && id !== this.location && id.startsWith('project:') && !this.activeProject) this.projectParentLocations[id] = this.location;
             if (remember && id !== this.location) {
                 this.locationHistory = [...this.locationHistory.slice(0, this.historyIndex + 1), id];
@@ -270,6 +298,7 @@ export function projectWorkspace(config = {}) {
             this.documentsLoading = false;
             this.documentsError = '';
             if (this.activeProject) return this.loadDocuments();
+            if (this.currentFolder) return this.loadShortcuts();
         },
         back() {
             while (this.historyIndex > 0) {
@@ -288,12 +317,13 @@ export function projectWorkspace(config = {}) {
         },
         setPage(page) { this.page = Math.max(1, Math.min(Number(page) || 1, this.pageCount)); this.clearSelection(); },
         resetFilters() { this.query = ''; this.statusFilter = 'all'; this.page = 1; this.clearSelection(); },
-        clearSelection() { this.selectedIds = []; this.selectedFolderId = null; this.selectedYear = null; this.selectedDocumentKey = null; },
+        clearSelection() { this.selectedIds = []; this.selectedFolderId = null; this.selectedYear = null; this.selectedDocumentKey = null; this.selectedShortcutId = null; },
         selectProject(id, event = false) {
             if (!this.projects.some((project) => project.id === id)) return;
             this.selectedFolderId = null;
             this.selectedYear = null;
             this.selectedDocumentKey = null;
+            this.selectedShortcutId = null;
             this.selectedIds = additiveSelection(event)
                 ? this.selectedIds.includes(id) ? this.selectedIds.filter((selectedId) => selectedId !== id) : [...this.selectedIds, id]
                 : [id];
@@ -313,6 +343,7 @@ export function projectWorkspace(config = {}) {
             this.selectedIds = [];
             this.selectedYear = null;
             this.selectedDocumentKey = null;
+            this.selectedShortcutId = null;
             this.selectedFolderId = this.folders.some((folder) => folder.id === id)
                 && !(additiveSelection(event) && this.selectedFolderId === id) ? id : null;
         },
@@ -326,16 +357,60 @@ export function projectWorkspace(config = {}) {
             this.clearSelection();
             if (this.projectDocuments.some((document) => document.key === key) && !(additiveSelection(event) && selected === key)) this.selectedDocumentKey = key;
         },
+        selectShortcut(id) {
+            this.clearSelection();
+            if (this.folderShortcuts.some(shortcut => shortcut.id === id)) this.selectedShortcutId = id;
+        },
+        selectContextItem(type, id) {
+            if (type === 'project') { if (!this.selectedIds.includes(Number(id))) this.selectProject(Number(id)); }
+            else if (type === 'folder') this.selectFolder(id);
+            else if (type === 'year') this.selectYear(id);
+            else if (type === 'shortcut') this.selectShortcut(id);
+            else if (type === 'document') this.selectDocument(id);
+        },
+        prepareContextMenu(event) {
+            const item = event.target?.closest?.('[data-workspace-item]');
+            if (item) this.selectContextItem(item.dataset.itemType, item.dataset.itemId);
+            else if (event.target?.closest?.('[data-workspace-items]')) this.clearSelection();
+        },
         openSelection() {
             if (!this.canOpenSelection) return;
             if (this.selectedFolder) return this.openLocation(this.selectedFolder.id);
             if (this.selectedYear) return this.openLocation(`year:${this.selectedYear}`);
             if (this.selectedDocument) return this.activateDocument(this.selectedDocument.key);
+            if (this.selectedShortcut) return this.openShortcut(this.selectedShortcut.id);
             return this.activateProject(this.selectedProject.id);
         },
         activateDocument(key) { this.previewDocument = this.projectDocuments.find((document) => document.key === key) || null; },
         openDocument(key) { this.activateDocument(typeof key === 'object' ? key?.key : key); },
         closePreview() { this.previewDocument = null; },
+        openShortcut(id) {
+            const shortcut = this.folderShortcuts.find(item => item.id === id);
+            this.previewDocument = shortcut ? this.documentsByProject[shortcut.project_id]?.documents.find(item => item.key === shortcut.document_key) || null : null;
+        },
+        compareDocuments(first, second) {
+            const byFilename = () => String(first.filename || '').localeCompare(String(second.filename || ''), undefined, { sensitivity: 'base', numeric: true });
+            if (this.documentSort === 'size') return (Number(second.file_size) || 0) - (Number(first.file_size) || 0) || byFilename();
+            if (this.documentSort === 'newest') return (Date.parse(second.uploaded_at) || 0) - (Date.parse(first.uploaded_at) || 0) || byFilename();
+            if (this.documentSort === 'oldest') return (Date.parse(first.uploaded_at) || 0) - (Date.parse(second.uploaded_at) || 0) || byFilename();
+            return byFilename();
+        },
+        async loadShortcuts() {
+            const folderId = this.currentFolder?.id;
+            if (!folderId) return false;
+            const projectIds = new Set(this.shortcuts.filter(shortcut => shortcut.folder_id === folderId).map(shortcut => shortcut.project_id));
+            if (!projectIds.size) return true;
+            this.documentsLoading = true;
+            this.documentsError = '';
+            const loaded = await Promise.all([...projectIds].map(id => this.loadDocuments(this.projects.find(project => project.id === id)
+                || { id, documents_url: config.documentsUrlTemplate?.replace('__PROJECT__', id) })));
+            const missing = this.shortcuts.some(shortcut => shortcut.folder_id === folderId && !this.documentsByProject[shortcut.project_id]?.documents.some(document => document.key === shortcut.document_key));
+            if (this.location === folderId) {
+                this.documentsLoading = false;
+                if (missing || loaded.some(result => !result)) this.documentsError = 'Some document shortcuts could not be loaded. Try again to check source access.';
+            }
+            return !missing && loaded.every(Boolean);
+        },
         async loadDocuments(project = this.activeProject) {
             if (!project) return false;
             const active = () => this.activeProject?.id === project.id;
@@ -363,9 +438,141 @@ export function projectWorkspace(config = {}) {
             return request;
         },
         retryDocuments() {
-            if (!this.activeProject) return Promise.resolve(false);
+            if (!this.activeProject) {
+                this.shortcuts.filter(shortcut => shortcut.folder_id === this.currentFolder?.id).forEach(shortcut => { delete this.documentsByProject[shortcut.project_id]; });
+                return this.loadShortcuts();
+            }
             delete this.documentsByProject[this.activeProject.id];
             return this.loadDocuments();
+        },
+        copySelection(mode = 'copy') {
+            if (!['copy', 'cut'].includes(mode) || !(mode === 'cut' ? this.canCutSelection : this.canCopySelection)) return false;
+            const sourceFolderId = this.currentFolder?.id || null;
+            if (this.selectedFolder) this.clipboard = { mode, type: 'folder', id: this.selectedFolder.id };
+            else if (this.selectedShortcut) this.clipboard = { mode, type: 'shortcut', id: this.selectedShortcut.id };
+            else if (this.selectedDocument) this.clipboard = { mode, type: 'document', project_id: this.activeProject.id, document_key: this.selectedDocument.key };
+            else this.clipboard = { mode, type: 'projects', ids: [...this.selectedIds], sourceFolderId };
+            this.notice = mode === 'cut' ? 'Ready to move. Choose a destination and paste.' : 'Copied. Choose a personal folder and paste.';
+            return true;
+        },
+        cancelClipboard() { this.clipboard = null; },
+        isCutItem(type, id) {
+            const pending = this.clipboard;
+            if (pending?.mode !== 'cut') return false;
+            return type === 'project' ? pending.type === 'projects' && pending.ids.includes(Number(id)) && pending.sourceFolderId === (this.currentFolder?.id || null)
+                : pending.type === type && pending.id === id;
+        },
+        async pasteSelection(destinationId = this.currentFolder?.id || null) {
+            const pending = this.clipboard;
+            if (!pending || this.saving || this.stale || !this.validDestination(destinationId)) return false;
+            if (!destinationId && (['document', 'shortcut'].includes(pending.type) || (pending.type === 'projects' && pending.mode === 'copy'))) {
+                this.error = 'Choose a personal folder before pasting these items.';
+                return false;
+            }
+            let saved = false;
+            if (pending.type === 'projects') {
+                if (!pending.ids.length || pending.ids.some(id => !this.projects.some(project => project.id === id))) return false;
+                if (pending.mode === 'cut' && pending.sourceFolderId && pending.ids.some(id => !this.workspace.assignments.some(item => item.project_id === id && item.folder_id === pending.sourceFolderId))) {
+                    this.error = 'The cut items are no longer in their original folder. Select them again.';
+                    return false;
+                }
+                if (pending.mode === 'cut') saved = await this.moveProjects(pending.ids, destinationId, pending.sourceFolderId);
+                else saved = await this.saveChange(next => {
+                    pending.ids.forEach(id => {
+                        if (!next.assignments.some(item => item.project_id === id && item.folder_id === destinationId)) next.assignments.push({ project_id: id, folder_id: destinationId });
+                    });
+                }, 'Projects copied to this folder.');
+            } else if (pending.type === 'folder') {
+                const folder = this.folders.find(item => item.id === pending.id);
+                if (!folder) { this.error = 'The copied folder is no longer available.'; return false; }
+                if (pending.mode === 'cut') saved = await this.moveFolder(folder.id, destinationId);
+                else {
+                    const descendants = this.descendantIds(folder.id);
+                    if (this.folders.length + descendants.size > 200) { this.error = 'Your workspace can contain no more than 200 folders.'; return false; }
+                    const folders = this.folders.filter(item => descendants.has(item.id));
+                    const assignments = this.workspace.assignments.filter(item => descendants.has(item.folder_id));
+                    const shortcuts = this.shortcuts.filter(item => descendants.has(item.folder_id));
+                    const ids = new Map(folders.map(item => [item.id, newFolderId()]));
+                    let index = 1;
+                    let name;
+                    do {
+                        const suffix = index === 1 ? ' (copy)' : ` (copy ${index})`;
+                        name = Array.from(folder.name).slice(0, 80 - suffix.length).join('').trimEnd() + suffix;
+                        index++;
+                    } while (this.folders.some(item => item.parent_id === destinationId && item.name.toLocaleLowerCase() === name.toLocaleLowerCase()));
+                    saved = await this.saveChange(next => {
+                        folders.forEach(item => next.folders.push({ ...item, id: ids.get(item.id), parent_id: item.id === folder.id ? destinationId : ids.get(item.parent_id), name: item.id === folder.id ? name : item.name }));
+                        assignments.forEach(item => next.assignments.push({ ...item, folder_id: ids.get(item.folder_id) }));
+                        next.shortcuts ||= [];
+                        shortcuts.forEach(item => next.shortcuts.push({ ...item, id: newFolderId(), folder_id: ids.get(item.folder_id) }));
+                    }, 'Folder copied.');
+                }
+            } else if (['document', 'shortcut'].includes(pending.type)) {
+                const shortcut = pending.type === 'shortcut' ? this.shortcuts.find(item => item.id === pending.id) : pending;
+                const document = shortcut && this.documentsByProject[shortcut.project_id]?.documents.find(item => item.key === shortcut.document_key);
+                if (!document) { this.error = 'The copied document is no longer available. Open its project and try again.'; return false; }
+                saved = await this.saveChange(next => {
+                    next.shortcuts ||= [];
+                    const duplicate = next.shortcuts.find(item => item.folder_id === destinationId && item.project_id === shortcut.project_id && item.document_key === shortcut.document_key);
+                    if (pending.mode === 'cut') {
+                        if (duplicate && duplicate.id !== shortcut.id) next.shortcuts = next.shortcuts.filter(item => item.id !== shortcut.id);
+                        else next.shortcuts.find(item => item.id === shortcut.id).folder_id = destinationId;
+                    } else if (!duplicate) next.shortcuts.push({ id: newFolderId(), folder_id: destinationId, project_id: shortcut.project_id, document_key: shortcut.document_key });
+                }, pending.mode === 'cut' ? 'Document shortcut moved.' : 'Document shortcut copied.');
+            }
+            if (saved) {
+                if (pending.mode === 'cut') this.cancelClipboard();
+                this.clearSelection();
+                if (this.currentFolder) await this.loadShortcuts();
+            }
+            return saved;
+        },
+        handleWorkspaceKeydown(event) {
+            if (this.viewMenuOpen && event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.closeViewMenu();
+                return;
+            }
+            if (event.altKey || this.dialog || this.previewDocument || event.target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"], [data-pdf-annotation-config]')) return;
+            const key = event.key.toLowerCase();
+            const modifier = event.ctrlKey || event.metaKey;
+            const selection = typeof window === 'undefined' ? null : window.getSelection?.();
+            if (modifier && ['c', 'x'].includes(key) && selection?.toString() && event.currentTarget?.contains?.(selection.anchorNode)) return;
+            const context = event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10');
+            if (!context && !['Escape', 'F2', 'Delete'].includes(event.key) && !(modifier && ['c', 'x', 'v', 'z', 'a'].includes(key))) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (context) this.openViewMenu(event);
+            else if (event.key === 'Escape') { this.cancelClipboard(); this.clearSelection(); this.endDrag(); }
+            else if (event.key === 'F2' && this.selectedFolder) { this.openRename(this.selectedFolder); if (this.dialog) this.$dispatch?.('open-modal', 'project-workspace-dialog'); }
+            else if (event.key === 'Delete' && this.selectedFolder) { this.openDelete(this.selectedFolder); if (this.dialog) this.$dispatch?.('open-modal', 'project-workspace-dialog'); }
+            else if (event.key === 'Delete' && this.selectedShortcut) return this.removeSelectedShortcut();
+            else if (modifier && key === 'c') this.copySelection();
+            else if (modifier && key === 'x') this.copySelection('cut');
+            else if (modifier && key === 'v' && this.canPaste) return this.pasteSelection();
+            else if (modifier && key === 'z') return this.undo();
+            else if (modifier && key === 'a') this.selectAll();
+        },
+        get menuActions() {
+            const dialog = (open) => () => { open(); if (this.dialog) this.$dispatch?.('open-modal', 'project-workspace-dialog'); };
+            const actions = [];
+            if (this.canOpenSelection) actions.push({ id: 'open', label: this.selectedDocument || this.selectedShortcut ? 'Preview' : 'Open', run: () => { this.openSelection(); if (this.previewDocument) this.$dispatch?.('open-modal', 'project-workspace-preview'); } });
+            const document = this.selectedDocument || this.selectedShortcut;
+            if (document) actions.push({ id: 'download', label: 'Download', href: document.download_url, download: document.generated_comment_response ? document.filename : null });
+            if (this.canCutSelection) actions.push({ id: 'cut', label: 'Cut', shortcut: 'Ctrl+X', run: () => this.copySelection('cut') });
+            if (this.canCopySelection) actions.push({ id: 'copy', label: this.selectedDocument ? 'Copy shortcut' : 'Copy', shortcut: 'Ctrl+C', run: () => this.copySelection() });
+            if (this.clipboard) actions.push({ id: 'paste', label: 'Paste', shortcut: 'Ctrl+V', disabled: !this.canPaste, run: () => this.pasteSelection() });
+            if (this.canMoveSelection) actions.push({ id: 'move', label: 'Move to…', disabled: this.saving || this.stale, run: dialog(() => this.openMove()) });
+            if (this.selectedFolder) {
+                actions.push({ id: 'rename', label: 'Rename', shortcut: 'F2', disabled: this.saving || this.stale, run: dialog(() => this.openRename(this.selectedFolder)) });
+                actions.push({ id: 'remove', label: 'Remove folder', shortcut: 'Delete', disabled: this.saving || this.stale, run: dialog(() => this.openDelete(this.selectedFolder)) });
+            }
+            if (this.selectedShortcut) actions.push({ id: 'remove-shortcut', label: 'Remove shortcut', shortcut: 'Delete', disabled: this.saving || this.stale, run: () => this.removeSelectedShortcut() });
+            if (!this.activeProject) actions.push({ id: 'new', label: 'New folder', disabled: this.saving || this.stale, run: dialog(() => this.openCreate()) });
+            if (this.activeProject || this.currentFolder) actions.push({ id: 'refresh', label: 'Refresh documents', run: () => this.retryDocuments() });
+            if (this.undoWorkspace) actions.push({ id: 'undo', label: 'Undo', shortcut: 'Ctrl+Z', disabled: !this.canUndo, run: () => this.undo() });
+            return actions;
         },
         handleItemKeydown(event, type, id) {
             if (!['Enter', ' ', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) && !(event.key.toLowerCase() === 'a' && additiveSelection(event))) return;
@@ -383,19 +590,22 @@ export function projectWorkspace(config = {}) {
                 if (item.dataset.itemType === 'folder') this.selectFolder(itemId);
                 else if (item.dataset.itemType === 'year') this.selectYear(itemId);
                 else if (item.dataset.itemType === 'document') this.selectDocument(itemId);
+                else if (item.dataset.itemType === 'shortcut') this.selectShortcut(itemId);
                 else this.selectProject(Number(itemId));
                 return;
             }
-            if (event.key === 'Escape') { this.clearSelection(); this.endDrag(); }
+            if (event.key === 'Escape') { this.cancelClipboard(); this.clearSelection(); this.endDrag(); }
             else if (event.key.toLowerCase() === 'a' && additiveSelection(event)) this.selectAll();
             else if (event.key === 'Enter') {
                 if (type === 'folder') this.openLocation(id);
                 else if (type === 'year') this.openLocation(`year:${id}`);
                 else if (type === 'document') this.activateDocument(id);
+                else if (type === 'shortcut') this.openShortcut(id);
                 else this.activateProject(id, event);
             } else if (type === 'folder') this.selectFolder(id, event);
             else if (type === 'year') this.selectYear(id, event);
             else if (type === 'document') this.selectDocument(id, event);
+            else if (type === 'shortcut') this.selectShortcut(id);
             else this.selectProject(id, event);
         },
 
@@ -473,7 +683,7 @@ export function projectWorkspace(config = {}) {
             this.dialog = 'rename'; this.folderName = folder.name; this.error = '';
         },
         openMove() {
-            if (this.saving || this.stale || (!this.selectedIds.length && !this.selectedFolderId)) return;
+            if (this.saving || this.stale || !this.canMoveSelection) return;
             this.dialog = 'move'; this.destinationId = ''; this.error = '';
         },
         openDelete(folder) {
@@ -501,7 +711,7 @@ export function projectWorkspace(config = {}) {
                     this.selectFolder(createdId);
                 }
             } else if (this.dialog === 'move') {
-                saved = this.selectedFolderId
+                saved = this.selectedShortcutId ? await this.moveShortcut(this.selectedShortcutId, this.destinationId || null) : this.selectedFolderId
                     ? await this.moveFolder(this.selectedFolderId, this.destinationId || null)
                     : await this.moveSelected(this.destinationId || null);
             } else if (this.dialog === 'delete') {
@@ -510,18 +720,38 @@ export function projectWorkspace(config = {}) {
                 saved = await this.saveChange((next) => {
                     next.folders = next.folders.filter((folder) => !descendants.has(folder.id));
                     next.assignments = next.assignments.filter((item) => !descendants.has(item.folder_id));
+                    next.shortcuts = (next.shortcuts || []).filter(item => !descendants.has(item.folder_id));
                 }, 'Folder removed. Its projects are now unfiled.');
             }
             if (saved) this.dialog = null;
             return saved;
         },
         moveSelected(destinationId = null) { return this.moveProjects([...this.selectedIds], destinationId); },
-        async moveProjects(ids, destinationId = null) {
+        async moveProjects(ids, destinationId = null, sourceFolderId = this.currentFolder?.id || null) {
             if (!ids.length || ids.some((id) => !this.projects.some((project) => project.id === id)) || !this.validDestination(destinationId)) return false;
+            if (sourceFolderId && sourceFolderId === destinationId) { this.clearSelection(); return true; }
             const saved = await this.saveChange((next) => {
-                next.assignments = next.assignments.filter((item) => !ids.includes(item.project_id));
-                if (destinationId) ids.forEach((id) => next.assignments.push({ project_id: id, folder_id: destinationId }));
+                next.assignments = next.assignments.filter((item) => !ids.includes(item.project_id) || (sourceFolderId && item.folder_id !== sourceFolderId));
+                if (destinationId) ids.forEach((id) => { if (!next.assignments.some(item => item.project_id === id && item.folder_id === destinationId)) next.assignments.push({ project_id: id, folder_id: destinationId }); });
             }, `${ids.length} ${ids.length === 1 ? 'project moved' : 'projects moved'}.`);
+            if (saved) this.clearSelection();
+            return saved;
+        },
+        async moveShortcut(id, destinationId) {
+            if (!destinationId || !this.validDestination(destinationId) || !this.shortcuts.some(item => item.id === id)) { this.error = 'Choose a personal folder for this shortcut.'; return false; }
+            const saved = await this.saveChange(next => {
+                const shortcut = next.shortcuts.find(item => item.id === id);
+                const duplicate = next.shortcuts.some(item => item.id !== id && item.folder_id === destinationId && item.project_id === shortcut.project_id && item.document_key === shortcut.document_key);
+                if (duplicate) next.shortcuts = next.shortcuts.filter(item => item.id !== id);
+                else shortcut.folder_id = destinationId;
+            }, 'Document shortcut moved.');
+            if (saved) this.clearSelection();
+            return saved;
+        },
+        async removeSelectedShortcut() {
+            const id = this.selectedShortcut?.id;
+            if (!id) return false;
+            const saved = await this.saveChange(next => { next.shortcuts = next.shortcuts.filter(shortcut => shortcut.id !== id); }, 'Document shortcut removed. The original document is kept.');
             if (saved) this.clearSelection();
             return saved;
         },

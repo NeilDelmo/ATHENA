@@ -4,6 +4,55 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 
+test('submitting a prepared report replaces its quarter control even when its ID stays the same', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        let submitted = false;
+        let requests = 0;
+        await page.route('https://athena.test/**', route => {
+            const path = new URL(route.request().url()).pathname;
+            if (path.endsWith('.js')) return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve('resources/js/topic-live-status.js'), 'utf8') });
+            if (path === '/status') {
+                requests++;
+                return route.fulfill({ json: { workspace: 'faculty_researcher', proposal: { scope: 'approved', label: 'Approved', actions: [] },
+                    reports: Object.fromEntries(['progress', 'monitoring'].map(kind => [`${kind}:8`, {
+                        kind, quarter: 1, scope: submitted ? 'submitted' : 'prepared', current: true,
+                        url: submitted ? `/${kind}/8` : `/prepare/${kind}/8`, label: submitted ? 'Awaiting review' : 'PDF prepared', status: 'pending',
+                        compact_html: `<span><span>${submitted ? 'Pending' : 'Prepared'}</span></span>`, actions: [],
+                    }])) } });
+            }
+            return route.fulfill({ contentType: 'text/html', body: `<main data-topic-live-status data-status-url="/status" data-workspace="faculty_researcher"
+                data-live-snapshot='{"proposal":"approved","reports":{"progress:8":"prepared","monitoring:8":"prepared"}}'>
+                <input name="notes" value="Unsaved notes">
+                ${['progress', 'monitoring'].map(kind => `<section data-live-quarter-kind="${kind}" data-live-quarter="1" data-live-report-key="${kind}:8" data-live-report-scope="prepared">
+                    <div data-report-controls><a href="/prepare/${kind}/8">Submit prepared ${kind}<span class="report-review-status">Prepared</span></a></div></section>`).join('')}</main>` });
+        });
+        await page.goto('https://athena.test/topic');
+        await page.addScriptTag({ type: 'module', content: "import init from '/live.js'; window.disposeLive = init();" });
+        await expect.poll(() => requests).toBe(1);
+        await expect(page.getByRole('link', { name: /Submit prepared/ })).toHaveCount(2);
+        submitted = true;
+        await page.evaluate(() => window.dispatchEvent(new Event('online')));
+        for (const [kind, label] of [['progress', 'Progress Report'], ['monitoring', 'Monitoring Tool']]) {
+            const link = page.getByRole('link', { name: `View latest ${label}`, exact: true });
+            await expect(link).toHaveAttribute('href', `https://athena.test/${kind}/8`);
+            await expect(link).toContainText('Pending');
+            await expect(link).not.toHaveAttribute('aria-disabled', 'true');
+        }
+        await expect(page.getByRole('link', { name: /Submit prepared/ })).toHaveCount(0);
+        await expect(page.locator('[name="notes"]')).toHaveValue('Unsaved notes');
+        const view = page.getByRole('link', { name: 'View latest Progress Report', exact: true });
+        await view.focus();
+        const count = requests;
+        await page.evaluate(() => window.dispatchEvent(new Event('online')));
+        await expect.poll(() => requests).toBeGreaterThan(count);
+        await expect(view).toBeFocused();
+    } finally {
+        await browser.close();
+    }
+});
+
 test('live statuses update badges and actions while retaining unsaved forms and blocking stale submits', { timeout: 60000 }, async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     const page = await browser.newPage();

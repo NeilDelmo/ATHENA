@@ -32,9 +32,14 @@ class CollegeQuarterlyReportData
             ->where('notice_to_proceed_issued_at', '<=', $period['end'])
             ->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $coordinator->college))
             ->with([
-                'user', 'researchSecretary', 'collaborators.user', 'versions.files', 'researchCall',
-                'progressReports' => fn (HasMany $reports): HasMany => $reports->submitted()->where('reporting_date', '<=', $period['end']->toDateString())
-                    ->reorder()->orderByDesc('reporting_date')->orderByDesc('version_number')->orderByDesc('id'),
+                'user', 'researchSecretary', 'collaborators.user', 'researchCall',
+                'versions' => fn (HasMany $versions): HasMany => $versions->reorder()->orderByDesc('version_number')->limit(1),
+                'versions.files' => fn (HasMany $files): HasMany => $files
+                    ->whereIn('document_type', [ProposalVersionFile::TYPE_DETAILED_PROPOSAL, ProposalVersionFile::TYPE_LINE_ITEM_BUDGET, ProposalVersionFile::TYPE_WORK_PLAN])
+                    ->select(['id', 'proposal_version_id', 'document_type', 'source_data']),
+                'progressReports' => fn (HasMany $reports): HasMany => $reports->submitted()->visibleToResearchHead()->where('reporting_date', '<=', $period['end']->toDateString())
+                    ->select(['id', 'topic_id', 'progress_percentage'])
+                    ->reorder()->orderByRaw('COALESCE(period_end, reporting_date) DESC')->orderByDesc('version_number')->orderByDesc('id')->limit(1),
             ])->orderBy('title')->orderBy('id')->get();
 
         foreach ($projects as $project) {

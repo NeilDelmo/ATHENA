@@ -652,8 +652,12 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         ->and($xpath->query('//*[@data-progress-report-detail]')->item(0)->textContent)->not->toContain('Pilot complete.', 'Validated maintenance records.')
         ->and($terminalSection)->not->toBeNull()
         ->and($terminalSection->textContent)->toContain('Reviewed', 'Signed terminal PDF uploaded')
-        ->and($xpath->query('//*[@data-project-record-menu]//*[@role="tab"]')->length)->toBe($workspace === 'research_head' ? 4 : 3)
+        ->and($xpath->query('//*[@data-project-record-menu]//*[@role="tab"]')->length)->toBe(3)
+        ->and($xpath->query('//*[@data-project-record-menu]//*[@role="tab"]/*[local-name()="svg"]')->length)->toBe(3)
+        ->and(trim($xpath->query('//*[@data-project-record-menu]/summary')->item(0)->textContent))->toBe('')
+        ->and($xpath->query('//*[@data-project-record-menu]/summary')->item(0)->getAttribute('aria-label'))->toBe('Project details and history')
         ->and($xpath->query('//*[@data-project-record-menu]')->item(0)->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('//*[@id="notice-to-proceed-tab-button" or @id="notice-to-proceed-tab"]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="terminal-reports"]//ol')->length)->toBe(0)
         ->and($xpath->query('//*[@id="terminal-reports"]//a')->length)->toBe(1)
         ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$olderProgress->id.'"]')->length)->toBe(1)
@@ -664,7 +668,8 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         ->and($xpath->query('//*[@id="project-monitoring"]//form')->length)->toBe(0)
         ->and($xpath->query('//*[@data-project-details]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-monitoring-budget-section]')->length)->toBe($workspace === 'research_head' ? 0 : 1)
-        ->and($xpath->query('//*[@data-monitoring-notice-link]')->item(0)->getAttribute('class'))->toContain('monitoring-secondary-action')
+        ->and($xpath->query('//*[@data-monitoring-notice-link]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="project-files-tab-button"]')->length)->toBe(1)
         ->and($xpath->query('//*[@id="narrative-report-history"]')->item(0)->getAttribute('class'))->toContain('monitoring-disclosure')
         ->and($xpath->query('//*[@id="project-monitoring"]//a[contains(@href, "/create")]')->length)->toBe(0);
     $response->assertDontSee('Earlier Progress Reports without a recorded quarter')
@@ -842,7 +847,8 @@ test('prepared monitoring tools keep budget actions with their reporting quarter
         ->and($xpath->query('.//*[@data-monitoring-report-status]/span[@aria-hidden="true"]', $quarter)->item(0)->textContent)->toBe('Prepared')
         ->and($xpath->query('.//a[@aria-label="Complete budget"]', $quarter)->item(0)->getAttribute('href'))
         ->toBe(route('project-budget.edit', [$this->topic, $report]))
-        ->and($xpath->query('//*[@data-monitoring-budget-section]')->item(0)->textContent)->toContain('completes and confirms budget utilization')
+        ->and($xpath->query('//details[@data-monitoring-budget-section and @open]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-monitoring-budget-section]')->item(0)->textContent)->toContain('The project secretary or confirmed project staff completes and confirms budget utilization before submission.')
         ->and($xpath->query('//*[@data-monitoring-budget-task="'.$report->id.'"]')->item(0)->getAttribute('href'))
         ->toBe(route('project-budget.edit', [$this->topic, $report]));
     $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
@@ -2202,7 +2208,7 @@ test('older progress reports remain accessible in history while terminal reports
     $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful()->assertSee('data-narrative-report-review', false);
     $terminal->update(['review_status' => 'reviewed']);
     $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful()
-        ->assertSee('Signed terminal report')->assertDontSee('data-narrative-report-review', false);
+        ->assertSee('Signed terminal report')->assertSee('data-narrative-report-review', false);
     $terminal->update(['terminal_data' => ['signed_copy' => ['path' => 'signed.pdf', 'original_filename' => 'signed.pdf']]]);
     $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertSee('Report history')->assertSee('Signed terminal PDF uploaded');
     $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);

@@ -61,7 +61,7 @@ class ProjectMonitoringFormDataService
         $quarterOptions = $reportType === 'progress'
             ? app(MonitoringQuarterService::class)->narrativeProgressPeriods($topic, $topic->narrativeReports()
                 ->where('report_type', 'progress')
-                ->get(['id', 'topic_id', 'report_type', 'reporting_quarter', 'submission_status', 'review_status']))
+                ->get(['id', 'topic_id', 'report_type', 'reporting_date', 'period_end', 'reporting_quarter', 'submission_status', 'review_status']))
                 ->filter(fn (array $period): bool => $period['drafting_date'] !== null)
                 ->map(fn (array $period): array => [...$period, 'reporting_date' => $period['drafting_date']])->values()
             : collect();
@@ -82,10 +82,17 @@ class ProjectMonitoringFormDataService
         if ($reportType === 'progress' && $draft === null && $preparedReport === null && $selectedReportingDate) {
             $period = app(MonitoringQuarterService::class)->forDate($selectedReportingDate, $topic);
             $revisionSource = $topic->narrativeReports()->submitted()->where('report_type', 'progress')
-                ->where('reporting_quarter', $period['quarter'])->where('review_status', ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
-                ->latest('id')->first();
+                ->forReportingPeriod($period)->where('review_status', ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
+                ->reorder()->latest('id')->first();
             if ($revisionSource !== null) {
-                $progressDefaults = [...$progressDefaults, ...app(ProgressReportData::class)->normalize($topic, ['accomplishments' => $revisionSource->accomplishments ?? []]), ...app(ReportFigureDraftService::class)->reportImages($revisionSource)];
+                $progressDefaults = [
+                    ...$progressDefaults,
+                    ...$revisionSource->only(['tracking_number', 'researchers', 'funding_agency', 'introduction', 'rationale', 'methodology', 'results_discussion']),
+                    'implementation_start' => $revisionSource->implementation_start?->toDateString(),
+                    'implementation_end' => $revisionSource->implementation_end?->toDateString(),
+                    ...app(ProgressReportData::class)->normalize($topic, ['accomplishments' => $revisionSource->accomplishments ?? [], 'objectives' => $revisionSource->objectives]),
+                    ...app(ReportFigureDraftService::class)->reportImages($revisionSource),
+                ];
             }
         }
 

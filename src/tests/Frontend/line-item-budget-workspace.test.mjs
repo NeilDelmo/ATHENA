@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
@@ -151,8 +151,7 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                 await page.locator('#amount-travelling_expenses').fill('1500');
                 const mooe = page.locator('#line-item-budget-section-mooe');
                 await mooe.getByRole('button', { name: 'Add category or sub-category', exact: true }).click();
-                await mooe.getByRole('textbox', { name: 'Custom MOOE particular' }).waitFor();
-                assert.equal(await mooe.getByRole('textbox', { name: 'Custom MOOE particular' }).evaluate((element) => element === document.activeElement), true);
+                await expect(mooe.getByRole('textbox', { name: 'Custom MOOE particular' })).toBeFocused();
                 await mooe.getByRole('textbox', { name: 'Custom MOOE particular' }).fill('Community consultation supplies');
                 await mooe.getByRole('spinbutton', { name: 'Custom MOOE amount' }).fill('500');
                 assert.equal(await toolbarTotal.textContent(), '4,000.00');

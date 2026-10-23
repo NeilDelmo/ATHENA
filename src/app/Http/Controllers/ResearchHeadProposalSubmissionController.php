@@ -6,6 +6,8 @@ use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -69,7 +71,12 @@ class ResearchHeadProposalSubmissionController extends Controller
             ->with([
                 'user:id,name,email,college',
                 'researchCall:id,title,academic_year',
-                'latestVersion.files',
+                'latestVersion' => fn (HasOne $version): HasOne => $version
+                    ->select($version->getRelated()->qualifyColumns(['id', 'topic_id', 'version_number', 'submission_type', 'created_at']))
+                    ->with(['files' => fn (HasMany $files): HasMany => $files->whereIn('document_type', [
+                        ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                        ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                    ])]),
             ])
             ->when(in_array($status, self::FILTER_STATUSES, true), fn (Builder $query): Builder => $this->applyStatusFilter($query, $status))
             ->when($search !== '', function (Builder $query) use ($search): void {
@@ -100,7 +107,12 @@ class ResearchHeadProposalSubmissionController extends Controller
                 'topic:id,user_id,research_call_id,title,status,review_stage,research_head_viewed_version_id,notice_to_proceed_issued_at',
                 'topic.user:id,name,email,college',
                 'topic.researchCall:id,title,academic_year',
-                'topic.latestVersion.files',
+                'topic.latestVersion' => fn (HasOne $version): HasOne => $version
+                    ->select($version->getRelated()->qualifyColumns(['id', 'topic_id', 'version_number', 'submission_type', 'created_at']))
+                    ->with(['files' => fn (HasMany $files): HasMany => $files->whereIn('document_type', [
+                        ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                        ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                    ])]),
             ])
             ->withCount([
                 'files as package_files_count' => fn (Builder $query): Builder => $query->whereNotIn('document_type', [

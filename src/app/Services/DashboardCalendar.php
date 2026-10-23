@@ -10,6 +10,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 
 class DashboardCalendar
@@ -110,6 +111,9 @@ class DashboardCalendar
             return collect();
         }
         $projects->with([
+            'latestVersion' => fn (HasOne $relation): HasOne => $relation->select(
+                $relation->getRelated()->qualifyColumns(['id', 'topic_id']),
+            ),
             'latestVersion.files' => fn (HasMany $query) => $query->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
                 ->select('id', 'proposal_version_id', 'document_type', 'source_data'),
             'progressReports' => fn (HasMany $query) => $query

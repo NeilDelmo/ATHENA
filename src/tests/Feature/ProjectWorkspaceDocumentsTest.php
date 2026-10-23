@@ -6,6 +6,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProjectDocumentLibrary;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -248,8 +249,8 @@ test('submitted terminal posters appear once as private image files with their r
         ->assertJsonPath('documents.0.filename', 'coastal-project-poster.png')
         ->assertJsonPath('documents.0.note', $photo['caption'])
         ->assertJsonPath('documents.0.preview_kind', 'image')
-        ->assertJsonPath('documents.0.view_url', route('project-narrative-reports.photos.view', [$report, 1]))
-        ->assertJsonPath('documents.0.thumbnail_url', route('project-narrative-reports.photos.view', [$report, 1]))
+        ->assertJsonPath('documents.0.view_url', route('project-narrative-reports.photos.view', [$report, 1, 'preview' => 1]))
+        ->assertJsonPath('documents.0.thumbnail_url', route('project-narrative-reports.photos.view', [$report, 1, 'preview' => 1]))
         ->assertJsonPath('documents.0.download_url', route('project-narrative-reports.photos.download', [$report, 1]))
         ->assertJsonMissingPath('documents.0.path')
         ->assertJsonMissingPath('documents.0.file_path');
@@ -347,11 +348,11 @@ test('project folder covers use the newest available submitted terminal poster',
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
 
     $this->get(route('research_head.completed-projects.index'))->assertSuccessful()
-        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['poster_url'] === route('project-narrative-reports.photos.view', [$older, 1]));
+        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['poster_url'] === route('project-narrative-reports.photos.view', [$older, 1, 'preview' => 1]));
 
     $newer->update(['photos' => [['path' => $path, 'section' => 'cover']]]);
     $this->get(route('research_head.completed-projects.index'))->assertSuccessful()
-        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['poster_url'] === route('project-narrative-reports.photos.view', [$newer, 0]));
+        ->assertViewHas('workspaceProjects', fn (array $projects): bool => $projects[0]['poster_url'] === route('project-narrative-reports.photos.view', [$newer, 0, 'preview' => 1]));
 });
 
 test('project folder covers are loaded in one batch beyond the fallback table page', function () {
@@ -383,4 +384,68 @@ test('project folder covers are loaded in one batch beyond the fallback table pa
         DB::disableQueryLog();
         DB::flushQueryLog();
     }
+});
+
+test('project file summaries avoid loading report narratives and preserve evidence and signed downloads', function () {
+    $largeText = str_repeat('Full report narrative outside the file browser. ', 1000);
+    $pdf = "%PDF-1.7\nproject report";
+    foreach (['monitoring', 'narrative', 'signed'] as $name) {
+        Storage::disk('local')->put('reports/'.$name.'.pdf', $pdf);
+    }
+    $proofPath = 'narrative-progress-reports/'.$this->project->id.'/evidence/proof.pdf';
+    Storage::disk('local')->put($proofPath, $pdf);
+    $monitoring = $this->project->progressReports()->create([
+        'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-06-30', 'reporting_year' => 2026,
+        'reporting_quarter' => 2, 'period_start' => '2026-04-01', 'period_end' => '2026-06-30',
+        'version_number' => 1, 'submitted_at' => now(), 'progress_percentage' => 50, 'accomplishments' => $largeText, 'issues' => $largeText,
+        'work_plan' => [], 'budget_utilization' => [], 'official_pdf_path' => 'reports/monitoring.pdf',
+        'official_pdf_filename' => 'monitoring.pdf', 'official_pdf_size' => strlen($pdf),
+    ]);
+    $narrative = $this->project->narrativeReports()->create([
+        ...$this->reportAttributes, 'report_type' => 'progress', 'reporting_date' => '2026-06-30',
+        'reporting_quarter' => 2, 'period_start' => '2026-04-01', 'period_end' => '2026-06-30', 'submitted_at' => now(),
+        'introduction' => $largeText, 'objectives' => $largeText, 'methodology' => $largeText,
+        'results_discussion' => $largeText, 'accomplishment_summary' => $largeText,
+        'accomplishments' => [['objective' => 'Gather field evidence', 'evidence' => [[
+            'id' => '11111111-1111-4111-8111-111111111111', 'path' => $proofPath, 'name' => 'proof.pdf',
+            'mime_type' => 'application/pdf', 'size' => strlen($pdf), 'checksum' => hash('sha256', $pdf),
+        ]]]],
+        'official_pdf_path' => 'reports/narrative.pdf', 'official_pdf_filename' => 'narrative.pdf', 'official_pdf_size' => strlen($pdf),
+        'reviewed_by' => $this->head->id,
+        'terminal_data' => ['signed_copy' => ['path' => 'reports/signed.pdf', 'original_filename' => 'signed.pdf', 'size' => strlen($pdf), 'uploaded_at' => now()->toIso8601String()]],
+    ]);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $fullProject = $this->project->fresh(['progressReports', 'narrativeReports']);
+    $expectedLibrary = app(ProjectDocumentLibrary::class)->build($fullProject, $this->head);
+    $loadedReports = [];
+    foreach ([ProjectProgressReport::class, ProjectNarrativeReport::class] as $model) {
+        $model::retrieved(function (ProjectProgressReport|ProjectNarrativeReport $report) use (&$loadedReports): void {
+            $loadedReports[$report::class] = $report->getAttributes();
+        });
+    }
+
+    $library = app(ProjectDocumentLibrary::class)->build($this->project->fresh(), $this->head);
+    $documents = $library['documents']->keyBy('key');
+
+    expect($library['documents']->all())->toEqual($expectedLibrary['documents']->all())
+        ->and($fullProject->narrativeReports->first()->introduction)->toBe($largeText)
+        ->and($library['total'])->toBe(4)
+        ->and($documents['monitoring-report-'.$monitoring->id])->toMatchArray([
+            'title' => 'Monitoring Tool · Q2 2026', 'filename' => 'monitoring.pdf',
+            'source' => 'Apr 1, 2026 – Jun 30, 2026', 'uploaded_by' => $this->researcher->name,
+        ])
+        ->and($documents['narrative-report-'.$narrative->id]['download_url'])->toBe(route('project-narrative-reports.download', $narrative))
+        ->and($documents['signed-narrative-report-'.$narrative->id]['download_url'])->toBe(route('project-narrative-reports.signed-copy.download', $narrative))
+        ->and($documents['signed-narrative-report-'.$narrative->id]['uploaded_by'])->toBe($this->head->name);
+    $proof = $documents->firstWhere('filename', 'proof.pdf');
+    expect($proof['download_url'])->toBe(route('project-narrative-reports.evidence', [$this->project, '11111111-1111-4111-8111-111111111111']))
+        ->and($proof['uploaded_by'])->toBe($this->researcher->name)
+        ->and($loadedReports)->toHaveCount(2);
+    expect(strlen(json_encode($loadedReports, JSON_THROW_ON_ERROR)))->toBeLessThan(5000);
+    foreach ($loadedReports as $attributes) {
+        expect(array_intersect(['introduction', 'objectives', 'methodology', 'results_discussion', 'accomplishment_summary', 'issues'], array_keys($attributes)))->toBe([]);
+    }
+    expect(array_key_exists('accomplishments', $loadedReports[ProjectProgressReport::class]))->toBeFalse();
+    $this->get($proof['download_url'])->assertSuccessful()->assertDownload('proof.pdf');
+    $this->get($documents['signed-narrative-report-'.$narrative->id]['download_url'])->assertSuccessful()->assertDownload('signed.pdf');
 });

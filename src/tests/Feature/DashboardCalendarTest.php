@@ -4,6 +4,7 @@ use App\Livewire\DashboardCalendar;
 use App\Models\PersonalReminder;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
+use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicCollaborator;
@@ -13,6 +14,7 @@ use App\Services\DashboardCalendar as Calendar;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -314,4 +316,44 @@ test('calendar does not invent project deadlines when no valid schedule is recor
     $this->actingAs($this->faculty);
 
     expect(($this->projectEvents)($this->faculty))->toBeEmpty();
+});
+
+test('calendar work plan dates do not hydrate proposal narrative or screening bodies', function () {
+    $topic = ($this->calendarProject)();
+    $body = str_repeat('Full proposal narrative outside calendar events. ', 1000);
+    $version = $topic->versions()->create([
+        'submitted_by' => $this->faculty->id, 'version_number' => 1, 'submission_type' => 'initial',
+        'title' => $topic->title, 'file_path' => 'calendar-proposal.pdf', 'original_filename' => 'calendar-proposal.pdf',
+        'description' => $body, 'change_summary' => $body,
+    ]);
+    $version->forceFill(['research_head_screening' => ['narrative' => $body]])->save();
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN, 'file_path' => 'calendar-work-plan.pdf',
+        'original_filename' => 'calendar-work-plan.pdf',
+        'source_data' => ['total_duration_months' => 6, 'entries' => [[
+            'objective' => 'Measure water quality', 'activity' => 'Collect calendar samples',
+            'expected_output' => 'Sample inventory', 'months' => [3],
+        ]]],
+    ]);
+    $this->actingAs($this->faculty);
+    $retrieved = [];
+    Event::listen('eloquent.retrieved: '.ProposalVersion::class, function (ProposalVersion $record) use (&$retrieved): void {
+        $retrieved[] = $record->getAttributes();
+    });
+    try {
+        $events = ($this->projectEvents)($this->faculty);
+    } finally {
+        Event::forget('eloquent.retrieved: '.ProposalVersion::class);
+    }
+    if (getenv('ATHENA_PERFORMANCE_BASELINE') === '1') {
+        fwrite(STDERR, 'Calendar proposal bytes: '.strlen(json_encode($retrieved, JSON_THROW_ON_ERROR)).PHP_EOL);
+    }
+
+    $event = $events->firstWhere('title', 'Work Plan target: Collect calendar samples');
+    expect($event['date'])->toBe('2026-09-15')
+        ->and($event['notes'])->toBe("Measure water quality\nExpected output: Sample inventory")
+        ->and($event['url'])->toBe(route('topics.show', $topic).'#proposal-details')
+        ->and($retrieved)->toHaveCount(1)
+        ->and($retrieved[0]['id'])->toBe($version->id)
+        ->and($retrieved[0])->not->toHaveKeys(['description', 'change_summary', 'research_head_screening']);
 });

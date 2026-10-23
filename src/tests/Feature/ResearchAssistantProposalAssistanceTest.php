@@ -180,7 +180,7 @@ test('proposal suggestions retrieve manual guidance for the requested section', 
     ($this->fakeSuggestions)([['field' => 'methodology.research_design', 'before' => 'Compare community monitoring methods.',
         'value' => 'Compare methods for community monitoring.', 'reason' => 'Clarifies the existing comparison.']]);
     $response = $this->assistance->respond($this->faculty, ['proposal_draft_id' => $this->draft->id], 'Improve my research design');
-    expect(collect($response['sources'])->filter(fn (array $source): bool => str_starts_with($source['reference'], 'ATHENA '))->pluck('section')->all())
+    expect(collect($response['sources'])->where('type', 'Official Research Manual')->pluck('section')->all())
         ->toContain('Detailed research proposal design');
     Http::assertSent(fn ($request): bool => str_contains(json_encode($request['messages']), 'must explain the comparison method'));
 });

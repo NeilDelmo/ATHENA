@@ -33,6 +33,24 @@ export function projectDocumentDrawer(config = {}) {
         isDragging: false,
         selectedFiles: [],
         fileError: '',
+        menuLabel: 'File actions',
+        get menuActions() {
+            const item = (config.documents || []).find(document => document.key === this.selectedItem);
+            if (item) return [
+                ...(item.view_url ? [{ id: 'preview', label: 'Preview', run: () => this.$dispatch('open-modal', `project-${config.topicId}-${item.key}`) }] : []),
+                { id: 'download', label: 'Download', href: item.download_url, download: item.filename },
+            ];
+            return this.selectedItem?.startsWith('category:')
+                ? [{ id: 'open', label: 'Open folder', run: () => this.openCategory(this.selectedItem.slice(9)) }]
+                : [];
+        },
+        prepareContextMenu(event) {
+            const item = event.target?.closest?.('[data-project-document-key]');
+            const category = event.target?.closest?.('[data-project-file-category]');
+            if (item) this.selectItem(item.dataset.projectDocumentKey);
+            else if (category) this.selectItem(`category:${category.dataset.projectFileCategory}`);
+            else if (event.target?.closest?.('[data-library-view-surface]')) this.selectedItem = null;
+        },
         init() {
             display.init.call(this);
             if (this.inline) return;

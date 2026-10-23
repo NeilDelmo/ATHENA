@@ -8,6 +8,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -22,7 +23,99 @@ beforeEach(function () {
     $this->coordinator->assignRole('research_coordinator');
     $this->actingAs($this->coordinator)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save'];
+    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
+});
+
+test('coordinator JSON submissions save every activity beyond the native form input limit', function () {
+    $presentations = array_map(fn (int $index): array => [
+        'id' => (string) Str::uuid(), 'event' => 'Forum '.$index, 'research_title' => 'Research '.$index,
+        'date' => '2026-08-14', 'place' => 'Nasugbu', 'personnel' => 'Ana Researcher',
+    ], range(1, 100));
+    $details = [
+        'presentations' => $presentations,
+        'publications' => array_map(fn (array $row): array => Arr::except($row, 'place'), $presentations),
+        'seminars' => $presentations,
+        'manual_research' => array_map(fn (array $row): array => [
+            'id' => $row['id'], 'title' => $row['research_title'], 'duration' => '6 months', 'personnel' => $row['personnel'], 'status' => 'Ongoing',
+        ], $presentations),
+        'ip_assets' => array_map(fn (array $row): array => [
+            'id' => $row['id'], 'title' => $row['research_title'], 'type' => 'Copyright', 'inventors' => $row['personnel'], 'date' => $row['date'],
+        ], $presentations),
+        'saved_evidence_captions' => (object) [], 'remove_evidence' => [], 'evidence_captions' => [],
+    ];
+
+    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+        'report_details_json' => json_encode($details, JSON_THROW_ON_ERROR), 'evidence_file_count' => 0,
+    ])->assertSessionHasNoErrors();
+
+    $report = CollegeQuarterlyReport::sole();
+    foreach (['presentations', 'publications', 'seminars', 'manual_research', 'ip_assets'] as $section) {
+        expect($report->getAttribute($section))->toEqual($details[$section]);
+    }
+});
+
+test('incomplete coordinator forms cannot replace a saved report', function () {
+    $report = CollegeQuarterlyReport::factory()->create([
+        'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
+        'other_accomplishments' => 'Saved narrative',
+    ]);
+    $input = $this->reportInput;
+    unset($input['form_complete']);
+
+    $this->postJson(route('research_coordinator.reports.store'), [...$input, 'other_accomplishments' => 'Truncated narrative'])
+        ->assertUnprocessable()->assertJsonValidationErrors('form_complete');
+
+    expect($report->fresh()->other_accomplishments)->toBe('Saved narrative');
+});
+
+test('coordinator JSON preserves saved captions and applies image removals', function () {
+    Storage::fake('local');
+    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+        'evidence_images' => [UploadedFile::fake()->image('retained.png'), UploadedFile::fake()->image('removed.png')],
+        'evidence_file_count' => 2,
+    ])->assertSessionHasNoErrors();
+    $report = CollegeQuarterlyReport::sole();
+    [$retained, $removed] = $report->evidence;
+
+    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+        'report_details_json' => json_encode([
+            'saved_evidence_captions' => [hash('sha256', $retained['path']) => 'Corrected caption'],
+            'remove_evidence' => [hash('sha256', $removed['path'])],
+        ], JSON_THROW_ON_ERROR), 'evidence_file_count' => 0,
+    ])->assertSessionHasNoErrors();
+
+    expect($report->fresh()->evidence)->toHaveCount(1)
+        ->and($report->fresh()->evidence[0]['caption'])->toBe('Corrected caption');
+    Storage::disk('local')->assertExists($retained['path']);
+    Storage::disk('local')->assertMissing($removed['path']);
+});
+
+test('invalid coordinator JSON cannot replace a saved report', function (mixed $json) {
+    $report = CollegeQuarterlyReport::factory()->create([
+        'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
+        'other_accomplishments' => 'Saved narrative',
+    ]);
+
+    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+        'other_accomplishments' => 'Changed narrative', 'report_details_json' => $json,
+    ])->assertUnprocessable()->assertJsonValidationErrors('report_details_json');
+
+    expect($report->fresh()->other_accomplishments)->toBe('Saved narrative');
+})->with([
+    'invalid JSON' => ['{'], 'JSON array' => ['[]'], 'JSON scalar' => ['"text"'],
+    'non-string' => [['presentations' => []]], 'oversized' => [str_repeat(' ', 5 * 1024 * 1024 + 1)],
+    'unexpected input' => ['{"college":"Other college"}'],
+]);
+
+test('missing coordinator uploads cannot silently submit only the files PHP retained', function () {
+    Storage::fake('local');
+
+    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+        'evidence_images' => [UploadedFile::fake()->image('retained.png')], 'evidence_file_count' => 2,
+    ])->assertSessionHasErrors('evidence_file_count');
+
+    expect(CollegeQuarterlyReport::count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
 });
 
 test('coordinators without research projects can open an empty calendar quarter report', function () {

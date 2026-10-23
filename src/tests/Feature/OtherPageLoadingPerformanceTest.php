@@ -4,6 +4,7 @@ use App\Livewire\ResearchHeadDashboard;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
+use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\CommentResponseFeedback;
@@ -12,6 +13,42 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
+
+test('analytics skips calendar work while the overview retains upcoming deadlines', function (bool $overview) {
+    Role::firstOrCreate(['name' => 'research_head']);
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    ResearchCall::create([
+        'title' => 'Upcoming research call', 'academic_year' => '2026-2027',
+        'status' => 'open', 'opens_at' => now()->subDay(), 'closes_at' => now()->addDays(7),
+    ]);
+    $topic = TopicProposal::create([
+        'user_id' => $head->id, 'title' => 'Active calendar project', 'status' => 'approved',
+        'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now()->subMonth(),
+        'estimated_duration_months' => 6,
+    ]);
+    $topic->versions()->create([
+        'submitted_by' => $head->id, 'version_number' => 1, 'submission_type' => 'initial',
+        'title' => $topic->title, 'file_path' => 'proposal.pdf',
+        'original_filename' => 'proposal.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100,
+    ]);
+
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    $started = hrtime(true);
+    $component = Livewire::actingAs($head)->test(ResearchHeadDashboard::class, ['overview' => $overview]);
+    $queries = collect(DB::getQueryLog());
+    DB::disableQueryLog();
+    if (getenv('ATHENA_OTHER_PAGE_BENCHMARK') === '1') {
+        fwrite(STDERR, sprintf("Research head %s: %.1f ms, %d queries\n", $overview ? 'overview' : 'analytics', (hrtime(true) - $started) / 1_000_000, $queries->count()));
+    }
+
+    $component->assertViewHas('deadlines', fn ($deadlines): bool => $overview
+        ? $deadlines->contains('context', 'Upcoming research call')
+        : $deadlines->isEmpty());
+    expect($queries->filter(fn (array $query): bool => str_contains($query['query'], 'from `personal_reminders`')))
+        ->toHaveCount($overview ? 1 : 0);
+})->with([false, true]);
 
 test('the proposal hub defers its closed review package while the review page remains ready', function () {
     $browserFixture = getenv('ATHENA_REVIEW_BROWSER_FIXTURE');

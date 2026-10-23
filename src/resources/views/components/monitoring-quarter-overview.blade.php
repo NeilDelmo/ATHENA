@@ -6,15 +6,15 @@
         || $topic->isAccessibleTo(Auth::user());
 @endphp
 
-<section id="progress-reports" class="quarterly-reports overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900" aria-labelledby="quarterly-reporting-schedule-heading">
-    <header id="quarterly-reports" class="flex items-start gap-3 border-b border-red-100 bg-red-50 px-4 py-4 dark:border-red-900 dark:bg-red-950/30 sm:px-6">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-700 text-white" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm3 9 3 3 5-5"/></svg></span>
+<section id="progress-reports" class="quarterly-reports overflow-hidden border-t border-slate-200 dark:border-slate-700" aria-labelledby="quarterly-reporting-schedule-heading">
+    <header id="quarterly-reports" class="flex items-center gap-3 bg-slate-100 px-5 py-4 dark:bg-slate-800/60 sm:px-6">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/10 bg-brand-wash text-brand dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm3 9 3 3 5-5"/></svg></span>
         <div class="min-w-0">
-            <h4 id="quarterly-reporting-schedule-heading" class="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Quarterly reports</h4>
+            <h4 id="quarterly-reporting-schedule-heading" class="text-xl font-semibold text-slate-950 dark:text-white">Quarterly reports</h4>
             @if (! $topic->isCompletedProject())
-                <p class="mt-1 text-base leading-6 text-slate-700 dark:text-slate-300">Submit both documents each quarter.</p>
+                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">Submit both documents each quarter.</p>
             @else
-                <p class="mt-1 text-base leading-6 text-slate-700 dark:text-slate-300">Accepted reports and submitted documents.</p>
+                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">Accepted reports and submitted documents.</p>
             @endif
         </div>
     </header>
@@ -22,7 +22,7 @@
     <div data-monitoring-schedule-table data-progress-schedule-table>
         <table class="w-full table-fixed text-left">
             <caption class="sr-only">Quarterly Monitoring Tool and Progress Report periods and available actions</caption>
-            <thead class="border-y border-slate-200 bg-slate-100 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
+            <thead class="border-y border-slate-200 bg-slate-200/60 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
                 <tr>
                     <th scope="col" class="w-[28%] px-3 py-3 text-base font-semibold">Reporting period</th>
                     <th scope="col" class="w-[20%] px-2 py-3 text-base font-semibold">Deadline</th>
@@ -63,7 +63,7 @@
                         $progressStatus = $topic->isCompletedProject() && $progressReport === null ? 'No report on file' : ($progressRow['status'] ?? 'No report on file');
                         $quarterOverdue = ! $topic->isCompletedProject() && (str_contains($toolStatus, 'Overdue') || str_contains($progressStatus, 'Overdue'));
                     @endphp
-                    <tr data-reporting-quarter="{{ $row['quarter'] }}" class="border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                    <tr data-reporting-quarter="{{ $row['quarter'] }}" @class(['border-t border-slate-200 dark:border-slate-800', 'bg-white dark:bg-slate-900' => $loop->odd, 'bg-slate-50 dark:bg-slate-800/30' => $loop->even])>
                         <th scope="row" class="px-3 py-2 align-middle font-normal">
                             <p data-reporting-period class="flex min-h-8 items-center gap-2 text-base leading-6 text-slate-900 dark:text-white"><span class="quarterly-report-quarter">{{ $row['label'] }}</span><span>{{ $row['start']->format($row['start']->year === $row['end']->year ? 'M j' : 'M j, Y') }} – {{ $row['end']->format('M j, Y') }}</span></p>
                             @if (! $topic->isCompletedProject())

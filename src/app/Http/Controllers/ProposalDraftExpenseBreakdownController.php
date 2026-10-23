@@ -16,6 +16,7 @@ use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -54,44 +55,48 @@ class ProposalDraftExpenseBreakdownController extends Controller
     ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('expense-breakdown');
-        $savedDocument = $saveProposalDraftDocument->handle(
-            $proposalDraft,
-            $request->user(),
-            $paper['document_type'],
-            0,
-            $request->integer('document_version'),
-            [
-                'source_data' => Arr::only($request->validated(), ['items']),
-                'file_path' => null,
-                'original_filename' => null,
-                'mime_type' => null,
-                'file_size' => null,
-                'checksum' => null,
-                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
-            ],
-            changeNote: $request->string('change_note')->toString(),
-        );
-        $lineItemBudgetDocument = $this->lineItemBudgetDocument($proposalDraft);
-        $expenseItems = $savedDocument->source_data['items'] ?? [];
+        $savedDocument = DB::transaction(function () use ($request, $proposalDraft, $paper, $saveProposalDraftDocument): ProposalDraftDocument {
+            $savedDocument = $saveProposalDraftDocument->handle(
+                $proposalDraft,
+                $request->user(),
+                $paper['document_type'],
+                0,
+                $request->integer('document_version'),
+                [
+                    'source_data' => Arr::only($request->validated(), ['items']),
+                    'file_path' => null,
+                    'original_filename' => null,
+                    'mime_type' => null,
+                    'file_size' => null,
+                    'checksum' => null,
+                    'completed_at' => $request->boolean('save_as_draft') ? null : now(),
+                ],
+                changeNote: $request->string('change_note')->toString(),
+            );
+            $lineItemBudgetDocument = $this->lineItemBudgetDocument($proposalDraft);
+            $expenseItems = $savedDocument->source_data['items'] ?? [];
 
-        $saveProposalDraftDocument->handle(
-            $proposalDraft,
-            $request->user(),
-            config('proposal_papers.line-item-budget.document_type'),
-            0,
-            $proposalDraft->currentDocumentVersion(
+            $saveProposalDraftDocument->handle(
+                $proposalDraft,
+                $request->user(),
                 config('proposal_papers.line-item-budget.document_type'),
                 0,
-                $lineItemBudgetDocument,
-            ),
-            [
-                'source_data' => LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
-                    is_array($lineItemBudgetDocument?->source_data) ? $lineItemBudgetDocument->source_data : [],
-                    is_array($expenseItems) ? $expenseItems : [],
+                $proposalDraft->currentDocumentVersion(
+                    config('proposal_papers.line-item-budget.document_type'),
+                    0,
+                    $lineItemBudgetDocument,
                 ),
-                'completed_at' => $savedDocument->completed_at,
-            ],
-        );
+                [
+                    'source_data' => LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
+                        is_array($lineItemBudgetDocument?->source_data) ? $lineItemBudgetDocument->source_data : [],
+                        is_array($expenseItems) ? $expenseItems : [],
+                    ),
+                    'completed_at' => $savedDocument->completed_at,
+                ],
+            );
+
+            return $savedDocument;
+        }, 3);
 
         if ($request->expectsJson()) {
             return response()->json([

@@ -34,10 +34,37 @@ test('an overdue project displays its computed delay while retaining its editabl
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic))->assertOk();
     $xpath = ($this->monitoringOverview)($response->getContent());
     $overview = $xpath->query('//*[@data-monitoring-overview]')->item(0);
+    $attention = $xpath->query('//details[@data-monitoring-attention]')->item(0);
 
-    expect($overview->textContent)->toContain('Delayed / overdue', 'Project deadline / reported milestone passed', '1 day overdue')
+    expect($overview->textContent)->toContain('Project deadline / reported milestone passed', '1 day overdue')
+        ->and($attention)->not->toBeNull()
+        ->and($attention->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('//details[@data-monitoring-attention]/summary')->item(0)->textContent)->toContain('Needs attention')
         ->and($xpath->query('//*[@data-project-status-form]//option[@value="ongoing" and @selected]')->length)->toBe(1)
         ->and($this->topic->fresh()->project_status)->toBe('ongoing');
+});
+
+test('monitoring budget settings stay collapsed unless an assignment needs correction', function () {
+    $response = $this->actingAs($this->researcher)->get(route('topics.show', $this->topic))->assertOk();
+    $xpath = ($this->monitoringOverview)($response->getContent());
+    $budget = $xpath->query('//details[@data-monitoring-budget-section]')->item(0);
+
+    expect($budget)->not->toBeNull()
+        ->and($budget->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('//details[@data-monitoring-budget-section]/summary')->item(0)->textContent)->toContain('Monitoring budget', 'No secretary assigned')
+        ->and($budget->textContent)->toContain('completes and confirms budget utilization before submission')
+        ->and($xpath->query('//*[@data-monitoring-overview]//*[@data-monitoring-notice-link]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="project-files-tab-button"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@id="terminal-reports"]')->item(0)->textContent)->toContain('Research Head review', 'fully signed PDF');
+
+    $this->patch(route('project-secretary.assign', $this->topic), ['research_secretary_id' => $this->head->id])
+        ->assertSessionHasErrors('research_secretary_id');
+    $response = $this->withCookie(config('session.cookie'), session()->getId())
+        ->get(route('topics.show', $this->topic))->assertOk();
+    $xpath = ($this->monitoringOverview)($response->getContent());
+
+    expect($xpath->query('//details[@data-monitoring-budget-section and @open]')->length)->toBe(1)
+        ->and($response->getContent())->toContain('Choose confirmed project staff from this project team.');
 });
 
 test('reported full progress shows concrete missing reports before project closeout', function () {
@@ -50,8 +77,8 @@ test('reported full progress shows concrete missing reports before project close
     $xpath = ($this->monitoringOverview)($response->getContent());
     $overview = $xpath->query('//*[@data-monitoring-overview]')->item(0);
 
-    expect($overview->textContent)->toContain('Reports overdue', 'Missing Progress Reports: Q1')
-        ->not->toContain('Delayed / overdue', 'completion decision needed', 'Project closeout pending')
+    expect($overview->textContent)->toContain('Missing Progress Reports: Q1')
+        ->not->toContain('Reports overdue', 'Delayed / overdue', 'completion decision needed', 'Project closeout pending')
         ->and($this->topic->fresh()->project_status)->toBe('ongoing');
 });
 
@@ -81,14 +108,14 @@ test('monitoring summary groups current reviews and identifies the overdue submi
     $overview = $xpath->query('//*[@data-monitoring-overview]')->item(0);
     $group = $xpath->query('//*[@data-monitoring-review-group="Head review"]')->item(0);
 
-    expect($overview->textContent)->toContain('Reports overdue', 'Q2 · Overdue', 'Missing Progress Reports: Q2')
-        ->not->toContain('Open now', 'Awaiting Research Head review', 'completion decision needed', 'Project closeout pending')
+    expect($overview->textContent)->toContain('Q2 · Overdue', 'Missing Progress Reports: Q2')
+        ->not->toContain('Reports overdue', 'Open now', 'Awaiting Research Head review', 'completion decision needed', 'Project closeout pending')
         ->and($group)->not->toBeNull()
         ->and($group->hasAttribute('open'))->toBeFalse()
         ->and($group->textContent)->toContain('Head review', '2 reports', 'Q2 Monitoring Tool', 'Q1 Progress Report', '1 day with Research Head')
         ->and($xpath->query('//*[@data-monitoring-task-link][contains(@href, "#monitoring-tool-'.$tool->id.'")]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-monitoring-task-link][contains(@href, "#narrative-report-'.$progress->id.'")]')->length)->toBe(1)
-        ->and($xpath->query('//*[@data-monitoring-actions]//*[@data-monitoring-notice-link]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-monitoring-actions]//*[@data-monitoring-notice-link]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-monitoring-actions]//*[@data-project-status-manager]')->length)->toBe(1);
 
     if (getenv('ATHENA_EXPORT_MONITORING_LAYOUT') === '1') {

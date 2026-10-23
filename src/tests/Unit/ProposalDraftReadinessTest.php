@@ -100,3 +100,27 @@ test('research office blockers have no faculty field target', function () {
         'field' => null, 'owner' => 'research_office',
     ])->and($blocker['message'])->toContain('Research Head or Research Office Secretary');
 });
+
+test('shortening the project flags saved work plan months outside the new duration', function () {
+    $this->draft->documents->push(new ProposalDraftDocument([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => ['specific_objectives' => [['description' => 'Survey the community']]],
+    ]), new ProposalDraftDocument([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'position' => 0,
+        'completed_at' => now(),
+        'source_data' => ['entries' => [[
+            'objective' => 'Survey the community', 'expected_output' => 'Baseline data',
+            'activity' => 'Collect survey responses', 'months' => [12],
+        ]]],
+    ]));
+    expect($this->readiness->checklist($this->draft)['work-plan']['complete'])->toBeTrue();
+
+    $this->draft->duration_months = 6;
+
+    expect($this->readiness->checklist($this->draft)['work-plan']['complete'])->toBeFalse()
+        ->and($this->readiness->errors($this->draft))->toHaveKey('papers.work-plan')
+        ->and(collect($this->readiness->blockers($this->draft))->where('paper', 'work-plan')->pluck('field')->all())
+        ->toContain('entries.0.months.0');
+});

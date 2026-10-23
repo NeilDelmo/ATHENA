@@ -65,6 +65,7 @@ test('the existing chatbot sends relevant manual passages once and exposes page 
         ->and(mb_strlen($response->json('sources.0.excerpt')))->toBeLessThanOrEqual(1200);
 
     expect($response->json('sources.0.title'))->toContain('Approved Research Manual (2023)', '8.1 Ethics clearance');
+    expect($response->json('sources.0.reference'))->toBe('Approved Research Manual (2023) — 8.1 Ethics clearance (pp. 62–63)');
     expect($response->json('sources.0'))->not->toHaveKey('content');
     Http::assertSentCount(1);
     Http::assertSent(function ($request): bool {
@@ -83,6 +84,26 @@ test('chat citations reuse the shared searchable source PDF viewer', function ()
     if (getenv('ATHENA_EXPORT_ASSISTANT_CITATION_PREVIEW') === '1') {
         File::put(storage_path('framework/testing/assistant-source-preview.html'), $html);
     }
+});
+
+test('manual passages with the same document section and pages share one complete citation', function () {
+    $index = json_decode(File::get($this->manualIndexPath), true, flags: JSON_THROW_ON_ERROR);
+    $index['chunks'] = [
+        ['id' => 'budget-first', 'section' => '3.6 Guidelines in Preparation LIB', 'page_start' => 36, 'page_end' => 36,
+            'content' => 'The line item budget must identify the expense categories.'],
+        ['id' => 'budget-second', 'section' => '3.6 Guidelines in Preparation LIB', 'page_start' => 36, 'page_end' => 36,
+            'content' => 'The line item budget must include a justification for each expense.'],
+    ];
+    File::put($this->manualIndexPath, json_encode($index, JSON_THROW_ON_ERROR));
+    $knowledge = app(ResearchKnowledgeService::class);
+    $sources = collect($knowledge->retrieve('What does section 3.6 require in the line item budget?'))
+        ->where('type', 'Official Research Manual')->values()->all();
+
+    expect($sources)->toHaveCount(1)
+        ->and($sources[0]['reference'])->toBe('Approved Research Manual (2023) — 3.6 Guidelines in Preparation LIB (p. 36)')
+        ->and($sources[0]['content'])->toContain('identify the expense categories.', 'include a justification for each expense.')
+        ->and($sources[0]['url'])->toEndWith('#page=36')
+        ->and($knowledge->publicSources($sources)[0]['excerpt'])->toContain('identify the expense categories.', 'include a justification for each expense.');
 });
 
 test('manual grounding is bounded and short followups keep the relevant policy context', function () {

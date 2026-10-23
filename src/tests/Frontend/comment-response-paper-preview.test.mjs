@@ -45,6 +45,65 @@ test('failed previews can retry and removed previews ignore late responses', asy
     assert.equal(state.previewHtml, '');
 });
 
+test('revision previews wait for the initialized workflow before observing visibility and release deferred listeners', async t => {
+    const original = { fetch: globalThis.fetch, IntersectionObserver: globalThis.IntersectionObserver, ResizeObserver: globalThis.ResizeObserver };
+    t.after(() => Object.assign(globalThis, original));
+    let requests = 0;
+    const observers = [];
+    globalThis.fetch = async () => { requests++; return { ok: true, text: async () => '<main>Paper</main>' }; };
+    globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+    globalThis.IntersectionObserver = class {
+        constructor(callback) { this.callback = callback; observers.push(this); }
+        observe(element) { this.element = element; this.emit(); }
+        emit() { this.callback([{ isIntersecting: this.element.visible }]); }
+        disconnect() {}
+    };
+    const createPreview = form => {
+        const state = commentResponsePaperPreview('/preview');
+        state.$el = { visible: true, closest: () => form };
+        state.$refs = { previewFrame: {} };
+        state.$nextTick = callback => callback();
+        state.init();
+        return state;
+    };
+    const form = new EventTarget();
+    form.dataset = {};
+    form.querySelector = () => ({});
+    const state = createPreview(form);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(observers.length, 0, 'the server-rendered first step is temporary until the lazy workflow initializes');
+    assert.equal(requests, 0);
+
+    state.$el.visible = false;
+    form.dataset.revisionInitialized = 'true';
+    form.dispatchEvent(new Event('revision-step-changed'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(observers.length, 1);
+    assert.equal(requests, 0, 'annotation navigation hides the paper before visibility is observed');
+    form.dispatchEvent(new Event('revision-step-changed'));
+    assert.equal(observers.length, 1, 'the workflow listener starts observation once');
+    state.$el.visible = true;
+    observers[0].emit();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests, 1);
+    assert.equal(state.previewHtml, '<main>Paper</main>');
+    state.destroy();
+
+    const removedForm = new EventTarget();
+    removedForm.dataset = {};
+    removedForm.querySelector = () => ({});
+    const removed = createPreview(removedForm);
+    removed.destroy();
+    removedForm.dispatchEvent(new Event('revision-step-changed'));
+    assert.equal(observers.length, 1, 'removed previews must not start delayed observers');
+
+    const standalone = createPreview(null);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(observers.length, 2);
+    assert.equal(requests, 2, 'standalone previews still load as soon as they are visible');
+    standalone.destroy();
+});
+
 test('faculty can preview all current replies from the revision panel without leaving the editor', async () => {
     const rendered = JSON.parse(execFileSync('php', ['-r', String.raw`
         require 'vendor/autoload.php';

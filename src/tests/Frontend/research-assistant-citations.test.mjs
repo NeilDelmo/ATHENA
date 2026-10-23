@@ -30,6 +30,30 @@ test('citation details and existing viewer configuration are safe and preserve s
     assert.equal(preview({ url: `https://athena.test/research-manuals/${version}#page=4` }).page, 4);
 });
 
+test('same-title documents open the excerpt belonging to their complete named reference', async () => {
+    const title = 'Participant recruitment guidance';
+    const sources = [
+        { title, reference: `${title} · https://first.example.edu/policy`, excerpt: 'First institution guidance.', url: 'https://first.example.edu/policy' },
+        { title, reference: `${title} · https://second.example.edu/policy`, excerpt: 'Second institution guidance.', url: 'https://second.example.edu/policy' },
+    ];
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent(`<style>[x-cloak]{display:none!important}</style><article x-data="researchAssistantCitations" @click="openCitation($event, window.message)">${formatAssistantMarkdown(`Compare [${sources[0].reference}] with [${sources[1].reference}].`, sources)}${read('resources/views/components/research-assistant-citation.blade.php')}</article>`);
+        await page.addScriptTag({ content: `${safeAssistantSourceUrl.toString()}\n${helper}\nwindow.message=${JSON.stringify({ sources })};document.addEventListener('alpine:init',()=>{Alpine.data('researchAssistantCitations',researchAssistantCitations);Alpine.store('researchAssistant',{sourceUrl:source=>safeAssistantSourceUrl(source?.url)});});` });
+        await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+        const panel = page.locator('[data-assistant-citation-panel]');
+        await page.locator('[data-assistant-citation]').nth(1).click();
+        await expect(panel.locator('blockquote')).toHaveText('Second institution guidance.');
+        await expect(panel.getByRole('link', { name: 'Open source' })).toHaveAttribute('href', 'https://second.example.edu/policy');
+        await panel.press('Escape');
+        await page.locator('[data-assistant-citation]').first().click();
+        await expect(panel.locator('blockquote')).toHaveText('First institution guidance.');
+    } finally {
+        await browser.close();
+    }
+});
+
 test('inline citations reveal exact excerpts and return keyboard focus without clutter or unsafe markup', { timeout: 90000 }, async () => {
     const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))]).process(read('resources/css/app.css'), { from: undefined });
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -47,7 +71,7 @@ test('inline citations reveal exact excerpts and return keyboard focus without c
             await expect(citations).toHaveCount(4);
             const panel = page.locator('[data-assistant-citation-panel]');
             await expect(panel).toBeHidden();
-            await expect(citations.first()).toHaveText('1');
+            await expect(citations.first()).toHaveText(sources[0].title);
             const box = await citations.first().boundingBox();
             assert.ok(box.height >= 44 && box.width >= 44);
             await citations.first().focus();
@@ -55,6 +79,7 @@ test('inline citations reveal exact excerpts and return keyboard focus without c
             await expect(panel).toBeVisible();
             await expect(panel).toBeFocused().catch(async error => assert.fail(`${error.message}; ${await page.evaluate(() => document.activeElement?.outerHTML)}; ${errors.join(';')}`));
             await expect(panel.locator('blockquote')).toHaveText(sources[0].excerpt);
+            await expect(panel).not.toContainText('ATHENA 1', { useInnerText: true });
             await expect(panel).toContainText('Edition 2023 · 8.1 Ethics clearance · Pages 62–63');
             await expect(panel.getByRole('button', { name: 'Preview source', exact: true })).toBeVisible();
             await page.keyboard.press('Escape');

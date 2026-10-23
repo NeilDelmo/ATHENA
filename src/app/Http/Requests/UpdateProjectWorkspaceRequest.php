@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
+use App\Services\ProjectDocumentLibrary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -35,8 +36,14 @@ class UpdateProjectWorkspaceRequest extends FormRequest
             'folders.*.parent_id' => ['present', 'nullable', 'uuid'],
             'assignments' => ['present', 'array', 'list', 'max:10000'],
             'assignments.*' => ['required', 'array:project_id,folder_id', 'required_array_keys:project_id,folder_id'],
-            'assignments.*.project_id' => ['required', 'integer', 'min:1', 'distinct'],
+            'assignments.*.project_id' => ['required', 'integer', 'min:1'],
             'assignments.*.folder_id' => ['required', 'uuid'],
+            'shortcuts' => ['sometimes', 'array', 'list', 'max:10000'],
+            'shortcuts.*' => ['required', 'array:id,folder_id,project_id,document_key', 'required_array_keys:id,folder_id,project_id,document_key'],
+            'shortcuts.*.id' => ['required', 'uuid', 'distinct:ignore_case'],
+            'shortcuts.*.folder_id' => ['required', 'uuid'],
+            'shortcuts.*.project_id' => ['required', 'integer', 'min:1'],
+            'shortcuts.*.document_key' => ['required', 'string', 'max:200'],
             'view' => ['required', Rule::in(['grid', 'list'])],
             'grouping' => ['required', Rule::in(['year', 'none'])],
             'sort' => ['required', Rule::in(['attention', 'title', 'newest', 'oldest'])],
@@ -65,15 +72,24 @@ class UpdateProjectWorkspaceRequest extends FormRequest
             }, $folders)]);
         }
 
-        $assignments = $this->input('assignments');
-        if (is_array($assignments)) {
-            $this->merge(['assignments' => array_map(function (mixed $assignment): mixed {
-                if (is_array($assignment) && isset($assignment['folder_id']) && is_string($assignment['folder_id'])) {
-                    $assignment['folder_id'] = strtolower($assignment['folder_id']);
+        foreach (['assignments', 'shortcuts'] as $field) {
+            $items = $this->input($field);
+            if (! is_array($items)) {
+                continue;
+            }
+            $this->merge([$field => array_map(function (mixed $item): mixed {
+                if (! is_array($item)) {
+                    return $item;
                 }
 
-                return $assignment;
-            }, $assignments)]);
+                foreach (['id', 'folder_id'] as $key) {
+                    if (isset($item[$key]) && is_string($item[$key])) {
+                        $item[$key] = strtolower($item[$key]);
+                    }
+                }
+
+                return $item;
+            }, $items)]);
         }
     }
 
@@ -115,13 +131,54 @@ class UpdateProjectWorkspaceRequest extends FormRequest
             $assignments = $this->input('assignments');
             $projects = TopicProposal::withIssuedNotice()->whereKey(array_column($assignments, 'project_id'))
                 ->get(['id', 'user_id', 'status', 'project_status', 'notice_to_proceed_issued_at'])->keyBy('id');
+            $memberships = [];
             foreach ($assignments as $index => $assignment) {
+                $membership = (int) $assignment['project_id'].'/'.$assignment['folder_id'];
+                if (isset($memberships[$membership])) {
+                    $validator->errors()->add("assignments.{$index}.project_id", 'This project is already in this folder.');
+                }
+                $memberships[$membership] = true;
                 if (! $folders->has($assignment['folder_id'])) {
                     $validator->errors()->add("assignments.{$index}.folder_id", 'The destination folder does not exist.');
                 }
                 $project = $projects->get($assignment['project_id']);
                 if ($project === null || Gate::forUser($this->user())->denies('view', $project)) {
                     $validator->errors()->add("assignments.{$index}.project_id", 'Choose a project you can access with an issued Notice to Proceed.');
+                }
+            }
+
+            $shortcuts = $this->input('shortcuts', []);
+            if ($shortcuts === [] || $validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $savedSources = [];
+            foreach ($this->user()->projectWorkspacePreferences()['shortcuts'] as $shortcut) {
+                $savedSources[(int) $shortcut['project_id'].'/'.$shortcut['document_key']] = true;
+            }
+            $newShortcuts = array_filter($shortcuts, fn (array $shortcut): bool => ! isset($savedSources[(int) $shortcut['project_id'].'/'.$shortcut['document_key']]));
+            $sourceProjects = $newShortcuts === [] ? collect() : TopicProposal::withIssuedNotice()
+                ->whereKey(array_unique(array_column($newShortcuts, 'project_id')))->get()->keyBy('id');
+            $sourceDocuments = [];
+            foreach ($shortcuts as $index => $shortcut) {
+                if (! $folders->has($shortcut['folder_id'])) {
+                    $validator->errors()->add("shortcuts.{$index}.folder_id", 'The destination folder does not exist.');
+
+                    continue;
+                }
+                if (isset($savedSources[(int) $shortcut['project_id'].'/'.$shortcut['document_key']])) {
+                    continue;
+                }
+                $project = $sourceProjects->get($shortcut['project_id']);
+                if ($project === null || Gate::forUser($this->user())->denies('view', $project)) {
+                    $validator->errors()->add("shortcuts.{$index}.project_id", 'Choose a project you can access with an issued Notice to Proceed.');
+
+                    continue;
+                }
+
+                $sourceDocuments[$project->id] ??= app(ProjectDocumentLibrary::class)->build($project, $this->user())['documents']->keyBy('key');
+                if (! $sourceDocuments[$project->id]->has($shortcut['document_key'])) {
+                    $validator->errors()->add("shortcuts.{$index}.document_key", 'Choose an available document from this project.');
                 }
             }
         }];

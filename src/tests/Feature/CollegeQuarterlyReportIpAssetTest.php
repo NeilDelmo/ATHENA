@@ -12,7 +12,7 @@ beforeEach(function () {
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $this->coordinator->assignRole('research_coordinator');
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save'];
+    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
     $this->asset = [
         'id' => (string) Str::uuid(), 'title' => 'Solar & coastal sensor', 'type' => 'Utility Model',
         'inventors' => "Ana Researcher\nBen Researcher", 'date' => '2026-08-14',

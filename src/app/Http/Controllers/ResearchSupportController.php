@@ -7,6 +7,8 @@ use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ResearchAssistantContexts;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -14,6 +16,22 @@ use Illuminate\View\View;
 
 class ResearchSupportController extends Controller
 {
+    public function contexts(Request $request, ResearchAssistantContexts $contexts): JsonResponse
+    {
+        $validated = $request->validate(['active_topic_id' => ['nullable', 'integer', 'min:1']]);
+        $user = $request->user();
+        $activeTopic = isset($validated['active_topic_id']) ? TopicProposal::find($validated['active_topic_id']) : null;
+        if ($activeTopic !== null && ! Gate::forUser($user)->allows('view', $activeTopic)) {
+            $activeTopic = null;
+        }
+
+        return response()->json([
+            'contexts' => $contexts->forUser($user, $activeTopic),
+            'workspace' => $user->activeWorkspace(),
+            'account_id' => $user->getKey(),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function index(Request $request): View
     {
         $data = $request->validate(['topic' => ['nullable', 'integer', 'min:1']]);

@@ -6,6 +6,7 @@ export function commentResponsePaperPreview(url) {
     let resizeObserver;
     let revisionForm;
     let replyListener;
+    let workflowListener;
     let disposed = false;
 
     return {
@@ -24,16 +25,25 @@ export function commentResponsePaperPreview(url) {
                 revisionForm?.addEventListener('change', replyListener);
                 resizeObserver = new ResizeObserver(() => this.fitPaperPreview());
                 resizeObserver.observe(this.$refs.previewFrame);
-                if (typeof IntersectionObserver === 'undefined') {
-                    this.loadPaperPreview();
-                    return;
+                const observeVisibility = () => {
+                    if (disposed) return;
+                    if (typeof IntersectionObserver === 'undefined') {
+                        this.loadPaperPreview();
+                        return;
+                    }
+                    visibilityObserver = new IntersectionObserver((entries) => {
+                        if (!entries.some((entry) => entry.isIntersecting)) return;
+                        visibilityObserver.disconnect();
+                        this.loadPaperPreview();
+                    });
+                    visibilityObserver.observe(this.$el);
+                };
+                if (revisionForm?.querySelector('[data-revision-step]') && !revisionForm.dataset.revisionInitialized) {
+                    workflowListener = observeVisibility;
+                    revisionForm.addEventListener('revision-step-changed', workflowListener, { once: true });
+                } else {
+                    observeVisibility();
                 }
-                visibilityObserver = new IntersectionObserver((entries) => {
-                    if (!entries.some((entry) => entry.isIntersecting)) return;
-                    visibilityObserver.disconnect();
-                    this.loadPaperPreview();
-                });
-                visibilityObserver.observe(this.$el);
             });
         },
 
@@ -112,6 +122,7 @@ export function commentResponsePaperPreview(url) {
             resizeObserver?.disconnect();
             revisionForm?.removeEventListener('input', replyListener);
             revisionForm?.removeEventListener('change', replyListener);
+            revisionForm?.removeEventListener('revision-step-changed', workflowListener);
         },
     };
 }

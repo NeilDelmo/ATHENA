@@ -185,6 +185,7 @@ test('research heads can close and reopen calls without blocking independent fac
 });
 
 test('faculty research calls prioritize open opportunities and archive only calls connected to their work', function () {
+    $largeText = str_repeat('Unused proposal detail in the research-call archive. ', 1000);
     $draftCall = ResearchCall::create([
         'title' => 'Archived Call With My Draft',
         'academic_year' => '2025-2026',
@@ -199,6 +200,7 @@ test('faculty research calls prioritize open opportunities and archive only call
         'user_id' => $this->faculty->id,
         'research_call_id' => $draftCall->id,
         'project_title' => 'My Archived Mangosteen Draft',
+        'signatory_selections' => ['notes' => $largeText],
     ]);
 
     $collaboratorOwner = User::factory()->create();
@@ -218,6 +220,8 @@ test('faculty research calls prioritize open opportunities and archive only call
         'research_call_id' => $collaborativeCall->id,
         'title' => 'Shared Archived Proposal',
         'status' => 'pending',
+        'description' => $largeText,
+        'notice_to_proceed_data' => ['notes' => $largeText],
     ]);
     $collaborativeTopic->collaborators()->create([
         'user_id' => $this->faculty->id,
@@ -249,7 +253,7 @@ test('faculty research calls prioritize open opportunities and archive only call
     ]);
     $this->call->update(['reference_image_path' => 'research-calls/open-call.png']);
 
-    $this->actingAs($this->faculty)
+    $response = $this->actingAs($this->faculty)
         ->get(route('research-calls.index'))
         ->assertOk()
         ->assertSee('data-faculty-research-calls', false)
@@ -271,6 +275,15 @@ test('faculty research calls prioritize open opportunities and archive only call
         ->assertSee('Shared Archived Proposal')
         ->assertDontSee($unrelatedCall->title)
         ->assertDontSee('Call lifecycle');
+
+    $archivedCalls = $response->viewData('archivedCalls');
+    $draft = $archivedCalls->firstWhere('id', $draftCall->id)->proposalDrafts->sole();
+    $topic = $archivedCalls->firstWhere('id', $collaborativeCall->id)->topics->sole();
+    $loadedDetails = [$draft->getAttributes(), $topic->getAttributes()];
+    expect(array_key_exists('signatory_selections', $draft->getAttributes()))->toBeFalse()
+        ->and(array_key_exists('description', $topic->getAttributes()))->toBeFalse()
+        ->and(array_key_exists('notice_to_proceed_data', $topic->getAttributes()))->toBeFalse()
+        ->and(strlen(json_encode($loadedDetails, JSON_THROW_ON_ERROR)))->toBeLessThan(1000);
 
     $upcomingCall->delete();
 

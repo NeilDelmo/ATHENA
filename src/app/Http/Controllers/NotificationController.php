@@ -25,6 +25,7 @@ class NotificationController extends Controller
         $request->attributes->set('athena.workspace_actions', $pendingActions);
         $notificationItems = $inbox->for($request->user(), $pendingActions, recentOnly: $request->expectsJson());
         $unreadCount = $request->user()->visibleNotificationsQuery()->whereNull('read_at')->count();
+        $request->attributes->set('athena.unread_notification_count', $unreadCount);
         if ($request->expectsJson()) {
             return response()->json([
                 'notifications' => $notificationItems->take(15)->map(fn (array $item): array => Arr::except($item, 'history')),
@@ -67,9 +68,7 @@ class NotificationController extends Controller
     public function markAllRead(Request $request): JsonResponse|RedirectResponse
     {
         $user = $request->user();
-        $unreadNotifications = $user->visibleNotifications()->whereNull('read_at');
-        $unreadNotifications
-            ->each(fn (DatabaseNotification $notification) => $notification->markAsRead());
+        $user->visibleNotificationsQuery()->whereNull('read_at')->update(['read_at' => now()]);
 
         if (! $request->expectsJson()) {
             return redirect()->route('notifications.index');

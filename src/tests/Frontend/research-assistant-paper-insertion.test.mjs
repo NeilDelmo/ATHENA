@@ -61,7 +61,7 @@ test('paper navigation accepts only this application origin', () => {
 });
 
 function editor() {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const insertion = app.slice(app.indexOf('    applyAssistantLiterature(packet) {'), app.indexOf('    applyInitialLiteratureSource() {'));
     const adding = app.slice(app.indexOf('    addLiteratureSourceToRrl(source, quiet = false) {'), app.indexOf('    addLiteratureSourceToReferences(source, quiet = false) {'));
     const methods = new Function('config', 'escapeAssistantHtml', `return ({${insertion}${adding}});`)({ proposalDraftId: 12 }, escapeAssistantHtml);
@@ -111,7 +111,7 @@ test('reviewed paragraph markup is escaped before insertion', () => {
 });
 
 function chat(fetchReply) {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const sending = app.slice(app.indexOf('    async send(action = null, contextOverride = null) {'), app.indexOf('    async retry() {'));
     const saving = app.slice(app.indexOf('    async saveConversation('), app.indexOf('    async openConversation('));
     const document = {

@@ -1,4 +1,4 @@
-<section x-show="message.report_changes" x-cloak class="mt-4 overflow-hidden rounded-xl border border-stone-300 text-sm leading-6 dark:border-stone-700" aria-label="Review report changes" data-assistant-report-changes>
+<section x-show="message.report_changes?.suggestions?.length" x-cloak class="mt-4 overflow-hidden rounded-xl border border-stone-300 text-sm leading-6 dark:border-stone-700" aria-label="Review report changes" data-assistant-report-changes>
     <template x-if="message.report_changes">
         <div>
             <header class="border-b border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800">

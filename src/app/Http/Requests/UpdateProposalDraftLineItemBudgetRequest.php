@@ -60,7 +60,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
         $merged['level_of_call'] ??= LineItemBudgetData::DEFAULT_LEVEL_OF_CALL;
 
         if (blank($merged['leader_college'] ?? null)) {
-            $merged['leader_college'] = (string) ($draft->owner?->college ?? $this->user()?->college ?? '');
+            $merged['leader_college'] = (string) ($draft->owner?->college ?? '');
         }
 
         $merged['leader_campus'] = LineItemBudgetData::campusLabel($merged['leader_campus'] ?? null);

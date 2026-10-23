@@ -95,6 +95,7 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
     for (const monitor of document.querySelectorAll('[data-proposal-version-monitor], [data-report-version-monitor]')) {
         const report = monitor.hasAttribute('data-report-version-monitor');
         const root = monitor.closest('[data-paper-editor], [data-monitoring-paper-workspace]');
+        if (root?.hasAttribute('x-ignore')) continue;
         const form = root?.querySelector('[data-paper-form], [data-monitoring-tool-autosave-form], [data-narrative-progress-autosave-form]');
         const host = monitor.querySelector('[data-proposal-conflict-recovery]');
         const warning = monitor.querySelector('[data-proposal-stale-warning]');

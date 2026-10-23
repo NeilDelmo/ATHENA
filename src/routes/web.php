@@ -424,6 +424,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'destroy'])->name('signatories.destroy');
     Route::get('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'edit'])->name('signatories.edit');
     Route::put('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'select'])->name('signatories.select');
+    Route::get('/research-support/contexts', [ResearchSupportController::class, 'contexts'])
+        ->middleware(['workspace:faculty|faculty_researcher|research_head', 'throttle:60,1'])
+        ->name('research-support.contexts');
     Route::get('/research-support/history', [ResearchAssistantController::class, 'history'])
         ->middleware('throttle:60,1')
         ->name('research-support.history');
@@ -537,6 +540,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::view('/research-head/analytics', 'research_head.analytics')->name('research_head.analytics');
     Route::view('/research-head/calendar', 'research_head.calendar')->name('research_head.calendar');
     Route::get('/research-head/quarterly-accomplishment-reports', [ResearchHeadQuarterlyReportController::class, 'index'])->name('research_head.quarterly-reports.index');
+    Route::put('/research-head/quarterly-accomplishment-reports/workspace', [ResearchHeadQuarterlyReportController::class, 'updateWorkspace'])->name('research_head.quarterly-reports.workspace.update');
     Route::patch('/research-head/quarterly-accomplishment-reports/{report}/return', [ResearchHeadQuarterlyReportController::class, 'returnForCorrection'])->name('research_head.quarterly-reports.return');
     Route::get('/research-head/rms-quarterly-reports', [ResearchHeadRmsReportController::class, 'index'])->name('research_head.rms-quarterly-reports.index');
     Route::post('/research-head/rms-quarterly-reports', [ResearchHeadRmsReportController::class, 'store'])->name('research_head.rms-quarterly-reports.store');

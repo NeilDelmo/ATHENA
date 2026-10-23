@@ -60,7 +60,7 @@ beforeEach(function () {
     ]);
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
     $this->period = ['year' => 2026, 'quarter' => 3];
-    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save'];
+    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
 });
 
 test('submitted faculty image proof appears in accomplishment form print and Word without manual activity imports', function () {
@@ -128,6 +128,11 @@ test('faculty PDF proof is listed with a file link in accomplishment Word instea
     $parts = facultyAccomplishmentDocumentParts($this->get(route('research_coordinator.reports.download', $this->period))->assertOk()->getContent());
     expect($parts['word/document.xml'])->toContain('certificate.pdf', 'w:hyperlink')
         ->and($parts['word/_rels/document.xml.rels'])->toContain('/hyperlink', 'TargetMode="External"');
+
+    $this->post(route('research_coordinator.reports.store'), [...$this->input, 'intent' => 'submit'])->assertSessionHasNoErrors();
+    $submission = CollegeQuarterlyReport::sole()->submissions()->sole();
+    $parts = facultyAccomplishmentDocumentParts($this->get(route('research_coordinator.reports.download', $this->period))->assertOk()->getContent());
+    expect($parts['word/_rels/document.xml.rels'])->toContain(route('college-quarterly-submissions.evidence', [$submission, 0]));
 });
 
 test('failed college saving removes copied faculty evidence without deleting the source', function () {

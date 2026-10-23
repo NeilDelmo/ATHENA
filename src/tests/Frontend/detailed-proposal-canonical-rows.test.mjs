@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { chromium } from '@playwright/test';
 
-const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const app = readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, '');
 const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
 const controller = app.slice(start, app.indexOf('\n}));', start) + '\n}));'.length);
 

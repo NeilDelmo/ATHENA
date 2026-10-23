@@ -20,7 +20,26 @@ const uiMethods = ['renderMessage', 'selectedContext', 'hasPaperContext', 'paper
     .map(methodSource).join('\n');
 const helpers = readFileSync(resolve('resources/js/research-assistant-review.js'), 'utf8').replace(/^export /gm, '');
 const markdown = readFileSync(resolve('resources/js/research-assistant-markdown.js'), 'utf8').replace(/^export /gm, '');
+const citations = readFileSync(resolve('resources/js/research-assistant-citations.js'), 'utf8')
+    .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
 const projectTitle = 'Water quality research for rural coastal communities';
+
+function textContrast(element) {
+    const channels = color => color.match(/[\d.]+/g).map(Number);
+    const luminance = color => channels(color).slice(0, 3).map(value => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    }).reduce((value, channel, index) => value + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    let background = 'rgb(255, 255, 255)';
+    for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+        const color = getComputedStyle(ancestor).backgroundColor;
+        const values = channels(color);
+        if (values.length === 3 || values[3] === 1) { background = color; break; }
+    }
+    const text = luminance(getComputedStyle(element).color);
+    const surface = luminance(background);
+    return (Math.max(text, surface) + 0.05) / (Math.min(text, surface) + 0.05);
+}
 
 function reviewMetadata(draft) {
     return {
@@ -77,7 +96,8 @@ async function mountWorkspace(page, css, fixture, draft) {
         return surfaces.map(surface => surface.outerHTML).join('');
     }, { html: fixture, withDrawer: Boolean(draft.withDrawer) });
     await page.setContent(`<!doctype html><html class="${draft.dark ? 'dark' : ''}"><head><style>${css}\n[x-cloak]{display:none!important}</style></head><body x-data class="font-sans" style="height:100dvh;overflow:hidden" data-app-shell>${workspace}</body></html>`);
-    await page.addScriptTag({ content: `${helpers}\n${markdown}\n
+    await page.addScriptTag({ content: `${helpers}\n${markdown}\n${citations}\n
+        document.addEventListener('alpine:init', () => Alpine.data('researchAssistantCitations', researchAssistantCitations));
         document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {
             ...({${uiMethods}}), ...researchAssistantReview(),
             workspaceOpen: true, drawerOpen: false, draft: '', isLoading: false, sendInProgress: false,
@@ -89,10 +109,11 @@ async function mountWorkspace(page, css, fixture, draft) {
             reviewContext: ${JSON.stringify({ ...(draft.isDraft ? { proposal_draft_id: 42 } : { topic_id: 24 }),
                 workflow_scope: 'review', review_focus: 'revision_response', review_label: projectTitle })},
             contextOptions: [{ id: 24, label: ${JSON.stringify(projectTitle)}, status: 'revision_requested', meta: 'Environment · 2026-2027 · v3' }],
+            contextOptionsLoading: false, contextOptionsError: '', contextOptionsLoaded: true,
             messages: [{ id: 1, role: 'user', content: 'Check the revision responses against the saved proposal.' },
                 { id: 2, role: 'assistant', content: 'A readable review of the saved proposal.', sources: [],
                     literature: null, dissemination: null, review: ${JSON.stringify(review)} }],
-            history: [{ id: 7, title: 'Earlier research discussion', preview: 'Sampling plan and budget', updated_at: '2026-10-12T04:00:00Z' }],
+            history: [{ id: 8, title: 'Earlier research discussion', preview: 'Sampling plan and budget', updated_at: '2026-10-12T04:00:00Z' }],
             currentConversationId: 8, historyLoading: false, historyLoadError: '', historySearchOpen: false,
             historySearchLoading: false, historySearchResults: [], historySearchQuery: '',
             copiedConversation: false, copiedMessageId: null,
@@ -113,6 +134,7 @@ async function mountWorkspace(page, css, fixture, draft) {
             setError(title, message) { this.errorTitle = title; this.error = message; },
             retry() { window.workspaceRetryCalls = (window.workspaceRetryCalls || 0) + 1; },
             openConversation() {}, loadHistory() {}, openHistorySearch() {}, closeHistorySearch() {},
+            async loadContextOptions() { return true; }, resetContextOptions() {},
             highlightHistoryText(value) { return escapeAssistantHtml(value); }, queueHistorySearch() {},
         }));` });
     await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
@@ -128,10 +150,10 @@ test('the full Athena workspace remains compact, readable, and usable across the
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
-        for (const width of [320, 390, 1440]) {
+        for (const width of [320, 390, 1024, 1440]) {
             for (const dark of [false, true]) {
                 for (const isDraft of [false, true]) {
-                    const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+                    const page = await browser.newPage({ viewport: { width, height: width === 1024 ? 768 : 900 }, reducedMotion: 'reduce' });
                     const errors = [];
                     page.on('pageerror', error => errors.push(error.message));
                     await page.context().route('**/*', route => {
@@ -198,22 +220,7 @@ test('the full Athena workspace remains compact, readable, and usable across the
                     await expect(summary).toBeVisible();
                     const fontSize = await summary.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
                     assert.ok(fontSize >= 16 && fontSize <= 17, `Response copy uses readable 16–17px text, got ${fontSize}`);
-                    const contrast = await summary.evaluate(element => {
-                        const channels = color => color.match(/[\d.]+/g).map(Number);
-                        const luminance = color => channels(color).slice(0, 3).map(value => {
-                            const channel = value / 255;
-                            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-                        }).reduce((value, channel, index) => value + channel * [0.2126, 0.7152, 0.0722][index], 0);
-                        let background = 'rgb(255, 255, 255)';
-                        for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
-                            const color = getComputedStyle(ancestor).backgroundColor;
-                            const values = channels(color);
-                            if (values.length === 3 || values[3] === 1) { background = color; break; }
-                        }
-                        const text = luminance(getComputedStyle(element).color);
-                        const surface = luminance(background);
-                        return (Math.max(text, surface) + 0.05) / (Math.min(text, surface) + 0.05);
-                    });
+                    const contrast = await summary.evaluate(textContrast);
                     assert.ok(contrast >= 7, `Main response text has strong contrast, got ${contrast.toFixed(2)}`);
                     const finding = thread.locator('.assistant-review-finding').first();
                     const headingSize = await finding.locator('h3').evaluate(element => parseFloat(getComputedStyle(element).fontSize));
@@ -232,7 +239,18 @@ test('the full Athena workspace remains compact, readable, and usable across the
 
                     const toggle = page.locator('[data-assistant-history-toggle]');
                     const sidebar = page.locator('[data-assistant-history-sidebar]');
-                    if (width === 1440) {
+                    assert.equal(await sidebar.getByRole('button', { name: 'Copy chat', exact: true }).count(), 0,
+                        'Conversation actions belong in Chat options, leaving the sidebar for navigation');
+                    assert.equal(await sidebar.getByRole('button', { name: 'Export .txt', exact: true }).count(), 0);
+                    await expect(sidebar).not.toContainText('Privacy:');
+                    if (width >= 1024) {
+                        const selectedChat = sidebar.getByRole('button', { name: 'Earlier research discussion Yesterday', exact: true });
+                        await expect(selectedChat).toHaveAttribute('aria-current', 'true');
+                        const dateContrast = await selectedChat.getByText('Yesterday', { exact: true }).evaluate(textContrast);
+                        assert.ok(dateContrast >= 4.5, `Selected history dates have readable contrast, got ${dateContrast.toFixed(2)}`);
+                        const search = sidebar.getByRole('button', { name: 'Search history Ctrl K', exact: true });
+                        assert.ok((await search.boundingBox()).height <= 44, 'History search fits on one navigation row');
+                        assert.ok((await search.locator('kbd').boundingBox()).height <= 24, 'The shortcut stays on one line');
                         await expect(toggle).toBeVisible();
                         const expanded = await toggle.getAttribute('aria-expanded') === 'true';
                         await toggle.click();
@@ -244,10 +262,17 @@ test('the full Athena workspace remains compact, readable, and usable across the
                     } else {
                         await expect(toggle).toBeHidden();
                         await expect(sidebar).toBeHidden();
-                        await page.getByRole('button', { name: 'Chat options', exact: true }).click();
-                        await expect(page.getByRole('button', { name: 'Search history', exact: true }).last()).toBeVisible();
-                        await page.getByRole('button', { name: 'Chat options', exact: true }).click();
                     }
+                    const options = page.getByRole('button', { name: 'Chat options', exact: true });
+                    await expect(page.getByRole('button', { name: 'Copy chat', exact: true })).toBeHidden();
+                    await options.click();
+                    await expect(page.getByRole('button', { name: 'Search history', exact: true })).toBeVisible();
+                    await expect(page.getByRole('button', { name: 'Copy chat', exact: true })).toBeVisible();
+                    await expect(page.getByRole('button', { name: 'Export .txt', exact: true })).toBeVisible();
+                    await expect(page.locator('[data-assistant-privacy]')).toBeVisible();
+                    await options.press('Escape');
+                    await expect(options).toBeFocused();
+                    await expect(page.locator('[data-assistant-privacy]')).toBeHidden();
 
                     const coverage = thread.locator('[data-assistant-review-coverage]:visible');
                     await expect(coverage.locator('summary')).toContainText(isDraft ? 'Reviewed saved draft' : 'Reviewed submission v3');

@@ -315,8 +315,10 @@ class ResearchHeadDashboard extends Component
         $data = $analytics->summarize($year, $from, $to);
         $monthStart = $validFilters && $this->submissionMonth !== '' ? CarbonImmutable::parse($this->submissionMonth.'-01')->startOfMonth()->max(CarbonImmutable::parse($data['trendStart'])->startOfDay()) : null;
         $monthEnd = $validFilters && $this->submissionMonth !== '' ? CarbonImmutable::parse($this->submissionMonth.'-01')->endOfMonth()->min(CarbonImmutable::parse($data['trendEnd'])->endOfDay()) : null;
-        $deadlines = $calendar->events(auth()->user(), CarbonImmutable::now(), CarbonImmutable::now()->addDays(14)->endOfDay(), $callId)
-            ->filter(fn (array $event) => $event['deadline'] && ! $event['draft'])->values();
+        $deadlines = $this->overview
+            ? $calendar->events(auth()->user(), CarbonImmutable::now(), CarbonImmutable::now()->addDays(14)->endOfDay(), $callId)
+                ->filter(fn (array $event) => $event['deadline'] && ! $event['draft'])->values()
+            : collect();
         $topics = ($validFilters && $this->submissionMonth !== '' ? $analytics->topics($year) : clone $base)
             ->when($this->submissionMonth === '', fn (Builder $query) => $query->whereIn('status', in_array($this->pipeline, ['approved', 'signing'], true) ? [...$allowedStatuses, 'approved'] : $allowedStatuses))
             ->with(['user:id,name', 'researchCall:id,title', 'latestVersion' => fn ($query) => $query

@@ -3,7 +3,9 @@
 use App\Models\CollegeQuarterlyReport;
 use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -17,7 +19,7 @@ beforeEach(function () {
     $this->coordinator->assignRole('research_coordinator');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
-    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'submit', 'other_accomplishments' => 'Original submitted narrative'];
+    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'submit', 'other_accomplishments' => 'Original submitted narrative', 'form_complete' => '1'];
     $this->asCoordinator = fn () => $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
     $this->asHead = fn () => $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     ($this->asCoordinator)();
@@ -41,6 +43,8 @@ test('returning a submission preserves its snapshot and lets the coordinator cor
     $submission = $report->submissions()->sole();
     $original = $submission->snapshot;
     $originalPath = $original['evidence'][0]['path'];
+    $this->get(route('research_coordinator.reports.print', ['year' => 2026, 'quarter' => 3]))
+        ->assertOk()->assertSee(route('college-quarterly-submissions.evidence', ['submission' => $submission, 'index' => 0]), false);
     ($this->asHead)();
     $this->patch(route('research_head.quarterly-reports.return', $report), [
         'submission_id' => $submission->id, 'reason' => 'Please include the missing September activity.',
@@ -137,5 +141,96 @@ test('submission history and its photos are limited to the college coordinator a
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
     foreach ($urls as $url) {
         $this->getJson($url)->assertForbidden();
+    }
+});
+
+test('college report history loads version metadata while archived documents retain their snapshots', function (string $viewer) {
+    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $report = CollegeQuarterlyReport::sole();
+    $original = $report->submissions()->sole();
+    $snapshot = [...$original->snapshot,
+        'other_accomplishments' => 'Frozen original narrative '.str_repeat('Archived report contents outside the version list. ', 3000),
+    ];
+    $original->update(['snapshot' => $snapshot, 'returned_by' => $this->head->id, 'returned_at' => now()->subDay(), 'return_reason' => 'Add the missing September activity.']);
+    $latest = CollegeQuarterlyReportSubmission::factory()->create([
+        'report_id' => $report->id, 'submitted_by' => $this->coordinator->id, 'version_number' => 2,
+        'snapshot' => $snapshot, 'returned_by' => $this->head->id, 'returned_at' => now(),
+        'return_reason' => 'Clarify the corrected publication date.',
+    ]);
+    $report->update(['submitted_at' => null]);
+    $retrieved = [];
+    Event::listen('eloquent.retrieved: '.CollegeQuarterlyReportSubmission::class, function (CollegeQuarterlyReportSubmission $submission) use (&$retrieved): void {
+        $retrieved[] = $submission->getAttributes();
+    });
+    try {
+        if ($viewer === 'coordinator') {
+            ($this->asCoordinator)();
+            $response = $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]));
+        } else {
+            ($this->asHead)();
+            $response = $this->get(route('research_head.quarterly-reports.index', ['year' => 2026, 'college' => $this->coordinator->college, 'quarter' => 3]));
+        }
+        $response->assertOk()->assertSeeText('Clarify the corrected publication date.')
+            ->assertSee(route('college-quarterly-submissions.print', $original), false)
+            ->assertSee(route('college-quarterly-submissions.download', $original), false)
+            ->assertSee(route('college-quarterly-submissions.print', $latest), false)
+            ->assertSee(route('college-quarterly-submissions.download', $latest), false);
+    } finally {
+        Event::forget('eloquent.retrieved: '.CollegeQuarterlyReportSubmission::class);
+    }
+    if (getenv('ATHENA_PERFORMANCE_BASELINE') === '1') {
+        fwrite(STDERR, 'College report '.$viewer.' history bytes: '.strlen(json_encode($retrieved, JSON_THROW_ON_ERROR)).PHP_EOL);
+    }
+    expect($retrieved)->not->toBeEmpty();
+    foreach ($retrieved as $attributes) {
+        expect($attributes)->not->toHaveKey('snapshot');
+    }
+    if ($viewer === 'coordinator') {
+        expect($response->viewData('report')->preparedBy->name)->toBe($this->coordinator->name)
+            ->and($response->viewData('report')->preparedBy->getAttributes())->not->toHaveKeys(['email', 'password']);
+    } else {
+        $listedReport = $response->viewData('reports')->sole();
+        expect($listedReport->latestSubmission->submittedBy->name)->toBe($this->coordinator->name)
+            ->and($listedReport->getAttributes())->not->toHaveKeys([
+                'snapshot', 'presentations', 'publications', 'seminars', 'manual_research', 'ip_assets', 'evidence', 'other_accomplishments',
+            ]);
+    }
+
+    $this->get(route('college-quarterly-submissions.print', $original))->assertOk()->assertSeeText('Frozen original narrative');
+    $this->get(route('college-quarterly-submissions.download', $original))->assertOk()
+        ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    expect($original->fresh()->snapshot)->toEqual($snapshot);
+})->with(['coordinator', 'head']);
+
+test('college quarter folders batch latest submission metadata and show the latest return status', function () {
+    foreach (range(1, 4) as $quarter) {
+        $report = CollegeQuarterlyReport::factory()->create([
+            'college' => $this->coordinator->college, 'prepared_by' => $this->coordinator->id,
+            'reporting_year' => 2026, 'reporting_quarter' => $quarter,
+        ]);
+        foreach ([1, 2] as $version) {
+            CollegeQuarterlyReportSubmission::factory()->create([
+                'report_id' => $report->id, 'submitted_by' => $this->coordinator->id, 'version_number' => $version,
+                'returned_at' => $version === 1 || $quarter === 3 ? now() : null,
+                'snapshot' => ['other_accomplishments' => str_repeat('Archived report outside quarter folder metadata. ', 1000)],
+            ]);
+        }
+    }
+    ($this->asHead)();
+    $preventedLazyLoading = Model::preventsLazyLoading();
+    Model::preventLazyLoading();
+    try {
+        $response = $this->get(route('research_head.quarterly-reports.index', ['year' => 2026, 'college' => $this->coordinator->college]));
+    } finally {
+        Model::preventLazyLoading($preventedLazyLoading);
+    }
+    $response->assertOk()->assertSeeText('January–March · Submitted')->assertSeeText('April–June · Submitted')
+        ->assertSeeText('July–September · Returned for correction')->assertSeeText('October–December · Submitted');
+    $collegeReports = $response->viewData('collegeReports');
+    expect($collegeReports)->toHaveCount(4);
+    foreach ($collegeReports as $report) {
+        expect($report->relationLoaded('latestSubmission'))->toBeTrue()
+            ->and($report->latestSubmission->getAttributes())->toHaveKeys(['id', 'report_id', 'returned_at'])
+            ->not->toHaveKeys(['snapshot', 'return_reason', 'version_number']);
     }
 });

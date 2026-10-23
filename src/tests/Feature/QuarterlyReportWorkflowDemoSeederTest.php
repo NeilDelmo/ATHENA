@@ -76,7 +76,8 @@ test('sample faculty evidence reaches the submitted college report and three RMS
         $this->get($data[$section][0]['values']['evidence_url'])->assertOk()->assertHeader('Content-Type', 'image/png');
     }
     $this->get(route('research_head.rms-quarterly-reports.download', ['year' => 2026, 'quarter' => 3]))
-        ->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        ->assertRedirect(route('research_head.rms-quarterly-reports.index', ['year' => 2026, 'quarter' => 3]))
+        ->assertSessionHasErrors('college_reports');
     $this->get(route('research_head.quarterly-reports.index', ['year' => 2026]))->assertOk()
         ->assertViewHas('reports', fn ($reports): bool => $reports->total() === 1);
     expect(CollegeQuarterlyReport::where('reporting_quarter', 4)->sole()->submitted_at)->toBeNull()

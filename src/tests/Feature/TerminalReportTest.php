@@ -476,6 +476,17 @@ test('terminal revisions reuse final content while preserving old versions and r
     Storage::disk('local')->assertExists($first->official_pdf_path);
 });
 
+test('only requested corrections permit a replacement Terminal Report', function (string $status) {
+    ($this->completeQuarterlyProgress)();
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())->assertSessionHasNoErrors();
+    $first = ProjectNarrativeReport::where('report_type', 'terminal')->sole();
+    $first->update(['submission_status' => 'submitted', 'review_status' => $status]);
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())
+        ->assertSessionHasErrorsIn('narrativeProgress', 'preparation');
+    expect(ProjectNarrativeReport::where('report_type', 'terminal')->count())->toBe(1);
+    Storage::disk('local')->assertExists($first->official_pdf_path);
+})->with(['pending', 'reviewed']);
+
 test('terminal report shows no utilization percentage for an unfunded project', function () {
     $this->topic->update(['estimated_budget' => 0]);
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.preview', $this->topic), ($this->terminalPayload)(['terminal_data' => ['total_expenditure' => 0]]))

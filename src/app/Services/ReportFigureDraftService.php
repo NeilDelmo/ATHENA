@@ -14,6 +14,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -158,7 +159,9 @@ class ReportFigureDraftService
     public function restoreDraft(ProjectNarrativeReport $report, User $user): void
     {
         if (ProjectNarrativeReportDraft::query()->whereBelongsTo($report->topic, 'topic')->whereBelongsTo($user, 'user')->where('report_type', $report->report_type)->exists()) {
-            return;
+            throw ValidationException::withMessages([
+                'preparation' => 'This report cannot be discarded because you already have a saved draft of this type. Your saved draft and the prepared report, including its PDF and images, have both been kept.',
+            ])->errorBag('narrativeProgress');
         }
         $data = $report->only(['report_type', 'tracking_number', 'researchers', 'funding_agency', 'accomplishments', 'introduction', 'rationale', 'objectives', 'methodology', 'results_discussion', 'terminal_data']);
         foreach (['reporting_date', 'submission_date', 'implementation_start', 'implementation_end', 'prepared_by_date_signed'] as $field) {

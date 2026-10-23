@@ -12,7 +12,7 @@ const sourceWorkspace = 'const uploadRequest = (...args) => fetch(...args);\n' +
 const semanticHelpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
 
 function editor(overrides = {}, { keepAutoSave = false } = {}) {
-    const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const source = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = source.indexOf("Alpine.data('proposalDraftDetailedProposal'");
     const end = source.indexOf('\n}));', start) + '\n}));'.length;
     let factory;
@@ -415,7 +415,7 @@ test('missing objective links focus an empty specific field instead of the fille
 });
 
 test('the objective editor shows and focuses the required field when only a general objective is saved', async () => {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
     const end = app.indexOf('\n}));', start) + '\n}));'.length;
     const view = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php', import.meta.url), 'utf8');
@@ -476,7 +476,7 @@ test('the objective editor shows and focuses the required field when only a gene
 });
 
 test('an abstract-based generated draft enables insertion and adds its matching IEEE reference', async () => {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
     const end = app.indexOf('\n}));', start) + '\n}));'.length;
     const helpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
@@ -543,7 +543,7 @@ test('an abstract-based generated draft enables insertion and adds its matching 
 });
 
 test('shared-library reviewed abstract drafts can be confirmed for proposal insertion', async () => {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = app.indexOf("Alpine.store('literatureSearch'");
     const end = app.indexOf('\n});', start) + '\n});'.length;
     let state;
@@ -589,7 +589,7 @@ test('detailed proposal signature titles retain their case on screen and in prin
 });
 
 test('incomplete drafts stay quiet until requirements are checked, with contextual field feedback', async () => {
-    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
     const end = app.indexOf('\n}));', start) + '\n}));'.length;
     const view = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php', import.meta.url), 'utf8');

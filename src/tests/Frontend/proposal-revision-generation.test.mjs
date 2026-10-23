@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { chromium } from '@playwright/test';
 
-const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, '')).replaceAll('\r\n', '\n');
 const uploadHelpers = app.slice(app.indexOf('function revisionGenerationConfig('), app.indexOf('async function initializeProposalAlerts('));
 const editors = [
     'workPlanWizard', 'proposalDraftWorkPlan', 'proposalDraftLineItemBudget',
@@ -15,7 +15,7 @@ const downloadMethods = Object.fromEntries(editors.map((name) => {
     return [name, app.slice(start, app.indexOf('    printPreview()', start))];
 }));
 
-test('every generated revision paper stages only the source version captured before PDF generation', async () => {
+test('every generated revision paper waits for its editor and stages only its captured source version', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         const page = await browser.newPage();
@@ -25,6 +25,7 @@ test('every generated revision paper stages only the source version captured bef
         await page.addScriptTag({ content: `
             function isEmbeddedRevisionEditor() { return true; }
             function embeddedRevisionFileSaved(payload) { document.querySelector('[name="document_version"]').value = String(payload.document_version); }
+            function uploadRequest(...args) { return fetch(...args); }
             ${uploadHelpers}
             window.editors = {};
             ${Object.entries(downloadMethods).map(([name, method]) => `
@@ -40,10 +41,10 @@ test('every generated revision paper stages only the source version captured bef
                 const version = document.querySelector('[name="document_version"]');
                 const scenarios = [];
                 const config = { downloadUrl: '/generate', revisionUploadUrl: '/stage', revisionDocumentType: 'test_paper', csrfToken: 'test' };
-                for (const change of ['saved', 'unsaved', 'none', 'late']) {
+                for (const change of ['loading', 'saved', 'unsaved', 'none', 'late']) {
                     version.value = '3';
                     let fingerprint = 'saved source';
-                    window.athenaRevisionEditor = { sourceFingerprint: () => fingerprint };
+                    window.athenaRevisionEditor = change === 'loading' ? undefined : { sourceFingerprint: () => fingerprint };
                     const generated = [];
                     const staged = [];
                     window.fetch = async (url, options) => {
@@ -57,6 +58,12 @@ test('every generated revision paper stages only the source version captured bef
                     };
                     const state = window.editors[editorName](config);
                     const download = state.downloadDocument();
+                    if (change === 'loading') {
+                        generated[0]?.('PDF before editor initialization');
+                        const payload = await download;
+                        scenarios.push({ change, staged, generated: generated.length, error: state.downloadError, loading: state.downloadLoading, version: version.value, returned: Boolean(payload) });
+                        continue;
+                    }
                     if (change === 'saved') version.value = '4';
                     if (change === 'unsaved') fingerprint = 'new unsaved edits';
                     if (change === 'late') {
@@ -73,7 +80,13 @@ test('every generated revision paper stages only the source version captured bef
             }, name);
             for (const scenario of result) {
                 assert.equal(scenario.loading, false, name);
-                if (scenario.change === 'saved' || scenario.change === 'unsaved') {
+                if (scenario.change === 'loading') {
+                    assert.equal(scenario.generated, 0, `${name}: an uninitialized editor must not generate a PDF`);
+                    assert.deepEqual(scenario.staged, [], `${name}: an uninitialized editor must not stage a PDF`);
+                    assert.match(scenario.error, /revision editor is still loading/i, name);
+                    assert.equal(scenario.version, '3', name);
+                    assert.equal(scenario.returned, false, name);
+                } else if (scenario.change === 'saved' || scenario.change === 'unsaved') {
                     assert.deepEqual(scenario.staged, [], `${name}: obsolete PDF must not be uploaded`);
                     assert.match(scenario.error, /paper changed while its PDF was being prepared/, name);
                     assert.equal(scenario.returned, false, name);

@@ -62,7 +62,7 @@ test('shared assistant sources are compact, keyboard accessible, safely linked, 
             await expect(rows).toHaveCount(sources.length);
             await expect(rows.first()).toContainText(sources[0].title);
             await expect(rows.first()).toContainText('Official Research Manual');
-            await expect(rows.first()).toContainText('ATHENA 1');
+            await expect(rows.first()).not.toContainText('ATHENA 1', { useInnerText: true });
             const manual = rows.first().getByRole('link');
             await expect(manual).toHaveAttribute('href', manualUrl);
             await expect(manual).toHaveAttribute('target', '_blank');

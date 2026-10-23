@@ -8,6 +8,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ResearchHeadAnalytics;
+use Illuminate\Support\Facades\Event;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -81,6 +82,62 @@ test('reviewed narrative replacements resolve old corrections while unrelated le
 
     expect($issues->pluck('report_id')->all())->toEqualCanonicalizing([$pending->id, $legacy->id, $otherLegacy->id])
         ->and($issues->pluck('report_id'))->not->toContain($old->id);
+});
+
+test('analytics omit report bodies while retaining progress budget and review evidence', function () {
+    $project = ($this->project)(['notice_to_proceed_data' => ['approved_budget' => 80000]]);
+    $body = str_repeat('Full report narrative. ', 1000);
+    $older = ($this->report)($project, [
+        'accomplishments' => $body, 'issues' => $body,
+        'work_plan' => [['source_work_plan_index' => 0, 'target_completion_date' => '2026-09-10', 'percent_weight' => 50, 'accomplished_percentage' => 25]],
+    ]);
+    $latest = ($this->report)($project, [
+        'reporting_date' => '2026-09-20', 'version_number' => 2, 'supersedes_report_id' => $older->id,
+        'progress_percentage' => 60, 'budget_utilization' => [['actual_amount' => 40000]],
+        'review_status' => 'pending', 'review_stage' => 'head', 'forwarded_at' => '2026-09-21',
+        'accomplishments' => $body, 'issues' => $body,
+    ]);
+    $narrative = ($this->narrative)($project, [
+        'reporting_quarter' => 1, 'review_status' => 'revision_requested', 'review_stage' => 'secretary',
+        'secretary_reviewed_at' => '2026-09-24', 'introduction' => $body,
+        'terminal_data' => ['abstract' => $body], 'photos' => [['caption' => $body]],
+    ]);
+    $progressAttributes = [];
+    $narrativeAttributes = [];
+    $progressEvent = 'eloquent.retrieved: '.ProjectProgressReport::class;
+    $narrativeEvent = 'eloquent.retrieved: '.ProjectNarrativeReport::class;
+    Event::listen($progressEvent, function (ProjectProgressReport $report) use (&$progressAttributes): void {
+        $progressAttributes[$report->id] = array_keys($report->getAttributes());
+    });
+    Event::listen($narrativeEvent, function (ProjectNarrativeReport $report) use (&$narrativeAttributes): void {
+        $narrativeAttributes[$report->id] = array_keys($report->getAttributes());
+    });
+
+    try {
+        $data = app(ResearchHeadAnalytics::class)->summarize();
+    } finally {
+        Event::forget($progressEvent);
+        Event::forget($narrativeEvent);
+    }
+
+    $row = $data['projects']->sole();
+    expect($row)->toMatchArray([
+        'status' => 'delayed', 'progress' => 60, 'report_id' => $latest->id, 'report_date' => '2026-09-20',
+        'budget' => 80000.0, 'utilized' => 40000.0, 'percentage' => 50.0, 'delay_days' => 19,
+    ])
+        ->and($data['attention']->firstWhere('type', 'report_review'))->toMatchArray([
+            'report_id' => $latest->id, 'review_status' => 'pending', 'review_stage' => 'head', 'days' => 9,
+        ])
+        ->and($data['attention']->firstWhere('type', 'narrative_review'))->toMatchArray([
+            'report_id' => $narrative->id, 'review_status' => 'revision_requested', 'review_stage' => 'secretary', 'days' => 6,
+        ])
+        ->and(array_keys($progressAttributes))->toEqualCanonicalizing([$older->id, $latest->id])
+        ->and(array_keys($narrativeAttributes))->toBe([$narrative->id]);
+
+    foreach ($progressAttributes as $attributes) {
+        expect($attributes)->not->toContain('accomplishments', 'issues');
+    }
+    expect($narrativeAttributes[$narrative->id])->not->toContain('introduction', 'terminal_data', 'photos');
 });
 
 test('annual events include prior year calls while current cohort and monthly trends remain scoped', function () {

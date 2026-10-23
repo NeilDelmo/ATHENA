@@ -92,7 +92,9 @@ class ResearchHeadAnalytics
         $counts = ['review' => 0, 'active' => 0, 'delayed' => 0, 'completed' => 0];
 
         foreach ((clone $base)->with(['user:id,name', 'researchCall:id,paper_revisions_end_date',
-            'collaborators:id,topic_id,user_id,email,accepted_at,project_role', 'progressReports', 'narrativeReports'])
+            'collaborators:id,topic_id,user_id,email,accepted_at,project_role',
+            'progressReports:id,topic_id,reporting_date,reporting_year,reporting_quarter,period_start,period_end,version_number,supersedes_report_id,submission_status,review_status,review_stage,progress_percentage,work_plan,budget_utilization,reviewed_at,secretary_reviewed_at,forwarded_at,submitted_at,created_at',
+            'narrativeReports:id,topic_id,report_type,reporting_date,reporting_quarter,period_start,period_end,version_number,submission_status,review_status,review_stage,reviewed_at,secretary_reviewed_at,forwarded_at,submitted_at,created_at,submission_date'])
             ->withMin('versions', 'created_at')->lazyById(100) as $topic) {
             $stage = $this->stage($topic);
             if ($stage !== null) {

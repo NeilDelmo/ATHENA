@@ -26,7 +26,12 @@ class MonitoringEvidenceService
             return [];
         }
         $start = app(MonitoringQuarterService::class)->forDate($reportingDate, $topic)['start'];
-        $this->reports[$topic->id] ??= $topic->progressReports()->orderByDesc('version_number')->orderByDesc('id')->get(['id', 'reporting_date', 'work_plan'])->map(fn ($report): array => ['reporting_date' => $report->reporting_date->toDateString(), 'work_plan' => $report->work_plan])->all();
+        $this->reports[$topic->id] ??= $topic->progressReports()->get(['id', 'reporting_date', 'version_number', 'work_plan'])
+            ->sortByDesc(fn (ProjectProgressReport $report): string => sprintf('%s-%05d-%010d',
+                app(MonitoringQuarterService::class)->forDate($report->reporting_date, $topic)['start']->toDateString(),
+                $report->version_number, $report->id,
+            ))
+            ->map(fn (ProjectProgressReport $report): array => ['reporting_date' => $report->reporting_date->toDateString(), 'work_plan' => $report->work_plan])->all();
         $rows = [];
         foreach ($this->reports[$topic->id] as $report) {
             if (substr($report['reporting_date'], 0, 10) >= $start->toDateString()) {

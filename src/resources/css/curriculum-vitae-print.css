@@ -198,6 +198,8 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .cv-presentations-table col:nth-child(6) { width: 18.28646%; }
 
 @media print {
+    body { zoom: 1 !important; }
+
     html,
     body { background: #fff; }
 

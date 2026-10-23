@@ -91,6 +91,11 @@ class ProposalDraftDocumentVersionController extends Controller
         }
 
         $versions = ProposalDraftDocumentVersion::query()
+            ->select([
+                'id', 'created_by', 'document_type', 'action', 'change_note', 'change_summary',
+                'changes', 'restored_from_version_id', 'file_path', 'original_filename',
+                'file_size', 'completed_at', 'created_at',
+            ])
             ->whereBelongsTo($topic, 'topic')
             ->when(
                 $selectedPaper,

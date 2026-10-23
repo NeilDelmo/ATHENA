@@ -104,7 +104,7 @@ export default function initializeTopicLiveStatus() {
             for (const cell of host.querySelectorAll('[data-live-quarter-kind]')) {
                 const latest = Object.entries(state.reports).filter(([, record]) => record.kind === cell.dataset.liveQuarterKind
                     && String(record.quarter) === cell.dataset.liveQuarter).at(-1);
-                if (!latest || latest[0] === cell.dataset.liveReportKey) continue;
+                if (!latest || (latest[0] === cell.dataset.liveReportKey && latest[1].scope === previous.reports?.[latest[0]])) continue;
                 const [key, record] = latest;
                 const controls = cell.querySelector('[data-report-controls]');
                 if (!controls) continue;

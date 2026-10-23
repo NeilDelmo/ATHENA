@@ -4,7 +4,7 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 
-const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
 const workspace = readFileSync(new URL('../../resources/js/proposal-paper-workspace.js', import.meta.url), 'utf8')
     .replace(/^import .*;\r?\n/gm, '')
     .replace(/^export /gm, '');

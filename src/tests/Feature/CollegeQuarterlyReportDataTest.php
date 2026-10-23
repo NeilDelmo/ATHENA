@@ -3,6 +3,7 @@
 use App\Models\ProjectConference;
 use App\Models\ProjectJournalSubmission;
 use App\Models\ProjectProgressReport;
+use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchPublication;
 use App\Models\TopicCollaborator;
@@ -246,3 +247,128 @@ test('research status uses the latest period dated submitted monitoring version 
 
     expect($service->build($this->coordinator, 2026, 2)['research'][0][3])->toBe('Completed (current status)');
 });
+
+test('quarterly research loads only the latest summary records for each project', function () {
+    foreach (['Alpha', 'Beta'] as $name) {
+        $topic = ($this->project)(['title' => $name, 'estimated_duration_months' => null]);
+        foreach (range(1, 3) as $number) {
+            $version = $topic->versions()->create([
+                'submitted_by' => $this->owner->id, 'version_number' => $number,
+                'submission_type' => $number === 1 ? 'initial' : 'revision', 'title' => $name,
+                'estimated_duration_months' => $number + 5,
+                'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf',
+            ]);
+            foreach ([
+                ProposalVersionFile::TYPE_DETAILED_PROPOSAL => ['project_leader_display' => $name.' leader '.$number],
+                ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => ['staff' => [['display_name' => $name.' staff '.$number]]],
+                ProposalVersionFile::TYPE_WORK_PLAN => ['planned_start' => '2026-01-01', 'planned_end' => '2026-12-31'],
+                ProposalVersionFile::TYPE_GAD_CHECKLIST => ['unrelated_contents' => str_repeat('x', 65536)],
+            ] as $type => $source) {
+                $version->files()->create([
+                    'document_type' => $type, 'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf',
+                    'source_data' => $source,
+                ]);
+            }
+        }
+        foreach ([
+            ['reporting_date' => '2026-03-31', 'version_number' => 5, 'progress_percentage' => 20],
+            ['reporting_date' => '2026-06-30', 'version_number' => 1, 'progress_percentage' => 30],
+            ['reporting_date' => '2026-06-30', 'version_number' => 2, 'progress_percentage' => 40],
+            ['reporting_date' => '2026-06-30', 'version_number' => 2, 'progress_percentage' => 50],
+            ['reporting_date' => '2026-06-30', 'version_number' => 3, 'progress_percentage' => 100, 'submission_status' => 'prepared'],
+            ['reporting_date' => '2026-09-30', 'version_number' => 1, 'progress_percentage' => 100],
+        ] as $attributes) {
+            ProjectProgressReport::create([
+                'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
+                'accomplishments' => str_repeat('Long report content. ', 1000),
+                'work_plan' => [['activity' => str_repeat('Work plan. ', 1000)]], ...$attributes,
+            ]);
+        }
+    }
+
+    $versions = [];
+    $files = [];
+    $reports = [];
+    ProposalVersion::retrieved(function (ProposalVersion $version) use (&$versions): void {
+        $versions[] = $version->id;
+    });
+    ProposalVersionFile::retrieved(function (ProposalVersionFile $file) use (&$files): void {
+        $files[] = $file->getAttributes();
+    });
+    ProjectProgressReport::retrieved(function (ProjectProgressReport $report) use (&$reports): void {
+        $reports[] = $report->getAttributes();
+    });
+
+    $data = app(CollegeQuarterlyReportData::class)->build($this->coordinator, 2026, 2);
+
+    expect($data['research'])->toBe([
+        ['Alpha', '8 months', "Alpha leader 3 (Project Leader)\nAlpha staff 3 (Project Staff)\nProject Owner", 'Ongoing (50% reported)'],
+        ['Beta', '8 months', "Beta leader 3 (Project Leader)\nBeta staff 3 (Project Staff)\nProject Owner", 'Ongoing (50% reported)'],
+    ]);
+    if (getenv('ATHENA_PERFORMANCE_BASELINE') === '1') {
+        fwrite(STDERR, sprintf('Quarterly summary loaded: %d versions, %d files, %d reports, %d payload bytes'.PHP_EOL,
+            count($versions), count($files), count($reports), strlen(json_encode([$files, $reports], JSON_THROW_ON_ERROR))));
+    }
+    expect($versions)->toHaveCount(2)
+        ->and($files)->toHaveCount(6)
+        ->and($reports)->toHaveCount(2);
+    foreach ($reports as $report) {
+        expect($report)->not->toHaveKeys(['accomplishments', 'work_plan', 'budget_utilization']);
+    }
+});
+
+test('automatic college research progress waits for office secretary forwarding', function () {
+    $topic = ($this->project)();
+    ProjectProgressReport::create([
+        'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
+        'reporting_date' => '2026-03-31', 'version_number' => 1,
+        'progress_percentage' => 20, 'accomplishments' => 'Previous forwarded progress',
+        'review_stage' => 'head',
+    ]);
+    $pending = ProjectProgressReport::create([
+        'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
+        'reporting_date' => '2026-06-30', 'version_number' => 1,
+        'progress_percentage' => 80, 'accomplishments' => 'Awaiting office review',
+        'review_stage' => 'secretary',
+    ]);
+    $service = app(CollegeQuarterlyReportData::class);
+
+    expect($service->build($this->coordinator, 2026, 2)['research'][0][3])->toBe('Ongoing (20% reported)');
+
+    $pending->update(['review_stage' => 'head', 'forwarded_at' => now()]);
+
+    expect($service->build($this->coordinator, 2026, 2)['research'][0][3])->toBe('Ongoing (80% reported)');
+});
+
+test('automatic college research uses the latest visible revision within the latest reporting period', function (string $stage, string $submissionStatus, int $expectedProgress) {
+    $topic = ($this->project)();
+    $original = ProjectProgressReport::create([
+        'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
+        'reporting_date' => '2026-06-30', 'reporting_year' => 2026, 'reporting_quarter' => 2,
+        'period_start' => '2026-04-01', 'period_end' => '2026-06-30', 'version_number' => 1,
+        'progress_percentage' => 75, 'accomplishments' => 'Original quarterly progress',
+        'review_stage' => 'head', 'review_status' => 'revision_requested',
+    ]);
+    ProjectProgressReport::create([
+        'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
+        'reporting_date' => '2026-06-25', 'reporting_year' => 2026, 'reporting_quarter' => 2,
+        'period_start' => '2026-04-01', 'period_end' => '2026-06-30', 'version_number' => 2,
+        'progress_percentage' => 90, 'accomplishments' => 'Corrected quarterly progress',
+        'supersedes_report_id' => $original->id, 'submission_status' => $submissionStatus,
+        'review_stage' => $stage,
+    ]);
+    ProjectProgressReport::create([
+        'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
+        'reporting_date' => '2026-03-31', 'reporting_year' => 2026, 'reporting_quarter' => 1,
+        'period_start' => '2026-01-01', 'period_end' => '2026-03-31', 'version_number' => 4,
+        'progress_percentage' => 30, 'accomplishments' => 'Earlier quarter with more revisions',
+        'review_stage' => 'head',
+    ]);
+
+    expect(app(CollegeQuarterlyReportData::class)->build($this->coordinator, 2026, 2)['research'][0][3])
+        ->toBe('Ongoing ('.$expectedProgress.'% reported)');
+})->with([
+    'forwarded correction' => ['head', 'submitted', 90],
+    'prepared correction' => ['head', 'prepared', 75],
+    'awaiting office review' => ['secretary', 'submitted', 75],
+]);

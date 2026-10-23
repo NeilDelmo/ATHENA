@@ -5,6 +5,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProgressReportEvidenceService;
 use App\Support\ProgressReportData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
@@ -281,6 +282,86 @@ test('discarding a prepared narrative report keeps evidence in its restored draf
     Storage::disk('local')->assertMissing($file['path']);
     $this->get(route('project-narrative-reports.evidence', ['topic' => $this->topic, 'evidence' => $file['id']]))->assertNotFound();
 });
+
+test('discard cannot delete a report submitted after the request was authorized', function (string $type) {
+    $pdf = 'narrative-progress-reports/'.$this->topic->id.'/prepared/report.pdf';
+    $photo = 'narrative-progress-reports/'.$this->topic->id.'/figure.png';
+    $evidence = 'narrative-progress-reports/'.$this->topic->id.'/evidence/proof.png';
+    Storage::disk('local')->put($pdf, '%PDF prepared report');
+    Storage::disk('local')->put($photo, 'report image');
+    Storage::disk('local')->put($evidence, 'supporting evidence');
+    $report = ProjectNarrativeReport::create([
+        ...($this->payload)(), 'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
+        'report_type' => $type, 'reporting_quarter' => 1, 'budget' => 50000,
+        'accomplishment_summary' => 'Prepared work', 'submission_status' => 'prepared', 'official_pdf_path' => $pdf,
+        'photos' => [['path' => $photo, 'caption' => 'Report figure', 'section' => 'methodology']],
+        'accomplishments' => [['objective' => 'Research', 'target' => 'Study', 'actual' => 'Work completed', 'evidence' => [['path' => $evidence]]]],
+    ]);
+    $submissionCommitted = false;
+    app()->resolving(ProgressReportEvidenceService::class, function () use ($report, &$submissionCommitted): void {
+        if ($submissionCommitted) {
+            return;
+        }
+        // The FormRequest has authorized the prepared row before this controller dependency resolves.
+        ProjectNarrativeReport::whereKey($report->id)->update([
+            'submission_status' => 'submitted', 'submitted_at' => now(), 'review_stage' => 'secretary',
+        ]);
+        $submissionCommitted = true;
+    });
+
+    $this->actingAs($this->researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))
+        ->assertRedirect()->assertSessionHasErrors('preparation', errorBag: 'narrativeProgress')->assertSessionMissing('success');
+
+    expect($submissionCommitted)->toBeTrue()
+        ->and($report->fresh()?->isSubmitted())->toBeTrue()
+        ->and(ProjectNarrativeReportDraft::where('topic_id', $this->topic->id)->exists())->toBeFalse();
+    Storage::disk('local')->assertExists([$pdf, $photo, $evidence]);
+})->with(['progress', 'terminal']);
+
+test('discarding a prepared report preserves both versions when the recipient already has a draft', function (string $type, bool $collaborator) {
+    $preparer = $this->researcher;
+    if ($collaborator) {
+        $preparer = User::factory()->create();
+        $preparer->assignRole('faculty_researcher');
+        $this->topic->collaborators()->create(['user_id' => $preparer->id, 'name' => $preparer->name, 'email' => $preparer->email, 'accepted_at' => now()]);
+    }
+    $draft = ProjectNarrativeReportDraft::create([
+        'topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'report_type' => $type,
+        'source_data' => ['introduction' => 'Existing saved work'], 'lock_version' => 3,
+    ]);
+    $photo = 'narrative-progress-reports/'.$this->topic->id.'/prepared-figure.png';
+    $pdf = 'narrative-progress-reports/'.$this->topic->id.'/prepared/report.pdf';
+    $evidence = 'narrative-progress-reports/'.$this->topic->id.'/evidence/proof.png';
+    Storage::disk('local')->put($photo, 'prepared image');
+    Storage::disk('local')->put($pdf, '%PDF prepared');
+    Storage::disk('local')->put($evidence, 'supporting evidence');
+    $report = ProjectNarrativeReport::create([
+        ...($this->payload)(), 'topic_id' => $this->topic->id, 'submitted_by' => $preparer->id,
+        'report_type' => $type, 'reporting_quarter' => 1, 'budget' => 50000,
+        'accomplishment_summary' => 'Prepared work', 'introduction' => 'New prepared work',
+        'accomplishments' => [['objective' => 'Research', 'target' => 'Study', 'actual' => 'New work', 'evidence' => [['id' => (string) Str::uuid(), 'path' => $evidence]]]],
+        'submission_status' => 'prepared', 'official_pdf_path' => $pdf,
+        'photos' => [['path' => $photo, 'caption' => 'New image', 'section' => 'methodology']],
+    ]);
+
+    $this->actingAs($this->researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))
+        ->assertRedirect()->assertSessionHasErrors('preparation', errorBag: 'narrativeProgress')->assertSessionMissing('success');
+
+    $this->assertModelExists($report);
+    expect($report->fresh()->introduction)->toBe('New prepared work')
+        ->and($report->fresh()->isPrepared())->toBeTrue()
+        ->and($draft->fresh()->source_data)->toBe(['introduction' => 'Existing saved work'])
+        ->and($draft->fresh()->lock_version)->toBe(3)
+        ->and(ProjectNarrativeReportDraft::where('topic_id', $this->topic->id)->count())->toBe(1);
+    Storage::disk('local')->assertExists([$photo, $pdf, $evidence]);
+})->with([
+    'own progress report' => ['progress', false],
+    'collaborator progress report' => ['progress', true],
+    'own terminal report' => ['terminal', false],
+    'collaborator terminal report' => ['terminal', true],
+]);
 
 test('narrative evidence uploads require a reporting quarter', function () {
     $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), ($this->payload)([

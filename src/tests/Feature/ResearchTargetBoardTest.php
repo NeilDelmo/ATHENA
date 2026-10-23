@@ -98,10 +98,39 @@ test('head and secretary can record every research indicator with college alloca
     if (getenv('ATHENA_CAPTURE_TARGETS') === '1' && $role === 'research_head') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
         File::put(storage_path('framework/testing/target-board-office.html'), $component->html());
+        File::put(storage_path('framework/testing/target-board-page.html'), $this->get(route('research_head.targets.index'))->assertSuccessful()->getContent());
         $component->call('editTargets');
         File::put(storage_path('framework/testing/target-board-editor.html'), $component->html());
     }
 })->with(['research_head', 'research_secretary']);
+
+test('the target plan overview counts configured indicators and unique assigned colleges including zero', function () {
+    ($this->editor)();
+    ResearchAnnualTarget::factory()->create([
+        'academic_year' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31',
+        'publications_target' => 0,
+        'indicators' => [
+            'publications' => ['allocations' => ['CAS' => 0]],
+            'students_ylp' => ['total' => null, 'allocations' => ['CICS' => null]],
+            'faculty_engaged' => ['total' => 75.5, 'allocations' => ['CAS' => 60.5, 'CHS' => 0]],
+        ],
+    ]);
+
+    $component = Livewire::test(ResearchTargetBoard::class)->assertSeeHtml('data-research-target-board');
+    $document = new DOMDocument;
+    @$document->loadHTML($component->html());
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//dl[@data-target-plan-overview]')->length)->toBe(1);
+    foreach (['indicators' => '11', 'configured' => '2', 'colleges' => '2'] as $stat => $value) {
+        expect(trim($xpath->query('//*[@data-target-plan-stat="'.$stat.'"]/dd')->item(0)?->textContent ?? ''))->toBe($value);
+    }
+
+    expect($xpath->query('//tbody/tr[@data-target-indicator]')->length)->toBe(11)
+        ->and(trim($xpath->query('//tr[@data-target-indicator="publications"]//*[@data-target-overall]')->item(0)?->textContent ?? ''))->toBe('0')
+        ->and(trim($xpath->query('//tr[@data-target-indicator="students_ylp"]//*[@data-target-overall]')->item(0)?->textContent ?? ''))->toBe('Not set')
+        ->and(trim($xpath->query('//tr[@data-target-indicator="faculty_engaged"]//*[@data-target-overall]')->item(0)?->textContent ?? ''))->toBe('75.5%');
+});
 
 test('existing targets use the legacy publication total and leave unrelated legacy targets unchanged', function () {
     ($this->editor)();
@@ -149,7 +178,9 @@ test('the dashboard target summary shows saved goals including zero and percenta
 
     $component = Livewire::test(ResearchTargetBoard::class, ['compact' => true])
         ->assertSet('year', '2026-2027')
+        ->assertSeeHtml('data-research-target-board')
         ->assertSeeHtml('data-dashboard-target-summary')
+        ->assertDontSeeHtml('data-target-plan-overview')
         ->assertDontSeeHtml('wire:click="editTargets"')
         ->assertSee(route('research_head.targets.index'));
     $document = new DOMDocument;
@@ -157,6 +188,11 @@ test('the dashboard target summary shows saved goals including zero and percenta
     $xpath = new DOMXPath($document);
     foreach (['publications' => '6', 'students_ylp' => '0', 'faculty_engaged' => '75.5%', 'funded_collaborations' => 'Not set'] as $key => $value) {
         expect(trim($xpath->query('//*[@data-target-indicator="'.$key.'"]/dd')->item(0)?->textContent ?? ''))->toBe($value);
+    }
+
+    if (getenv('ATHENA_CAPTURE_TARGETS') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/target-board-compact.html'), $component->html());
     }
 
     $component->set('year', '2025-2026')
@@ -167,11 +203,18 @@ test('the dashboard target summary shows saved goals including zero and percenta
 test('the dashboard target summary provides an empty state and a way to set targets', function () {
     ($this->editor)();
 
-    Livewire::test(ResearchTargetBoard::class, ['compact' => true])
+    $component = Livewire::test(ResearchTargetBoard::class, ['compact' => true])
         ->assertSeeHtml('data-dashboard-target-summary')
+        ->assertDontSeeHtml('data-target-plan-overview')
         ->assertSee('No research targets have been set for 2026.')
         ->assertSee(route('research_head.targets.index'))
         ->assertDontSeeHtml('wire:click="editTargets"');
+
+    if (getenv('ATHENA_CAPTURE_TARGETS') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/target-board-compact-empty.html'), $component->html());
+        File::put(storage_path('framework/testing/target-board-empty.html'), Livewire::test(ResearchTargetBoard::class)->html());
+    }
 });
 
 test('the legacy editor cannot lower or clear a publication total below saved college allocations', function (mixed $total) {
@@ -231,6 +274,7 @@ test('a coordinator receives only their own college targets in HTML view data an
 
     $component = Livewire::test(ResearchTargetBoard::class)
         ->assertSet('targetForm', [])
+        ->assertDontSeeHtml('data-target-plan-overview')
         ->assertViewHas('rows', function (array $rows): bool {
             foreach ($rows as $row) {
                 expect(array_keys($row))->toEqualCanonicalizing(['indicator', 'label', 'unit', 'value']);

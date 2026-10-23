@@ -2,6 +2,58 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectWorkspace } from '../../resources/js/project-workspace.js';
 
+test('opening a folder search result clears the previous location query and reveals its contents', t => {
+    const { state } = fixture(t);
+    state.query = 'Archive';
+    assert.equal(state.childFolders.length, 1);
+    state.openLocation(archiveId);
+    assert.equal(state.query, '');
+    assert.deepEqual(state.filteredProjects.map(project => project.id), [1]);
+    assert.equal(state.childFolders[0].name, 'Fieldwork');
+});
+
+test('copying selected filename text leaves the native clipboard available', t => {
+    const { state } = fixture(t);
+    state.selectProject(1);
+    const originalWindow = globalThis.window;
+    const anchor = {};
+    globalThis.window = { getSelection: () => ({ toString: () => 'Coastal research.pdf', anchorNode: anchor }) };
+    t.after(() => { globalThis.window = originalWindow; });
+    for (const key of ['c', 'x']) state.handleWorkspaceKeydown({ key, ctrlKey: true, target: { closest: () => null }, currentTarget: { contains: node => node === anchor }, preventDefault() { assert.fail('native text clipboard was intercepted'); }, stopPropagation() {} });
+    assert.equal(state.clipboard, null);
+});
+
+test('document shortcuts still resolve when their source project is outside the current portfolio filter', async t => {
+    const { requests } = fixture(t);
+    const state = projectWorkspace({ projects: [], documentsUrlTemplate: '/projects/__PROJECT__/documents', workspace: { ...workspace(), shortcuts: [{ id: 'shortcut-source', folder_id: archiveId, project_id: 17, document_key: 'report:1' }] } });
+    await state.openLocation(archiveId);
+    assert.equal(requests[0].url, '/projects/17/documents');
+    assert.equal(state.folderShortcuts[0].filename, 'progress.pdf');
+    assert.equal(state.documentsError, '');
+});
+
+test('Escape in a context menu is handled by the menu and preserves the file selection', t => {
+    const { state } = fixture(t);
+    state.selectProject(1);
+    state.copySelection();
+    state.handleWorkspaceKeydown({ key: 'Escape', target: { closest: selector => selector.includes('[role="menu"]') ? {} : null }, preventDefault() { assert.fail('workspace intercepted a menu key'); }, stopPropagation() {} });
+    assert.deepEqual(state.selectedIds, [1]);
+    assert.equal(state.clipboard.mode, 'copy');
+});
+
+test('Escape closes an opening context menu before its focus frame without clearing selected files', t => {
+    const { state } = fixture(t);
+    state.selectProject(1);
+    state.copySelection();
+    state.viewMenuOpen = true;
+    let prevented = false;
+    state.handleWorkspaceKeydown({ key: 'Escape', target: { closest: () => null }, preventDefault() { prevented = true; }, stopPropagation() {} });
+    assert.equal(prevented, true);
+    assert.equal(state.viewMenuOpen, false);
+    assert.deepEqual(state.selectedIds, [1]);
+    assert.equal(state.clipboard.mode, 'copy');
+});
+
 const archiveId = '0a908c94-a007-4f2a-bdea-9240b5275087';
 const childId = '87d99ebf-7f9e-425c-9c21-3ecf74f0d366';
 const otherId = 'bf182126-e29c-4610-984b-e3c9cb36b3cd';
@@ -40,6 +92,7 @@ function workspace() {
             { project_id: 1, folder_id: archiveId },
             { project_id: 2, folder_id: childId },
         ],
+        shortcuts: [],
         view: 'grid',
         grouping: 'year',
         sort: 'attention',
@@ -141,6 +194,81 @@ test('automatic year and personal folder locations include every project beyond 
     assert.equal(state.projectFolderLabel(2), 'Archive / Fieldwork');
     state.openLocation('unfiled');
     assert.equal(state.filteredProjects.length, 29);
+});
+
+test('large project folders resolve their current folder once while searches and moves stay current', async (t) => {
+    const { state } = fixture(t, { count: 2000 });
+    state.workspace.folders.unshift(...Array.from({ length: 197 }, (_, index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        name: `Other folder ${index + 1}`, parent_id: null,
+    })));
+    const currentFolder = Object.getOwnPropertyDescriptor(state, 'currentFolder').get;
+    let folderResolutions = 0;
+    Object.defineProperty(state, 'currentFolder', { get() { folderResolutions++; return currentFolder.call(this); } });
+    const visibleIds = () => {
+        folderResolutions = 0;
+        const ids = state.filteredProjects.map(project => project.id);
+        assert.equal(folderResolutions, 1, 'Folder resolution must not repeat for every project');
+        return ids;
+    };
+
+    state.openLocation(archiveId);
+    assert.deepEqual(visibleIds(), [1]);
+    state.query = 'rivera';
+    assert.deepEqual(visibleIds(), []);
+    state.openLocation(childId);
+    assert.deepEqual(visibleIds(), [2]);
+    state.selectProject(2);
+    assert.equal(await state.moveSelected(archiveId), true);
+    assert.deepEqual(visibleIds(), []);
+    state.query = '';
+    state.openLocation(archiveId);
+    assert.deepEqual(visibleIds(), [2, 1]);
+});
+
+test('large folder trees read parent links a linear number of times', (t) => {
+    const { state } = fixture(t);
+    state.workspace.folders.push(...Array.from({ length: 197 }, (_, index) => ({
+        id: `folder-${index}`, name: `Other folder ${index + 1}`, parent_id: null,
+    })));
+    let parentReads = 0;
+    state.folders.forEach(folder => {
+        const parentId = folder.parent_id;
+        Object.defineProperty(folder, 'parent_id', { enumerable: true, get() { parentReads++; return parentId; } });
+    });
+
+    const tree = state.folderTree;
+    assert.equal(tree.length, 200);
+    assert.deepEqual(tree.slice(0, 4).map(folder => [folder.name, folder.depth]), [
+        ['Active', 0], ['Archive', 0], ['Fieldwork', 1], ['Other folder 1', 0],
+    ]);
+    assert.equal(tree.at(-1).name, 'Other folder 197');
+    assert.ok(parentReads <= 400, `Building 200 folders must avoid repeated full scans (${parentReads} parent reads)`);
+});
+
+test('folder trees follow renames, moves and workspace replacement without exposing orphans or cycles', async (t) => {
+    const { state } = fixture(t);
+    const tree = () => state.folderTree.map(folder => [folder.id, folder.depth]);
+    assert.deepEqual(tree(), [[otherId, 0], [archiveId, 0], [childId, 1]]);
+    state.openRename(state.folders.find(folder => folder.id === otherId));
+    state.folderName = 'Zzz';
+    assert.equal(await state.submitDialog(), true);
+    assert.deepEqual(tree(), [[archiveId, 0], [childId, 1], [otherId, 0]]);
+    assert.equal(await state.moveFolder(childId, otherId), true);
+    assert.deepEqual(tree(), [[archiveId, 0], [otherId, 0], [childId, 1]]);
+    assert.equal(await state.moveFolder(otherId, childId), false);
+    assert.deepEqual(tree(), [[archiveId, 0], [otherId, 0], [childId, 1]]);
+
+    state.workspace = { ...state.workspace, folders: [
+        { id: archiveId, name: 'Root', parent_id: null },
+        { id: childId, name: 'Cycle A', parent_id: otherId },
+        { id: otherId, name: 'Cycle B', parent_id: childId },
+        { id: 'orphan', name: 'Orphan', parent_id: 'missing' },
+        { id: 'self', name: 'Self', parent_id: 'self' },
+    ] };
+    assert.deepEqual(tree(), [[archiveId, 0]]);
+    state.workspace.folders[1].parent_id = archiveId;
+    assert.deepEqual(tree(), [[archiveId, 0], [childId, 1], [otherId, 2]]);
 });
 
 test('search, status, sorting, and grouping never alter official project fields', async (t) => {
@@ -686,4 +814,297 @@ test('switching to year folders clears project selection hidden by the new view'
     await state.setPreference('grouping', 'year');
     assert.deepEqual(state.selectedIds, []);
     assert.equal(state.canMoveSelection, false);
+});
+
+test('copying projects adds memberships and cutting from one folder preserves other copies', async (t) => {
+    const { state } = fixture(t);
+    state.openLocation(archiveId);
+    state.selectProject(1);
+    assert.equal(state.copySelection(), true);
+    assert.equal(await state.pasteSelection(otherId), true);
+    assert.deepEqual(state.workspace.assignments.filter(item => item.project_id === 1).map(item => item.folder_id), [archiveId, otherId]);
+    assert.equal(state.clipboard.mode, 'copy');
+    state.selectProject(1);
+    assert.equal(state.copySelection('cut'), true);
+    assert.equal(state.isCutItem('project', 1), true);
+    assert.equal(await state.pasteSelection(childId), true);
+    assert.deepEqual(state.workspace.assignments.filter(item => item.project_id === 1).map(item => item.folder_id), [otherId, childId]);
+    assert.equal(state.clipboard, null);
+    state.openLocation(otherId);
+    assert.deepEqual(state.filteredProjects.map(item => item.id), [1]);
+    assert.match(state.projectFolderLabel(1), /Active/);
+    assert.match(state.projectFolderLabel(1), /Fieldwork/);
+    assert.equal(state.folderCount(archiveId), 2);
+    state.openLocation(childId);
+    state.selectProject(1);
+    assert.equal(await state.moveSelected(archiveId), true);
+    assert.deepEqual(state.workspace.assignments.filter(item => item.project_id === 1).map(item => item.folder_id), [otherId, archiveId]);
+});
+
+test('clipboard rejects virtual paste destinations and failed cut remains retryable', async (t) => {
+    let fail = true;
+    const { state, requests } = fixture(t, { fetch: async payload => {
+        if (fail) throw new Error('Offline');
+        return { ok: true, status: 200, json: async () => ({ workspace: { ...payload, revision: payload.revision + 1 } }) };
+    } });
+    state.openLocation(archiveId);
+    state.selectProject(1);
+    state.copySelection('cut');
+    const pending = structuredClone(state.clipboard);
+    assert.equal(await state.pasteSelection('year:2026'), false);
+    assert.equal(requests.length, 0);
+    assert.equal(await state.pasteSelection(otherId), false);
+    assert.deepEqual(state.clipboard, pending);
+    assert.equal(state.workspace.assignments[0].folder_id, archiveId);
+    fail = false;
+    assert.equal(await state.pasteSelection(otherId), true);
+    assert.equal(state.clipboard, null);
+    assert.equal(await state.undo(), true);
+    assert.equal(state.workspace.assignments[0].folder_id, archiveId);
+});
+
+test('folder copy clones a subtree with fresh ids, memberships and shortcuts', async (t) => {
+    const { state } = fixture(t);
+    state.workspace.shortcuts.push({ id: 'e8ddcdbc-f04a-41aa-a610-6e71adc2220e', folder_id: childId, project_id: 1, document_key: 'report:1' });
+    state.selectFolder(archiveId);
+    assert.equal(state.copySelection(), true);
+    assert.equal(await state.pasteSelection(null), true);
+    const clone = state.folders.find(folder => folder.name === 'Archive (copy)');
+    const child = state.folders.find(folder => folder.parent_id === clone.id);
+    assert.notEqual(clone.id, archiveId);
+    assert.equal(child.name, 'Fieldwork');
+    assert.notEqual(child.id, childId);
+    assert.deepEqual(state.workspace.assignments.filter(item => [clone.id, child.id].includes(item.folder_id)), [{ project_id: 1, folder_id: clone.id }, { project_id: 2, folder_id: child.id }]);
+    const shortcut = state.shortcuts.find(item => item.folder_id === child.id);
+    assert.notEqual(shortcut.id, state.shortcuts[0].id);
+    assert.deepEqual({ ...shortcut, id: '', folder_id: '' }, { id: '', folder_id: '', project_id: 1, document_key: 'report:1' });
+    assert.equal(await state.pasteSelection(null), true);
+    assert.ok(state.folders.some(folder => folder.name === 'Archive (copy 2)'));
+    assert.equal(state.folderCount(archiveId), 2);
+});
+
+test('folder clipboard rejects cycles and oversized copies without writing', async (t) => {
+    const { state, requests } = fixture(t);
+    state.selectFolder(archiveId);
+    state.copySelection('cut');
+    assert.equal(await state.pasteSelection(childId), false);
+    assert.equal(await state.pasteSelection(archiveId), false);
+    assert.equal(state.clipboard.mode, 'cut');
+    state.copySelection();
+    for (let index = 0; index < 197; index++) state.folders.push({ id: `extra-${index}`, name: `Extra ${index}`, parent_id: null });
+    assert.equal(await state.pasteSelection(null), false);
+    assert.match(state.error, /200/);
+    assert.equal(requests.length, 0);
+});
+
+test('document copies create URL-free shortcuts which resolve their original preview and move independently', async (t) => {
+    const { state, requests } = fixture(t);
+    await state.activateProject(1);
+    state.selectDocument('report:1');
+    assert.equal(state.canCutSelection, false);
+    assert.equal(state.copySelection('cut'), false);
+    assert.equal(state.copySelection(), true);
+    assert.equal(await state.pasteSelection(null), false);
+    assert.equal(await state.pasteSelection(archiveId), true);
+    assert.equal(state.shortcuts.length, 1);
+    assert.deepEqual(Object.keys(state.shortcuts[0]).sort(), ['document_key', 'folder_id', 'id', 'project_id']);
+    const shortcutId = state.shortcuts[0].id;
+    await state.openLocation(archiveId);
+    state.selectShortcut(shortcutId);
+    assert.equal(state.selectedShortcut.filename, 'progress.pdf');
+    assert.equal(state.canOpenSelection, true);
+    state.openShortcut(shortcutId);
+    assert.equal(state.previewDocument.view_url, '/reports/1/view');
+    state.closePreview();
+    assert.equal(state.copySelection('cut'), true);
+    assert.equal(await state.pasteSelection(otherId), true);
+    assert.equal(state.shortcuts[0].folder_id, otherId);
+    assert.equal(state.projectDocuments.length, 0);
+    assert.deepEqual(state.workspace.assignments, workspace().assignments);
+    assert.equal(requests.filter(item => item.request.method === 'GET').length, 1);
+});
+
+test('opening stored shortcuts fetches source permissions and inaccessible files have no preview', async (t) => {
+    const { state } = fixture(t, { documentFetch: async () => ({ ok: false, status: 403, json: async () => ({ message: 'Access denied' }) }) });
+    state.workspace.shortcuts.push({ id: 'e8ddcdbc-f04a-41aa-a610-6e71adc2220e', folder_id: archiveId, project_id: 1, document_key: 'report:1' });
+    await state.openLocation(archiveId);
+    assert.deepEqual(state.folderShortcuts, []);
+    state.openShortcut(state.shortcuts[0].id);
+    assert.equal(state.previewDocument, null);
+    assert.match(state.documentsError, /shortcut/i);
+});
+
+test('folder removal deletes contained shortcuts and undo restores them', async (t) => {
+    const { state } = fixture(t);
+    state.workspace.shortcuts.push({ id: 'e8ddcdbc-f04a-41aa-a610-6e71adc2220e', folder_id: childId, project_id: 1, document_key: 'report:1' });
+    state.openDelete(state.folders[0]);
+    assert.equal(await state.submitDialog(), true);
+    assert.deepEqual(state.shortcuts, []);
+    assert.equal(await state.undo(), true);
+    assert.equal(state.shortcuts[0].folder_id, childId);
+});
+
+test('folder search and document ordering use names, dates and size without mutating cached data', async (t) => {
+    const { state } = fixture(t);
+    state.query = ' arCH ';
+    assert.deepEqual(state.childFolders.map(folder => folder.name), ['Archive']);
+    state.query = '';
+    await state.activateProject(1);
+    state.projectDocuments.push({ ...state.projectDocuments[0], key: 'report:2', filename: 'Alpha.pdf', uploaded_at: '2026-02-01', file_size: 100 });
+    const names = () => state.documentGroups.flatMap(group => group.documents.map(document => document.filename));
+    assert.deepEqual(names(), ['Alpha.pdf', 'progress.pdf']);
+    state.documentSort = 'oldest';
+    assert.deepEqual(names(), ['progress.pdf', 'Alpha.pdf']);
+    state.documentSort = 'newest';
+    assert.deepEqual(names(), ['Alpha.pdf', 'progress.pdf']);
+    state.documentSort = 'size';
+    assert.deepEqual(names(), ['progress.pdf', 'Alpha.pdf']);
+    assert.equal(state.projectDocuments[0].filename, 'progress.pdf');
+});
+
+test('context selection preserves selected projects and keyboard actions respect editable fields', async (t) => {
+    const { state } = fixture(t);
+    state.selectProject(1);
+    state.selectProject(2, true);
+    state.selectContextItem('project', 1);
+    assert.deepEqual(state.selectedIds, [1, 2]);
+    state.selectContextItem('folder', archiveId);
+    assert.equal(state.selectedFolderId, archiveId);
+    const dispatched = [];
+    state.$dispatch = (...args) => dispatched.push(args);
+    const event = (key, extra = {}) => ({ key, target: { closest: () => null }, preventDefault() {}, stopPropagation() {}, ...extra });
+    state.handleWorkspaceKeydown(event('F2'));
+    assert.equal(state.dialog, 'rename');
+    assert.deepEqual(dispatched[0], ['open-modal', 'project-workspace-dialog']);
+    state.closeDialog();
+    state.handleWorkspaceKeydown(event('c', { ctrlKey: true, target: { closest: () => ({}) } }));
+    assert.equal(state.clipboard, null);
+    state.handleWorkspaceKeydown(event('x', { ctrlKey: true }));
+    assert.equal(state.clipboard.mode, 'cut');
+    state.handleWorkspaceKeydown(event('Escape'));
+    assert.equal(state.clipboard, null);
+    assert.equal(state.selectedCount, 0);
+});
+
+test('shortcut moves use the existing dialog and pasted copies never duplicate a destination membership', async (t) => {
+    const { state, requests } = fixture(t);
+    await state.activateProject(1);
+    state.selectDocument('report:1');
+    state.copySelection();
+    await state.pasteSelection(archiveId);
+    await state.pasteSelection(archiveId);
+    assert.equal(state.shortcuts.length, 1);
+    assert.equal(requests.filter(request => request.request.method === 'PUT').length, 1);
+    await state.openLocation(archiveId);
+    state.selectShortcut(state.shortcuts[0].id);
+    state.openMove();
+    assert.equal(state.dialog, 'move');
+    state.destinationId = otherId;
+    assert.equal(await state.submitDialog(), true);
+    assert.equal(state.shortcuts[0].folder_id, otherId);
+    assert.equal(state.selectedShortcutId, null);
+    assert.equal(state.dialog, null);
+});
+
+test('missing shortcut sources remain unavailable and folder copy names stay valid unicode within the name limit', async (t) => {
+    const { state } = fixture(t);
+    state.workspace.shortcuts.push({ id: 'e8ddcdbc-f04a-41aa-a610-6e71adc2220e', folder_id: archiveId, project_id: 1, document_key: 'report:missing' });
+    await state.openLocation(archiveId);
+    assert.deepEqual(state.folderShortcuts, []);
+    assert.match(state.documentsError, /shortcut/i);
+    state.openLocation('all');
+    state.folders[0].name = '😀'.repeat(40);
+    state.selectFolder(archiveId);
+    state.copySelection();
+    await state.pasteSelection(null);
+    const name = state.folders.at(-2).name;
+    assert.ok(Array.from(name).length <= 80);
+    assert.equal(name.isWellFormed(), true);
+});
+
+test('context menu actions and keyboard paste reuse safe workspace operations', async (t) => {
+    const { state } = fixture(t);
+    const dispatched = [];
+    state.$dispatch = (...args) => dispatched.push(args);
+    state.openLocation(archiveId);
+    const project = { dataset: { itemType: 'project', itemId: '1' } };
+    state.prepareContextMenu({ target: { closest: selector => selector === '[data-workspace-item]' ? project : null } });
+    assert.deepEqual(state.selectedIds, [1]);
+    assert.deepEqual(state.menuActions.filter(action => ['open', 'cut', 'copy', 'move'].includes(action.id)).map(action => action.id), ['open', 'cut', 'copy', 'move']);
+    state.menuActions.find(action => action.id === 'copy').run();
+    await state.openLocation(otherId);
+    assert.equal(state.canPaste, true);
+    const event = (key, extra = {}) => ({ key, target: { closest: () => null }, preventDefault() {}, stopPropagation() {}, ...extra });
+    await state.handleWorkspaceKeydown(event('v', { metaKey: true }));
+    assert.deepEqual(state.filteredProjects.map(project => project.id), [1]);
+    state.selectFolder(childId);
+    state.handleWorkspaceKeydown(event('Delete'));
+    assert.equal(state.dialog, 'delete');
+    assert.deepEqual(dispatched.at(-1), ['open-modal', 'project-workspace-dialog']);
+    state.closeDialog();
+    state.prepareContextMenu({ target: { closest: selector => selector === '[data-workspace-items]' ? {} : null } });
+    assert.equal(state.selectedCount, 0);
+});
+
+test('explicit shortcut refresh rechecks source access instead of using a cached document', async (t) => {
+    let allowed = true;
+    const { state, requests } = fixture(t, { documentFetch: async () => ({ ok: allowed, status: allowed ? 200 : 403, json: async () => allowed ? { categories: [], documents: [{ key: 'report:1', filename: 'Progress.pdf' }], total: 1 } : { message: 'Access denied' } }) });
+    state.workspace.shortcuts.push({ id: 'e8ddcdbc-f04a-41aa-a610-6e71adc2220e', folder_id: archiveId, project_id: 1, document_key: 'report:1' });
+    await state.openLocation(archiveId);
+    assert.equal(state.folderShortcuts.length, 1);
+    allowed = false;
+    assert.equal(await state.retryDocuments(), false);
+    assert.deepEqual(state.folderShortcuts, []);
+    assert.equal(requests.length, 2);
+});
+
+test('cut clipboard cannot recreate a project membership after its source folder was removed', async (t) => {
+    const { state, requests } = fixture(t);
+    await state.openLocation(archiveId);
+    state.selectProject(1);
+    state.copySelection('cut');
+    state.openDelete(state.currentFolder);
+    await state.submitDialog();
+    const saves = requests.length;
+    assert.equal(await state.pasteSelection(otherId), false);
+    assert.equal(requests.length, saves);
+    assert.equal(state.clipboard.mode, 'cut');
+    assert.equal(state.workspace.assignments.some(item => item.project_id === 1), false);
+});
+
+test('removing a selected shortcut keeps its original document and other references and supports undo', async (t) => {
+    const { state } = fixture(t);
+    await state.activateProject(1);
+    state.selectDocument('report:1');
+    state.copySelection();
+    await state.pasteSelection(archiveId);
+    await state.pasteSelection(otherId);
+    const original = structuredClone(state.documentsByProject[1].documents);
+    await state.openLocation(archiveId);
+    state.selectShortcut(state.shortcuts[0].id);
+    assert.equal(state.menuActions.find(action => action.id === 'remove-shortcut').label, 'Remove shortcut');
+    assert.equal(await state.removeSelectedShortcut(), true);
+    assert.equal(state.shortcuts.length, 1);
+    assert.equal(state.shortcuts[0].folder_id, otherId);
+    assert.deepEqual(state.documentsByProject[1].documents, original);
+    assert.equal(state.selectedShortcutId, null);
+    await state.undo();
+    assert.equal(state.shortcuts.length, 2);
+    state.selectShortcut(state.shortcuts[0].id);
+    await state.handleWorkspaceKeydown({ key: 'Delete', target: { closest: () => null }, preventDefault() {}, stopPropagation() {} });
+    assert.equal(state.shortcuts.length, 1);
+    assert.deepEqual(state.documentsByProject[1].documents, original);
+});
+
+test('pasting a cut project into its source folder clears cut state without saving or changing membership order', async (t) => {
+    const { state, requests } = fixture(t);
+    state.workspace.assignments.push({ project_id: 1, folder_id: otherId });
+    await state.openLocation(archiveId);
+    state.selectProject(1);
+    state.copySelection('cut');
+    const before = structuredClone(state.workspace);
+    assert.equal(await state.pasteSelection(archiveId), true);
+    assert.deepEqual(state.workspace, before);
+    assert.equal(state.clipboard, null);
+    assert.equal(requests.length, 0);
 });

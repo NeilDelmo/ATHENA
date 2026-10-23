@@ -119,18 +119,22 @@ test('research heads can view every initial proposal submission and revision', f
             'aria-label="Overview"',
             'aria-label="Dashboard"',
             'aria-label="Calendar"',
-            'aria-label="Analytics"',
-            'aria-label="Submission"',
+            'aria-label="Research workflow"',
             'aria-label="Research calls"',
             'aria-label="Received submissions"',
-            'aria-label="Review"',
             'aria-label="Proposal reviews"',
             'aria-label="Report reviews"',
-            'aria-label="Monitoring"',
+            'aria-label="Projects"',
             'aria-label="Research projects"',
             'aria-label="Completed projects"',
-            'aria-label="User directory"',
+            'aria-label="Planning &amp; reports"',
+            'aria-label="Research targets"',
+            'aria-label="College reports"',
+            'aria-label="RMS quarterly reports"',
+            'aria-label="Analytics"',
             'aria-label="Resources"',
+            'aria-label="User directory"',
+            'aria-label="Research manual"',
             'aria-label="Signatories"',
         ], false)
         ->assertDontSee('Similarity Checks')
@@ -468,6 +472,76 @@ test('the queue separates GAD assessment from co-evaluator review', function () 
         ->assertDontSee('Gender-sensitive')
         ->assertDontSee('/ 20')
         ->assertDontSee('GAD and central evaluation');
+});
+
+test('proposal submission lists preserve GAD labels and package counts without loading paper contents', function () {
+    $expectedLabels = [];
+    foreach (['passed', 'commended', 'conditional_pass', 'unsigned'] as $outcome) {
+        $topic = TopicProposal::create([
+            'user_id' => $this->faculty->id,
+            'research_call_id' => $this->researchCall->id,
+            'title' => 'GAD package '.$outcome,
+            'status' => TopicProposal::STATUS_GAD_REVIEW,
+            'review_stage' => 'gad',
+        ]);
+        $version = createProposalSubmission($topic, $this->faculty, [
+            'description' => str_repeat('Full proposal description. ', 500),
+        ]);
+        $gad = $version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'file_path' => 'packages/gad.pdf',
+            'original_filename' => 'gad.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+        ]);
+        $version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'file_path' => 'packages/assessment.pdf',
+            'original_filename' => 'assessment.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+            'source_version_file_id' => $gad->id,
+            'source_data' => [
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                'gad_signature_confirmed' => $outcome !== 'unsigned',
+                'gad_score' => 15,
+                'gad_outcome' => $outcome === 'unsigned' ? 'passed' : $outcome,
+            ],
+        ]);
+        $version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            'file_path' => 'packages/detailed.pdf',
+            'original_filename' => 'detailed.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+            'source_data' => ['rationale' => str_repeat('Full detailed proposal narrative. ', 10000)],
+        ]);
+        $expectedLabels[$topic->id] = in_array($outcome, ['passed', 'commended'], true) ? 'Co-evaluator review' : 'GAD assessment';
+    }
+    $this->actingAs($this->researchHead);
+
+    foreach (['research_head.proposal-submissions.index', 'research_head.received-submissions.index'] as $route) {
+        $response = $this->get(route($route))->assertOk()->assertSee('2 documents');
+        $topics = $response->viewData('submissions')->map(function (ProposalVersion $submission): TopicProposal {
+            expect($submission->package_files_count)->toBe(2);
+
+            return $submission->topic;
+        });
+        if ($route === 'research_head.proposal-submissions.index') {
+            $topics = $topics->merge($response->viewData('activeProposals')->items());
+        }
+
+        foreach ($topics as $topic) {
+            $version = $topic->latestVersion;
+            expect($version->getAttributes())->not->toHaveKey('description')
+                ->and($version->files->pluck('document_type')->all())->toEqualCanonicalizing([
+                    ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                    ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                ])
+                ->and($topic->researchHeadQueueStatusLabel($version))->toBe($expectedLabels[$topic->id]);
+        }
+    }
 });
 
 test('proposal submissions are restricted to research heads', function () {

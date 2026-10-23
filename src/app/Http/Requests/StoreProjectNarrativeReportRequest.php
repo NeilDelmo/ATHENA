@@ -168,7 +168,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
                 if (! $isPreview && CarbonImmutable::parse($this->input('submission_date'))->startOfDay()->lessThan($period['opens_at'])) {
                     $validator->errors()->add('submission_date', 'The submission date must be on or after the selected quarter opens for submission.');
                 }
-                $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
+                $existing = $topic->narrativeReports()->where('report_type', 'progress')->forReportingPeriod($period)->reorder()->latest('id')->first();
                 if ($existing !== null && $existing->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED) {
                     $validator->errors()->add('reporting_date', 'This quarter already has a prepared or submitted Progress Report. Open that report instead.');
                 }

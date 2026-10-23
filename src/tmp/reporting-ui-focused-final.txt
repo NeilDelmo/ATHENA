@@ -1,0 +1,45 @@
+✔ adding an activity waits for rendering, saves, focuses, and reveals the new entry (5.2014ms)
+✔ revealing a new activity respects reduced motion (2.3606ms)
+✔ the activity limit does not save or move focus (0.7899ms)
+✔ approved activity warnings begin after the target date and clear at full activity completion (0.8612ms)
+✔ the real monitoring deadline alert fits both themes and activity warnings react to completion (15288.8521ms)
+✔ repeatable figures exceed the old ten-slot limit and preserve stable keys when moved or removed (21.3147ms)
+✔ removing a selected figure revokes its image preview and keeps other captions (1.6635ms)
+✔ accomplishment rows do not truncate approved objectives and retain at least one row (1.0128ms)
+✔ changing figure order invalidates the rendered preview before saving the draft (0.7169ms)
+✔ printing uses the current report preview and waits for edits or an in-progress refresh (1.4966ms)
+✔ draft autosave retains figure files captions and placement (1.0113ms)
+✔ reopened figures retain their saved image and preview (0.6777ms)
+✔ saved image acknowledgments follow reordered rows without replacing later selections or removed rows (0.8753ms)
+✔ text-only save acknowledgments cannot restore a removed image or overwrite a reused image (1.674ms)
+✔ quarterly activity IDs keep uploaded proof attached after another row is removed (4.7911ms)
+✔ quarterly form keeps saved manual rows and existing writing controls (0.3694ms)
+✔ unmonitored faculty research can be entered without a linked Athena project (0.1377ms)
+✔ IP assets can be added without creating project evidence fields (0.1822ms)
+✔ large quarterly reports serialize every manual row and evidence caption without exhausting PHP input variables (78.2719ms)
+✔ quarterly serialization keeps uploads native and counts files so PHP cannot silently drop excess uploads (1.6863ms)
+✔ report version checks reject locks and scope changes even when the number stays the same (0.7248ms)
+✔ monitoring recovery survives browser restart and applies only selected text and choices (6244.3883ms)
+✔ monitoring reconnect checks authorization and scope before retrying drafts and blocks locked reports (2884.3847ms)
+✔ progress recovery survives browser restart and applies only selected text and choices (5429.0032ms)
+✔ progress reconnect checks authorization and scope before retrying drafts and blocks locked reports (3471.9949ms)
+✔ terminal recovery survives browser restart and applies only selected text and choices (5630.0625ms)
+✔ terminal reconnect checks authorization and scope before retrying drafts and blocks locked reports (1714.9747ms)
+✔ report restore rechecks a version or scope change made after the comparison opened (1612.1416ms)
+✔ discarded file recovery stays discarded and report recovery is isolated by account and quarter (2730.7518ms)
+✔ monitoring saves the original quarter before loading the selected quarter's saved report (1247.7378ms)
+✔ monitoring keeps the original quarter and edits when draft validation fails (5087.1855ms)
+✔ progress saves the original quarter before loading the selected quarter's saved report (4144.4783ms)
+✔ progress keeps the original quarter and edits when draft validation fails (3650.8702ms)
+✔ changing a monitoring quarter keeps an unsaved supporting attachment unless leaving is confirmed (2512.0252ms)
+✔ section folders open only known categories and keep all report fields in the form (1.044ms)
+✔ all college rows submit as one JSON value without exhausting PHP input variables (57.729ms)
+✔ empty rows and repeated downloads leave the editable form intact (2.1582ms)
+ℹ tests 37
+ℹ suites 0
+ℹ pass 37
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64312.6947

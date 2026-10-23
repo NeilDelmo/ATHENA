@@ -39,12 +39,14 @@ function assistant(fetchReply = async (url) => response(url === '/chat'
         draft: '', messages: [], isLoading: false, sendInProgress: false, retryAfter: 0,
         requestSequence: 0, nextMessageId: 1, proposalDraftId: 99, currentConversationId: null,
         contextOptions: [{ id: 12, label: 'Water study' }], contextEnabled: true, selectedContextId: 12,
+        contextOptionsLoading: false, contextOptionsError: '', contextOptionsLoaded: true,
         paperContext: { paperSlug: 'detailed-proposal' }, activePaperField: { field: 'general_objective' },
         retryContext: null, error: '', historySavePromise: null, documentRequestSequence: 0,
         historyUrl: () => '/history', historyConversationUrl: (id) => `/history/${id}`,
         hasConversation() { return this.messages.some((message) => message.role === 'user'); },
         currentPageScope: () => 'proposal', formContext: () => ({ values: [{ field: 'general_objective', value: 'Unrelated page draft' }] }),
         scrollToLatest() {}, resetComposers() {}, upsertHistory() {}, syncPageScroll() {},
+        async loadContextOptions() { return true; }, resetContextOptions() {},
         openWorkspace() { this.workspaceOpen = true; this.drawerOpen = false; },
         setError(title, message) { this.errorTitle = title; this.error = message; },
         ...overrides,
@@ -323,7 +325,7 @@ test('opening history restores review focus and clearing or changing project rel
     assert.equal(store.reviewContext, null);
     store.restoreReviewContext({ topic_id: 24, workflow_scope: 'review', review_focus: 'consistency' });
     store.openDrawer = () => {};
-    store.openWithContext(12);
+    await store.openWithContext(12);
     assert.equal(store.reviewContext, null);
     assert.equal(store.selectedContextId, 12);
 });

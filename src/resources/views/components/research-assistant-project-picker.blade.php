@@ -14,7 +14,7 @@
         <button
             x-ref="trigger"
             type="button"
-            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) $nextTick(() => { if (open) $refs.search.focus() })"
+            @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) { $store.researchAssistant.loadContextOptions(); $nextTick(() => { if (open) $refs.search.focus() }) }"
             :aria-expanded="open"
             aria-controls="assistant-projects-{{ $id }}"
             :aria-label="$store.researchAssistant.contextEnabled ? `Change project: ${$store.researchAssistant.selectedContext()?.label || ''}` : 'Add project context'"
@@ -62,7 +62,12 @@
                     </span>
                 </button>
             </template>
-            <p x-show="!projects.length" role="status" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">No matching projects.</p>
+            <p x-show="$store.researchAssistant.contextOptionsLoading" role="status" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">Loading projects…</p>
+            <div x-show="$store.researchAssistant.contextOptionsError" role="alert" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">
+                <p x-text="$store.researchAssistant.contextOptionsError"></p>
+                <button type="button" @click="$store.researchAssistant.loadContextOptions()" class="mt-2 underline">Retry loading projects</button>
+            </div>
+            <p x-show="!projects.length && !$store.researchAssistant.contextOptionsLoading && !$store.researchAssistant.contextOptionsError" role="status" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">No matching projects.</p>
         </div>
     </div>
 </div>

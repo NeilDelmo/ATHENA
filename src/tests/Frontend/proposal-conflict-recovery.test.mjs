@@ -4,6 +4,56 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 
+test('conflict recovery waits for lazy editor hydration before capturing saved values', { timeout: 60000 }, async () => {
+    const source = readFileSync(resolve('resources/js/proposal-conflict-recovery.js'), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.route('https://athena.test/**', route => {
+            if (route.request().url().endsWith('/recovery.js')) return route.fulfill({ contentType: 'text/javascript', body: source });
+            return route.fulfill({ contentType: 'text/html', body: `<body data-auth-user-id="1">
+                <main data-paper-editor data-paper-dirty="false" x-ignore x-data="{ rationale: 'Saved rationale', entries: [{ activity: 'Saved activity' }] }">
+                    <form data-paper-form>
+                        <label>Rationale<textarea name="rationale" x-model="rationale"></textarea></label>
+                        <template x-for="(entry, index) in entries"><label>Row activity<input :name="'entries[' + index + '][activity]'" x-model="entry.activity"></label></template>
+                        <input type="hidden" name="document_version" value="1">
+                    </form>
+                    <section data-proposal-version-monitor data-loaded-version="1" data-state-url="/drafts/4/state/detailed-proposal/0">
+                        <div data-proposal-stale-warning hidden></div><div data-proposal-conflict-recovery hidden></div>
+                    </section>
+                </main>
+            </body>` });
+        });
+        await page.goto('https://athena.test/editor');
+        await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+        await page.addScriptTag({ type: 'module', content: `import init from '/recovery.js'; window.initializeRecovery = init; init(); window.recoveryLoaded = true;` });
+        await page.waitForFunction(() => window.recoveryLoaded);
+        await expect(page.getByLabel('Rationale')).toHaveValue('');
+        await expect(page.getByLabel('Row activity')).toHaveCount(0);
+        assert.equal(await page.evaluate(() => document.querySelector('[data-paper-editor]')._proposalRecovery), undefined);
+
+        await page.evaluate(async () => {
+            const root = document.querySelector('[data-paper-editor]');
+            Alpine.mutateDom(() => {
+                Alpine.destroyTree(root);
+                root.removeAttribute('x-ignore');
+                Alpine.initTree(root);
+            });
+            await Alpine.nextTick();
+            window.initializeRecovery();
+            window.dispatchEvent(new Event('pagehide'));
+        });
+        await expect(page.getByLabel('Rationale')).toHaveValue('Saved rationale');
+        await expect(page.getByLabel('Row activity')).toHaveValue('Saved activity');
+        const recoveryCopies = () => page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('athena-proposal-recovery:')).map(([, value]) => JSON.parse(value)));
+        assert.deepEqual(await recoveryCopies(), [], 'Hydration must not create an unsaved recovery copy');
+        await page.getByLabel('Rationale').fill('My revised rationale');
+        await expect.poll(async () => (await recoveryCopies()).flatMap(copy => copy.fields.map(field => ({ name: field.name, value: field.value })))).toEqual([
+            { name: 'rationale', value: 'My revised rationale' },
+        ]);
+    } finally { await browser.close(); }
+});
+
 test('conflict recovery survives reload, compares latest text, reapplies selected fields safely, and isolates accounts', { timeout: 60000 }, async () => {
     const source = readFileSync(resolve('resources/js/proposal-conflict-recovery.js'), 'utf8');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });

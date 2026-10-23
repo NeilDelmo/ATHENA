@@ -3,10 +3,6 @@ import { findRevisionTarget, focusRevisionTarget } from './revision-target-focus
 import { proposalPreviewWorkspace } from './proposal-preview-workspace.js';
 import { initializeCommentResponseLocations, normalizeLocationText, readPdfPassages } from './comment-response-location.js';
 
-export function isEmbeddedRevisionEditor() {
-    return Boolean(document.querySelector('[data-revision-embedded] [data-revision-editor-context]'));
-}
-
 export const REVISION_OPERATION_TIMEOUT_MS = 150_000;
 export const REVISION_SUBMISSION_TIMEOUT_MS = 180_000;
 
@@ -51,7 +47,7 @@ export async function previewRevisionEditor(editor) {
     if (!editor?.generatePreview) throw new Error('The revision editor is still loading. Try again in a moment.');
     if (editor.previewLoading) throw new Error('A preview is already being prepared. Try again when it finishes.');
     await editor.generatePreview();
-    if (!editor.previewHtml) {
+    if (!editor.previewHtml || editor.previewStale || editor.previewError || editor.validationMessage) {
         throw new Error(editor.previewError || editor.validationMessage || 'The revised paper preview could not be generated.');
     }
     return editor.previewHtml;
@@ -118,14 +114,9 @@ export async function prepareRevisionEditors(editors, {
     return files;
 }
 
-export function embeddedRevisionFileSaved(payload) {
-    const root = document.querySelector('[data-paper-editor]');
-    const version = root?.querySelector('[name="document_version"]');
-    if (version && Number.isInteger(payload.document_version)) version.value = String(payload.document_version);
-}
-
 export function revisionControlFingerprint(control) {
     if (!control) return '__missing__';
+    if (control.disabled) return '';
     const type = String(control.type || '').toLowerCase();
     if (type === 'checkbox' || type === 'radio') return control.checked ? 'checked:' + String(control.value ?? '') : 'unchecked';
     if (control.multiple && control.options) {
@@ -172,7 +163,8 @@ function revisionControls(documentRoot, targetId) {
         controls = [...(form?.querySelectorAll?.('input, textarea, select, [contenteditable="true"]') || [])];
     }
     return {
-        controls: [...new Set(controls)].filter((control) => !control.disabled && control.type !== 'submit'),
+        controls: [...new Set(controls)].filter((control) => control.type !== 'submit'
+            && (!control.disabled || /^(mooe|co|project)_total_override$/.test(control.name))),
         scope,
         wholeDocument: !target || scope === form,
     };
@@ -181,6 +173,13 @@ function revisionControls(documentRoot, targetId) {
 function revisionControlIsWorkspaceMetadata(control) {
     return control.type === 'hidden' && [
         'staff',
+        'sdgs',
+        'expected_outputs',
+        'custom_mooe_items',
+        'custom_co_items',
+        'mooe_total_override',
+        'co_total_override',
+        'project_total_override',
         'literature_research_history',
         'literature_citations',
         'methodology[specific_methods]',
@@ -219,6 +218,16 @@ function revisionStructureFingerprint(controls, sourceData, useSource) {
     methodGroups.forEach((group, index) => {
         const prefix = `specific_method_objectives[${index}][methods]`;
         const count = useSource ? (group.methods || []).length
+            : new Set(controls.flatMap((control) => {
+                if (!control.name?.startsWith(prefix + '[')) return [];
+                return [control.name.slice(prefix.length).match(/^\[(\d+)\]/)?.[1]].filter(Boolean);
+            })).size;
+        rows.push(['__structure__:' + prefix, '', String(count)]);
+    });
+    Object.entries(sourceData.expected_outputs || {}).forEach(([group, outputs]) => {
+        if (!Array.isArray(outputs)) return;
+        const prefix = `expected_outputs[${group}]`;
+        const count = useSource ? outputs.length
             : new Set(controls.flatMap((control) => {
                 if (!control.name?.startsWith(prefix + '[')) return [];
                 return [control.name.slice(prefix.length).match(/^\[(\d+)\]/)?.[1]].filter(Boolean);
@@ -275,7 +284,7 @@ export function revisionChangedPassages(documentRoot, targetId, originalSource) 
         return label.textContent.replace(/\s+/g, ' ').trim();
     };
     const changes = controls.flatMap((control) => {
-        if (revisionControlIsWorkspaceMetadata(control) || ['hidden', 'file'].includes(control.type)) return [];
+        if (control.disabled || revisionControlIsWorkspaceMetadata(control) || ['hidden', 'file'].includes(control.type)) return [];
         const source = revisionSourceValue(originalSource, control.name);
         if (!source.found || revisionControlFingerprint(control) === revisionSourceControlFingerprint(control, source.value)) return [];
         const context = labelText(control.labels?.[0])
@@ -320,7 +329,8 @@ export function revisionChangedPassages(documentRoot, targetId, originalSource) 
 function initializeEmbeddedEditor() {
     const context = document.querySelector('[data-revision-editor-context]');
     const root = document.querySelector('[data-paper-editor]');
-    if (!context || !root) return;
+    if (!context || !root || root.hasAttribute('x-ignore') || context.dataset.revisionEditorReady === 'true') return;
+    context.dataset.revisionEditorReady = 'true';
     const targets = JSON.parse(context.dataset.targets || '{}');
     const originalSource = JSON.parse(context.dataset.originalSource || '{}');
     const state = () => window.Alpine?.$data(root);
@@ -436,6 +446,7 @@ function initializeEmbeddedEditor() {
     root.addEventListener('input', notifyChanges);
     root.addEventListener('change', notifyChanges);
     new MutationObserver(notifyChanges).observe(root, { childList: true, subtree: true });
+    window.frameElement?.dispatchEvent(new Event('revision-editor-ready'));
 }
 
 export function revisionEditorForFrame(frame, topicId) {
@@ -1044,7 +1055,7 @@ export function initializeRevisionDialogs(form, topicId) {
         const editorFrame = card.querySelector('[data-revision-editor-frame]');
         const bindEditor = () => {
             const editor = editorFor(card);
-            if (!editor && !editorFrame?.getAttribute?.('src')) return;
+            if (!editor) return;
             setFrameLoading(card, 'editor', false);
             if (editor) {
                 editor.onChange = (states) => refreshModificationStates(card, states);
@@ -1055,6 +1066,8 @@ export function initializeRevisionDialogs(form, topicId) {
             if (dialog.open) selectFeedback(card, true, focusPending && document.activeElement !== editorFrame);
         };
         editorFrame?.addEventListener('load', bindEditor);
+        editorFrame?.addEventListener('revision-editor-ready', bindEditor);
+        editorFrame?.addEventListener('revision-editor-error', () => setFrameLoading(card, 'editor', false));
         if (editorFrame && editorFor(card)) bindEditor();
         card.querySelector('[data-revision-comment]')?.addEventListener('change', () => selectFeedback(card));
         synchronizeNoChange(card);
@@ -1354,16 +1367,23 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
             const report = () => {
                 const editor = revisionEditorForFrame(frame, topicId);
                 if (!editor && !frame.getAttribute?.('src')) return;
+                const preparing = !editor && frame.contentDocument?.querySelector('[data-revision-editor-context]')?.dataset.revisionToolsState === 'loading';
+                const loading = card.querySelector('[data-revision-editor-loading]');
+                if (loading) loading.hidden = !preparing;
                 const message = card.querySelector('[data-revision-editor-status]');
                 message.textContent = editor
                     ? 'Changes save as you type. Submit revision generates and attaches the updated PDF.'
-                    : 'Editor could not load. Reload this page to try again.';
+                    : preparing
+                        ? 'Revision editor is still loading…'
+                        : 'Editor could not load. Reload this page to try again.';
                 if (editor) {
                     form.elements.revision_draft_id.value = String(editor.draftId);
 
                 }
             };
             frame.addEventListener('load', report);
+            frame.addEventListener('revision-editor-ready', report);
+            frame.addEventListener('revision-editor-error', report);
             if (revisionEditorForFrame(frame, topicId)) report();
         });
 

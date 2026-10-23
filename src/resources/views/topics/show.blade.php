@@ -76,6 +76,9 @@
             : (($noticeToProceedErrors || ($canViewNoticeToProceed && $errors->getBag('headUpload')->any()))
                 ? 'notice'
                 : (in_array(session('topic_tab'), ['details', 'review', 'notice', 'history', 'monitoring'], true) ? session('topic_tab') : null));
+        if ($initialTopicTab === 'notice' && $canViewMonitoring) {
+            $initialTopicTab = 'files';
+        }
         if (($initialTopicTab === 'monitoring' && ! $canViewMonitoring) || ($initialTopicTab === 'notice' && ! $canViewNoticeToProceed)) {
             $initialTopicTab = 'details';
         }
@@ -138,7 +141,7 @@
                 ['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
-                        ? (@js($canViewNoticeToProceed) ? 'notice' : 'details')
+                        ? (@js($canViewMonitoring) ? 'files' : (@js($canViewNoticeToProceed) ? 'notice' : 'details'))
                     : (@js($canViewMonitoring) && (['#project-monitoring', '#quarterly-reports', '#progress-reports', '#terminal-reports'].includes(window.location.hash) || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))))
                         ? 'monitoring'
                         : window.location.hash === '#proposal-details'
@@ -158,7 +161,7 @@
                 } else if (['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
-                    this.activeTopicTab = @js($canViewNoticeToProceed) ? 'notice' : 'details';
+                    this.activeTopicTab = @js($canViewMonitoring) ? 'files' : (@js($canViewNoticeToProceed) ? 'notice' : 'details');
                 } else if (@js($canViewMonitoring) && (['#project-monitoring', '#quarterly-reports', '#progress-reports', '#terminal-reports'].includes(window.location.hash) || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))) {
                     this.activeTopicTab = 'monitoring';
                 } else if (window.location.hash === '#version-history') {
@@ -173,6 +176,12 @@
             },
             scrollToTopicHash() {
                 if (window.location.hash === '#notice-to-proceed') {
+                    if (@js($canViewMonitoring)) {
+                        this.activeTopicTab = 'files';
+                        window.history.replaceState(window.history.state, '', '#project-files');
+
+                        return;
+                    }
                     this.$nextTick(() => document.getElementById('notice-to-proceed')?.scrollIntoView({ block: 'start' }));
 
                     return;
@@ -248,9 +257,8 @@
                     $projectRecordSections = collect([
                         ['id' => 'proposal-details', 'tab' => 'details', 'hash' => 'proposal-details', 'label' => 'Proposal'],
                         ['id' => 'proposal-review', 'tab' => 'review', 'hash' => $reviewTabHash, 'label' => 'Review history'],
-                        ['id' => 'notice-to-proceed', 'tab' => 'notice', 'hash' => 'notice-to-proceed', 'label' => 'Released documents'],
                         ['id' => 'version-history', 'tab' => 'history', 'hash' => 'version-history', 'label' => 'Versions'],
-                    ])->filter(fn ($section) => $section['tab'] !== 'notice' || $canViewNoticeToProceed);
+                    ]);
                 @endphp
                 <nav data-project-workspace-navigation role="tablist" aria-label="Project workspace sections" class="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-1.5 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
                     <div class="flex min-w-0 flex-wrap gap-1">
@@ -259,14 +267,28 @@
                     </button>
                     <button id="project-files-tab-button" type="button" role="tab" aria-controls="project-files-tab" :aria-selected="activeTopicTab === 'files'" @click="setTopicTab('files', 'project-files')" :class="activeTopicTab === 'files' ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Folders <span class="text-sm font-normal">{{ $projectDocumentLibrary['categories']->count() }}</span></button>
                     </div>
-                    <details data-project-record-menu x-ref="projectRecordMenu" class="group relative min-w-0" @click.outside="$el.open = false" @keydown.escape.prevent="$el.open = false; $el.querySelector('summary').focus()">
-                        <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs text-slate-500 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:text-white [&::-webkit-details-marker]:hidden">
-                            <span class="truncate" x-text="(@js($projectRecordSections->pluck('label', 'tab')))[activeTopicTab] || 'Project record'">Project record</span>
-                            <svg class="h-3.5 w-3.5 shrink-0 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                    <details data-project-record-menu x-ref="projectRecordMenu" x-data="{ expanded: false }" @toggle="expanded = $el.open" class="group relative ml-auto shrink-0" @click.outside="$el.open = false" @keydown.escape.prevent.stop="$el.open = false; $el.querySelector('summary').focus()">
+                        <summary aria-label="Project details and history" title="Project details and history" aria-controls="project-record-options-{{ $topic->id }}" :aria-expanded="expanded.toString()" :class="['details', 'review', 'history'].includes(activeTopicTab) ? 'border-brand/30 bg-brand-wash text-brand dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-brand/30 hover:bg-brand-wash hover:text-brand dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white'" class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 group-open:ring-2 group-open:ring-brand/20 dark:group-open:ring-rose-400/30 [&::-webkit-details-marker]:hidden">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.75"/><circle cx="12" cy="12" r="1.75"/><circle cx="19" cy="12" r="1.75"/></svg>
                         </summary>
-                        <div class="absolute right-0 top-full z-40 w-56 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                        <div id="project-record-options-{{ $topic->id }}" class="absolute right-0 top-full z-40 mt-2 w-60 max-w-[calc(100vw-2rem)] space-y-1 rounded-xl border border-slate-200 bg-white p-2 shadow-bubble dark:border-slate-700 dark:bg-slate-900">
                             @foreach ($projectRecordSections as $recordSection)
-                                <button id="{{ $recordSection['id'] }}-tab-button" type="button" role="tab" aria-controls="{{ $recordSection['id'] }}-tab" :aria-selected="activeTopicTab === '{{ $recordSection['tab'] }}'" @click="setTopicTab('{{ $recordSection['tab'] }}', '{{ $recordSection['hash'] }}'); $refs.projectRecordMenu.open = false; $refs.projectRecordMenu.querySelector('summary').focus()" :class="activeTopicTab === '{{ $recordSection['tab'] }}' ? 'bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'" class="flex min-h-11 w-full items-center rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:hover:bg-slate-800">{{ $recordSection['label'] }}</button>
+                                <button id="{{ $recordSection['id'] }}-tab-button" type="button" role="tab" aria-controls="{{ $recordSection['id'] }}-tab" :aria-selected="activeTopicTab === '{{ $recordSection['tab'] }}'" @click="setTopicTab('{{ $recordSection['tab'] }}', '{{ $recordSection['hash'] }}'); $refs.projectRecordMenu.open = false; $refs.projectRecordMenu.querySelector('summary').focus()" :class="activeTopicTab === '{{ $recordSection['tab'] }}' ? 'bg-brand-wash text-brand dark:bg-rose-950/40 dark:text-rose-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-base font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">
+                                    <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                                        @switch($recordSection['tab'])
+                                            @case('details')
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5"/>
+                                                @break
+                                            @case('review')
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4H6a2 2 0 0 0-2 2v14h16V6a2 2 0 0 0-2-2h-3M9 3h6v4H9V3Zm-1 10 2 2 5-5m-7 8h8"/>
+                                                @break
+                                            @case('history')
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7m2-4v5l3 2"/>
+                                                @break
+                                        @endswitch
+                                    </svg>
+                                    <span>{{ $recordSection['label'] }}</span>
+                                </button>
                             @endforeach
                         </div>
                     </details>
@@ -496,6 +518,28 @@
                         <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">Record each LREC comment below. Sending feedback opens a faculty revision round and places these comments in the Comment Response paper. Only the Research Head can clear, reject, or sign the proposal.</p>
                         <form method="POST" action="{{ route('research_coordinator.topics.lrec-feedback.store', $topic) }}" x-data="{ decision: 'revision_requested' }" class="mt-5 space-y-5">
                             @csrf
+                            @php
+                                $lrecRevisionPapers = $submittedFiles->whereNotIn('document_type', [
+                                    \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                                    \App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+                                    ...\App\Models\ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES,
+                                ]);
+                                $lrecSelectedPaperIds = old('revision_file_ids', $lrecRevisionPapers->where('document_type', \App\Models\ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->pluck('id')->all());
+                            @endphp
+                            @if ($lrecRevisionPapers->isNotEmpty())
+                                <fieldset class="space-y-3">
+                                    <legend class="text-sm font-semibold text-gray-900 dark:text-white">Papers to revise</legend>
+                                    <p class="text-sm text-gray-600 dark:text-slate-300">Select each paper affected by the committee comments. The Detailed Proposal is requested when no selection is provided.</p>
+                                    @foreach ($lrecRevisionPapers as $file)
+                                        <label class="flex min-h-11 items-center gap-3 text-sm text-gray-700 dark:text-slate-200">
+                                            <input type="checkbox" name="revision_file_ids[]" value="{{ $file->id }}" @checked(in_array($file->id, $lrecSelectedPaperIds)) class="h-4 w-4 rounded border-gray-300 text-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950">
+                                            {{ $file->label() }}
+                                        </label>
+                                    @endforeach
+                                    @error('revision_file_ids')<p class="text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
+                                    @error('revision_file_ids.*')<p class="text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
+                                </fieldset>
+                            @endif
                             @include('topics.partials.lrec-comments', ['initialCommitteeComments' => [['reviewer' => 'LREC committee', 'location' => '', 'comment' => '']]])
                             <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-800">Send LREC comments to faculty</button>
                         </form>
@@ -760,7 +804,7 @@
 
         </section>
 
-        @if ($canViewNoticeToProceed)
+        @if ($canViewNoticeToProceed && ! $canViewMonitoring)
             <section id="notice-to-proceed-tab" x-show="activeTopicTab === 'notice'" x-cloak role="tabpanel" aria-labelledby="notice-to-proceed-tab-button" class="space-y-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>

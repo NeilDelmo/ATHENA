@@ -259,10 +259,22 @@ class ProjectNarrativeReportController extends Controller
         ProjectNarrativeReport $report,
         ProgressReportEvidenceService $evidenceService,
     ): RedirectResponse {
-        app(ReportFigureDraftService::class)->restoreDraft($report, $request->user());
+        $report = DB::transaction(function () use ($request, $topic, $report): ProjectNarrativeReport {
+            $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+            $lockedReport = ProjectNarrativeReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared()) {
+                throw ValidationException::withMessages([
+                    'preparation' => 'This report is no longer available to discard. Reload the project to see its current status.',
+                ])->errorBag('narrativeProgress');
+            }
+            $lockedReport->setRelation('topic', $lockedTopic);
+            app(ReportFigureDraftService::class)->restoreDraft($lockedReport, $request->user());
+            $lockedReport->delete();
+
+            return $lockedReport;
+        });
         $this->deletePreparedReportFiles($report);
         $evidencePaths = $evidenceService->paths($report->accomplishments ?? []);
-        $report->delete();
         $evidenceService->deleteUnreferenced($topic, $evidencePaths);
 
         return back()->with('success', $report->report_type === 'terminal'
@@ -342,17 +354,15 @@ class ProjectNarrativeReportController extends Controller
         $report->loadMissing(['topic', 'submitter', 'reviewer', 'secretaryReviewer']);
         $topic = $report->topic;
         $isLatestTerminal = $report->report_type === 'terminal'
-            && $topic->narrativeReports()->where('report_type', 'terminal')->reorder()->latest('id')->value('id') === $report->id;
+            && ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->where('report_type', 'terminal')->latest('id')->value('id') === $report->id;
         $canManage = $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
-            && ! $topic->isCompletedProject()
-            && $topic->notice_to_proceed_issued_at !== null
+            && $topic->isMonitoringAvailable()
             && ($report->report_type === 'progress' || $isLatestTerminal);
 
         return view('faculty.progress-reports.show', [
             'report' => $report, 'topic' => $topic,
             'canReview' => $canManage && $report->isAvailableToResearchHead() && ($report->report_type === 'terminal'
-                ? $report->review_status !== ProjectNarrativeReport::STATUS_REVIEWED
-                : $report->isLatestSubmittedVersion() && $report->review_status === ProjectNarrativeReport::STATUS_PENDING),
+                || $report->isLatestSubmittedVersion() && $report->review_status === ProjectNarrativeReport::STATUS_PENDING),
             'canSecretaryReview' => $topic->canReviewImplementationReports($request->user()) && $topic->isMonitoringAvailable() && $report->isAwaitingSecretaryReview() && $report->isLatestSubmittedVersion(),
             'canRecordSignedCopy' => $canManage && $isLatestTerminal && $report->review_status === ProjectNarrativeReport::STATUS_REVIEWED,
         ]);
@@ -382,23 +392,27 @@ class ProjectNarrativeReportController extends Controller
             return back()->with('success', $validated['review_status'] === 'reviewed' ? 'Progress Report accepted.' : 'Concerns returned to the Research Office Secretary.');
         }
 
-        $reviewAttributes = [
-            ...$validated,
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ];
         $signedCopyPath = null;
+        $report = DB::transaction(function () use ($request, $report, $validated, &$signedCopyPath): ProjectNarrativeReport {
+            $topic = TopicProposal::query()->whereKey($report->topic_id)->lockForUpdate()->firstOrFail();
+            $report = ProjectNarrativeReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            abort_unless($topic->isMonitoringAvailable() && $report->isSubmitted(), 404);
+            $latestId = ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->where('report_type', 'terminal')->latest('id')->value('id');
+            if ($report->id !== $latestId) {
+                throw ValidationException::withMessages(['review' => 'A newer Terminal Report is already in progress. Review the latest submission.']);
+            }
+            $reviewAttributes = [...$validated, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()];
+            if ($validated['review_status'] === ProjectNarrativeReport::STATUS_REVISION_REQUESTED && $report->hasSignedCopy()) {
+                $terminalData = $report->terminal_data ?? [];
+                $signedCopyPath = $report->signedCopy()['path'];
+                unset($terminalData['signed_copy']);
+                $reviewAttributes['terminal_data'] = $terminalData;
+            }
+            $report->update($reviewAttributes);
+            $report->setRelation('topic', $topic);
 
-        if ($validated['review_status'] === ProjectNarrativeReport::STATUS_REVISION_REQUESTED
-            && $report->report_type === 'terminal'
-            && $report->hasSignedCopy()) {
-            $terminalData = $report->terminal_data ?? [];
-            $signedCopyPath = $report->signedCopy()['path'];
-            unset($terminalData['signed_copy']);
-            $reviewAttributes['terminal_data'] = $terminalData;
-        }
-
-        $report->update($reviewAttributes);
+            return $report;
+        });
 
         if (filled($signedCopyPath)) {
             Storage::disk('local')->delete($signedCopyPath);
@@ -413,9 +427,9 @@ class ProjectNarrativeReportController extends Controller
         $report->load('topic.user');
         $report->topic->user->notify(new ProposalActivityNotification(
             $validated['review_status'] === ProjectNarrativeReport::STATUS_REVIEWED
-                ? 'Progress report reviewed'
-                : 'Progress report corrections requested',
-            'The Research Head reviewed your progress report for “'.$report->topic->title.'”.',
+                ? 'Terminal Report reviewed'
+                : 'Terminal Report corrections requested',
+            'The Research Head reviewed your terminal report for “'.$report->topic->title.'”.',
             route('topics.show', $report->topic).'#project-monitoring',
             $validated['review_status'] === ProjectNarrativeReport::STATUS_REVIEWED ? 'success' : 'warning',
             $report->topic_id,
@@ -423,7 +437,7 @@ class ProjectNarrativeReportController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ));
 
-        return back()->with('success', 'Progress report review saved.');
+        return back()->with('success', 'Terminal Report review saved.');
     }
 
     public function secretaryReview(ReviewImplementationReportRequest $request, ProjectNarrativeReport $report, ProjectReportReviewService $reviews, SidebarAttentionService $sidebarAttention): RedirectResponse
@@ -563,14 +577,18 @@ class ProjectNarrativeReportController extends Controller
 
         try {
             DB::transaction(function () use ($request, $report, $file, $path, &$previousPath): void {
+                $topic = TopicProposal::query()->whereKey($report->topic_id)->lockForUpdate()->firstOrFail();
                 $lockedReport = ProjectNarrativeReport::query()
                     ->whereKey($report->id)
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                abort_unless($lockedReport->report_type === 'terminal'
-                    && $lockedReport->isSubmitted()
-                    && $lockedReport->review_status === ProjectNarrativeReport::STATUS_REVIEWED, 422);
+                $latestId = ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')->where('report_type', 'terminal')->latest('id')->value('id');
+                if (! $topic->isMonitoringAvailable() || $lockedReport->id !== $latestId
+                    || $lockedReport->report_type !== 'terminal' || ! $lockedReport->isSubmitted()
+                    || $lockedReport->review_status !== ProjectNarrativeReport::STATUS_REVIEWED) {
+                    throw ValidationException::withMessages(['signed_report' => 'This Terminal Report is no longer available for signing. Reload the project.']);
+                }
 
                 $previousPath = $lockedReport->signedCopy()['path'] ?? null;
                 $lockedReport->update([

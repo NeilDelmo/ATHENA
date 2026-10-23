@@ -454,17 +454,30 @@ class ProjectMonitoringController extends Controller
         TopicProposal $topic,
         ProjectProgressReport $report,
     ): RedirectResponse {
-        DB::transaction(function () use ($topic, $report): void {
-            TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+        $report = DB::transaction(function () use ($request, $topic, $report): ProjectProgressReport {
+            $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $lockedReport = ProjectProgressReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
-            if (! $lockedReport->isPrepared()) {
+            if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared()) {
                 throw ValidationException::withMessages(['preparation' => 'A submitted report cannot be discarded.']);
             }
+            $source = $lockedReport->supersedes;
+            if (ProjectMonitoringDraft::query()->whereBelongsTo($lockedTopic, 'topic')->whereBelongsTo($request->user(), 'user')->forSource($source)->exists()) {
+                throw ValidationException::withMessages(['preparation' => 'Your saved draft and prepared Monitoring Tool have both been kept. Resolve the saved draft before discarding this PDF.']);
+            }
+            $data = [
+                ...$lockedReport->only(['tracking_number', 'work_plan', 'budget_utilization']),
+                'reporting_date' => $lockedReport->reporting_date->toDateString(),
+                'prepared_by_date_signed' => $lockedReport->prepared_by_date_signed?->toDateString(),
+            ];
             $lockedReport->delete();
+            app(SaveProjectMonitoringDraft::class)->handle($lockedTopic, $request->user(), $source, 0, $data);
+            $lockedReport->setRelation('topic', $lockedTopic);
+
+            return $lockedReport;
         });
         $this->deletePreparedReportFiles($report);
 
-        return back()->with('success', 'Prepared Monitoring Tool discarded. You can now prepare a new PDF.');
+        return back()->with('success', 'Prepared Monitoring Tool discarded. Your text and evidence were kept as a draft.');
     }
 
     public function store(
@@ -588,6 +601,12 @@ class ProjectMonitoringController extends Controller
                 && ($topic->progressReports()->latestSubmittedVersion()->where('review_stage', 'secretary')->exists()
                     || $topic->narrativeReports()->where('report_type', 'progress')->latestSubmittedVersion()->where('review_stage', 'secretary')->exists())) {
                 throw ValidationException::withMessages(['project_status' => 'Wait for the Research Office Secretary to resolve and forward all current Monitoring Tools and Progress Reports before completing the project.']);
+            }
+
+            if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+                && ($topic->progressReports()->latestSubmittedVersion()->where('review_status', '!=', 'reviewed')->exists()
+                    || $topic->narrativeReports()->where('report_type', 'progress')->latestSubmittedVersion()->where('review_status', '!=', ProjectNarrativeReport::STATUS_REVIEWED)->exists())) {
+                throw ValidationException::withMessages(['project_status' => 'Wait for the Research Head to accept all current Monitoring Tools and Progress Reports before completing the project.']);
             }
 
             $terminalReport = $topic->narrativeReports()
