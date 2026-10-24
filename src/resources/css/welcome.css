@@ -199,34 +199,6 @@ html {
     height: 1rem;
 }
 
-.landing-status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.52rem 0.75rem;
-    border: 1px solid rgb(122 0 25 / 0.1);
-    border-radius: 9999px;
-    background: rgb(255 255 255 / 0.9);
-    color: #7a0019;
-    font-size: 0.67rem;
-    font-weight: 800;
-    letter-spacing: 0.03em;
-}
-
-.landing-status-pill > span {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 9999px;
-    background: #c90c38;
-    box-shadow: 0 0 0 4px rgb(201 12 56 / 0.13);
-}
-
-.landing-status-pill--people {
-    position: absolute;
-    right: 1.65rem;
-    bottom: 1.65rem;
-}
-
 .landing-stat-card {
     border-left: 2px solid rgb(122 0 25 / 0.16);
     padding-left: 1rem;

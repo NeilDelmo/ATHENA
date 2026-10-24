@@ -13,7 +13,7 @@ after(() => {
     rmSync(compiledViews, { recursive: true, force: true });
 });
 
-function guestPage(authenticated = false) {
+function guestPage(authenticated = false, view = 'auth.login') {
     const hotFile = resolve(compiledViews, 'hot');
     writeFileSync(hotFile, origin);
     const result = spawnSync('php', ['-r', String.raw`
@@ -27,9 +27,9 @@ function guestPage(authenticated = false) {
             Illuminate\Support\Facades\Auth::setUser(App\Models\User::factory()->make(['id' => 7]));
             echo Illuminate\Support\Facades\Blade::render('<x-guest-layout>Choose your workspace</x-guest-layout>');
         } else {
-            echo view('auth.login')->render();
+            echo view($argv[3])->render();
         }
-    `, authenticated ? 'authenticated' : 'guest', hotFile], {
+    `, authenticated ? 'authenticated' : 'guest', hotFile, view], {
         encoding: 'utf8', cwd: resolve('.'),
         env: { ...process.env, VIEW_COMPILED_PATH: compiledViews, SESSION_DRIVER: 'array', CACHE_STORE: 'array' },
     });
@@ -47,6 +47,43 @@ test('login loads a dedicated guest entry while authenticated workspace pages re
     assert.ok(!authenticated.includes(`${origin}/resources/js/guest.js`));
     assert.ok(authenticated.includes('window.livewireScriptConfig'));
 });
+
+for (const width of [390, 1440]) {
+test(`the public landing page initializes and section navigation closes the menu at ${width}px`, { timeout: 15000 }, async () => {
+    const html = guestPage(false, 'welcome');
+    const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    try {
+        page.setDefaultTimeout(4000);
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            const path = new URL(route.request().url()).pathname;
+            if (path === '/resources/js/app.js') return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve('public/build', manifest['resources/js/app.js'].file)) });
+            if (path === '/resources/js/welcome.js') return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve('resources/js/welcome.js')) });
+            if (path.startsWith('/resources/css/')) return route.fulfill({ contentType: 'text/css', body: readFileSync(resolve('public/build', manifest[path.slice(1)].file)) });
+            if (path === '/@vite/client') return route.fulfill({ contentType: 'text/javascript', body: '' });
+            if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+            return route.fulfill({ body: '', contentType: 'text/plain' });
+        });
+        await page.goto(origin);
+        await expect(page.getByRole('heading', { name: 'Research Project Management', exact: true })).toBeVisible();
+        if (width === 390) {
+            await page.locator('summary[aria-label="Open navigation"]').click();
+            await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('link', { name: 'Roles', exact: true }).click();
+            await expect(page).toHaveURL(/#people$/);
+            await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toBeHidden({ timeout: 1500 });
+        }
+        await page.locator('.reveal').first().scrollIntoViewIfNeeded();
+        await expect(page.locator('.reveal.is-visible').first()).toBeVisible();
+        assert.deepEqual(errors, []);
+    } finally {
+        await page.close();
+        await browser.close();
+    }
+});
+}
 
 test('the minimal login entry preserves theme controls, system changes and the institutional sign-in link', async () => {
     const html = guestPage();

@@ -178,7 +178,7 @@
                             @endforeach
                             @if ($item['update_count'] > 1)
                                 <details class="border-b border-slate-100 px-5 pb-4 dark:border-slate-800" data-notification-history>
-                                    <summary class="cursor-pointer py-3 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-slate-200">View all {{ $item['update_count'] }} updates</summary>
+                                    <summary class="disclosure-summary py-3 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-slate-200">View all {{ $item['update_count'] }} updates</summary>
                                     <ol class="space-y-3 border-l border-slate-200 pl-4 dark:border-slate-700">
                                         @foreach ($item['history'] as $update)
                                             <li>

@@ -34,9 +34,11 @@
             @foreach ($checks as $check)
                 <li class="py-4 first:pt-0 last:pb-0">
                     <details data-check-number="{{ $loop->index }}">
-                        <summary class="cursor-pointer text-sm font-bold leading-6 text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-white">
-                            {{ $check['question'] }}
-                            <span class="block pl-4 text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $labels[$check['status']] ?? 'Check unavailable' }}</span>
+                        <summary class="disclosure-summary text-sm font-bold leading-6 text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-white">
+                            <span class="min-w-0">
+                                {{ $check['question'] }}
+                                <span class="block pl-4 text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $labels[$check['status']] ?? 'Check unavailable' }}</span>
+                            </span>
                         </summary>
                         @if (! empty($check['reply']))
                             <p class="mt-3 whitespace-pre-line break-words text-sm leading-7 text-slate-700 dark:text-slate-200">{{ $check['reply'] }}</p>

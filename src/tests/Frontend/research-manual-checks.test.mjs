@@ -1,8 +1,40 @@
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, expect } from '@playwright/test';
+
+test('manual check answers and edition guidance have visible expanding controls', { timeout: 60000 }, async () => {
+    execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ResearchManualAutomaticChecksTest.php', '--filter=review automatically queues preexisting'], {
+        encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
+        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MANUAL_CHECKS: '1' },
+    });
+    const html = readFileSync(resolve('storage/framework/testing/manual-checks-completed.html'), 'utf8');
+    const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
+    const styles = readFileSync(resolve('public/build', manifest['resources/css/app.css'].file), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+        const fragment = await page.evaluate(html => {
+            const document = new DOMParser().parseFromString(html, 'text/html');
+            return ['[data-manual-checks]', '[data-manual-guidance]'].map(selector => document.querySelector(selector).outerHTML).join('');
+        }, html);
+        await page.setContent(`<style>${styles}</style>${fragment}`);
+        for (const selector of ['[data-check-number="0"]', '[data-manual-guidance]']) {
+            const summary = page.locator(`${selector} > summary`);
+            assert.equal(await summary.evaluate(element => getComputedStyle(element, '::after').content), '"+"');
+            await summary.focus();
+            await summary.press('Enter');
+            await expect(page.locator(selector)).toHaveAttribute('open', '');
+            assert.equal(await summary.evaluate(element => getComputedStyle(element, '::after').content), '"−"');
+            await summary.press('Enter');
+            await expect(page.locator(selector)).not.toHaveAttribute('open');
+        }
+    } finally {
+        await browser.close();
+    }
+});
 
 test('automatic manual check results update without reloading the PDF and stop polling when complete', { timeout: 30000 }, async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });

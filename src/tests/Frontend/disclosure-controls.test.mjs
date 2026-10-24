@@ -23,14 +23,16 @@ test('shared styles suppress native disclosure triangles across all application 
 test('every disclosure in the views has an explicit visual cue after removing native triangles', () => {
     const root = new URL('../../resources/views/', import.meta.url);
     let summaries = 0;
+    const missingCues = [];
     for (const path of readdirSync(root, { recursive: true }).filter(path => path.endsWith('.blade.php'))) {
         const source = readFileSync(new URL(path.replaceAll('\\', '/'), root), 'utf8')
             .replace(/<(\/?){{[^}]*'summary'[^}]*}}/g, '<$1summary');
         for (const [summary] of source.matchAll(/<summary\b[\s\S]*?<\/summary>/g)) {
             summaries++;
-            assert.ok(/disclosure-summary|<svg\b|&minus;/.test(summary) || (summary.includes('Show history') && summary.includes('Hide history')), `${path} needs a visible disclosure cue`);
+            if (!/disclosure-summary|<svg\b|&minus;|>›<\/span>/.test(summary) && !(summary.includes('Show history') && summary.includes('Hide history'))) missingCues.push(path);
         }
         assert.equal(/[▶▼▸▾►▽△▲◀◂]/.test(source), false, `${path} must not use a triangle glyph as a disclosure cue`);
     }
     assert.ok(summaries >= 20, 'The audit must cover application views, not just the chatbot');
+    assert.deepEqual(missingCues, [], 'Every disclosure needs a visible cue');
 });

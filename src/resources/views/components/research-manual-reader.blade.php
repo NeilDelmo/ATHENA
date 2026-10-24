@@ -38,7 +38,7 @@
 
     @if ($reader['guidance_url'])
         <details class="border-t border-slate-200 dark:border-slate-800" data-manual-guidance>
-            <summary class="cursor-pointer px-5 py-5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-white sm:px-6">Check guidance from this edition</summary>
+            <summary class="disclosure-summary px-5 py-5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-white sm:px-6">Check guidance from this edition</summary>
             <div class="space-y-4 px-5 pb-6 sm:px-6">
                 <p class="text-sm leading-6 text-slate-500 dark:text-slate-400">Test chatbot answers using only this edition’s indexed passages. Review each AI answer and its citations; completing a check does not approve the answer or activate the manual. The latest ten checks remain on this page until you leave.</p>
                 <div class="flex flex-wrap gap-2" aria-label="Sample guidance questions">

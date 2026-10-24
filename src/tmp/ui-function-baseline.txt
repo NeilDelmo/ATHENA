@@ -1,0 +1,42 @@
+✔ monitoring-tool accepted text synchronizes the real editor and existing draft save (7927.4569ms)
+✔ progress-report accepted text synchronizes the real editor and existing draft save (2630.6452ms)
+✔ terminal-report accepted text synchronizes the real editor and existing draft save (8834.749ms)
+✔ comment responses stay staged in their form and never submit the revision automatically (2540.8043ms)
+✔ quarterly reports with restored validation input must be saved before checking or revising (5.7535ms)
+✔ college-quarterly stages accepted text in the real manual form without submitting it (2377.6472ms)
+✔ rms-quarterly stages accepted text in the real manual form without submitting it (6203.5566ms)
+✔ terminal report revisions preserve the source identity and locator of existing citations (8669.8623ms)
+✔ equivalent sanitized marker markup remains applicable without weakening source protection (3831.2025ms)
+✔ stale versions and changed baselines preserve the real report text (3479.4014ms)
+✔ a failed draft save keeps accepted text visible and reports that it is unsaved (1192.1703ms)
+✔ quarterly activity IDs keep uploaded proof attached after another row is removed (4.4882ms)
+✔ quarterly form keeps saved manual rows and existing writing controls (0.4411ms)
+✔ unmonitored faculty research can be entered without a linked Athena project (0.1734ms)
+✔ IP assets can be added without creating project evidence fields (0.2127ms)
+✔ large quarterly reports serialize every manual row and evidence caption without exhausting PHP input variables (96.9079ms)
+✔ quarterly serialization keeps uploads native and counts files so PHP cannot silently drop excess uploads (2.0213ms)
+✔ report version checks reject locks and scope changes even when the number stays the same (1.5533ms)
+✔ monitoring recovery survives browser restart and applies only selected text and choices (5014.4612ms)
+✔ monitoring reconnect checks authorization and scope before retrying drafts and blocks locked reports (1844.5786ms)
+✔ progress recovery survives browser restart and applies only selected text and choices (3835.3109ms)
+✔ progress reconnect checks authorization and scope before retrying drafts and blocks locked reports (3431.9289ms)
+✔ terminal recovery survives browser restart and applies only selected text and choices (5327.6029ms)
+✔ terminal reconnect checks authorization and scope before retrying drafts and blocks locked reports (3101.4656ms)
+✔ report restore rechecks a version or scope change made after the comparison opened (2969.61ms)
+✔ discarded file recovery stays discarded and report recovery is isolated by account and quarter (5221.7504ms)
+✔ monitoring saves the original quarter before loading the selected quarter's saved report (1415.509ms)
+✔ monitoring keeps the original quarter and edits when draft validation fails (2450.6411ms)
+✔ progress saves the original quarter before loading the selected quarter's saved report (3440.5844ms)
+✔ progress keeps the original quarter and edits when draft validation fails (3372.9906ms)
+✔ changing a monitoring quarter keeps an unsaved supporting attachment unless leaving is confirmed (2922.7912ms)
+✔ section folders open only known categories and keep all report fields in the form (0.6681ms)
+✔ all college rows submit as one JSON value without exhausting PHP input variables (37.4022ms)
+✔ empty rows and repeated downloads leave the editable form intact (1.1367ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 94872.8524

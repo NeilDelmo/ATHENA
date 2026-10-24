@@ -1,0 +1,35 @@
+✔ shared styles suppress native disclosure triangles across all application layouts (26.9729ms)
+✔ every disclosure in the views has an explicit visual cue after removing native triangles (137.4078ms)
+✔ login loads a dedicated guest entry while authenticated workspace pages retain their application runtime (2131.8173ms)
+✔ the public landing page initializes and section navigation closes the menu at 390px (2732.3937ms)
+✔ the public landing page initializes and section navigation closes the menu at 1440px (1003.0953ms)
+✔ the minimal login entry preserves theme controls, system changes and the institutional sign-in link (1068.5817ms)
+✔ manual check answers and edition guidance have visible expanding controls (3291.0132ms)
+✔ automatic manual check results update without reloading the PDF and stop polling when complete (542.4908ms)
+✔ manual result refresh preserves focused questions and source links without replacing unchanged content (952.9476ms)
+✔ manual checks pause while hidden and resume once without retaining disposed or completed polling (1059.6231ms)
+✔ a plain manual page waits for a preview request and then opens the shared modal (2.6978ms)
+✔ a cited hash opens its page and later hash changes clamp valid page values (0.8951ms)
+✔ manual page requests only open the matching edition (0.4643ms)
+✔ the current edition comparison reader ignores candidate hashes but accepts its own page requests (0.3282ms)
+✔ the standalone reader leaves the reading position to the PDF viewer when no citation hash is present (0.3096ms)
+✔ an ordinary reopen does not repeat a previous citation page request (0.3095ms)
+✔ component cleanup removes manual listeners and repeated cleanup is safe (1.0715ms)
+✔ edition guidance sends only the trimmed question with CSRF and preserves plain text and page sources (0.7361ms)
+✔ guidance keeps the question available after a rejected request (0.3782ms)
+✔ guidance prevents empty and duplicate requests (0.2635ms)
+✔ guidance is disabled without an edition endpoint (0.1566ms)
+✔ component cleanup aborts pending guidance and ignores its late response (0.2366ms)
+✔ aborted guidance stays quiet and a network error allows another question (0.6178ms)
+✔ suggested chatbot checks run only when requested, sequentially, and stop at five questions (0.6667ms)
+✔ guidance retains evidence and unavailable results separately and replaces repeated questions (0.282ms)
+✔ stopping suggested checks aborts the pending request and does not send later questions (0.4137ms)
+✔ answers or citations from another edition never appear as a candidate answer (0.4891ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14140.3647
