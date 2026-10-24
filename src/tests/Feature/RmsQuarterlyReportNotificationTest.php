@@ -32,7 +32,7 @@ beforeEach(function () {
     $this->otherHead->assignRole('research_head');
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CHS']]);
     $this->coordinator->assignRole('research_coordinator');
-    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'submit', 'form_complete' => '1'];
+    $this->reportInput = fn (): array => ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'submit', 'form_complete' => '1', 'draft_token' => (CollegeQuarterlyReport::where('college', $this->coordinator->college)->where('reporting_year', 2026)->where('reporting_quarter', 3)->first() ?? new CollegeQuarterlyReport)->draftToken()];
     Event::fake([BroadcastNotificationCreated::class]);
 });
 
@@ -86,15 +86,15 @@ test('saving a coordinator draft stays quiet and its final submission sends the 
         submittedRmsNotificationCollege($college);
     }
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'intent' => 'save'])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'intent' => 'save'])
         ->assertSessionHasNoErrors();
     expect($this->head->notifications()->count())->toBe(0);
 
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     expect($this->head->notifications()->sole()->data['title'])->toBe('All college reports received')
         ->and($this->otherHead->notifications()->count())->toBe(1)
         ->and(RmsQuarterlyReport::count())->toBe(0);
-    $this->postJson(route('research_coordinator.reports.store'), $this->reportInput)
+    $this->postJson(route('research_coordinator.reports.store'), ($this->reportInput)())
         ->assertUnprocessable()->assertJsonValidationErrors('intent');
     expect($this->head->notifications()->count())->toBe(1);
 });
@@ -126,11 +126,11 @@ test('returning an exported college report warns the head and corrected resubmis
     expect($this->head->notifications()->count())->toBe(1);
 
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'intent' => 'save'])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'intent' => 'save'])
         ->assertSessionHasNoErrors();
     expect($this->head->notifications()->count())->toBe(1);
     $this->travel(1)->minute();
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     $updatedNotice = $this->head->notifications()->latest()->firstOrFail();
     expect($updatedNotice->data['title'])->toBe('RMS report updated since download')
         ->and($updatedNotice->data['level'])->toBe('warning')
@@ -187,7 +187,7 @@ test('a notification failure cannot delete evidence already saved with a submitt
     mock(NotifyRmsQuarterlyReportStatus::class)->shouldReceive('handle')->once()
         ->with(2026, 3)->andThrow(new RuntimeException('Notification delivery failed.'));
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('submitted-evidence.png')],
     ])->assertServerError();
 

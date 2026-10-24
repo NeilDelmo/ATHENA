@@ -72,6 +72,33 @@ beforeEach(function () {
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 });
 
+test('approved narrative objectives reject non-text accomplishments without replacing the saved draft', function (string $action) {
+    $version = $this->topic->versions()->create([
+        'submitted_by' => $this->researcher->id, 'version_number' => 1,
+        'submission_type' => 'initial', 'title' => $this->topic->title,
+        'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf', 'mime_type' => 'application/pdf',
+        'file_size' => 100, 'checksum' => hash('sha256', 'proposal'),
+    ]);
+    $version->files()->create([
+        'document_type' => 'work_plan', 'position' => 0, 'file_path' => 'work-plan.pdf',
+        'original_filename' => 'work-plan.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100,
+        'checksum' => hash('sha256', 'plan'), 'source_data' => ['entries' => [[
+            'objective' => 'Collect research responses', 'expected_output' => '20 interviews', 'activity' => 'Interviews',
+        ]]],
+    ]);
+    $draft = ProjectNarrativeReportDraft::create([
+        'topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'report_type' => 'progress',
+        'lock_version' => 1, 'source_data' => ['reporting_date' => '2026-03-31', 'introduction' => 'Saved work'],
+    ]);
+
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.'.$action, $this->topic), ($this->payload)([
+        'draft_version' => 1, 'accomplishments' => [['actual' => ['invalid text']]],
+    ]))->assertUnprocessable()->assertJsonValidationErrors('accomplishments.0.actual');
+
+    expect($draft->fresh()->lock_version)->toBe(1)->and($draft->fresh()->source_data['introduction'])->toBe('Saved work')
+        ->and(ProjectNarrativeReport::count())->toBe(0);
+})->with(['draft', 'preview']);
+
 test('narrative accomplishment evidence uploads, survives reloading, and can be removed', function () {
     $response = $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), ($this->payload)([
         'accomplishment_evidence' => [$this->evidenceKey => [UploadedFile::fake()->image('interviews.png')]],

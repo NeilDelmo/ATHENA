@@ -7,8 +7,8 @@ use App\Models\User;
 use App\Services\RmsQuarterlyReportData;
 use App\Services\RmsQuarterlyReportDocument;
 use App\Services\RmsQuarterlyReportStatus;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -24,6 +24,7 @@ beforeEach(function () {
     $this->draftInput = fn (): array => [
         'reporting_year' => 2026, 'reporting_quarter' => 3,
         'source_token' => app(RmsQuarterlyReportData::class)->build(2026, 3)['source_token'],
+        'draft_token' => (RmsQuarterlyReport::where('reporting_year', 2026)->where('reporting_quarter', 3)->first() ?? new RmsQuarterlyReport)->draftToken(),
         'campus' => 'ARASOF-Nasugbu', 'signatories' => [], 'row_details' => [], 'form_complete' => '1',
     ];
     $this->submitMissingColleges = function (): void {
@@ -37,6 +38,20 @@ beforeEach(function () {
             CollegeQuarterlyReportSubmission::factory()->for($source, 'report')->create(['snapshot' => ['college' => $college]]);
         }
     };
+});
+
+test('an older RMS form without editing state must reload before retrying its edits', function () {
+    $url = route('research_head.rms-quarterly-reports.index', $this->period);
+    $this->get($url)->assertOk();
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(), 'campus' => 'Newest saved campus'])->assertSessionHasNoErrors();
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $input = [...($this->draftInput)(), 'campus' => 'Older unsaved campus'];
+    unset($input['draft_token']);
+    $this->from($url)->post(route('research_head.rms-quarterly-reports.store'), $input)->assertSessionHasErrors('draft_token');
+    $this->get($url)->assertOk()->assertSee('Copy any work you need, then reload the report before saving.')
+        ->assertSee('name="draft_token" value=""', false)->assertSee('Older unsaved campus');
+    $this->get($url)->assertOk()->assertSee('Newest saved campus')
+        ->assertSee('name="draft_token" value="'.RmsQuarterlyReport::sole()->draftToken().'"', false);
 });
 
 test('research head can open the quarterly monitoring workspace with missing colleges clearly shown', function () {
@@ -58,6 +73,41 @@ test('research head can open the quarterly monitoring workspace with missing col
         ->and(RmsQuarterlyReport::count())->toBe(0);
     $this->getJson(route('research_head.rms-quarterly-reports.index', ['year' => 1999, 'quarter' => 5]))
         ->assertUnprocessable()->assertJsonValidationErrors(['year', 'quarter']);
+});
+
+test('a stale RMS editor cannot replace a newer saved draft', function (string $intent) {
+    $html = $this->get(route('research_head.rms-quarterly-reports.index', $this->period))->assertOk()->getContent();
+    preg_match('/name="draft_token" value="([^"]*)"/', $html, $matches);
+    $input = [...($this->draftInput)(), 'draft_token' => $matches[1] ?? ''];
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...$input, 'campus' => 'Newer campus details'])->assertRedirect();
+
+    $this->postJson(route('research_head.rms-quarterly-reports.store'), [...$input, 'intent' => $intent, 'campus' => 'Outdated campus details'])
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_token');
+
+    expect(RmsQuarterlyReport::sole()->campus)->toBe('Newer campus details');
+})->with(['save', 'download']);
+
+test('the RMS conflict page preserves the stale token until the latest draft is reloaded', function () {
+    $url = route('research_head.rms-quarterly-reports.index', $this->period);
+    $input = ($this->draftInput)();
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...$input, 'campus' => 'Newest saved campus'])
+        ->assertSessionHasNoErrors();
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($url)->post(route('research_head.rms-quarterly-reports.store'), [...$input, 'campus' => 'Older unsaved campus'])
+        ->assertSessionHasErrors('draft_token');
+
+    $this->get($url)->assertOk()->assertSee('Your changes were not saved.')
+        ->assertSee('name="draft_token" value="'.$input['draft_token'].'"', false)->assertSee('Older unsaved campus');
+    $this->get($url)->assertOk()->assertSee('Newest saved campus')
+        ->assertSee('name="draft_token" value="'.RmsQuarterlyReport::sole()->draftToken().'"', false);
+});
+
+test('RMS report saves require a draft token', function () {
+    $input = ($this->draftInput)();
+    unset($input['draft_token']);
+    $this->postJson(route('research_head.rms-quarterly-reports.store'), $input)
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_token');
+    expect(RmsQuarterlyReport::count())->toBe(0);
 });
 
 test('RMS editor exposes labeled save actions and category buttons with presentations open by default', function () {
@@ -194,7 +244,8 @@ test('head can complete source fields while college provenance stays read only',
     $this->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(),
         'row_details' => [$row['key'] => ['source_of_fund' => 'Externally-funded', 'project_status' => 'On-going', 'sdgs' => '3, 9', 'evidence_url' => 'https://example.com/proof']],
         'intent' => 'download',
-    ])->assertSessionHasNoErrors()->assertRedirect(route('research_head.rms-quarterly-reports.download', $this->period));
+    ])->assertSessionHasNoErrors()->assertRedirect(route('research_head.rms-quarterly-reports.index', $this->period))
+        ->assertSessionHas('report_download_url', route('research_head.rms-quarterly-reports.download', $this->period));
     expect(RmsQuarterlyReport::sole()->row_details[$row['key']]['source_of_fund'])->toBe('Externally-funded');
     $this->get(route('research_head.rms-quarterly-reports.index', $this->period))->assertOk()
         ->assertViewHas('reportData', fn (array $data): bool => $data['presentations'][0]['values']['source_of_fund'] === 'Externally-funded');
@@ -268,6 +319,33 @@ test('a blocked save and download request preserves the quarterly draft', functi
     expect(RmsQuarterlyReport::sole()->campus)->toBe('Draft kept while waiting')
         ->and(RmsQuarterlyReport::sole()->downloaded_at)->toBeNull();
 })->with(['browser' => false, 'JSON' => true]);
+
+test('saving and downloading Excel refreshes the editor before another save', function () {
+    ($this->submitMissingColleges)();
+    $url = route('research_head.rms-quarterly-reports.index', $this->period);
+    $before = $this->get($url)->assertOk()->getContent();
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(),
+        'intent' => 'download', 'campus' => 'Campus saved for download',
+    ])->assertSessionHasNoErrors()->assertRedirect($url)
+        ->assertSessionHas('report_download_url', route('research_head.rms-quarterly-reports.download', $this->period));
+
+    $after = $this->get($url)->assertOk()
+        ->assertSee('Download Excel again')
+        ->assertSee('name="draft_token" value="'.RmsQuarterlyReport::sole()->draftToken().'"', false)
+        ->assertSee('href="'.e(route('research_head.rms-quarterly-reports.download', $this->period)).'" x-init="window.location.assign($el.href)"', false)->getContent();
+    if (getenv('ATHENA_EXPORT_REPORT_DOWNLOAD') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/rms-download-before.html'), $before);
+        File::put(storage_path('framework/testing/rms-download-after.html'), $after);
+    }
+    preg_match('/name="draft_token" value="([^"]*)"/', $after, $matches);
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(),
+        'draft_token' => $matches[1], 'campus' => 'Further campus edit after download',
+    ])->assertSessionHasNoErrors();
+    expect(RmsQuarterlyReport::sole()->campus)->toBe('Further campus edit after download');
+    $this->get($url)->assertOk()->assertDontSee('window.location.assign($el.href)', false);
+});
 
 test('six submitted reports with no outputs can be exported and record the generated version', function () {
     ($this->submitMissingColleges)();

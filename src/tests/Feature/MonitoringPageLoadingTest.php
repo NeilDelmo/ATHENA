@@ -6,6 +6,7 @@ use App\Models\ProjectProgressReport;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\WorkspaceActionItems;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
@@ -125,6 +126,7 @@ test('monitoring lists fetch report summaries without their full contents', func
 ]);
 
 test('the monitoring editor uses the latest approved work plan without reading previous proposal versions', function () {
+    $this->mock(WorkspaceActionItems::class)->shouldReceive('for')->andReturn([]);
     foreach (range(1, 5) as $number) {
         $version = $this->topic->versions()->create([
             'submitted_by' => $this->researcher->id, 'version_number' => $number,
@@ -160,6 +162,7 @@ test('the monitoring editor uses the latest approved work plan without reading p
 });
 
 test('the narrative editor reads its saved draft once and keeps its saved answers', function () {
+    $this->mock(WorkspaceActionItems::class)->shouldReceive('for')->andReturn([]);
     ProjectNarrativeReportDraft::create([
         'topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'report_type' => 'progress',
         'source_data' => ['reporting_date' => '2026-03-31', 'introduction' => 'Keep my saved narrative draft'],
@@ -172,10 +175,14 @@ test('the narrative editor reads its saved draft once and keeps its saved answer
 
     $response->assertViewHas('selectedReportingDate', '2026-03-31')
         ->assertViewHas('narrativeReportDraft', fn (ProjectNarrativeReportDraft $draft): bool => $draft->source_data['introduction'] === 'Keep my saved narrative draft');
-    expect($queries->filter(fn (array $query): bool => str_contains($query['query'], 'from `project_narrative_report_drafts`')))->toHaveCount(1);
+    $draftReads = $queries->filter(fn (array $query): bool => str_contains($query['query'], 'from `project_narrative_report_drafts`'));
+    expect($draftReads)->toHaveCount(2)
+        ->and($draftReads->filter(fn (array $query): bool => str_contains($query['query'], 'select *')))->toHaveCount(1)
+        ->and($draftReads->last()['query'])->toContain('saved_reporting_date', 'lock_version');
 });
 
 test('report editors check previous quarters using summaries instead of full report contents', function (string $route, string $table) {
+    $this->mock(WorkspaceActionItems::class)->shouldReceive('for')->andReturn([]);
     ProjectProgressReport::create([
         'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
         'reporting_date' => '2026-03-31', 'version_number' => 1, 'progress_percentage' => 42,
@@ -192,8 +199,10 @@ test('report editors check previous quarters using summaries instead of full rep
     $response->assertViewHas('selectedReportingDate', '2026-06-30');
     expect($response->viewData('quarterOptions')->pluck('quarter')->all())->toBe([2, 3, 4]);
     $summaryReads = $queries->filter(fn (array $query): bool => str_contains($query['query'], 'from `'.$table.'`') && ! str_contains($query['query'], 'limit 1'));
-    expect($summaryReads)->toHaveCount(1)
-        ->and($summaryReads->first()['query'])->not->toContain('select *');
+    expect($summaryReads)->toHaveCount(2);
+    foreach ($summaryReads as $query) {
+        expect($query['query'])->not->toContain('select *', 'work_plan', 'introduction');
+    }
 })->with([
     'monitoring tool' => ['project-progress.create', 'project_progress_reports'],
     'narrative progress report' => ['project-narrative-reports.create', 'project_narrative_reports'],

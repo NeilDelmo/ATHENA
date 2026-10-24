@@ -32,6 +32,9 @@
         @if (session('status'))
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
+        @if (session('report_download_url'))
+            <p class="text-sm text-slate-600 dark:text-slate-300">Your download should start automatically. <a href="{{ session('report_download_url') }}" x-init="window.location.assign($el.href)" class="font-semibold text-brand underline dark:text-brand-soft">Download Word again</a></p>
+        @endif
 
         @if ($returned)
             <section role="status" class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -108,6 +111,7 @@
             @csrf
             <input type="hidden" name="reporting_year" value="{{ $year }}">
             <input type="hidden" name="reporting_quarter" value="{{ $quarter }}">
+            <input type="hidden" name="draft_token" value="{{ session()->hasOldInput() ? old('draft_token', '') : ($report ?? new \App\Models\CollegeQuarterlyReport)->draftToken() }}">
 
             <x-assistant-report-editor :context="['report_type' => 'college-quarterly', 'report_id' => $report?->id]" :editable="! $submitted" />
 

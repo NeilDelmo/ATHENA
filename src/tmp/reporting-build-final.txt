@@ -22,7 +22,7 @@ public/build/assets/curriculum-vitae-print-BTC6TLva.css            5.84 kB │ g
 public/build/assets/detailed-proposal-print-Bxo6yIk-.css           6.43 kB │ gzip:   1.54 kB
 public/build/assets/gad-checklist-print-DQKHNniO.css               7.96 kB │ gzip:   1.89 kB
 public/build/assets/app-C_A-kw6R.css                              77.37 kB │ gzip:  12.06 kB
-public/build/assets/app-B5dyroZd.css                             286.70 kB │ gzip:  42.36 kB
+public/build/assets/app-BwJavxun.css                             286.77 kB │ gzip:  42.39 kB
 public/build/assets/pdf.worker-DfLNxk2Q.js                         0.06 kB │ gzip:   0.08 kB
 public/build/assets/welcome-DIPs_Sg5.js                            0.87 kB │ gzip:   0.47 kB
 public/build/assets/guest-Bg3rWAq5.js                              1.02 kB │ gzip:   0.48 kB
@@ -34,9 +34,8 @@ public/build/assets/pdf-DDBxVRyi.js                              425.24 kB │ g
 public/build/assets/app-B4IVY4F4.js                              715.27 kB │ gzip: 202.04 kB
 
 [PLUGIN_TIMINGS] Your build spent significant time in plugins. Here is a breakdown:
-  - laravel (55%)
-  - vite:css (36%)
-  - vite:css-post (7%)
+  - laravel (72%)
+  - vite:css (24%)
 See https://rolldown.rs/options/checks#plugintimings for more details.
 
 [plugin builtin:vite-reporter] 
@@ -44,4 +43,4 @@ See https://rolldown.rs/options/checks#plugintimings for more details.
 - Using dynamic import() to code-split the application
 - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-✓ built in 11.52s
+✓ built in 12.31s

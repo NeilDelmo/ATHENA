@@ -12,7 +12,7 @@ beforeEach(function () {
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $this->coordinator->assignRole('research_coordinator');
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
+    $this->input = fn (): array => ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1', 'draft_token' => (CollegeQuarterlyReport::where('college', $this->coordinator->college)->where('reporting_year', 2026)->where('reporting_quarter', 3)->first() ?? new CollegeQuarterlyReport)->draftToken()];
     $this->asset = [
         'id' => (string) Str::uuid(), 'title' => 'Solar & coastal sensor', 'type' => 'Utility Model',
         'inventors' => "Ana Researcher\nBen Researcher", 'date' => '2026-08-14',
@@ -21,7 +21,7 @@ beforeEach(function () {
 });
 
 test('coordinators can save IP assets and include them in preview and Word export', function () {
-    $this->post(route('research_coordinator.reports.store'), [...$this->input, 'ip_assets' => [$this->asset]])
+    $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'ip_assets' => [$this->asset]])
         ->assertRedirect()->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::sole()->ip_assets)->toEqual([$this->asset]);
     $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]))
@@ -45,7 +45,7 @@ test('coordinators can save IP assets and include them in preview and Word expor
 });
 
 test('submitting freezes IP assets in the numbered accomplishment report history', function () {
-    $this->post(route('research_coordinator.reports.store'), [...$this->input, 'intent' => 'submit', 'ip_assets' => [$this->asset]])
+    $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'intent' => 'submit', 'ip_assets' => [$this->asset]])
         ->assertRedirect()->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $submission = $report->submissions()->sole();
@@ -57,14 +57,14 @@ test('submitting freezes IP assets in the numbered accomplishment report history
 });
 
 test('IP asset types accept the four workbook classifications', function (string $type) {
-    $this->post(route('research_coordinator.reports.store'), [...$this->input,
+    $this->post(route('research_coordinator.reports.store'), [...($this->input)(),
         'ip_assets' => [[...$this->asset, 'type' => $type, 'evidence_url' => null]],
     ])->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::sole()->ip_assets[0]['type'])->toBe($type);
 })->with(['Invention/Patent', 'Utility Model', 'Industrial Design', 'Copyright']);
 
 test('IP assets validate complete bounded rows before saving', function (array $changes, string $field) {
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->input, 'ip_assets' => [[...$this->asset, ...$changes]]])
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->input)(), 'ip_assets' => [[...$this->asset, ...$changes]]])
         ->assertUnprocessable()->assertJsonValidationErrors('ip_assets.0'.($field === '' ? '' : '.'.$field));
     expect(CollegeQuarterlyReport::count())->toBe(0);
 })->with([
@@ -82,17 +82,17 @@ test('IP assets validate complete bounded rows before saving', function (array $
 test('blank IP rows are discarded and older clients receive a saved UUID', function () {
     $asset = $this->asset;
     unset($asset['id']);
-    $this->post(route('research_coordinator.reports.store'), [...$this->input, 'ip_assets' => [$asset, ['title' => ' ', 'type' => '', 'inventors' => '', 'date' => '']]])
+    $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'ip_assets' => [$asset, ['title' => ' ', 'type' => '', 'inventors' => '', 'date' => '']]])
         ->assertSessionHasNoErrors();
     $rows = CollegeQuarterlyReport::sole()->ip_assets;
     expect($rows)->toHaveCount(1)->and(Str::isUuid($rows[0]['id']))->toBeTrue();
 });
 
 test('IP assets reject duplicate identities and more than one hundred entries', function () {
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->input, 'ip_assets' => [$this->asset, $this->asset]])
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->input)(), 'ip_assets' => [$this->asset, $this->asset]])
         ->assertUnprocessable()->assertJsonValidationErrors('ip_assets.0.id');
     $rows = array_map(fn (): array => [...$this->asset, 'id' => (string) Str::uuid()], range(1, 101));
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->input, 'ip_assets' => $rows])
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->input)(), 'ip_assets' => $rows])
         ->assertUnprocessable()->assertJsonValidationErrors('ip_assets');
     expect(CollegeQuarterlyReport::count())->toBe(0);
 });

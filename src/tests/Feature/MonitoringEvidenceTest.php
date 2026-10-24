@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -201,6 +202,14 @@ test('invalid reporting dates return validation errors while preparing evidence'
     $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['reporting_date' => 'broken']))
         ->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
 });
+
+test('malformed monitoring evidence returns validation errors before calculating file counts', function (?string $date, string $action) {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.'.$action, $this->topic), ($this->payload)([
+        'reporting_date' => $date, 'work_plan' => [['evidence' => 'invalid evidence']],
+    ]))->assertUnprocessable()->assertJsonValidationErrors('work_plan.0.evidence');
+
+    expect(ProjectMonitoringDraft::count())->toBe(0);
+})->with(['no selected quarter' => [null], 'invalid quarter' => ['broken']])->with(['draft', 'preview']);
 
 test('unapproved legacy form inputs cannot inject evidence file paths', function () {
     $this->plan->delete();

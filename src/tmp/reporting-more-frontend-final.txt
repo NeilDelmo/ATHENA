@@ -1,0 +1,39 @@
+✔ monitoring-tool accepted text synchronizes the real editor and existing draft save (1317.253ms)
+✔ progress-report accepted text synchronizes the real editor and existing draft save (1177.1787ms)
+✔ terminal-report accepted text synchronizes the real editor and existing draft save (1787.2599ms)
+✔ comment responses stay staged in their form and never submit the revision automatically (1425.797ms)
+✔ quarterly reports with restored validation input must be saved before checking or revising (5.2959ms)
+✔ college-quarterly stages accepted text in the real manual form without submitting it (1588.2987ms)
+✔ rms-quarterly stages accepted text in the real manual form without submitting it (1102.4579ms)
+✔ terminal report revisions preserve the source identity and locator of existing citations (870.2087ms)
+✔ equivalent sanitized marker markup remains applicable without weakening source protection (2132.4544ms)
+✔ stale versions and changed baselines preserve the real report text (935.6519ms)
+✔ a failed draft save keeps accepted text visible and reports that it is unsaved (1135.8741ms)
+✔ Edge native uploads keep failed edits dirty and leave cleanly after recovering a saved response (3817.6957ms)
+✔ ordinary saves keep their existing fetch transport (29.5074ms)
+✔ file transfer reports actual bytes then waits for server preparation (4.0501ms)
+✔ lost responses retry the same operation and file body without duplicating saves (3.2525ms)
+✔ validation and permission errors are not retried or reported as saved (3.2631ms)
+✔ an explicit retry of an unchanged interrupted upload keeps its operation identity (7.7188ms)
+✔ aborting an upload never retries (1.1796ms)
+✔ a still-processing save keeps its identity for the next retry (15.3402ms)
+✔ retry-unavailable responses stop automatic retries (0.7959ms)
+✔ an already-aborted transfer never sends a file (0.3734ms)
+✔ interrupted operation identities cannot cross accounts or workspaces (48.5782ms)
+✔ quarterly activity IDs keep uploaded proof attached after another row is removed (5.4061ms)
+✔ quarterly form keeps saved manual rows and existing writing controls (0.4966ms)
+✔ unmonitored faculty research can be entered without a linked Athena project (0.1927ms)
+✔ IP assets can be added without creating project evidence fields (0.2473ms)
+✔ large quarterly reports serialize every manual row and evidence caption without exhausting PHP input variables (113.7317ms)
+✔ quarterly serialization keeps uploads native and counts files so PHP cannot silently drop excess uploads (0.8634ms)
+✔ section folders open only known categories and keep all report fields in the form (0.7651ms)
+✔ all college rows submit as one JSON value without exhausting PHP input variables (49.4566ms)
+✔ empty rows and repeated downloads leave the editable form intact (1.2323ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19292.951

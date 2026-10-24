@@ -74,6 +74,19 @@ test('stale report recovery cannot overwrite the current saved draft', function 
     expect($draft->lock_version)->toBe(1)->and(json_encode($draft->source_data))->not->toContain('Stale recovery');
 })->with(['monitoring', 'progress', 'terminal']);
 
+test('an unfinished report without a selected date retains its recovery version', function (string $kind) {
+    $attributes = ['topic_id' => $this->topic->id, 'user_id' => $this->researcher->id,
+        'lock_version' => 3, 'source_data' => ['reporting_date' => null]];
+    if ($kind === 'monitoring') {
+        ProjectMonitoringDraft::create([...$attributes, 'source_key' => 'new']);
+    } else {
+        ProjectNarrativeReportDraft::create([...$attributes, 'report_type' => $kind]);
+    }
+
+    $this->getJson(($this->stateUrl)($kind))->assertSuccessful()
+        ->assertJsonPath('version', 3)->assertJsonPath('is_editable', true);
+})->with(['monitoring', 'progress']);
+
 test('a prepared submitted or completed report blocks recovery even at version zero', function (string $kind, string $lock) {
     $initial = $this->getJson(($this->stateUrl)($kind))->assertSuccessful()->assertJsonPath('is_editable', true)->json();
     if ($lock === 'completed') {

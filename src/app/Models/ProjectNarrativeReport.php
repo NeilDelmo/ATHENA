@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -131,7 +132,7 @@ class ProjectNarrativeReport extends Model
         return $query->where(fn (Builder $query): Builder => $query->where($type, 'terminal')->orWhereNull($stage)->orWhere($stage, 'head'));
     }
 
-    /** @param array{quarter: int, start: \Carbon\CarbonImmutable, end: \Carbon\CarbonImmutable} $period */
+    /** @param array{quarter: int, start: CarbonImmutable, end: CarbonImmutable} $period */
     public function scopeForReportingPeriod(Builder $query, array $period): Builder
     {
         return $query->where(function (Builder $query) use ($period): void {
@@ -146,7 +147,7 @@ class ProjectNarrativeReport extends Model
         });
     }
 
-    /** @param array{quarter: int, start: \Carbon\CarbonImmutable, end: \Carbon\CarbonImmutable} $period */
+    /** @param array{quarter: int, start: CarbonImmutable, end: CarbonImmutable} $period */
     public function isForReportingPeriod(array $period): bool
     {
         return $this->reporting_quarter !== null

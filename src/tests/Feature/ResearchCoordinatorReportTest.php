@@ -23,7 +23,7 @@ beforeEach(function () {
     $this->coordinator->assignRole('research_coordinator');
     $this->actingAs($this->coordinator)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
+    $this->reportInput = fn (): array => ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1', 'draft_token' => (CollegeQuarterlyReport::where('college', $this->coordinator->college)->where('reporting_year', 2026)->where('reporting_quarter', 3)->first() ?? new CollegeQuarterlyReport)->draftToken()];
 });
 
 test('coordinator JSON submissions save every activity beyond the native form input limit', function () {
@@ -44,7 +44,7 @@ test('coordinator JSON submissions save every activity beyond the native form in
         'saved_evidence_captions' => (object) [], 'remove_evidence' => [], 'evidence_captions' => [],
     ];
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'report_details_json' => json_encode($details, JSON_THROW_ON_ERROR), 'evidence_file_count' => 0,
     ])->assertSessionHasNoErrors();
 
@@ -59,7 +59,7 @@ test('incomplete coordinator forms cannot replace a saved report', function () {
         'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
         'other_accomplishments' => 'Saved narrative',
     ]);
-    $input = $this->reportInput;
+    $input = ($this->reportInput)();
     unset($input['form_complete']);
 
     $this->postJson(route('research_coordinator.reports.store'), [...$input, 'other_accomplishments' => 'Truncated narrative'])
@@ -70,14 +70,14 @@ test('incomplete coordinator forms cannot replace a saved report', function () {
 
 test('coordinator JSON preserves saved captions and applies image removals', function () {
     Storage::fake('local');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('retained.png'), UploadedFile::fake()->image('removed.png')],
         'evidence_file_count' => 2,
     ])->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     [$retained, $removed] = $report->evidence;
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'report_details_json' => json_encode([
             'saved_evidence_captions' => [hash('sha256', $retained['path']) => 'Corrected caption'],
             'remove_evidence' => [hash('sha256', $removed['path'])],
@@ -96,7 +96,7 @@ test('invalid coordinator JSON cannot replace a saved report', function (mixed $
         'other_accomplishments' => 'Saved narrative',
     ]);
 
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'other_accomplishments' => 'Changed narrative', 'report_details_json' => $json,
     ])->assertUnprocessable()->assertJsonValidationErrors('report_details_json');
 
@@ -110,12 +110,63 @@ test('invalid coordinator JSON cannot replace a saved report', function (mixed $
 test('missing coordinator uploads cannot silently submit only the files PHP retained', function () {
     Storage::fake('local');
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('retained.png')], 'evidence_file_count' => 2,
     ])->assertSessionHasErrors('evidence_file_count');
 
     expect(CollegeQuarterlyReport::count())->toBe(0)
         ->and(Storage::disk('local')->allFiles())->toBe([]);
+});
+
+test('a stale coordinator editor cannot save or submit over a newer draft', function (string $intent) {
+    $period = ['year' => 2026, 'quarter' => 3];
+    $html = $this->get(route('research_coordinator.reports.index', $period))->assertOk()->getContent();
+    preg_match('/name="draft_token" value="([^"]*)"/', $html, $matches);
+    $input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'form_complete' => '1', 'draft_token' => $matches[1] ?? ''];
+    $this->post(route('research_coordinator.reports.store'), [...$input, 'intent' => 'save', 'other_accomplishments' => 'Newer faculty accomplishments'])->assertRedirect();
+
+    $this->postJson(route('research_coordinator.reports.store'), [...$input, 'intent' => $intent, 'other_accomplishments' => 'Outdated accomplishments'])
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_token');
+
+    expect(CollegeQuarterlyReport::sole()->other_accomplishments)->toBe('Newer faculty accomplishments')
+        ->and(CollegeQuarterlyReport::sole()->submitted_at)->toBeNull();
+})->with(['save', 'submit']);
+
+test('the coordinator conflict page preserves the stale token until the latest draft is reloaded', function () {
+    $url = route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]);
+    $input = ($this->reportInput)();
+    $this->post(route('research_coordinator.reports.store'), [...$input, 'other_accomplishments' => 'Newest saved accomplishments'])
+        ->assertSessionHasNoErrors();
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($url)->post(route('research_coordinator.reports.store'), [...$input, 'other_accomplishments' => 'Older unsaved accomplishments'])
+        ->assertSessionHasErrors('draft_token');
+
+    $this->get($url)->assertOk()->assertSee('Your changes were not saved.')
+        ->assertSee('name="draft_token" value="'.$input['draft_token'].'"', false)->assertSee('Older unsaved accomplishments');
+    $this->get($url)->assertOk()->assertSee('Newest saved accomplishments')
+        ->assertSee('name="draft_token" value="'.CollegeQuarterlyReport::sole()->draftToken().'"', false);
+});
+
+test('coordinator report saves require a draft token', function () {
+    $input = ($this->reportInput)();
+    unset($input['draft_token']);
+    $this->postJson(route('research_coordinator.reports.store'), $input)
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_token');
+    expect(CollegeQuarterlyReport::count())->toBe(0);
+});
+
+test('an older coordinator form without editing state must reload before retrying its edits', function () {
+    $url = route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]);
+    $this->get($url)->assertOk();
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => 'Newest saved accomplishments'])->assertSessionHasNoErrors();
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $input = [...($this->reportInput)(), 'other_accomplishments' => 'Older unsaved accomplishments'];
+    unset($input['draft_token']);
+    $this->from($url)->post(route('research_coordinator.reports.store'), $input)->assertSessionHasErrors('draft_token');
+    $this->get($url)->assertOk()->assertSee('Copy any work you need, then reload the report before saving.')
+        ->assertSee('name="draft_token" value=""', false)->assertSee('Older unsaved accomplishments');
+    $this->get($url)->assertOk()->assertSee('Newest saved accomplishments')
+        ->assertSee('name="draft_token" value="'.CollegeQuarterlyReport::sole()->draftToken().'"', false);
 });
 
 test('coordinators without research projects can open an empty calendar quarter report', function () {
@@ -180,13 +231,13 @@ test('the report uses the four calendar quarters and shows their month ranges', 
 
 test('a coordinator can open and save the next quarter without finishing the current draft', function (int $quarter, int $nextYear, int $nextQuarter) {
     $this->travelTo(now()->setDate(2026, (($quarter - 1) * 3) + 1, 15));
-    $current = [...$this->reportInput, 'reporting_quarter' => $quarter, 'other_accomplishments' => 'Current quarter draft'];
+    $current = [...($this->reportInput)(), 'reporting_quarter' => $quarter, 'other_accomplishments' => 'Current quarter draft'];
     $this->post(route('research_coordinator.reports.store'), $current)->assertSessionHasNoErrors();
     $nextUrl = route('research_coordinator.reports.index', ['year' => $nextYear, 'quarter' => $nextQuarter]);
     $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => $quarter]))
         ->assertOk()->assertSeeText('Open next quarter')->assertSee($nextUrl);
     $this->get($nextUrl)->assertOk()->assertViewHas('report', null);
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'reporting_year' => $nextYear, 'reporting_quarter' => $nextQuarter, 'other_accomplishments' => 'Next quarter draft',
     ])->assertSessionHasNoErrors();
 
@@ -209,7 +260,7 @@ test('a January draft detects February records and saving acknowledges the updat
         'notice_to_proceed_issued_at' => '2026-01-01', 'estimated_duration_months' => 12,
         'notice_to_proceed_data' => ['approved_start_date' => '2026-01-01', 'approved_end_date' => '2026-12-31'],
     ]);
-    $input = [...$this->reportInput, 'reporting_quarter' => 1, 'other_accomplishments' => 'My January narrative'];
+    $input = [...($this->reportInput)(), 'reporting_quarter' => 1, 'other_accomplishments' => 'My January narrative'];
     $url = route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 1]);
     $this->post(route('research_coordinator.reports.store'), $input)->assertSessionHasNoErrors();
     $baseline = CollegeQuarterlyReport::sole()->snapshot;
@@ -224,6 +275,7 @@ test('a January draft detects February records and saving acknowledges the updat
         ->assertSee('My January narrative');
     expect(CollegeQuarterlyReport::sole()->snapshot)->toEqual($baseline);
 
+    $input['draft_token'] = CollegeQuarterlyReport::sole()->draftToken();
     $this->post(route('research_coordinator.reports.store'), $input)->assertSessionHasNoErrors();
     $this->get($url)->assertOk()->assertViewHas('hasSourceChanges', false)
         ->assertDontSeeText('Automatic records changed since this draft was saved.')
@@ -243,7 +295,7 @@ test('legacy drafts and reordered source keys do not show a false records change
 
 test('coordinators save one draft per college quarter with only validated fields', function () {
     $seminar = ['event' => 'Research ethics', 'date' => '2026-08-14', 'place' => 'Lipa', 'personnel' => 'College faculty'];
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'seminars' => [$seminar, ['event' => ' ', 'date' => '', 'place' => null, 'personnel' => '']],
         'other_accomplishments' => 'Organized the college research colloquium.',
         'reviewed_by' => 'College Dean', 'reviewed_by_title' => 'Dean',
@@ -258,14 +310,14 @@ test('coordinators save one draft per college quarter with only validated fields
         ->and($report->submitted_at)->toBeNull()
         ->and($report->snapshot)->toEqual(['presentations' => [], 'publications' => [], 'research' => [], 'undated_publications' => 0]);
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'other_accomplishments' => 'Updated draft'])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => 'Updated draft'])
         ->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::count())->toBe(1)
         ->and($report->fresh()->other_accomplishments)->toBe('Updated draft');
 });
 
 test('drafts may be prepared in current and future quarters', function (int $year, int $quarter) {
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'reporting_year' => $year, 'reporting_quarter' => $quarter])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'reporting_year' => $year, 'reporting_quarter' => $quarter])
         ->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::sole()->submitted_at)->toBeNull();
 })->with(['current quarter' => [2026, 4], 'future quarter' => [2027, 1]]);
@@ -273,10 +325,10 @@ test('drafts may be prepared in current and future quarters', function (int $yea
 test('preview and download save the current draft and evidence before opening the requested output', function (string $intent, string $destination) {
     Storage::fake('local');
     $seminar = ['event' => 'Current workshop', 'date' => '2026-08-14', 'place' => 'Room B', 'personnel' => 'Current faculty'];
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'other_accomplishments' => 'Earlier draft'])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => 'Earlier draft'])
         ->assertSessionHasNoErrors();
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'intent' => $intent, 'seminars' => [$seminar], 'other_accomplishments' => 'Current accomplishment',
         'reviewed_by' => 'Current Dean', 'reviewed_by_title' => 'Dean',
         'evidence_images' => [UploadedFile::fake()->image('current.png')], 'evidence_captions' => ['Current evidence'],
@@ -292,10 +344,46 @@ test('preview and download save the current draft and evidence before opening th
         ->and($report->submitted_at)->toBeNull()
         ->and($report->snapshot)->toEqual(['presentations' => [], 'publications' => [], 'research' => [], 'undated_publications' => 0]);
     Storage::disk('local')->assertExists($report->evidence[0]['path']);
-})->with(['preview' => ['preview', 'research_coordinator.reports.print'], 'download' => ['download', 'research_coordinator.reports.download']]);
+})->with(['preview' => ['preview', 'research_coordinator.reports.print'], 'download' => ['download', 'research_coordinator.reports.index']]);
+
+test('saving and downloading Word refreshes the editor before another save', function (bool $upload) {
+    Storage::fake('local');
+    $period = ['year' => 2026, 'quarter' => 3];
+    $url = route('research_coordinator.reports.index', $period);
+    $before = $this->get($url)->assertOk()->getContent();
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $response = $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
+        'intent' => 'download', 'other_accomplishments' => 'Accomplishments saved for download',
+        ...($upload ? ['evidence_images' => [UploadedFile::fake()->image('proof.png')], 'evidence_file_count' => 1] : []),
+    ], $upload ? ['X-Athena-Upload-ID' => (string) Str::uuid(), 'X-Athena-Upload-Form' => '1', 'Accept' => 'application/json'] : [])
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('report_download_url', route('research_coordinator.reports.download', $period));
+    if ($upload) {
+        $response->assertOk()->assertJsonPath('redirect', $url);
+        Storage::disk('local')->assertExists(CollegeQuarterlyReport::sole()->evidence[0]['path']);
+    } else {
+        $response->assertRedirect($url);
+    }
+
+    $after = $this->get($url)->assertOk()
+        ->assertSee('Download Word again')
+        ->assertSee('name="draft_token" value="'.CollegeQuarterlyReport::sole()->draftToken().'"', false)
+        ->assertSee('href="'.e(route('research_coordinator.reports.download', $period)).'" x-init="window.location.assign($el.href)"', false)->getContent();
+    if (! $upload && getenv('ATHENA_EXPORT_REPORT_DOWNLOAD') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/college-download-before.html'), $before);
+        File::put(storage_path('framework/testing/college-download-after.html'), $after);
+    }
+    preg_match('/name="draft_token" value="([^"]*)"/', $after, $matches);
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
+        'draft_token' => $matches[1], 'other_accomplishments' => 'Further accomplishments after download',
+    ])->assertSessionHasNoErrors();
+    expect(CollegeQuarterlyReport::sole()->other_accomplishments)->toBe('Further accomplishments after download');
+    $this->get($url)->assertOk()->assertDontSee('window.location.assign($el.href)', false);
+})->with(['native form' => false, 'upload transport' => true]);
 
 test('other accomplishments retain supported formatting while removing unsafe html', function () {
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'other_accomplishments' => '<p onclick="alert(1)"><strong>Bold &amp; clear</strong> <em>Italic</em> <u>Underlined</u><br>Next line</p><ol><li>First</li><li>Second</li></ol><ul><li>Bullet</li></ul><script>alert(1)</script><img src="x" onerror="alert(2)">',
     ])->assertSessionHasNoErrors();
 
@@ -305,7 +393,7 @@ test('other accomplishments retain supported formatting while removing unsafe ht
     $this->get(route('research_coordinator.reports.print', ['year' => 2026, 'quarter' => 3]))
         ->assertOk()->assertSee($formatted, false)->assertDontSee('alert(1)', false)->assertDontSee('alert(2)', false);
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'intent' => 'submit', 'other_accomplishments' => $formatted,
     ])->assertSessionHasNoErrors();
     $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]))
@@ -314,14 +402,14 @@ test('other accomplishments retain supported formatting while removing unsafe ht
 
 test('other accomplishments limit the visible text without counting formatting markup', function () {
     $formatted = '<p><strong>'.str_repeat('a', 20000).'</strong></p>';
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'other_accomplishments' => $formatted])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => $formatted])
         ->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::sole()->other_accomplishments)->toBe($formatted);
 
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'other_accomplishments' => '<p>'.str_repeat('a', 20001).'</p>',
     ])->assertUnprocessable()->assertJsonValidationErrors('other_accomplishments');
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'other_accomplishments' => '<p title="'.str_repeat('a', 100000).'">Short text</p>',
     ])->assertUnprocessable()->assertJsonValidationErrors('other_accomplishments');
     expect(CollegeQuarterlyReport::sole()->other_accomplishments)->toBe($formatted);
@@ -329,7 +417,7 @@ test('other accomplishments limit the visible text without counting formatting m
 
 test('preview and download validate unsaved fields before saving any files', function (string $intent) {
     Storage::fake('local');
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'intent' => $intent, 'seminars' => [['event' => 'Incomplete workshop']],
         'evidence_images' => [UploadedFile::fake()->image('invalid.png')],
     ])->assertUnprocessable()->assertJsonValidationErrors(['seminars.0.date', 'seminars.0.place', 'seminars.0.personnel']);
@@ -339,7 +427,7 @@ test('preview and download validate unsaved fields before saving any files', fun
 
 test('other accomplishments validate their stored byte size before saving reports or evidence', function (string $accomplishments) {
     Storage::fake('local');
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'other_accomplishments' => $accomplishments,
         'evidence_images' => [UploadedFile::fake()->image('oversized.png')],
     ])->assertUnprocessable()->assertJsonValidationErrors('other_accomplishments');
@@ -354,14 +442,14 @@ test('other accomplishments validate their stored byte size before saving report
 
 test('plain accomplishments use their stored size rather than escaped display size', function () {
     $accomplishments = str_repeat('&', 20000);
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'other_accomplishments' => $accomplishments])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => $accomplishments])
         ->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::sole()->other_accomplishments)->toBe($accomplishments);
 });
 
 test('submission before the calendar quarter ends is rejected without creating a report', function (int $year, int $quarter) {
     Storage::fake('local');
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'reporting_year' => $year, 'reporting_quarter' => $quarter, 'intent' => 'submit',
         'evidence_images' => [UploadedFile::fake()->image('evidence.png')],
     ])->assertUnprocessable()->assertJsonValidationErrors('intent');
@@ -373,7 +461,7 @@ test('submission before the calendar quarter ends is rejected without creating a
 test('past quarter submission freezes report data and prevents edits or resubmission', function () {
     $snapshotData = ['presentations' => [], 'publications' => [], 'research' => [['Original research']]];
     $this->mock(CollegeQuarterlyReportData::class)->shouldReceive('build')->once()->andReturn($snapshotData);
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'intent' => 'submit', 'other_accomplishments' => 'Original accomplishment',
     ])->assertSessionHasNoErrors();
 
@@ -390,7 +478,7 @@ test('past quarter submission freezes report data and prevents edits or resubmis
         ->assertOk()->assertViewHas('reportData', $snapshot);
 
     foreach (['save', 'preview', 'download', 'submit'] as $intent) {
-        $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput, 'intent' => $intent, 'other_accomplishments' => 'Changed'])
+        $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'intent' => $intent, 'other_accomplishments' => 'Changed'])
             ->assertUnprocessable()->assertJsonValidationErrors('intent');
     }
     expect($report->fresh()->snapshot)->toBe($snapshot)
@@ -399,13 +487,13 @@ test('past quarter submission freezes report data and prevents edits or resubmis
 
 test('a finished quarter is available immediately after its final day', function () {
     $this->travelTo(now()->setDate(2026, 10, 1)->startOfDay());
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'intent' => 'submit'])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'intent' => 'submit'])
         ->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::sole()->submitted_at)->not->toBeNull();
 });
 
 test('seminars require complete fields and dates within the selected calendar quarter', function (array $seminar, string $field) {
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput, 'seminars' => [$seminar]])
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'seminars' => [$seminar]])
         ->assertUnprocessable()->assertJsonValidationErrors('seminars.0'.($field !== '' ? '.'.$field : ''));
     expect(CollegeQuarterlyReport::count())->toBe(0);
 })->with([
@@ -420,7 +508,7 @@ test('coordinator accounts require an assigned college for every report action',
     foreach (['index', 'print', 'template', 'download'] as $action) {
         $this->get(route('research_coordinator.reports.'.$action))->assertForbidden();
     }
-    $this->postJson(route('research_coordinator.reports.store'), $this->reportInput)->assertForbidden();
+    $this->postJson(route('research_coordinator.reports.store'), ($this->reportInput)())->assertForbidden();
 });
 
 test('faculty and secretary accounts cannot enter coordinator reporting', function (string $role, string $workspace) {
@@ -430,7 +518,7 @@ test('faculty and secretary accounts cannot enter coordinator reporting', functi
     foreach (['index', 'print', 'template', 'download'] as $action) {
         $this->get(route('research_coordinator.reports.'.$action))->assertForbidden();
     }
-    $this->postJson(route('research_coordinator.reports.store'), $this->reportInput)->assertForbidden();
+    $this->postJson(route('research_coordinator.reports.store'), ($this->reportInput)())->assertForbidden();
 })->with(['faculty' => ['faculty', User::WORKSPACE_FACULTY], 'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY]]);
 
 test('college report queries and writes stay within the active coordinators college', function () {
@@ -440,7 +528,7 @@ test('college report queries and writes stay within the active coordinators coll
     ]);
     $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3, 'college' => $other->college]))
         ->assertOk()->assertViewHas('report', null)->assertDontSee('Private CTE accomplishment');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'college' => $other->college])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'college' => $other->college])
         ->assertSessionHasNoErrors();
     expect(CollegeQuarterlyReport::count())->toBe(2)
         ->and($other->fresh()->other_accomplishments)->toBe('Private CTE accomplishment');
@@ -449,7 +537,7 @@ test('college report queries and writes stay within the active coordinators coll
 test('supporting images are private and only the college coordinator can retrieve them', function () {
     Storage::fake('local');
     $image = UploadedFile::fake()->image('seminar.png');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [$image], 'evidence_captions' => ['Faculty research workshop'],
         'evidence' => [['path' => '/private/file', 'caption' => 'Injected']],
     ])->assertSessionHasNoErrors();
@@ -472,7 +560,7 @@ test('submitted reports reject new images before storing files', function () {
         'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
         'submitted_at' => now(), 'snapshot' => ['presentations' => [], 'publications' => [], 'research' => []],
     ]);
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('ignored.png')],
     ])->assertUnprocessable();
     expect(Storage::disk('local')->allFiles('college-quarterly-reports'))->toBe([])
@@ -482,7 +570,7 @@ test('submitted reports reject new images before storing files', function () {
 test('failed submission rolls back the report and removes newly stored images', function () {
     Storage::fake('local');
     $this->mock(CollegeQuarterlyReportData::class)->shouldReceive('build')->once()->andThrow(new RuntimeException('Report source unavailable'));
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'intent' => 'submit', 'evidence_images' => [UploadedFile::fake()->image('rollback.png')],
     ])->assertServerError();
 
@@ -492,7 +580,7 @@ test('failed submission rolls back the report and removes newly stored images', 
 
 test('supporting uploads reject nonimages and enforce the total report image limit', function () {
     Storage::fake('local');
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->create('report.pdf', 5, 'application/pdf')],
     ])->assertUnprocessable()->assertJsonValidationErrors('evidence_images.0');
 
@@ -500,7 +588,7 @@ test('supporting uploads reject nonimages and enforce the total report image lim
         'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
         'evidence' => array_fill(0, 10, ['path' => 'existing.png', 'caption' => 'Existing', 'mime_type' => 'image/png', 'original_filename' => 'existing.png']),
     ]);
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('eleventh.png')],
     ])->assertUnprocessable()->assertJsonValidationErrors('evidence_images');
     expect(Storage::disk('local')->allFiles('college-quarterly-reports'))->toBe([]);
@@ -508,14 +596,14 @@ test('supporting uploads reject nonimages and enforce the total report image lim
 
 test('coordinators may remove saved draft images and replace them without leaving files behind', function () {
     Storage::fake('local');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('first.png'), UploadedFile::fake()->image('second.png')],
         'evidence_captions' => ['Remove this', 'Keep this'],
     ])->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $original = $report->evidence;
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'remove_evidence' => [hash('sha256', $original[0]['path'])], 'evidence_images' => [UploadedFile::fake()->image('replacement.png')],
     ])->assertSessionHasNoErrors();
     $evidence = $report->fresh()->evidence;
@@ -534,13 +622,14 @@ test('image removal rejects submitted reports and never selects another college 
         'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
         'submitted_at' => now(), 'evidence' => [['path' => $path, 'caption' => '', 'mime_type' => 'image/png', 'original_filename' => 'retained.png']],
     ]);
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput, 'remove_evidence' => [hash('sha256', $path)]])
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'remove_evidence' => [hash('sha256', $path)]])
         ->assertUnprocessable()->assertJsonValidationErrors('intent');
     Storage::disk('local')->assertExists($path);
 
     $other = User::factory()->create(['college' => User::COLLEGES['CTE']]);
     $other->assignRole('research_coordinator');
-    $this->actingAs($other)->postJson(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->actingAs($other)->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(),
+        'draft_token' => (new CollegeQuarterlyReport)->draftToken(),
         'report_id' => $report->id, 'college' => $report->college, 'remove_evidence' => [hash('sha256', $path)],
     ])->assertUnprocessable()->assertJsonValidationErrors('remove_evidence');
     Storage::disk('local')->assertExists($path);
@@ -550,16 +639,16 @@ test('image removal rejects submitted reports and never selects another college 
 
 test('a stale photo removal cannot delete another photo after the list changes', function () {
     Storage::fake('local');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('first.png'), UploadedFile::fake()->image('second.png')],
     ])->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $original = $report->evidence;
-    $removal = [...$this->reportInput, 'remove_evidence' => [hash('sha256', $original[0]['path'])]];
+    $removal = [...($this->reportInput)(), 'remove_evidence' => [hash('sha256', $original[0]['path'])]];
 
     $this->post(route('research_coordinator.reports.store'), $removal)->assertSessionHasNoErrors();
     $this->postJson(route('research_coordinator.reports.store'), $removal)
-        ->assertUnprocessable()->assertJsonValidationErrors('remove_evidence');
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_token');
 
     expect($report->fresh()->evidence)->toHaveCount(1)
         ->and($report->fresh()->evidence[0]['path'])->toBe($original[1]['path']);

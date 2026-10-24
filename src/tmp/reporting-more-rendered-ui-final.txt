@@ -1,0 +1,11 @@
+✔ the rendered coordinator form submits native rows and files without losing fields in both themes and sizes (19224.7103ms)
+✔ Word and Excel downloads refresh the actual editor token and allow another native save (104361.1965ms)
+✔ rendered RMS reports keep quarter downloads, editable categories and validation usable across sizes and themes (27204.1464ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 171783.9985

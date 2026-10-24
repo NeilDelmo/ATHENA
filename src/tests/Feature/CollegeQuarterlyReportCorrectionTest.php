@@ -19,14 +19,14 @@ beforeEach(function () {
     $this->coordinator->assignRole('research_coordinator');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
-    $this->reportInput = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'submit', 'other_accomplishments' => 'Original submitted narrative', 'form_complete' => '1'];
+    $this->reportInput = fn (): array => ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'submit', 'other_accomplishments' => 'Original submitted narrative', 'form_complete' => '1', 'draft_token' => (CollegeQuarterlyReport::where('college', $this->coordinator->college)->where('reporting_year', 2026)->where('reporting_quarter', 3)->first() ?? new CollegeQuarterlyReport)->draftToken()];
     $this->asCoordinator = fn () => $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
     $this->asHead = fn () => $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     ($this->asCoordinator)();
 });
 
 test('research head receives submitted college reports while unfinished drafts stay private', function () {
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     CollegeQuarterlyReport::factory()->create(['college' => 'Private unfinished college', 'reporting_year' => 2026, 'reporting_quarter' => 3]);
     ($this->asHead)();
     $this->get(route('research_head.quarterly-reports.index', ['year' => 2026, 'college' => $this->coordinator->college, 'quarter' => 3]))->assertOk()
@@ -36,7 +36,7 @@ test('research head receives submitted college reports while unfinished drafts s
 
 test('returning a submission preserves its snapshot and lets the coordinator correct and resubmit it', function () {
     Storage::fake('local');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('original.png')], 'evidence_captions' => ['Original photo'],
     ])->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
@@ -57,14 +57,14 @@ test('returning a submission preserves its snapshot and lets the coordinator cor
     $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]))
         ->assertOk()->assertSeeText('Returned for correction')->assertSeeText('Please include the missing September activity.')
         ->assertSeeText('Resubmit quarterly report')->assertSee('Original submitted narrative');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'intent' => 'save', 'other_accomplishments' => 'Corrected narrative', 'remove_evidence' => [hash('sha256', $originalPath)],
     ])->assertSessionHasNoErrors();
     Storage::disk('local')->assertExists($originalPath);
     $this->get(route('college-quarterly-submissions.print', $submission))->assertOk()
         ->assertSeeText('Original submitted narrative')->assertDontSeeText('Corrected narrative');
     $this->get(route('college-quarterly-submissions.evidence', ['submission' => $submission, 'index' => 0]))->assertOk();
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput, 'other_accomplishments' => 'Corrected narrative'])
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => 'Corrected narrative'])
         ->assertSessionHasNoErrors();
     $report->refresh();
     expect($report->submitted_at)->not->toBeNull()
@@ -76,12 +76,12 @@ test('returning a submission preserves its snapshot and lets the coordinator cor
         ->assertDontSeeText('Returned for correction')->assertSeeText('Submission history')->assertSeeText('Corrected narrative');
     $this->get(route('college-quarterly-submissions.download', $submission))->assertOk()
         ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    $this->postJson(route('research_coordinator.reports.store'), [...$this->reportInput, 'intent' => 'save'])
+    $this->postJson(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'intent' => 'save'])
         ->assertUnprocessable()->assertJsonValidationErrors('intent');
 });
 
 test('correction requests require a reason and can only return the reviewed submission once', function () {
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $submission = $report->latestSubmission;
     ($this->asHead)();
@@ -95,7 +95,7 @@ test('correction requests require a reason and can only return the reviewed subm
     $this->patchJson($url, ['submission_id' => $submission->id, 'reason' => 'Duplicate return'])
         ->assertUnprocessable()->assertJsonValidationErrors('submission_id');
     ($this->asCoordinator)();
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     ($this->asHead)();
     $this->patchJson($url, ['submission_id' => $submission->id, 'reason' => 'Stale review page'])
         ->assertUnprocessable()->assertJsonValidationErrors('submission_id');
@@ -104,7 +104,7 @@ test('correction requests require a reason and can only return the reviewed subm
 });
 
 test('only the research head can return college reports', function (string $role, string $workspace) {
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $user = $role === 'research_coordinator' ? $this->coordinator : User::factory()->create();
     $user->assignRole($role);
@@ -121,7 +121,7 @@ test('only the research head can return college reports', function (string $role
 
 test('submission history and its photos are limited to the college coordinator and research head', function () {
     Storage::fake('local');
-    $this->post(route('research_coordinator.reports.store'), [...$this->reportInput,
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('private.png')],
     ])->assertSessionHasNoErrors();
     $submission = CollegeQuarterlyReportSubmission::sole();
@@ -145,7 +145,7 @@ test('submission history and its photos are limited to the college coordinator a
 });
 
 test('college report history loads version metadata while archived documents retain their snapshots', function (string $viewer) {
-    $this->post(route('research_coordinator.reports.store'), $this->reportInput)->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $original = $report->submissions()->sole();
     $snapshot = [...$original->snapshot,

@@ -159,7 +159,7 @@ class MonitoringEvidenceService
 
     public function validateEvidence(FormRequest $request, Validator $validator): void
     {
-        if ($request->input('progress_mode') !== 'evidence') {
+        if ($validator->errors()->isNotEmpty() || $request->input('progress_mode') !== 'evidence') {
             return;
         }
         $keys = [];

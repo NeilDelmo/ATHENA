@@ -93,6 +93,33 @@ test('the faculty proof source rejects missing altered unsafe or mismatched sour
     expect(array_column(app(ProjectReportEvidence::class)->forProject($this->topic), 'path'))->toBe([$valid['path']]);
 })->with(['monitoring', 'narrative']);
 
+test('a corrected reporting period replaces evidence even when its reporting date changes', function (string $kind) {
+    ($this->report)($kind, [($this->proof)($kind, 'superseded.png')]);
+    $current = ($this->proof)($kind, 'corrected.png');
+    ($this->report)($kind, [$current], ['version_number' => 2, 'reporting_date' => '2026-05-10']);
+
+    expect(array_column(app(ProjectReportEvidence::class)->forProject($this->topic), 'path'))->toBe([$current['path']]);
+})->with(['monitoring', 'narrative']);
+
+test('corrected evidence cannot leave its superseded proof in another calendar quarter', function (string $kind) {
+    ($this->report)($kind, [($this->proof)($kind, 'superseded.png')], ['reporting_date' => '2026-03-31']);
+    $current = ($this->proof)($kind, 'corrected.png');
+    ($this->report)($kind, [$current], ['version_number' => 2, 'reporting_date' => '2026-05-10']);
+    $service = app(ProjectReportEvidence::class);
+
+    expect($service->forProject($this->topic, CarbonImmutable::parse('2026-01-01'), CarbonImmutable::parse('2026-03-31')))->toBe([])
+        ->and(array_column($service->forProject($this->topic, CarbonImmutable::parse('2026-04-01'), CarbonImmutable::parse('2026-06-30')), 'path'))->toBe([$current['path']]);
+})->with(['monitoring', 'narrative']);
+
+test('legacy narrative evidence uses its period end when no reporting date was stored', function () {
+    $file = ($this->proof)('narrative', 'legacy.png');
+    ($this->report)('narrative', [$file], ['reporting_date' => null, 'reporting_quarter' => null]);
+    $entries = app(ProjectReportEvidence::class)->forProject($this->topic, CarbonImmutable::parse('2026-04-01'), CarbonImmutable::parse('2026-06-30'));
+
+    expect(array_column($entries, 'path'))->toBe([$file['path']])
+        ->and($entries[0]['reporting_date'])->toBe('2026-05-14');
+});
+
 test('report evidence reaches the head only after office secretary forwarding', function (string $kind) {
     $head = User::factory()->create();
     $head->assignRole('research_head');

@@ -41,6 +41,7 @@ async function fixture(browser, type) {
     await page.addScriptTag({ content: `${reportEditor}\n${semanticHelpers}\n${semanticEditor}
         function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
         const documentPreviewForm = () => ({submitting:false,initializeProposalPaperPreview(){},markProposalPreviewStale(){},clearPreviewObjectUrls(){},destroyProposalPaperPreview(){}});
+        const uploadRequest = (url, options) => window.fetch(url, options);
         window.savedForms=[];window.failSave=false;window.submissions=0;
         document.querySelector('form').addEventListener('submit', event=>{event.preventDefault();window.submissions++;});
         window.fetch=async(url,options)=>{window.savedForms.push(Object.fromEntries(options.body.entries()));

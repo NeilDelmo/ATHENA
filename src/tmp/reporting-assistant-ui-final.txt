@@ -1,0 +1,37 @@
+✔ monitoring-tool accepted text synchronizes the real editor and existing draft save (1140.9439ms)
+✔ progress-report accepted text synchronizes the real editor and existing draft save (1750.4384ms)
+✔ terminal-report accepted text synchronizes the real editor and existing draft save (1073.8635ms)
+✔ comment responses stay staged in their form and never submit the revision automatically (37931.6111ms)
+✔ quarterly reports with restored validation input must be saved before checking or revising (10.4518ms)
+✔ college-quarterly stages accepted text in the real manual form without submitting it (10421.7942ms)
+✔ rms-quarterly stages accepted text in the real manual form without submitting it (1377.3606ms)
+✔ terminal report revisions preserve the source identity and locator of existing citations (2835.7833ms)
+✔ equivalent sanitized marker markup remains applicable without weakening source protection (1005.8863ms)
+✔ stale versions and changed baselines preserve the real report text (838.7604ms)
+✔ a failed draft save keeps accepted text visible and reports that it is unsaved (854.4112ms)
+✔ college report assistant stays inside the saved report form and respects submitted reports (2.2217ms)
+✔ RMS assistant uses its own saved report identity without changing save and export actions (1.5483ms)
+✔ saved college evidence captions use stable path tokens while submitted and faculty evidence stay read only (0.8651ms)
+✔ progress-report preserves its own identity and field (1.7352ms)
+✔ monitoring-tool preserves its own identity and field (0.3257ms)
+✔ terminal-report preserves its own identity and field (0.1762ms)
+✔ comment-response preserves its own identity and field (0.1184ms)
+✔ college-quarterly preserves its own identity and field (0.1184ms)
+✔ rms-quarterly preserves its own identity and field (0.1246ms)
+✔ invalid contexts cannot select arbitrary reports or revisions (0.1485ms)
+✔ amounts, identifiers, approved objectives and decisions cannot become editable candidates (0.4251ms)
+✔ only bounded narrative fields and valid nonduplicate immutable tokens survive history normalization (0.2209ms)
+✔ rich revisions are restricted to terminal literature, with all previews retained as inert strings (0.3114ms)
+✔ handoff stores only a token and report identity, expires, and cannot cross accounts (1.6428ms)
+✔ keeping current text removes only that candidate and makes no resolve or persistence request (0.3015ms)
+✔ report shortcuts preserve a message typed while the draft is saving (0.4441ms)
+✔ ordinary report chat preserves edits typed during the save before sending (2.1968ms)
+✔ report review panel appears only while there are wording changes to review (2136.4772ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62101.6374

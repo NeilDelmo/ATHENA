@@ -57,6 +57,7 @@ class SaveRmsQuarterlyReportRequest extends FormRequest
             'reporting_year' => ['required', 'integer', 'between:2000,2100'],
             'reporting_quarter' => ['required', 'integer', 'between:1,4'],
             'source_token' => ['required', 'string', 'size:64'],
+            'draft_token' => ['required', 'string', 'size:64'],
             'form_complete' => ['required', Rule::in(['1'])],
             'intent' => ['sometimes', Rule::in(['save', 'download'])],
             'campus' => ['required', 'string', 'max:255'],
@@ -94,7 +95,10 @@ class SaveRmsQuarterlyReportRequest extends FormRequest
 
     public function messages(): array
     {
-        return ['row_details.*.sdgs.regex' => 'Enter SDG numbers from 1 to 17, separated by commas.'];
+        return [
+            'row_details.*.sdgs.regex' => 'Enter SDG numbers from 1 to 17, separated by commas.',
+            'draft_token.required' => 'This report form is out of date. Copy any work you need, then reload the report before saving.',
+        ];
     }
 
     public function after(): array

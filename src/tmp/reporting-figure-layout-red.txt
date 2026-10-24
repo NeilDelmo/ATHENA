@@ -1,0 +1,25 @@
+✖ report figures reserve their layout space while preview images are loading (2530.3065ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3037.1887
+
+✖ failing tests:
+
+test at tests\Frontend\project-monitoring-workspace.test.mjs:722:1
+✖ report figures reserve their layout space while preview images are loading (2530.3065ms)
+  AssertionError [ERR_ASSERTION]: Figure shifted by 186.75px at 390px width
+      at TestContext.<anonymous> (file:///C:/laragon/www/athena-app/src/tests/Frontend/project-monitoring-workspace.test.mjs:746:20)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

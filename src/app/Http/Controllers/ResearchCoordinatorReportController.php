@@ -113,6 +113,9 @@ class ResearchCoordinatorReportController extends Controller
                 if ($report->submitted_at !== null) {
                     throw ValidationException::withMessages(['intent' => 'This quarterly report has already been submitted and cannot be changed.']);
                 }
+                if (! hash_equals($report->draftToken(), $validated['draft_token'])) {
+                    throw ValidationException::withMessages(['draft_token' => 'This report changed in another tab. Your changes were not saved. Copy any work you need, then reload this page to load the latest draft.']);
+                }
 
                 $evidence = array_values(array_filter($report->evidence ?? [], fn (array $image): bool => ($image['source'] ?? null) !== 'faculty_report'));
                 foreach ($validated['saved_evidence_captions'] ?? [] as $token => $caption) {
@@ -198,14 +201,15 @@ class ResearchCoordinatorReportController extends Controller
             $notifyRmsStatus->handle($validated['reporting_year'], $validated['reporting_quarter']);
         }
 
-        $destination = match ($validated['intent']) {
-            'preview' => 'research_coordinator.reports.print',
-            'download' => 'research_coordinator.reports.download',
-            default => 'research_coordinator.reports.index',
-        };
-
-        return redirect()->route($destination, ['year' => $validated['reporting_year'], 'quarter' => $validated['reporting_quarter']])
+        $period = ['year' => $validated['reporting_year'], 'quarter' => $validated['reporting_quarter']];
+        $destination = $validated['intent'] === 'preview' ? 'research_coordinator.reports.print' : 'research_coordinator.reports.index';
+        $response = redirect()->route($destination, $period)
             ->with('status', $submitting ? 'Quarterly accomplishment report submitted.' : 'Quarterly accomplishment report draft saved.');
+        if ($validated['intent'] === 'download') {
+            $response->with('report_download_url', route('research_coordinator.reports.download', $period));
+        }
+
+        return $response;
     }
 
     /** @return array<string, mixed> */

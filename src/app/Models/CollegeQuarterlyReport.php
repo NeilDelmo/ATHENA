@@ -35,6 +35,15 @@ class CollegeQuarterlyReport extends Model
         return $this->belongsTo(User::class, 'prepared_by');
     }
 
+    public function draftToken(): string
+    {
+        return hash('sha256', json_encode([
+            $this->presentations ?? [], $this->publications ?? [], $this->seminars ?? [],
+            $this->manual_research ?? [], $this->ip_assets ?? [], $this->evidence ?? [],
+            $this->other_accomplishments ?? '', $this->reviewed_by ?? '', $this->reviewed_by_title ?? '',
+        ], JSON_THROW_ON_ERROR));
+    }
+
     /** @return list<list<string>> */
     public function activityRows(string $section): array
     {

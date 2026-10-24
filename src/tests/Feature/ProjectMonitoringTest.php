@@ -940,7 +940,7 @@ test('researchers can fill and save all three report drafts before submission op
     $this->actingAs($this->researcher);
 
     $this->get(route('research.show', $this->topic))->assertOk()->assertSee('Fill draft')
-        ->assertSee('Draft now. Submission opens');
+        ->assertSee('Submission opens Apr 8, 2026');
     $monitoring = $this->get(route('project-progress.create', $this->topic))->assertOk()
         ->assertSee('data-monitoring-tool-autosave-form', false)->assertSee('Save draft')->assertSee('Apr 8, 2026');
     $progress = $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()

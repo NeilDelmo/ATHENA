@@ -22,11 +22,11 @@ test('all college rows submit as one JSON value without exhausting PHP input var
     }))).flat();
     const formData = new FormData();
     for (const input of elements) formData.append(input.name, input.value);
-    for (const [name, value] of Object.entries({ _token: 'csrf', campus: 'ARASOF-Nasugbu', intent: 'download', form_complete: '1' })) formData.append(name, value);
+    for (const [name, value] of Object.entries({ _token: 'csrf', campus: 'ARASOF-Nasugbu', intent: 'download', form_complete: '1', draft_token: 'a'.repeat(64) })) formData.append(name, value);
 
     rmsQuarterlyReportForm().serialize({ currentTarget: { elements }, formData });
 
-    assert.equal([...formData.keys()].length, 5);
+    assert.equal([...formData.keys()].length, 6);
     const rows = JSON.parse(formData.get('row_details_json'));
     assert.equal(Object.keys(rows).length, 80);
     assert.equal(rows['presentation-s1-79'].authors, 'Ana Researcher\nBen Researcher');
@@ -34,6 +34,7 @@ test('all college rows submit as one JSON value without exhausting PHP input var
     assert.equal(formData.get('intent'), 'download');
     assert.equal(formData.get('_token'), 'csrf');
     assert.equal(formData.get('form_complete'), '1');
+    assert.equal(formData.get('draft_token'), 'a'.repeat(64));
     assert.equal(elements[0].name, 'row_details[presentation-s1-0][presentation_title]');
     assert.equal(elements[0].disabled, false);
 });

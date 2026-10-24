@@ -27,6 +27,9 @@
         @if (session('status'))
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-base text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
+        @if (session('report_download_url'))
+            <p class="text-sm text-slate-600 dark:text-slate-300">Your download should start automatically. <a href="{{ session('report_download_url') }}" x-init="window.location.assign($el.href)" class="font-semibold text-brand underline dark:text-brand-soft">Download Excel again</a></p>
+        @endif
         @if ($errors->any())
             <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-base text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
                 <p class="font-semibold">Check the report before saving.</p>
@@ -107,6 +110,7 @@
             <input type="hidden" name="reporting_year" value="{{ $year }}">
             <input type="hidden" name="reporting_quarter" value="{{ $quarter }}">
             <input type="hidden" name="source_token" value="{{ $reportData['source_token'] }}">
+            <input type="hidden" name="draft_token" value="{{ session()->hasOldInput() ? old('draft_token', '') : ($report ?? new \App\Models\RmsQuarterlyReport)->draftToken() }}">
 
             <nav data-rms-section-navigation aria-label="Report sections" class="flex flex-wrap gap-2">
                 @foreach ($sections as $section => $label)

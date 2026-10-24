@@ -719,6 +719,44 @@ test('submitted report previews render real PDFs and resize their pages with the
     }
 });
 
+test('report figures reserve their layout space while preview images are loading', async () => {
+    if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
+        execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=report reader shows'], {
+            encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
+        });
+    }
+    const source = readFileSync(resolve('storage/framework/testing/report-reader-terminal-completed.html'), 'utf8');
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [390, 844, 1440]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            let releaseImage;
+            let imageRequested;
+            const pendingImage = new Promise(resolve => { releaseImage = resolve; });
+            const requested = new Promise(resolve => { imageRequested = resolve; });
+            await page.route('**/*', async route => {
+                imageRequested();
+                await pendingImage;
+                return route.fulfill({ contentType: 'image/png', body: readFileSync(resolve('public/images/progress-report-demo/figure-1.png')) });
+            });
+            const figure = await page.evaluate(source => new DOMParser().parseFromString(source, 'text/html').querySelector('[data-report-figure]').outerHTML, source);
+            await page.setContent(`<style>${styles.css}</style><main class="mx-auto max-w-3xl p-4">${figure}</main>`, { waitUntil: 'domcontentloaded' });
+            await requested;
+            const before = await page.locator('[data-report-figure]').boundingBox();
+            releaseImage();
+            await page.locator('img').evaluate(image => image.decode());
+            const after = await page.locator('[data-report-figure]').boundingBox();
+            assert.ok(Math.abs(after.height - before.height) <= 1, `Figure shifted by ${after.height - before.height}px at ${width}px width`);
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('opened report readers keep a readable document, aligned actions and accessible figure and PDF dialogs', async () => {
     if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=report reader shows'], {
@@ -868,7 +906,8 @@ test('opened report readers keep a readable document, aligned actions and access
                     await assertBackPlacement();
                     const contentEnd = await content.boundingBox();
                     const finalBackBounds = await back.boundingBox();
-                    assert.ok(contentEnd.y + contentEnd.height + 4 <= finalBackBounds.y);
+                    assert.ok(contentEnd.y + contentEnd.height + 4 <= finalBackBounds.y,
+                        `${fixture} at ${width}x${height} (${dark ? 'dark' : 'light'}): content ${JSON.stringify(contentEnd)}, back ${JSON.stringify(finalBackBounds)}`);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     assert.deepEqual(errors, []);
                     if (process.env.MONITORING_SCREENSHOT_DIRECTORY && fixture === 'progress-completed' && [390, 1440].includes(width)) {

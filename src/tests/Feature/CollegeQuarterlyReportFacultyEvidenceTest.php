@@ -60,7 +60,7 @@ beforeEach(function () {
     ]);
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
     $this->period = ['year' => 2026, 'quarter' => 3];
-    $this->input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1'];
+    $this->input = fn (): array => ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1', 'draft_token' => (CollegeQuarterlyReport::where('college', $this->coordinator->college)->where('reporting_year', 2026)->where('reporting_quarter', 3)->first() ?? new CollegeQuarterlyReport)->draftToken()];
 });
 
 test('submitted faculty image proof appears in accomplishment form print and Word without manual activity imports', function () {
@@ -106,7 +106,7 @@ test('faculty evidence collection respects college notice and calendar quarter',
 test('submitted accomplishment reports freeze faculty proof independently of later source changes', function () {
     $file = ($this->proof)();
     $source = ($this->monitoring)([$file]);
-    $this->post(route('research_coordinator.reports.store'), [...$this->input, 'intent' => 'submit'])->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'intent' => 'submit'])->assertSessionHasNoErrors();
     $report = CollegeQuarterlyReport::sole();
     $frozen = $report->snapshot['evidence'][0];
     expect($frozen['source'])->toBe('faculty_report')->and($frozen['path'])->not->toBe($file['path'])
@@ -129,7 +129,7 @@ test('faculty PDF proof is listed with a file link in accomplishment Word instea
     expect($parts['word/document.xml'])->toContain('certificate.pdf', 'w:hyperlink')
         ->and($parts['word/_rels/document.xml.rels'])->toContain('/hyperlink', 'TargetMode="External"');
 
-    $this->post(route('research_coordinator.reports.store'), [...$this->input, 'intent' => 'submit'])->assertSessionHasNoErrors();
+    $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'intent' => 'submit'])->assertSessionHasNoErrors();
     $submission = CollegeQuarterlyReport::sole()->submissions()->sole();
     $parts = facultyAccomplishmentDocumentParts($this->get(route('research_coordinator.reports.download', $this->period))->assertOk()->getContent());
     expect($parts['word/_rels/document.xml.rels'])->toContain(route('college-quarterly-submissions.evidence', [$submission, 0]));
@@ -140,7 +140,7 @@ test('failed college saving removes copied faculty evidence without deleting the
     ($this->monitoring)([$file]);
     $this->mock(CollegeQuarterlyReportData::class)->shouldReceive('build')->once()->andThrow(new RuntimeException('Snapshot failed'));
     $this->withoutExceptionHandling();
-    expect(fn () => $this->post(route('research_coordinator.reports.store'), [...$this->input, 'intent' => 'submit']))->toThrow(RuntimeException::class, 'Snapshot failed');
+    expect(fn () => $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'intent' => 'submit']))->toThrow(RuntimeException::class, 'Snapshot failed');
     expect(CollegeQuarterlyReport::count())->toBe(0)->and(Storage::disk('local')->allFiles('college-quarterly-reports'))->toBe([]);
     Storage::disk('local')->assertExists($file['path']);
 });

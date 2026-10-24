@@ -38,6 +38,7 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
             'reporting_year' => ['required', 'integer', 'between:2000,2100'],
             'reporting_quarter' => ['required', 'integer', 'between:1,4'],
             'form_complete' => ['required', Rule::in(['1'])],
+            'draft_token' => ['required', 'string', 'size:64'],
             'evidence_file_count' => ['required_with:report_details_json', 'integer', 'between:0,1510'],
             'intent' => ['required', Rule::in(['save', 'preview', 'download', 'submit'])],
             'other_accomplishments' => ['nullable', 'string', 'max:100000'],
@@ -168,6 +169,9 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
 
     public function messages(): array
     {
-        return ['form_complete.required' => 'The report form was incomplete. Reload the report before saving.'];
+        return [
+            'form_complete.required' => 'The report form was incomplete. Reload the report before saving.',
+            'draft_token.required' => 'This report form is out of date. Copy any work you need, then reload the report before saving.',
+        ];
     }
 }

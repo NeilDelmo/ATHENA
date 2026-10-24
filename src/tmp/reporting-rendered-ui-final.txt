@@ -1,0 +1,47 @@
+✔ Research Head clipboard menus select, cut, copy and paste college folders across screen sizes (36725.1127ms)
+✔ completion uses evidenced quantities, stays within the approved weight and counts spanning activities once (1.7884ms)
+✔ a completed output is counted once and removing its last proof resets completion (0.6634ms)
+✔ upload responses preserve evidence removed and files selected while saving (1.1493ms)
+✔ the rendered monitoring form uploads, computes, autosaves and restores evidence on desktop and mobile (10900.4512ms)
+✔ monitoring previews use the proposal paper panel with live edits, images and accessible full view (65415.7887ms)
+✔ terminal poster and figure uploads show saved state and delayed text saves preserve image removal (4744.8342ms)
+✔ optional accomplishment evidence keeps stable row keys and leaves reported accomplishments unchanged (5.3799ms)
+✔ draft fingerprints identify binary selections while preview requests retain only report content and figures (2.3655ms)
+✔ a successful evidence response adopts saved files and clears the matching upload once (1.7465ms)
+✔ evidence saved during an edit preserves removals and a newly selected replacement file (1.1617ms)
+✔ invalid evidence selections and upload rejections leave accomplishments intact and preserve later selections (1.3238ms)
+✔ rendered progress reports save private evidence and keep it out of preview on desktop and mobile in both themes (17706.3047ms)
+✔ legacy released-document links override a saved project section (3062.5751ms)
+✔ the rendered monitoring workspace prioritizes reports and supports disclosure and tab navigation in both themes (208696.0324ms)
+✔ submitted report previews render real PDFs and resize their pages with the proposal controls (87643.1532ms)
+✖ opened report readers keep a readable document, aligned actions and accessible figure and PDF dialogs (95548.8291ms)
+✔ the rendered project views preserve monitoring, poster covers, file selection and personal folders in both themes (131618.5441ms)
+✔ the rendered coordinator form submits native rows and files without losing fields in both themes and sizes (33721.0616ms)
+✔ rendered RMS reports keep quarter downloads, editable categories and validation usable across sizes and themes (23456.2902ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 19
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 727649.5306
+
+✖ failing tests:
+
+test at tests\Frontend\project-monitoring-workspace.test.mjs:722:1
+✖ opened report readers keep a readable document, aligned actions and accessible figure and PDF dialogs (95548.8291ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(contentEnd.y + contentEnd.height + 4 <= finalBackBounds.y)
+  
+      at TestContext.<anonymous> (file:///C:/laragon/www/athena-app/src/tests/Frontend/project-monitoring-workspace.test.mjs:871:28)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

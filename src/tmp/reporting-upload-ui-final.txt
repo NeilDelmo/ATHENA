@@ -1,0 +1,19 @@
+✔ Edge native uploads keep failed edits dirty and leave cleanly after recovering a saved response (3666.3995ms)
+✔ ordinary saves keep their existing fetch transport (20.62ms)
+✔ file transfer reports actual bytes then waits for server preparation (4.9819ms)
+✔ lost responses retry the same operation and file body without duplicating saves (2.7813ms)
+✔ validation and permission errors are not retried or reported as saved (2.8793ms)
+✔ an explicit retry of an unchanged interrupted upload keeps its operation identity (7.5696ms)
+✔ aborting an upload never retries (0.9806ms)
+✔ a still-processing save keeps its identity for the next retry (29.4741ms)
+✔ retry-unavailable responses stop automatic retries (15.293ms)
+✔ an already-aborted transfer never sends a file (0.4657ms)
+✔ interrupted operation identities cannot cross accounts or workspaces (92.3454ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4327.4985

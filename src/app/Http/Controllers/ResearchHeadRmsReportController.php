@@ -55,6 +55,9 @@ class ResearchHeadRmsReportController extends Controller
                 ->orderBy('id')->lockForUpdate()->get(['id']);
             $report = RmsQuarterlyReport::firstOrCreate(['reporting_year' => $year, 'reporting_quarter' => $quarter]);
             $report = RmsQuarterlyReport::whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if (! hash_equals($report->draftToken(), $validated['draft_token'])) {
+                throw ValidationException::withMessages(['draft_token' => 'This RMS report changed in another tab. Your changes were not saved. Copy any work you need, then reload this page to load the latest draft.']);
+            }
             $reportData = $data->build($year, $quarter);
             if (! hash_equals($reportData['source_token'], $validated['source_token'])) {
                 throw ValidationException::withMessages(['source_token' => 'College submissions changed while you were editing. Review the refreshed records before saving.']);
@@ -74,8 +77,14 @@ class ResearchHeadRmsReportController extends Controller
             return $this->downloadsPending($request, $year, $quarter)->with('status', 'RMS draft saved. Excel download is waiting for all college reports.');
         }
 
-        return redirect()->route(($validated['intent'] ?? 'save') === 'download' ? 'research_head.rms-quarterly-reports.download' : 'research_head.rms-quarterly-reports.index', ['year' => $year, 'quarter' => $quarter])
+        $period = ['year' => $year, 'quarter' => $quarter];
+        $response = redirect()->route('research_head.rms-quarterly-reports.index', $period)
             ->with('status', 'RMS quarterly report draft saved.');
+        if (($validated['intent'] ?? 'save') === 'download') {
+            $response->with('report_download_url', route('research_head.rms-quarterly-reports.download', $period));
+        }
+
+        return $response;
     }
 
     public function download(Request $request, RmsQuarterlyReportData $data, RmsQuarterlyReportDocument $document, RmsQuarterlyReportStatus $status): Response|RedirectResponse

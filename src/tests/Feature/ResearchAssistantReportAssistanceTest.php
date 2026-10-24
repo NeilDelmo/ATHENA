@@ -420,8 +420,10 @@ test('terminal writing revisions retain citations anchored in the approved propo
 test('saved college evidence captions persist through existing save and reject unrelated proof tokens', function () {
     ($this->selectWorkspace)($this->coordinator, User::WORKSPACE_RESEARCH_OFFICE);
     $input = ['reporting_year' => 2026, 'reporting_quarter' => 3, 'intent' => 'save', 'form_complete' => '1', 'saved_evidence_captions' => [hash('sha256', 'college/proof.jpg') => 'Reviewed presentation documentation.']];
+    $input['draft_token'] = $this->college->fresh()->draftToken();
     $this->postJson(route('research_coordinator.reports.store'), $input)->assertRedirect()->assertSessionHasNoErrors();
     expect($this->college->fresh()->evidence[0]['caption'])->toBe('Reviewed presentation documentation.');
     $input['saved_evidence_captions'] = [str_repeat('a', 64) => 'Another proof.'];
+    $input['draft_token'] = $this->college->fresh()->draftToken();
     $this->postJson(route('research_coordinator.reports.store'), $input)->assertUnprocessable()->assertJsonValidationErrors('saved_evidence_captions');
 });

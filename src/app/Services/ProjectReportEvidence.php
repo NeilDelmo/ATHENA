@@ -27,6 +27,7 @@ class ProjectReportEvidence
         }
 
         $topic->loadMissing(['progressReports.submitter', 'narrativeReports.submitter']);
+        $quarters = app(MonitoringQuarterService::class);
         $sources = [
             'monitoring' => $topic->progressReports->sortByDesc(fn (ProjectProgressReport $report): string => sprintf('%010d-%020d', $report->version_number, $report->id)),
             'narrative' => $topic->narrativeReports->where('report_type', 'progress')->sortByDesc('id'),
@@ -34,11 +35,19 @@ class ProjectReportEvidence
         $entries = [];
         foreach ($sources as $kind => $reports) {
             $reports = $reports->filter(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => $report->isSubmitted()
-                && (! $viewer?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $report->isAvailableToResearchHead())
-                && ($start === null || $report->reporting_date?->toDateString() >= $start->toDateString())
-                && ($end === null || $report->reporting_date?->toDateString() <= $end->toDateString()))
-                ->unique(fn (ProjectProgressReport|ProjectNarrativeReport $report): ?string => $report->reporting_date?->toDateString());
+                && (! $viewer?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $report->isAvailableToResearchHead()))
+                ->unique(function (ProjectProgressReport|ProjectNarrativeReport $report) use ($quarters, $topic): ?string {
+                    $date = $report->reporting_date ?? $report->period_end;
+
+                    return $date ? $quarters->forDate($date, $topic)['start']->toDateString() : null;
+                })->filter(function (ProjectProgressReport|ProjectNarrativeReport $report) use ($start, $end): bool {
+                    $date = $report->reporting_date ?? $report->period_end;
+
+                    return ($start === null || $date?->toDateString() >= $start->toDateString())
+                        && ($end === null || $date?->toDateString() <= $end->toDateString());
+                });
             foreach ($reports as $report) {
+                $reportingDate = $report->reporting_date ?? $report->period_end;
                 $label = $kind === 'monitoring' ? 'Monitoring Tool' : 'Progress Report';
                 $rows = $kind === 'monitoring' ? $report->work_plan : $report->accomplishments;
                 foreach ($rows ?? [] as $index => $row) {
@@ -54,7 +63,7 @@ class ProjectReportEvidence
                         $downloadUrl = route($kind === 'monitoring' ? 'project-progress.evidence' : 'project-narrative-reports.evidence', [$topic, $file['id']]);
                         $entries[$path] = [
                             'path' => $path,
-                            'caption' => implode(' · ', array_filter([$topic->title, $label, $report->reporting_period_label ?: $report->reporting_date?->format('M j, Y'),
+                            'caption' => implode(' · ', array_filter([$topic->title, $label, $report->reporting_period_label ?: $reportingDate?->format('M j, Y'),
                                 $row[$kind === 'monitoring' ? 'activity' : 'objective'] ?? '', $file['name']], fn (mixed $value): bool => filled($value))),
                             'mime_type' => $mimeType,
                             'original_filename' => $file['name'],
@@ -63,7 +72,7 @@ class ProjectReportEvidence
                             'source_key' => hash('sha256', $kind.':'.$report->id.':'.$index.':'.$file['id']),
                             'url' => $downloadUrl.(in_array($mimeType, ['image/jpeg', 'image/png'], true) ? '?preview=1' : ''),
                             'download_url' => $downloadUrl,
-                            'reporting_date' => $report->reporting_date?->toDateString(),
+                            'reporting_date' => $reportingDate?->toDateString(),
                             'uploaded_by' => $report->submitter?->name,
                             'uploaded_at' => $report->submitted_at ?? $report->created_at,
                             'file_size' => Storage::disk('local')->size($path),

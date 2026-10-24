@@ -86,7 +86,7 @@ class ProgressReportData
 
                 return [
                     ...$approved,
-                    'actual' => (string) ($row['actual'] ?? ''),
+                    'actual' => $row['actual'] ?? '',
                     ...array_intersect_key($row, array_flip(['evidence', 'evidence_ids'])),
                 ];
             })->all();

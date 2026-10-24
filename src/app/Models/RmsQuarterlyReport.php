@@ -25,4 +25,11 @@ class RmsQuarterlyReport extends Model
     {
         return $this->belongsTo(User::class, 'updated_by');
     }
+
+    public function draftToken(): string
+    {
+        return hash('sha256', json_encode([
+            $this->campus, $this->signatories ?? [], $this->row_details ?? [],
+        ], JSON_THROW_ON_ERROR));
+    }
 }

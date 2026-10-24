@@ -34,10 +34,12 @@ class ProjectReportDraftState
 
             return $report->reporting_date?->betweenIncluded($period['start'], $period['end']) ?? false;
         })->sortByDesc('id')->first();
-        $draft = $kind === 'monitoring'
-            ? ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($user, 'user')->where('source_key', $source ? 'revision:'.$source : 'new')->first()
-            : ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($user, 'user')->where('report_type', $kind)->first();
-        $savedDate = data_get($draft?->source_data, 'reporting_date');
+        $draftQuery = $kind === 'monitoring'
+            ? ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($user, 'user')->where('source_key', $source ? 'revision:'.$source : 'new')
+            : ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($user, 'user')->where('report_type', $kind);
+        $draft = $draftQuery->first(['lock_version', 'source_data->reporting_date as saved_reporting_date']);
+        $savedDate = $draft?->saved_reporting_date;
+        $savedDate = $savedDate === 'null' ? null : $savedDate;
         $samePeriod = $period === null || ! $savedDate || $schedule->forDate($savedDate, $topic)['start']->eq($period['start']);
         $editable = $topic->isMonitoringAvailable() && $prepared === null && $samePeriod
             && ($kind === 'terminal' || ($period !== null && $schedule->canDraftForDate($topic, $reportingDate)));
