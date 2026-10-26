@@ -63,7 +63,7 @@ test('each faculty workspace can open its full calendar', function (string $work
         ->assertDontSee('data-calendar-compact', false);
 })->with([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
 
-test('three submission categories separate active proposals monitoring and closed records within the accessible scope', function () {
+test('submission categories separate active proposals monitoring and closed records within the accessible scope', function () {
     $user = User::factory()->create();
     $user->assignRole(['faculty', 'faculty_researcher']);
     $other = User::factory()->create();
@@ -102,8 +102,8 @@ test('three submission categories separate active proposals monitoring and close
             ->assertDontSee('Private research proposal')
             ->assertViewHas('category', $category)
             ->assertViewHas('topics', fn ($topics): bool => $topics->pluck('id')->sort()->values()->all() === $ids->sort()->values()->all())
-            ->assertViewHas('categories', fn ($categories): bool => $categories === ['active' => 'Active proposals', 'monitoring' => 'In monitoring', 'closed' => 'Closed'])
-            ->assertViewHas('categoryCounts', fn ($counts): bool => $counts->all() === ['active' => 8, 'monitoring' => 2, 'closed' => 2])
+            ->assertViewHas('categories', fn ($categories): bool => $categories === ['all' => 'All submissions', 'active' => 'Active proposals', 'monitoring' => 'In monitoring', 'closed' => 'Closed'])
+            ->assertViewHas('categoryCounts', fn ($counts): bool => $counts->all() === ['all' => 12, 'active' => 8, 'monitoring' => 2, 'closed' => 2])
             ->assertDontSee('Switch to Faculty Researcher')->assertDontSee('data-research-workspace-switch', false);
         if ($category === 'monitoring') {
             $response->assertSee('In monitoring')->assertSee('View proposal')->assertDontSee('>Project monitoring<', false);
@@ -162,7 +162,7 @@ test('faculty proposal records show the project outcome and monitoring stays in 
         ->assertDontSee('id="notice-to-proceed-tab-button"', false)->assertDontSee('id="notice-to-proceed-tab"', false)
         ->assertSee('data-released-notice-summary', false)->assertSee('2026-10-03 to 2027-02-03')->assertSee('PHP 60,000.00')
         ->assertDontSee('id="project-monitoring-tab-button"', false)->assertDontSee('id="project-monitoring-tab"', false)
-        ->assertViewHas('projectDocumentLibrary', fn ($library): bool => ! $library['documents']->contains('key', 'monitoring-report-'.$report->id));
+        ->assertViewHas('projectDocumentLibrary', fn ($library): bool => $library['documents']->contains('key', 'monitoring-report-'.$report->id));
     $this->get(route('research.show', $topic))->assertForbidden();
     $this->post(route('workspace.store'), ['workspace' => 'faculty_researcher'])
         ->assertRedirect(route('faculty.dashboard'))
@@ -240,7 +240,7 @@ test('faculty sidebars group accessible shortcuts by workspace', function (strin
     ] : [
         'Overview' => ['Dashboard', 'Calendar'],
         'Monitoring' => ['My Projects', 'Active projects', 'Awaiting release'],
-        'Completion' => ['Completed projects'],
+        'Completion' => ['Completed projects', 'Post-implementation'],
         'Resources' => ['Saved literature', 'Literature search', 'Turnitin', 'Journal Finder'],
     ];
     foreach ($expectedGroups as $group => $labels) {

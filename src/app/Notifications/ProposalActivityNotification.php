@@ -25,6 +25,8 @@ class ProposalActivityNotification extends Notification
 
     public const SIDEBAR_AREA_RMS_REPORTS = 'rms_reports';
 
+    public const SIDEBAR_AREA_RESEARCH_OUTCOMES = 'research_outcomes';
+
     /**
      * @param  list<string>|string|null  $workspace
      */

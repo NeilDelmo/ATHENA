@@ -77,6 +77,47 @@ beforeEach(function () {
 
 dataset('secretary reviewed report types', ['Monitoring Tool' => 'monitoring', 'Progress Report' => 'progress']);
 
+test('a changed prepared PDF cannot be submitted as the original report', function (string $type, string $change) {
+    $report = ($this->makeReport)($type, ['submission_status' => 'prepared', 'prepared_at' => now(), 'submitted_at' => null]);
+    Storage::disk('local')->put($report->official_pdf_path, $change === 'empty' ? '' : '%PDF-1.4 replaced report');
+    $routes = ($this->reportRoutes)($type);
+    $this->actingAs($this->author)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->post(route($routes['submit'], [$this->topic, $report]))
+        ->assertSessionHasErrors('preparation', null, $type === 'monitoring' ? 'default' : 'narrativeProgress');
+
+    expect($report->fresh()->isPrepared())->toBeTrue();
+    Notification::assertNothingSent();
+})->with('secretary reviewed report types')->with(['replaced', 'empty']);
+
+test('a changed submitted PDF cannot be forwarded to the Research Head', function (string $type, string $change) {
+    $report = ($this->makeReport)($type);
+    Storage::disk('local')->put($report->official_pdf_path, $change === 'empty' ? '' : '%PDF-1.4 replaced report');
+    $routes = ($this->reportRoutes)($type);
+    $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->patch(route($routes['secretary'], $report), ['decision' => 'forward'])
+        ->assertSessionHasErrors('review');
+
+    expect($report->fresh()->review_stage)->toBe('secretary')
+        ->and($report->fresh()->forwarded_at)->toBeNull();
+    Notification::assertNothingSent();
+})->with('secretary reviewed report types')->with(['replaced', 'empty']);
+
+test('the Research Head cannot accept a changed report PDF', function (string $type, string $change) {
+    $report = ($this->makeReport)($type, ['review_stage' => 'head', 'forwarded_at' => now()]);
+    if ($type === 'terminal') {
+        $report->update(['report_type' => 'terminal', 'review_stage' => null]);
+    }
+    Storage::disk('local')->put($report->official_pdf_path, $change === 'empty' ? '' : '%PDF-1.4 replaced report');
+    $routes = ($this->reportRoutes)($type);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route($routes['head'], $report), ['review_status' => 'reviewed'])
+        ->assertSessionHasErrors('review');
+
+    expect($report->fresh()->review_status)->toBe('pending')
+        ->and($report->fresh()->reviewed_at)->toBeNull();
+    Notification::assertNothingSent();
+})->with(['monitoring', 'progress', 'terminal'])->with(['replaced', 'empty']);
+
 test('submitted implementation reports reach only the college Research Office Secretary first', function (string $type) {
     $report = ($this->makeReport)($type, ['submission_status' => 'prepared', 'review_stage' => null, 'submitted_at' => null]);
     $routes = ($this->reportRoutes)($type);

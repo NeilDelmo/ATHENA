@@ -103,6 +103,30 @@ async function cite(page, title, atStart = false, locator = '') {
     await expect(dialog).toBeHidden();
 }
 
+test('saved RRL text keeps literal characters and numbered citations remain linked when references renumber', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await openEditor(browser);
+        const note = 'The study compares <control> & treatment outcomes across coastal communities [1].';
+        assert.equal(await page.evaluate((text) => {
+            const state = window.citationState;
+            const source = { ...state.literatureSources[0], rrl_note: text, rrl_draft_status: 'confirmed', rrl_evidence_basis: 'abstract' };
+            state.upsertLiteratureSource(source);
+            return state.addLiteratureSourceToRrl(source, true);
+        }, note), true);
+        const markers = page.locator('.semantic-rich-text-editor [data-proposal-citation="7"]');
+        await expect(markers).toHaveCount(1);
+        assert.ok((await page.locator('#related-literature').evaluate((field) => field._semanticEditor.textContent)).replace(/\s+/g, ' ').includes(note));
+        assert.equal(await page.evaluate(() => window.citationState.addLiteratureSourceToRrl(window.citationState.literatureSources[0], true)), false);
+        await cite(page, 'Habitat Recovery', true);
+        await expect(markers).toHaveText([' [2]']);
+        assert.equal(await page.evaluate(() => window.citationState.addLiteratureSourceToRrl(window.citationState.literatureSources.find((source) => source.id === 7), true)), false);
+        await expect(markers).toHaveCount(1);
+        assert.equal(await page.locator('#references').evaluate((field) => field._semanticEditor.querySelectorAll('[data-proposal-managed-reference]').length), 2);
+        await page.close();
+    } finally { await browser.close(); }
+});
+
 test('toolbar citations share IEEE references, renumber in reading order, and follow undo, redo and deletion', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {

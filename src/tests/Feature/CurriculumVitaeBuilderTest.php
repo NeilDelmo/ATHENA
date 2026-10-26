@@ -92,6 +92,22 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+test('CV previews return structured field errors instead of redirecting the editor', function () {
+    $payload = ($this->payload)();
+    $payload['people'][0]['email'] = 'invalid-email';
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.curriculum-vitae.preview', $this->draft), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('people.0.email');
+});
+
+test('an expired CV preview session returns an authentication error instead of login HTML', function () {
+    $this->postJson(route('faculty.proposal-drafts.curriculum-vitae.preview', $this->draft), [])
+        ->assertUnauthorized()
+        ->assertJsonPath('message', 'Unauthenticated.');
+});
+
 test('new team CVs reuse each linked member profile without filling external people from the editor', function () {
     $this->faculty->forceFill([
         'contact_number' => '09170000011',

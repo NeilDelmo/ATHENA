@@ -3,6 +3,7 @@
 <div data-assistant-report-editor data-assistant-report-context="{{ json_encode($context) }}"
     x-data="assistantReportEditor(@js(['context' => $context, 'editable' => $editable, 'unsaved' => session()->hasOldInput()]))"
     @athena-prepare-report.window="onPrepare($event)" @athena-apply-report-change.window="onApply($event)" @athena-report-navigation.window="onNavigate($event)"
+    @beforeunload.window="onNavigate($event)" x-on:livewire:navigate.document="onNavigate($event)"
     class="flex flex-wrap items-center gap-2 border-b border-stone-200 pb-4 dark:border-stone-700">
     <button type="button" @click="reviewReport()" :disabled="working || !context"
         class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100">

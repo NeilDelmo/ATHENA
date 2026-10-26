@@ -1,8 +1,11 @@
 @props(['topic', 'journalSubmissions', 'canTrackJournals' => false, 'returnToFinder' => false])
-@php($hasJournalErrors = $errors->any() && !old('conference_id'))
+@php
+    $validationContext = session('dissemination_validation_context', []);
+    $hasJournalErrors = data_get($validationContext, 'topic_id') === $topic->id && data_get($validationContext, 'kind') === 'journal' && $errors->any();
+@endphp
 
 <section id="journal-submissions" class="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-950 sm:p-6"
-    x-data="{ adding: @js($hasJournalErrors && !old('journal_submission_id')) }"
+    x-data="{ adding: @js($hasJournalErrors && data_get($validationContext, 'record_id') === null) }"
     @journal-selected.window="adding = true; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -55,7 +58,7 @@
                 </div>
                 @if ($submission->notes)<p class="mt-2 whitespace-pre-line text-sm text-gray-600 dark:text-slate-300">{{ $submission->notes }}</p>@endif
                 @if ($canTrackJournals)
-                    <details class="mt-3" @if ((string) old('journal_submission_id') === (string) $submission->id) open @endif>
+                    <details class="mt-3" @if ($hasJournalErrors && data_get($validationContext, 'record_id') === $submission->id) open @endif>
                         <summary class="disclosure-summary cursor-pointer text-sm font-semibold text-gray-700 dark:text-slate-200">Update stage or details</summary>
                         <div class="mt-4"><x-journal-submission-form :topic="$topic" :submission="$submission" :return-to-finder="$returnToFinder" /></div>
                     </details>

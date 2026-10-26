@@ -76,7 +76,7 @@
                 </div>
                 @if ($conference->notes)<p class="mt-3 whitespace-pre-line text-sm text-gray-600 dark:text-slate-300">{{ $conference->notes }}</p>@endif
                 @if ($canEdit)
-                    <details class="mt-4 border-t border-gray-200 pt-4 dark:border-slate-700" @if ((string) old('conference_id') === (string) $conference->id) open @endif>
+                    <details class="mt-4 border-t border-gray-200 pt-4 dark:border-slate-700" @if ($restoreConferenceInput && data_get($validationContext, 'record_id') === $conference->id) open @endif>
                         <summary class="disclosure-summary cursor-pointer text-sm font-bold">Update details or submission progress</summary>
                         <form method="POST" action="{{ route('research.dissemination.conferences.update', [$topic, $conference]) }}" class="mt-4 space-y-4">
                             @csrf @method('PATCH')

@@ -598,6 +598,11 @@ class TopicProposal extends Model
             ->orderBy('name');
     }
 
+    public function researchOutcome(): HasOne
+    {
+        return $this->hasOne(ResearchOutcome::class, 'topic_id');
+    }
+
     public function progressReports(): HasMany
     {
         return $this->hasMany(ProjectProgressReport::class, 'topic_id')
@@ -633,7 +638,7 @@ class TopicProposal extends Model
                 'reporting_date' => 'max',
                 'id' => 'max',
             ],
-            fn (Builder $query): Builder => $query->submitted(),
+            fn (Builder $query): Builder => $query->currentSubmittedSnapshot(),
         );
     }
 
@@ -652,7 +657,7 @@ class TopicProposal extends Model
     {
         return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany(
             ['reporting_date' => 'max', 'id' => 'max'],
-            fn (Builder $query): Builder => $query->submitted()->visibleToResearchHead(),
+            fn (Builder $query): Builder => $query->currentSubmittedSnapshot(forResearchHead: true),
         );
     }
 

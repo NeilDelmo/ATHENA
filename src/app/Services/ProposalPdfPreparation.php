@@ -148,8 +148,7 @@ class ProposalPdfPreparation
     public function status(ProposalDraft $draft): array
     {
         $draft->loadMissing(['documents', 'researchCall']);
-        $prepared = $draft->documents->filter(fn (ProposalDraftDocument $document): bool => $document->mime_type === 'application/pdf'
-            && filled($document->file_path) && Storage::disk('local')->exists($document->file_path))->count();
+        $prepared = $draft->documents->filter(fn (ProposalDraftDocument $document): bool => $document->hasCurrentPreparedPdf($draft))->count();
         $state = $draft->pdf_preparation_state ?? [];
         $status = match (true) {
             $this->readiness->submissionFilesArePrepared($draft) && $this->readiness->errors($draft) === [] => 'ready',
@@ -221,6 +220,7 @@ class ProposalPdfPreparation
     private function fingerprint(ProposalDraft $draft): string
     {
         return hash('sha256', json_encode([
+            config('expense_breakdown.pdf_layout_version'),
             $draft->lock_version,
             $draft->documents->sortBy('id')->map(fn (ProposalDraftDocument $document): array => [$document->id, $document->lock_version])->values()->all(),
             $draft->resolvedSignatorySelections(),

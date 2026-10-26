@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\MonitoringQuarterService;
@@ -34,10 +35,17 @@ class PrepareProjectNarrativeReport
     ): ProjectNarrativeReport {
         return DB::transaction(function () use ($topic, $user, $validated, $files): ProjectNarrativeReport {
             $topic = $topic->newQuery()->whereKey($topic)->lockForUpdate()->firstOrFail();
-            if (! $topic->isMonitoringAvailable()) {
+            if (! $topic->isMonitoringAvailable() || ! $topic->isAccessibleTo($user)) {
                 throw ValidationException::withMessages(['preparation' => 'This project is no longer open for report preparation.']);
             }
             $type = $validated['report_type'] ?? 'progress';
+            $draft = ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')
+                ->whereBelongsTo($user, 'user')->where('report_type', $type)->lockForUpdate()->first();
+            $expectedVersion = (int) ($validated['draft_version'] ?? $draft?->lock_version ?? 0);
+            $expectedDraftId = (int) ($validated['draft_id'] ?? $draft?->id ?? 0);
+            if ($expectedVersion !== ($draft?->lock_version ?? 0) || $expectedDraftId !== ($draft?->id ?? 0)) {
+                throw ValidationException::withMessages(['draft_version' => 'A newer report draft was saved. Reload the latest draft before preparing its PDF.']);
+            }
             if ($type === 'progress') {
                 $schedule = app(MonitoringQuarterService::class);
                 if (! $schedule->canSubmitForDate($topic, $validated['reporting_date'])) {
@@ -64,11 +72,11 @@ class PrepareProjectNarrativeReport
                 $validated['terminal_data']['version_number'] = ProjectNarrativeReport::where('topic_id', $topic->id)->where('report_type', 'terminal')->get()->max(fn ($report) => (int) ($report->terminal_data['version_number'] ?? 1)) + 1;
             }
 
-            return $this->prepare($topic, $user, $validated, $files);
+            return $this->prepare($topic, $user, $validated, $files, $draft);
         });
     }
 
-    private function prepare(TopicProposal $topic, User $user, array $validated, array $files): ProjectNarrativeReport
+    private function prepare(TopicProposal $topic, User $user, array $validated, array $files, ?ProjectNarrativeReportDraft $draft): ProjectNarrativeReport
     {
         $storedPaths = [];
 
@@ -94,7 +102,7 @@ class PrepareProjectNarrativeReport
                 ->prepend('cover_image')
                 ->all();
             $report = new ProjectNarrativeReport([
-                ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
+                ...collect($validated)->except([...$photoFields, 'draft_id', 'draft_version'])->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
                 'topic_id' => $topic->id,
                 'submitted_by' => $user->id,
                 'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
@@ -123,7 +131,11 @@ class PrepareProjectNarrativeReport
                 'official_pdf_checksum' => hash('sha256', $pdf),
                 'official_pdf_size' => strlen($pdf),
             ]);
+            if (! $topic->isAccessibleTo($user)) {
+                throw ValidationException::withMessages(['preparation' => 'This project is no longer open for report preparation.']);
+            }
             $report->save();
+            $draft?->delete();
 
             return $report;
         } catch (Throwable $exception) {

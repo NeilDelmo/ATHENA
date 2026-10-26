@@ -9,12 +9,14 @@ test('submitting a prepared report replaces its quarter control even when its ID
     try {
         const page = await browser.newPage();
         let submitted = false;
+        let accessDenied = false;
         let requests = 0;
         await page.route('https://athena.test/**', route => {
             const path = new URL(route.request().url()).pathname;
             if (path.endsWith('.js')) return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve('resources/js/topic-live-status.js'), 'utf8') });
             if (path === '/status') {
                 requests++;
+                if (accessDenied) return route.fulfill({ status: 403, json: { message: 'Project access changed' } });
                 return route.fulfill({ json: { workspace: 'faculty_researcher', proposal: { scope: 'approved', label: 'Approved', actions: [] },
                     reports: Object.fromEntries(['progress', 'monitoring'].map(kind => [`${kind}:8`, {
                         kind, quarter: 1, scope: submitted ? 'submitted' : 'prepared', current: true,
@@ -48,6 +50,14 @@ test('submitting a prepared report replaces its quarter control even when its ID
         await page.evaluate(() => window.dispatchEvent(new Event('online')));
         await expect.poll(() => requests).toBeGreaterThan(count);
         await expect(view).toBeFocused();
+        accessDenied = true;
+        await page.evaluate(() => window.dispatchEvent(new Event('online')));
+        for (const label of ['Progress Report', 'Monitoring Tool']) {
+            const link = page.locator(`a[aria-label="View latest ${label}"]`);
+            await expect(link).toHaveAttribute('aria-disabled', 'true');
+            await expect(link).not.toHaveAttribute('href');
+        }
+        await expect(page.locator('[name="notes"]')).toHaveValue('Unsaved notes');
     } finally {
         await browser.close();
     }

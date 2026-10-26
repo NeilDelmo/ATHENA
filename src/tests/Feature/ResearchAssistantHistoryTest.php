@@ -20,6 +20,47 @@ test('invalid assistant history searches return JSON validation errors', functio
         ->assertJsonValidationErrors('query');
 });
 
+test('long assistant replies remain complete when saving and reopening a conversation', function () {
+    Role::firstOrCreate(['name' => 'faculty']);
+    $researcher = User::factory()->create();
+    $researcher->assignRole('faculty');
+    $reply = str_repeat('Detailed proposal guidance. ', 400);
+    $messages = [
+        ['role' => 'user', 'content' => 'Explain how to improve my proposal.'],
+        ['role' => 'assistant', 'content' => trim($reply)],
+    ];
+
+    $saved = $this->actingAs($researcher)
+        ->postJson(route('research-support.history.save'), ['messages' => $messages])
+        ->assertOk()
+        ->assertJsonPath('conversation.messages.1.content', trim($reply));
+
+    $this->getJson(route('research-support.history.show', $saved->json('conversation.id')))
+        ->assertOk()
+        ->assertJsonPath('conversation.messages.1.content', trim($reply));
+});
+
+test('chat and history endpoints keep their separate message size limits', function (string $endpoint, int $maximumLength) {
+    Role::firstOrCreate(['name' => 'faculty']);
+    $researcher = User::factory()->create();
+    $researcher->assignRole('faculty');
+
+    $this->actingAs($researcher)
+        ->postJson(route('research-support.'.$endpoint), [
+            'messages' => [
+                ['role' => 'user', 'content' => 'Explain my proposal.'],
+                ['role' => 'assistant', 'content' => str_repeat('a', $maximumLength + 1)],
+            ],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('messages.1.content');
+
+    $this->assertDatabaseCount('research_assistant_conversations', 0);
+})->with([
+    'saved conversation' => ['history.save', 32000],
+    'AI request' => ['chat', 8000],
+]);
+
 test('non-null saved reviews still require their findings and limitations', function (string $missingField) {
     $review = [
         'record_basis' => 'private_saved_draft',

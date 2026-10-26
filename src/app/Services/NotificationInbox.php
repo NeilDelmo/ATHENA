@@ -121,7 +121,7 @@ class NotificationInbox
         if ($area === 'proposal_workspace') {
             return 'collaboration';
         }
-        if (in_array($area, ['project_monitoring', 'my_projects'], true) || Str::contains($title, ['project', 'monitoring', 'progress report', 'narrative report', 'notice to proceed'])) {
+        if (in_array($area, ['project_monitoring', 'my_projects', 'research_outcomes'], true) || Str::contains($title, ['project', 'monitoring', 'progress report', 'narrative report', 'notice to proceed'])) {
             return 'projects';
         }
 

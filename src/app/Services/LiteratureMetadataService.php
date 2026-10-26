@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\LiteratureSource;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -33,7 +34,23 @@ class LiteratureMetadataService
             abort_unless($response->successful(), 503, 'Publication metadata is unavailable. You can enter the source details manually.');
             $work = $response->json('message');
             abort_unless(is_array($work), 502, 'The metadata provider returned an unreadable result.');
-            $title = Str::squish(strip_tags((string) ($work['title'][0] ?? '')));
+            abort_if(Validator::make($work, [
+                'title' => ['nullable', 'array'],
+                'title.*' => ['string'],
+                'author' => ['nullable', 'array'],
+                'author.*' => ['array'],
+                'author.*.given' => ['nullable', 'string'],
+                'author.*.family' => ['nullable', 'string'],
+                'container-title' => ['nullable', 'array'],
+                'container-title.*' => ['string'],
+                'volume' => ['nullable', 'string'],
+                'issue' => ['nullable', 'string'],
+                'page' => ['nullable', 'string'],
+                'publisher' => ['nullable', 'string'],
+                'abstract' => ['nullable', 'string'],
+                'type' => ['nullable', 'string'],
+            ])->fails(), 502, 'The metadata provider returned an unreadable result.');
+            $title = Str::squish(html_entity_decode(strip_tags((string) ($work['title'][0] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
             abort_if($title === '', 502, 'The metadata result has no title. Enter the source details manually.');
             $year = $work['issued']['date-parts'][0][0] ?? $work['published']['date-parts'][0][0] ?? null;
             $year = is_numeric($year) && (int) $year >= 1900 && (int) $year <= now()->year ? (int) $year : null;
@@ -52,7 +69,7 @@ class LiteratureMetadataService
                     'publisher' => Str::limit((string) ($work['publisher'] ?? ''), 500, '') ?: null,
                     'doi' => $doi,
                     'url' => 'https://doi.org/'.$doi,
-                    'description' => Str::limit(Str::squish(strip_tags((string) ($work['abstract'] ?? ''))), 12000, '') ?: null,
+                    'description' => Str::limit(Str::squish(html_entity_decode(strip_tags((string) ($work['abstract'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8')), 12000, '') ?: null,
                     'source' => 'Crossref',
                     'type' => Str::limit((string) ($work['type'] ?? ''), 100, '') ?: null,
                 ],

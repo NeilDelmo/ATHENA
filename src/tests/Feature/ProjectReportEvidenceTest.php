@@ -93,6 +93,28 @@ test('the faculty proof source rejects missing altered unsafe or mismatched sour
     expect(array_column(app(ProjectReportEvidence::class)->forProject($this->topic), 'path'))->toBe([$valid['path']]);
 })->with(['monitoring', 'narrative']);
 
+test('evidence downloads reject altered or unsupported files', function (string $kind, string $change) {
+    $file = ($this->proof)($kind);
+    $report = ($this->report)($kind, [$file]);
+    $url = route($kind === 'monitoring' ? 'project-progress.evidence' : 'project-narrative-reports.evidence', [$this->topic, $file['id']]);
+    $this->actingAs($this->researcher)->get($url)->assertSuccessful();
+    if ($change === 'altered') {
+        $replacement = UploadedFile::fake()->image('replacement.png', 20, 20);
+        Storage::disk('local')->put($file['path'], file_get_contents($replacement->getRealPath()));
+    } else {
+        $contents = '<!doctype html><html><body>Unsupported evidence</body></html>';
+        Storage::disk('local')->put($file['path'], $contents);
+        $file['checksum'] = hash('sha256', $contents);
+        $field = $kind === 'monitoring' ? 'work_plan' : 'accomplishments';
+        $rows = $report->getAttribute($field);
+        $rows[0]['evidence'] = [$file];
+        $report->update([$field => $rows]);
+    }
+
+    $this->get($url)->assertNotFound();
+    $this->get($url.'?preview=1')->assertNotFound();
+})->with(['monitoring', 'narrative'])->with(['altered', 'unsupported']);
+
 test('a corrected reporting period replaces evidence even when its reporting date changes', function (string $kind) {
     ($this->report)($kind, [($this->proof)($kind, 'superseded.png')]);
     $current = ($this->proof)($kind, 'corrected.png');

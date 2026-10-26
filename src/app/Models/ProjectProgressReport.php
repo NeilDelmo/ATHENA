@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 class ProjectProgressReport extends Model
 {
@@ -86,6 +87,13 @@ class ProjectProgressReport extends Model
             && $this->budget_prepared_at !== null;
     }
 
+    public function budgetToken(): string
+    {
+        return hash('sha256', json_encode([
+            $this->id, $this->official_pdf_path, $this->official_pdf_checksum, $this->budget_utilization,
+        ], JSON_THROW_ON_ERROR));
+    }
+
     public function supersedes(): BelongsTo
     {
         return $this->belongsTo(self::class, 'supersedes_report_id');
@@ -104,6 +112,39 @@ class ProjectProgressReport extends Model
     public function scopeSubmitted(Builder $query): Builder
     {
         return $query->where('submission_status', self::SUBMISSION_STATUS_SUBMITTED);
+    }
+
+    public function scopeCurrentSubmittedSnapshot(Builder $query, bool $forResearchHead = false): Builder
+    {
+        $table = $this->getTable();
+
+        return $query->submitted()
+            ->when($forResearchHead, fn (Builder $visible): Builder => $visible->visibleToResearchHead())
+            ->whereNotExists(function (QueryBuilder $newer) use ($table, $forResearchHead): void {
+                $newer->selectRaw('1')->from($table.' as newer_snapshot')
+                    ->whereColumn('newer_snapshot.topic_id', $table.'.topic_id')
+                    ->where('newer_snapshot.submission_status', self::SUBMISSION_STATUS_SUBMITTED)
+                    ->when($forResearchHead, fn (QueryBuilder $visible) => $visible->where(fn (QueryBuilder $stage) => $stage
+                        ->whereNull('newer_snapshot.review_stage')->orWhere('newer_snapshot.review_stage', 'head')))
+                    ->where(fn (QueryBuilder $version) => $version
+                        ->whereColumn('newer_snapshot.version_number', '>', $table.'.version_number')
+                        ->orWhere(fn (QueryBuilder $same) => $same->whereColumn('newer_snapshot.version_number', $table.'.version_number')
+                            ->whereColumn('newer_snapshot.id', '>', $table.'.id')))
+                    ->where(function (QueryBuilder $period) use ($table): void {
+                        $period->whereColumn('newer_snapshot.supersedes_report_id', $table.'.id')
+                            ->orWhereColumn('newer_snapshot.period_start', $table.'.period_start')
+                            ->orWhere(fn (QueryBuilder $dates) => $dates
+                                ->whereColumn($table.'.reporting_date', '>=', 'newer_snapshot.period_start')
+                                ->whereColumn($table.'.reporting_date', '<=', 'newer_snapshot.period_end'))
+                            ->orWhere(fn (QueryBuilder $quarter) => $quarter
+                                ->whereColumn('newer_snapshot.reporting_quarter', $table.'.reporting_quarter')
+                                ->where(fn (QueryBuilder $year) => $year
+                                    ->whereColumn('newer_snapshot.reporting_year', $table.'.reporting_year')
+                                    ->orWhere(fn (QueryBuilder $legacy) => $legacy
+                                        ->whereNull('newer_snapshot.reporting_year')->whereNull($table.'.reporting_year')
+                                        ->whereRaw('YEAR(newer_snapshot.reporting_date) = YEAR('.$table.'.reporting_date)'))));
+                    });
+            });
     }
 
     public function scopeVisibleToResearchHead(Builder $query): Builder

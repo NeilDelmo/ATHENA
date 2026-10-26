@@ -33,6 +33,14 @@ class ManageProjectDisseminationRequest extends FormRequest
         if (is_string($this->input('doi'))) {
             $this->merge(['doi' => ResearchPublication::normalizeDoi($this->input('doi'))]);
         }
+        if (! $this->expectsJson() && $this->routeIs('research.dissemination.conferences.store', 'research.dissemination.conferences.update')) {
+            $this->session()->flash('dissemination_validation_context', [
+                'topic_id' => $this->route('topic')?->id,
+                'kind' => 'conference',
+                'record_id' => $this->route('conference')?->id,
+            ]);
+        }
+
     }
 
     public function rules(): array

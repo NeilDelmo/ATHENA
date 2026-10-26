@@ -26,10 +26,7 @@ class ResearchPublication extends Model
 
     public static function normalizeDoi(?string $doi): ?string
     {
-        $doi = Str::lower(trim((string) $doi));
-        $doi = preg_replace('~^(?:https?://(?:dx\\.)?doi\\.org/|doi:\\s*)~i', '', $doi);
-
-        return $doi !== '' ? $doi : null;
+        return LiteratureSource::normalizeDoi($doi) ?: null;
     }
 
     public static function fingerprint(array $data): string

@@ -21,9 +21,10 @@ class SaveProjectNarrativeReportDraft
     ): ProjectNarrativeReportDraft {
         $normalizedSourceData = $this->normalizeSourceData($sourceData);
         $expectedScope = $normalizedSourceData['recovery_scope'] ?? null;
-        unset($normalizedSourceData['recovery_scope']);
+        $expectedDraftId = $normalizedSourceData['draft_id'] ?? null;
+        unset($normalizedSourceData['recovery_scope'], $normalizedSourceData['draft_id']);
 
-        return DB::transaction(function () use ($topic, $user, $expectedVersion, $normalizedSourceData, $expectedScope): ProjectNarrativeReportDraft {
+        return DB::transaction(function () use ($topic, $user, $expectedVersion, $normalizedSourceData, $expectedScope, $expectedDraftId): ProjectNarrativeReportDraft {
             $topic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $draft = ProjectNarrativeReportDraft::query()
                 ->whereBelongsTo($topic, 'topic')
@@ -33,7 +34,7 @@ class SaveProjectNarrativeReportDraft
                 ->first();
             $currentVersion = $draft?->lock_version ?? 0;
 
-            if ($currentVersion !== $expectedVersion) {
+            if ($currentVersion !== $expectedVersion || ($expectedDraftId !== null && (int) $expectedDraftId !== ($draft?->id ?? 0))) {
                 throw ValidationException::withMessages([
                     'draft_version' => 'A newer saved progress-report draft is available. Reload the page before saving again.',
                 ]);

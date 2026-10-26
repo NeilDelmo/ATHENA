@@ -4,6 +4,7 @@
     'name' => null,
     'nameExpression' => null,
     'value' => null,
+    'restoreOldInput' => true,
     'model' => null,
     'min' => null,
     'max' => null,
@@ -12,7 +13,7 @@
 ])
 
 @php
-    $initialValue = $model ? null : ($name ? old($name, $value) : $value);
+    $initialValue = $model ? null : ($name && $restoreOldInput ? old($name, $value) : $value);
 @endphp
 
 <div

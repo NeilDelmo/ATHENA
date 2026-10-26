@@ -133,7 +133,7 @@
                     <section class="space-y-5 border-t border-gray-100 pt-6 dark:border-slate-800" aria-labelledby="cv-defaults-heading">
                         <div>
                             <h2 id="cv-defaults-heading" class="text-base font-bold text-gray-900 dark:text-white">Curriculum vitae defaults</h2>
-                            <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">Keep your agency, education, and areas of specialization ready for your next proposal.</p>
+                            <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">Agency, education, and areas of specialization used in proposal documents.</p>
                         </div>
                         <div>
                             <x-input-label for="cv_agency">Agency / institution <span class="font-normal text-gray-500 dark:text-slate-400">(optional)</span></x-input-label>

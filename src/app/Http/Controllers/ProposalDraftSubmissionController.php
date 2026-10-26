@@ -130,12 +130,7 @@ class ProposalDraftSubmissionController extends Controller
             ->where('position', 0)
             ->firstOrFail();
 
-        abort_unless(
-            $document->mime_type === 'application/pdf'
-                && filled($document->file_path)
-                && Storage::disk('local')->exists($document->file_path),
-            404,
-        );
+        abort_unless($document->hasCurrentPreparedPdf($proposalDraft), 404);
 
         return Storage::disk('local')->download(
             $document->file_path,

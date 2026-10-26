@@ -203,6 +203,24 @@ test('draft actions use selected source tokens and retain their originating prop
     assert.equal(store.literatureOperationPending, false);
 });
 
+test('literature draft and confirmation actions preserve an unfinished chat message', async () => {
+    const pendingMessage = 'Can you explain the sampling method in the second study?';
+    const store = assistant({ draft: pendingMessage, sendPrompt: async () => assert.fail('An unfinished message must not be replaced by an RRL action') });
+    const search = resultsMessage();
+    store.toggleLiteratureSource(search, 's1');
+    const draft = draftMessage();
+
+    assert.equal(store.canDraftLiterature(search), false);
+    assert.equal(await store.draftSelectedLiterature(search), false);
+    assert.equal(store.canConfirmLiterature(draft), false);
+    assert.equal(await store.confirmLiteratureDraft(draft), false);
+    assert.equal(store.draft, pendingMessage);
+
+    store.draft = '';
+    assert.equal(store.canDraftLiterature(search), true);
+    assert.equal(store.canConfirmLiterature(draft), true);
+});
+
 test('abstract fallback is explicit and papers without abstracts remain eligible when paper text is available', async () => {
     const calls = [];
     const store = assistant({ sendPrompt: async (...args) => calls.push(args) });

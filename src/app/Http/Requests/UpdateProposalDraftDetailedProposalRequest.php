@@ -11,6 +11,7 @@ use DOMDocument;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Validator;
 
 class UpdateProposalDraftDetailedProposalRequest extends FormRequest
 {
@@ -66,10 +67,6 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
             ->filter(fn (mixed $image): bool => is_array($image))
             ->map(function (array $image) use ($savedMethodologyImages): array {
                 $savedImage = $savedMethodologyImages->get($image['id'] ?? null);
-
-                if (! is_array($savedImage)) {
-                    return $image;
-                }
 
                 return [
                     ...$image,
@@ -134,7 +131,20 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
     /** @return list<callable> */
     public function after(): array
     {
-        return DetailedProposalRules::afterCallbacks($this->allowsDraftValidation());
+        return [
+            ...DetailedProposalRules::afterCallbacks($this->allowsDraftValidation()),
+            function (Validator $validator): void {
+                foreach ($this->input('methodology_images', []) as $index => $image) {
+                    if (is_array($image) && blank($image['stored_path'] ?? null)
+                        && ! $this->hasFile("methodology_images.{$index}.image")) {
+                        $validator->errors()->add(
+                            "methodology_images.{$index}.image",
+                            'Choose this figure image again before saving or preparing the paper.',
+                        );
+                    }
+                }
+            },
+        ];
     }
 
     /** @return array<string, string> */

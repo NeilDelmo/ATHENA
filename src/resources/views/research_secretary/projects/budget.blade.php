@@ -15,7 +15,17 @@
             'actual_amount' => 0,
             'remarks' => '',
         ])->all();
-        $budgetRows = old('budget_utilization', $report->budget_utilization ?: $defaultRows);
+        $restoreBudget = $errors->any() && session('budget_validation_report_id') === $report->id;
+        $budgetInput = $restoreBudget ? old('budget_utilization', []) : $report->budget_utilization;
+        $budgetRows = collect($defaultRows)->map(function (array $default) use ($budgetInput): array {
+            $saved = collect(is_array($budgetInput) ? $budgetInput : [])->first(
+                fn ($row) => is_array($row) && ($row['type'] ?? null) === $default['type'],
+                [],
+            );
+
+            return array_replace($default, array_filter($saved, 'is_scalar'));
+        })->all();
+        $budgetToken = $restoreBudget && is_string(old('budget_token')) ? old('budget_token') : $report->budgetToken();
     @endphp
 
     <div class="mx-auto max-w-5xl space-y-5 py-6 sm:px-6 lg:px-8">
@@ -43,6 +53,7 @@
             <form id="budget-utilization-form-{{ $report->id }}" data-proposal-paper-workspace method="POST" action="{{ request()->routeIs('project-budget.edit') ? route('project-budget.update', [$topic, $report]) : route('research_secretary.projects.budget.update', [$topic, $report]) }}" x-data="budgetUtilizationForm({ rows: @js($budgetRows), approvedBudget: @js((float) $topic->estimated_budget) })" class="space-y-6 p-5 sm:p-6">
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="budget_token" value="{{ $budgetToken }}" />
 
                 <x-proposal-writing-toolbar :toolbar-id="'budget-utilization-tools-'.$report->id" data-budget-utilization-writing-toolbar aria-label="Budget utilization tools">
                     <x-slot:context><p class="proposal-writing-target">Editing: <span>Budget utilization</span></p></x-slot:context>
@@ -54,10 +65,11 @@
                     </div>
                 </x-proposal-writing-toolbar>
 
-                @if ($errors->any())
+                @if ($restoreBudget)
                     <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
                         <p class="font-black">Please correct the budget entries.</p>
                         <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                        @if ($errors->has('budget_token'))<a href="{{ url()->current() }}" class="mt-2 inline-block font-semibold underline">Reload current budget</a>@endif
                     </div>
                 @endif
 

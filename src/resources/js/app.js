@@ -2577,7 +2577,7 @@ Alpine.store('researchAssistant', {
         void this.loadHistory();
         this.historySearchOpen = true;
         this.historySearchQuery = '';
-        this.historySearchResults = this.history;
+        this.queueHistorySearch();
 
         window.setTimeout(() => document.getElementById('assistant-history-search')?.focus(), 50);
     },
@@ -2585,15 +2585,18 @@ Alpine.store('researchAssistant', {
     closeHistorySearch() {
         if (!this.historySearchOpen) return;
 
+        this.historySearchSequence += 1;
         this.historySearchOpen = false;
         this.historySearchQuery = '';
         this.historySearchResults = this.history;
+        this.historySearchLoading = false;
         window.clearTimeout(this.historySearchTimer);
         window.setTimeout(() => document.getElementById('research-assistant-message')?.focus());
     },
 
     queueHistorySearch() {
         window.clearTimeout(this.historySearchTimer);
+        const sequence = ++this.historySearchSequence;
         const search = this.historySearchQuery.trim();
 
         if (!search) {
@@ -2604,7 +2607,6 @@ Alpine.store('researchAssistant', {
         }
 
         this.historySearchLoading = true;
-        const sequence = ++this.historySearchSequence;
 
         this.historySearchTimer = window.setTimeout(async () => {
             const baseUrl = this.historyUrl();
@@ -3357,6 +3359,7 @@ Alpine.store('literatureSearch', {
     failedSources: [],
     providerNotice: '',
     queryGuidance: null,
+    searchRequestId: 0,
     isLoading: false,
     hasSearched: false,
     error: '',
@@ -3408,6 +3411,7 @@ Alpine.store('literatureSearch', {
     fullTextNotice: '',
     fullTextError: '',
     fullTextResultKey: '',
+    fullTextRequestId: 0,
     isLoadingFullText: false,
     isSavingDraft: false,
     isDiscardingDraft: false,
@@ -3520,6 +3524,7 @@ Alpine.store('literatureSearch', {
 
         if (!searchUrl || this.isLoading) return;
 
+        const requestId = ++this.searchRequestId;
         this.isLoading = true;
         this.startLoadingTimer();
 
@@ -3529,6 +3534,8 @@ Alpine.store('literatureSearch', {
                 document.querySelector('meta[name="csrf-token"]').content,
                 this.searchPayload(query),
             );
+            if (requestId !== this.searchRequestId) return;
+
             this.failedSources = Array.isArray(payload.failed_sources) ? payload.failed_sources : [];
             this.providerNotice = [payload.provider_notice, payload.search_notice].filter(Boolean).join(' ');
             this.queryGuidance = payload.query_guidance && typeof payload.query_guidance === 'object'
@@ -3538,12 +3545,16 @@ Alpine.store('literatureSearch', {
             this.results = Array.isArray(payload.results) ? payload.results : [];
             this.selectedIndex = this.results.length > 0 ? 0 : null;
         } catch (error) {
+            if (requestId !== this.searchRequestId) return;
+
             this.results = [];
             this.selectedIndex = null;
             this.error = error.message || 'A network error interrupted the literature search.';
         } finally {
-            this.isLoading = false;
-            this.stopLoadingTimer();
+            if (requestId === this.searchRequestId) {
+                this.isLoading = false;
+                this.stopLoadingTimer();
+            }
         }
     },
 
@@ -3737,6 +3748,7 @@ Alpine.store('literatureSearch', {
     },
 
     resetFullTextPreview() {
+        this.fullTextRequestId += 1;
         this.fullTextPreview = '';
         this.fullTextSourceUrl = '';
         this.fullTextContentType = '';
@@ -3770,6 +3782,7 @@ Alpine.store('literatureSearch', {
 
         if (!source?.full_text_token || !url || this.isLoadingFullText) return;
 
+        const requestId = ++this.fullTextRequestId;
         this.fullTextError = '';
         this.fullTextNotice = '';
         this.isLoadingFullText = true;
@@ -3787,6 +3800,8 @@ Alpine.store('literatureSearch', {
             });
             const payload = await response.json().catch(() => ({}));
 
+            if (requestId !== this.fullTextRequestId) return;
+
             if (!response.ok) {
                 this.fullTextError = payload.message || payload.failure_reason || 'The public full text could not be extracted. Generation can still use the indexed abstract.';
                 return;
@@ -3798,9 +3813,11 @@ Alpine.store('literatureSearch', {
             this.fullTextNotice = String(payload.notice || 'Open-access text loaded transiently.');
             this.fullTextResultKey = this.resultKey(source);
         } catch (error) {
-            this.fullTextError = error.message || 'A network error interrupted full-text extraction. Generation can still use the indexed abstract.';
+            if (requestId === this.fullTextRequestId) {
+                this.fullTextError = error.message || 'A network error interrupted full-text extraction. Generation can still use the indexed abstract.';
+            }
         } finally {
-            this.isLoadingFullText = false;
+            if (requestId === this.fullTextRequestId) this.isLoadingFullText = false;
         }
     },
 
@@ -4277,6 +4294,8 @@ Alpine.store('literatureSearch', {
     },
 
     clear() {
+        this.searchRequestId += 1;
+        this.isLoading = false;
         this.query = '';
         this.filters = {
             year_from: '',
@@ -4304,6 +4323,7 @@ Alpine.store('conferenceSearch', {
     lastSearchQuery: '',
     results: [],
     failedSources: [],
+    searchRequestId: 0,
     isLoading: false,
     hasSearched: false,
     elapsedSeconds: 0,
@@ -4326,6 +4346,7 @@ Alpine.store('conferenceSearch', {
 
         if (!searchUrl || this.isLoading) return;
 
+        const requestId = ++this.searchRequestId;
         this.results = [];
         this.activeQuery = query;
         this.lastSearchQuery = query;
@@ -4344,6 +4365,8 @@ Alpine.store('conferenceSearch', {
             });
 
             const payload = await response.json().catch(() => ({}));
+            if (requestId !== this.searchRequestId) return;
+
             this.failedSources = Array.isArray(payload.failed_sources) ? payload.failed_sources : [];
 
             if (!response.ok) {
@@ -4370,11 +4393,15 @@ Alpine.store('conferenceSearch', {
 
             this.results = Array.isArray(payload.results) ? payload.results : [];
         } catch (error) {
+            if (requestId !== this.searchRequestId) return;
+
             this.results = [];
             this.error = error.message || 'A network error interrupted the conference scraper.';
         } finally {
-            this.isLoading = false;
-            this.stopLoadingTimer();
+            if (requestId === this.searchRequestId) {
+                this.isLoading = false;
+                this.stopLoadingTimer();
+            }
         }
     },
 
@@ -4451,6 +4478,7 @@ Alpine.store('conferenceSearch', {
     },
 
     clear() {
+        this.searchRequestId += 1;
         this.stopLoadingTimer();
         this.query = '';
         this.activeQuery = '';
@@ -5791,7 +5819,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 
     monitoringDraftFingerprint(form) {
         return JSON.stringify([...this.monitoringDraftFormData(form).entries()]
-            .filter(([name]) => !['_token', 'draft_version'].includes(name))
+            .filter(([name]) => !['_token', 'draft_version', 'draft_id'].includes(name))
             .map(([name, value]) => [name, value instanceof File ? [value.name, value.size, value.lastModified] : value]));
     },
 
@@ -5927,6 +5955,8 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             const draftVersion = form.querySelector('[name="draft_version"]');
 
             if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
+            const draftId = form.querySelector('[name="draft_id"]');
+            if (draftId instanceof HTMLInputElement) draftId.value = String(payload.draft_id);
 
             this.acceptSavedEvidence(payload.work_plan || [], evidenceSnapshot, form);
             await this.$nextTick();
@@ -6160,7 +6190,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 
     narrativeDraftFingerprint(form) {
         return JSON.stringify([...this.narrativeDraftFormData(form).entries()]
-            .filter(([name, value]) => !['_token', 'draft_version'].includes(name) && (typeof value === 'string' || value.size > 0))
+            .filter(([name, value]) => !['_token', 'draft_version', 'draft_id'].includes(name) && (typeof value === 'string' || value.size > 0))
             .map(([name, value]) => [name, typeof value === 'string' ? value : [value.name, value.size, value.lastModified, value.type]]));
     },
 
@@ -6298,6 +6328,9 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             const draftVersion = form.querySelector('[name="draft_version"]');
 
             if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
+
+            const draftId = form.querySelector('[name="draft_id"]');
+            if (draftId instanceof HTMLInputElement) draftId.value = String(payload.draft_id);
 
             this.acceptSavedAccomplishmentEvidence(payload.accomplishments || [], evidenceSnapshot, form);
             this.acceptSavedReportImages(payload.images || {}, imageSnapshot);
@@ -6492,7 +6525,7 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
             const response = await fetch(config.previewUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'text/html, application/json',
+                    Accept: 'application/json',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: new FormData(this.$refs.form),
@@ -9257,7 +9290,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Accept: 'application/json',
                     'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },

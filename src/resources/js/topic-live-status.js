@@ -115,11 +115,14 @@ export default function initializeTopicLiveStatus() {
                 const link = actionLink({ url: record.url, label: 'View' });
                 if (!link) continue;
                 link.className = 'monitoring-report-control quarterly-report-primary';
+                link.dataset.liveActionKey = key;
+                link.dataset.liveActionScope = record.scope;
                 link.setAttribute('aria-label', `View latest ${record.kind === 'monitoring' ? 'Monitoring Tool' : 'Progress Report'}`);
                 link.innerHTML = '<span>View</span><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
                 link.append(badge);
                 controls.replaceChildren(link);
                 cell.dataset.liveReportKey = key;
+                cell.dataset.liveReportScope = record.scope;
             }
             for (const badge of host.querySelectorAll('[data-live-report-status]')) {
                 const record = state.reports[badge.dataset.liveReportStatus];

@@ -80,6 +80,93 @@ test('completion averages use submitted reported progress without treating missi
     ($this->exportDashboard)('researcher', $response->getContent());
 });
 
+test('an earlier dated submitted correction replaces superseded progress and budget snapshots', function () {
+    $project = ($this->project)();
+    $old = ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-30', 'progress_percentage' => 100,
+        'budget_utilization' => [['actual_amount' => 90000]], 'review_stage' => 'head',
+    ]);
+    $correction = ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-25', 'version_number' => 2, 'supersedes_report_id' => $old->id,
+        'progress_percentage' => 40, 'budget_utilization' => [['actual_amount' => 20000]], 'review_stage' => 'head',
+    ]);
+
+    expect($project->fresh()->latestProgressReport?->id)->toBe($correction->id)
+        ->and($project->fresh()->latestProgressReportForResearchHead?->id)->toBe($correction->id);
+    foreach ([false, true] as $forHead) {
+        $health = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: $forHead);
+        expect($health['report_id'])->toBe($correction->id)->and($health['progress'])->toBe(40)
+            ->and($health['utilized'])->toBe(20000.0)
+            ->and($health['issues']->pluck('type'))->not->toContain('completion');
+    }
+    ($this->dashboard)()->assertOk()->assertViewHas('averageProgress', 40);
+    expect(TopicProposal::query()->completionPending()->whereKey($project)->exists())->toBeFalse();
+});
+
+test('a prepared earlier dated correction does not replace the submitted monitoring snapshot', function () {
+    $project = ($this->project)();
+    $submitted = ($this->monitoring)($project, 2, ['review_stage' => 'head', 'progress_percentage' => 40]);
+    ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-25', 'version_number' => 2, 'supersedes_report_id' => $submitted->id,
+        'submission_status' => 'prepared', 'progress_percentage' => 100, 'review_stage' => 'head',
+    ]);
+    expect($project->fresh()->latestProgressReport?->id)->toBe($submitted->id)
+        ->and($project->fresh()->latestProgressReportForResearchHead?->id)->toBe($submitted->id);
+});
+
+test('head snapshots keep legacy forwarded values until a correction is forwarded including repeated corrections', function () {
+    $project = ($this->project)();
+    $old = ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-30', 'progress_percentage' => 60, 'review_stage' => null,
+        'review_status' => 'revision_requested', 'budget_utilization' => [['actual_amount' => 30000]],
+    ]);
+    $correction = ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-25', 'version_number' => 2, 'supersedes_report_id' => $old->id,
+        'progress_percentage' => 40, 'review_stage' => 'secretary', 'budget_utilization' => [['actual_amount' => 20000]],
+    ]);
+    $health = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true);
+    expect($project->fresh()->latestProgressReportForResearchHead?->id)->toBe($old->id)
+        ->and($health['report_id'])->toBe($old->id)->and($health['progress'])->toBe(60)->and($health['utilized'])->toBe(30000.0);
+    $correction->update(['review_stage' => 'head']);
+    expect($project->fresh()->latestProgressReportForResearchHead?->id)->toBe($correction->id);
+    $correction->update(['review_stage' => 'secretary', 'review_status' => 'revision_requested']);
+    $third = ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-24', 'version_number' => 3, 'supersedes_report_id' => $correction->id,
+        'progress_percentage' => 20, 'review_stage' => 'head', 'budget_utilization' => [['actual_amount' => 10000]],
+    ]);
+    $health = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: true);
+    expect($project->fresh()->latestProgressReportForResearchHead?->id)->toBe($third->id)
+        ->and($health['report_id'])->toBe($third->id)->and($health['progress'])->toBe(20)->and($health['utilized'])->toBe(10000.0);
+});
+
+test('earlier dated corrected milestones do not leave false overdue warnings', function () {
+    $project = ($this->project)();
+    $milestone = ['source_work_plan_index' => 0, 'target_completion_date' => '2026-09-01', 'percent_weight' => 50];
+    $old = ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-30', 'work_plan' => [[...$milestone, 'accomplished_percentage' => 0]],
+    ]);
+    ($this->monitoring)($project, 2, [
+        'reporting_date' => '2026-09-25', 'version_number' => 2, 'supersedes_report_id' => $old->id,
+        'work_plan' => [[...$milestone, 'accomplished_percentage' => 50]],
+    ]);
+    foreach ([false, true] as $forHead) {
+        $health = app(ProjectMonitoringHealth::class)->assess($project->fresh(), forResearchHead: $forHead);
+        expect($health['delayed'])->toBeFalse()->and($health['issues']->pluck('type'))->not->toContain('delayed');
+    }
+});
+
+test('late corrections to a legacy year do not replace a later year monitoring snapshot', function () {
+    $project = ($this->project)(['notice_to_proceed_issued_at' => '2025-01-01', 'estimated_duration_months' => 24]);
+    $old = ($this->monitoring)($project, 2, ['reporting_date' => '2025-06-30', 'reporting_year' => null, 'progress_percentage' => 30]);
+    $latest = ($this->monitoring)($project, 2, ['reporting_date' => '2026-06-30', 'reporting_year' => null, 'progress_percentage' => 80]);
+    ($this->monitoring)($project, 2, [
+        'reporting_date' => '2025-06-25', 'reporting_year' => null,
+        'version_number' => 2, 'supersedes_report_id' => $old->id, 'progress_percentage' => 40,
+    ]);
+    expect($project->fresh()->latestProgressReport?->id)->toBe($latest->id)
+        ->and($project->fresh()->latestProgressReportForResearchHead?->id)->toBe($latest->id);
+});
+
 test('Head health and analytics use forwarded progress and budgets while retaining secretary review status', function () {
     $project = ($this->project)();
     $forwarded = ($this->monitoring)($project, 1, [
@@ -220,7 +307,7 @@ test('project completion waits for current secretary reviews and permits resolve
     $waiting->update(['review_stage' => 'secretary', 'review_status' => 'pending']);
     Storage::disk('local')->put('signed-terminal.pdf', '%PDF-signed');
     ($this->narrative)($project, 2, [
-        'report_type' => 'terminal', 'terminal_data' => ['signed_copy' => ['path' => 'signed-terminal.pdf']],
+        'report_type' => 'terminal', 'terminal_data' => ['signed_copy' => ['path' => 'signed-terminal.pdf', 'checksum' => hash('sha256', '%PDF-signed')]],
     ]);
 
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])

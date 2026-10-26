@@ -33,6 +33,8 @@ class ResearchAssistantController extends Controller
 {
     private const MESSAGE_MAX_LENGTH = 8000;
 
+    private const HISTORY_MESSAGE_MAX_LENGTH = 32000;
+
     private const HISTORY_MESSAGE_MAX_COUNT = 100;
 
     public function __construct(
@@ -103,7 +105,7 @@ class ResearchAssistantController extends Controller
             'id' => ['nullable', 'integer'],
             'messages' => ['required', 'array', 'min:1', 'max:'.self::HISTORY_MESSAGE_MAX_COUNT],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
-            'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
+            'messages.*.content' => ['required', 'string', 'max:'.self::HISTORY_MESSAGE_MAX_LENGTH],
             'messages.*.sources' => ['nullable', 'array', 'max:20'],
             ...$this->proposalReview->historyRules('messages.*.review'),
             ...$this->proposalAssistance->historyRules('messages.*.proposal_changes'),

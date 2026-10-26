@@ -48,7 +48,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                             const fields=[...options.body.entries()];
                             if(url.includes('/draft')) {
                                 window.savedDrafts.push(fields);
-                                return {ok:true,status:200,json:async()=>({draft_version:window.savedDrafts.length})};
+                                return {ok:true,status:200,json:async()=>({draft_version:window.savedDrafts.length,draft_id:12345})};
                             }
                             window.previewRequests.push(fields);
                             await new Promise(resolve=>setTimeout(resolve,window.previewDelay));
@@ -165,6 +165,8 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await page.waitForFunction(() => window.monitorState.previewHtml.includes('Updated field notes.') && window.monitorState.previewReady && !window.monitorState.previewLoading);
                     await frame.getByText(/Updated field notes/).waitFor();
                     await page.waitForFunction(() => window.savedDrafts.some((fields) => fields.some(([,value]) => value === 'Updated field notes.')));
+                    await page.waitForFunction(() => document.querySelector('[name="draft_id"]').value === '12345');
+                    assert.equal(await form.locator('[name="draft_id"]').inputValue(), '12345');
                     await page.evaluate(() => { window.previewFailure = true; });
                     if (width < 1024) await frame.locator('body').press('Escape');
                     await field.fill('Final field notes.');
@@ -219,7 +221,7 @@ test('terminal poster and figure uploads show saved state and delayed text saves
                         }
                         if(window.gateSave){window.gateSave=false;await new Promise(resolve=>window.releaseSave=resolve)}
                         window.savedImages=images;
-                        return {ok:true,status:200,json:async()=>({draft_version:++window.saveCount,images})};
+                        return {ok:true,status:200,json:async()=>({draft_version:++window.saveCount,draft_id:12345,images})};
                     };
                     document.addEventListener('alpine:init',()=>{
                         ${datePicker}
@@ -241,6 +243,7 @@ test('terminal poster and figure uploads show saved state and delayed text saves
                 await cover.getByText('Image waiting to save…', { exact: true }).waitFor();
                 await page.evaluate(() => window.releaseSave());
                 assert.equal(await page.evaluate(() => window.monitorState.finishNarrativeDraftAutoSave()), true);
+                assert.equal(await page.locator('[name="draft_id"]').inputValue(), '12345');
                 await cover.getByText('Saved with draft: poster.png', { exact: true }).waitFor();
                 await figure.getByText('Saved with draft: results.png', { exact: true }).waitFor();
                 assert.equal(await cover.locator('input[type=file]').evaluate(field => field.files.length), 0);

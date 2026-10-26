@@ -32,7 +32,7 @@ class LiteratureCollectionController extends Controller
                 'id' => $collection->getKey(),
                 'name' => $collection->name,
                 'slug' => $collection->slug,
-                'sources_count' => 0,
+                'sources_count' => $collection->sources()->count(),
             ],
         ], $collection->wasRecentlyCreated ? 201 : 200);
     }

@@ -46,7 +46,7 @@ class SynthesizeLiteratureRequest extends FormRequest
             'is_open_access' => ['nullable', 'boolean'],
             'evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
             'evidence_text' => ['prohibited'],
-            'full_text_token' => ['nullable', 'string', 'max:4096'],
+            'full_text_token' => ['nullable', 'string', 'max:8192'],
             'proposal_title' => ['nullable', 'string', 'max:500'],
             'preceding_rrl_context' => ['nullable', 'string', 'max:2500'],
             'connection_mode' => ['required', Rule::in(['auto', 'standalone'])],
@@ -57,6 +57,10 @@ class SynthesizeLiteratureRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
+
                 $basis = $this->string('evidence_basis')->toString();
                 $abstract = trim((string) $this->input('abstract'));
                 if ($basis === 'abstract' && ! $this->filled('source_link_id') && mb_strlen($abstract) < 80) {

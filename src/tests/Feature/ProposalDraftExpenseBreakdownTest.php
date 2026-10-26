@@ -248,7 +248,7 @@ test('the preview follows the supplied official table and calculates grouped tot
         ->assertSee('Estimated Breakdown and Details of Expenses')
         ->assertSee('Project Title:')
         ->assertSee('Online Research Journal')
-        ->assertSee('Descriptions/Specifications/Details')
+        ->assertSee('Descriptions/ Specifications/ Details')
         ->assertSee('Total for Telephone Expenses')
         ->assertSee('rowspan="2"', false)
         ->assertSee('class="expense-breakdown-sub-account-total">', false)
@@ -339,6 +339,7 @@ test('the generated Excel file preserves the supplied workbook layout styles and
         expect($worksheetDocument->loadXML($worksheetXml))->toBeTrue()
             ->and($workbookDocument->loadXML($workbookXml))->toBeTrue();
 
+        expect($worksheetXml)->not->toContain('please remove the blank rows');
         expect($worksheetXml)
             ->toContain('paperSize="14"')
             ->toContain('orientation="portrait"')

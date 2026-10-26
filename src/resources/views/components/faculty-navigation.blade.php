@@ -27,6 +27,7 @@
             ],
             'Completion' => [
                 ['Completed projects', 'research.index', ['status' => 'completed'], 'check', null],
+                ['Post-implementation', 'research-outcomes.index', [], 'projects', null],
             ],
         ] : [
             'Submission' => [
@@ -93,6 +94,9 @@
                                $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
                                $store.sidebar.currentPath === @js(parse_url(route('research-support.index'), PHP_URL_PATH)) && activeHash === @js($resourceAnchor) ? @js($activeClasses) : '',
                            ]"
+                       @elseif ($routeName === 'research-outcomes.index')
+                           wire:current="{{ $activeClasses }}"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
                        @else
                            wire:current.exact="{{ $activeClasses }}"
                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"

@@ -125,6 +125,23 @@ test('research heads can assign and remove the research coordinator role', funct
     expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse();
 });
 
+test('invalid coordinator actions do not change any coordinator assignment', function (mixed $action) {
+    $existing = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $existing->assignRole('research_coordinator');
+    $candidate = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+
+    $this->actingAs($this->researchHead)
+        ->patch(route('research_head.faculty-directory.coordinator', $candidate), ['action' => $action])
+        ->assertRedirect()->assertSessionHasErrors('action');
+
+    expect($existing->fresh()->hasRole('research_coordinator'))->toBeTrue()
+        ->and($candidate->fresh()->hasRole('research_coordinator'))->toBeFalse();
+})->with([
+    'array' => [['assign']],
+    'unsupported action' => ['replace'],
+    'missing action' => [null],
+]);
+
 test('assigning a coordinator replaces the existing coordinator from the same college only', function () {
     $existingCicsCoordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $existingCicsCoordinator->assignRole('research_coordinator');

@@ -33,14 +33,14 @@
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50"><dt class="text-[10px] font-black uppercase tracking-wider text-slate-400">Maximum budget</dt><dd class="mt-2 text-sm font-black text-slate-800 dark:text-slate-100">PHP {{ number_format($call->budgetCeiling(), 2) }}</dd><dd class="mt-1 text-xs text-slate-500 dark:text-slate-400">Per submitted proposal</dd></div>
                     </dl>
 
-                    @if (! $isResearchHead)
+                    @can('create', \App\Models\ProposalDraft::class)
                         <div class="mt-7 flex flex-col gap-3 border-t border-slate-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                             <p class="max-w-xl text-xs leading-5 text-slate-500 dark:text-slate-400">These dates describe the announcement. You may prepare a draft anytime; submission is available while the call is open.</p>
                             @if ($call->isAcceptingSubmissions())
                                 <a href="{{ route('faculty.proposal-drafts.create', ['research_call_id' => $call->id]) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-xs font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">Create proposal</a>
                             @endif
                         </div>
-                    @endif
+                    @endcan
                 </div>
 
                 <aside class="border-t border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/45 lg:border-l lg:border-t-0">

@@ -99,8 +99,11 @@ test('comment responses stay staged in their form and never submit the revision 
             const accepted = await state.applyChange(change);
             const navigation = { detail: { allowed: true } };
             state.onNavigate(navigation);
+            const submission = new Event('beforeunload', { cancelable: true });
+            state.onNavigate(submission);
             return { context, accepted, value: document.getElementById('report-text').value,
-                saves: window.savedForms.length, submissions: window.submissions, canNavigate: navigation.detail.allowed };
+                saves: window.savedForms.length, submissions: window.submissions, canNavigate: navigation.detail.allowed,
+                submissionBlocked: submission.defaultPrevented };
         }, item.change);
         assert.deepEqual(result.context.response_values, { committee_0: '' });
         assert.equal(result.accepted.applied, true);
@@ -110,6 +113,7 @@ test('comment responses stay staged in their form and never submit the revision 
         assert.equal(result.saves, 0);
         assert.equal(result.submissions, 0);
         assert.equal(result.canNavigate, false);
+        assert.equal(result.submissionBlocked, false);
         assert.deepEqual(item.errors, []);
     } finally { await browser.close(); }
 });
@@ -121,6 +125,60 @@ test('quarterly reports with restored validation input must be saved before chec
         state.autoSave = () => null;
         await assert.rejects(state.prepare(), /validation errors and save your report/);
         await assert.rejects(state.prepare(true), /validation errors and save your report/);
+    }
+});
+
+for (const type of ['college-quarterly', 'rms-quarterly']) {
+    test(`${type} protects unsaved edits during page navigation and reloads`, async () => {
+        const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+        try {
+            const page = await browser.newPage();
+            const errors = [];
+            page.on('pageerror', error => errors.push(error.message));
+            const component = readFileSync(resolve('resources/views/components/assistant-report-editor.blade.php'), 'utf8');
+            const bindings = [...component.matchAll(/(?:@|x-on:)(beforeunload\.window|livewire:navigate\.document)="([^"]+)"/g)]
+                .map(match => match[0]).join(' ');
+            await page.setContent(`<form><textarea aria-label="Report text" name="campus">Saved text</textarea>
+                <div data-assistant-report-editor x-data='assistantReportEditor(${JSON.stringify({ context: { report_type: type, report_id: null } })})' ${bindings}></div></form>`);
+            await page.addScriptTag({ content: `${reportEditor}\ndocument.addEventListener('alpine:init',()=>Alpine.data('assistantReportEditor',assistantReportEditor));` });
+            await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+            await page.evaluate(() => Alpine.nextTick());
+            const check = () => page.evaluate(() => {
+                const reload = new Event('beforeunload', { cancelable: true });
+                window.dispatchEvent(reload);
+                const navigation = new CustomEvent('livewire:navigate', { cancelable: true, detail: { url: '/another-quarter' } });
+                document.dispatchEvent(navigation);
+                return { reload: reload.defaultPrevented, navigation: navigation.defaultPrevented };
+            });
+            assert.deepEqual(await check(), { reload: false, navigation: false });
+            await page.getByLabel('Report text').fill('Unsaved report text');
+            assert.deepEqual(await check(), { reload: true, navigation: true });
+            await page.evaluate(() => { document.querySelector('form').dataset.fileUploadBusy = 'true'; });
+            assert.deepEqual(await check(), { reload: false, navigation: true });
+            await page.evaluate(() => { delete document.querySelector('form').dataset.fileUploadBusy; });
+            assert.deepEqual(await check(), { reload: true, navigation: true });
+            await page.getByLabel('Report text').fill('Saved text');
+            assert.deepEqual(await check(), { reload: false, navigation: false });
+            await page.getByLabel('Report text').fill('Report being saved');
+            await page.evaluate(async () => {
+                document.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                await Promise.resolve();
+            });
+            assert.deepEqual(await check(), { reload: false, navigation: false });
+            assert.deepEqual(errors, []);
+        } finally { await browser.close(); }
+    });
+}
+
+test('validation-restored quarterly edits remain protected before their first saved draft exists', () => {
+    for (const type of ['college-quarterly', 'rms-quarterly']) {
+        const state = assistantReportEditor({ context: { report_type: type, report_id: null }, unsaved: true });
+        state.autoSave = () => null;
+        state.fingerprint = () => 'Restored text';
+        state.initialNavigationFingerprint = 'Restored text';
+        const event = { detail: { allowed: true } };
+        state.onNavigate(event);
+        assert.equal(event.detail.allowed, false);
     }
 });
 

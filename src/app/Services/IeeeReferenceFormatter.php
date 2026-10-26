@@ -44,22 +44,26 @@ class IeeeReferenceFormatter
 
     private static function authors(string $authors): string
     {
+        $authors = Str::squish($authors);
+        $etAlPattern = '/(?:^|[\s,;])et al\.?$/iu';
+        $hasEtAl = preg_match($etAlPattern, $authors) === 1;
+        $authors = preg_replace($etAlPattern, '', $authors) ?? $authors;
         $separator = Str::contains($authors, ';') ? '/\s*;\s*/u' : '/\s*,\s*/u';
-        $names = collect(preg_split($separator, Str::squish($authors)) ?: [])
+        $names = collect(preg_split($separator, $authors) ?: [])
             ->filter(fn (string $name): bool => $name !== '')
             ->map(fn (string $name): string => self::author($name))
             ->values();
 
         if ($names->isEmpty()) {
-            return 'Author not listed';
+            return $hasEtAl ? 'et al.' : 'Author not listed';
+        }
+
+        if ($hasEtAl) {
+            return $names->join(', ').', et al.';
         }
 
         if ($names->count() === 1) {
             return $names->first();
-        }
-
-        if ($names->last() === 'et al.') {
-            return $names->slice(0, -1)->join(', ').', et al.';
         }
 
         return $names->slice(0, -1)->join(', ').' and '.$names->last();
@@ -69,10 +73,6 @@ class IeeeReferenceFormatter
     {
         if (Str::lower($name) === 'authors not listed') {
             return 'Author not listed';
-        }
-
-        if (Str::contains(Str::lower($name), 'et al')) {
-            return 'et al.';
         }
 
         $surname = Str::contains($name, ',') ? trim(Str::before($name, ',')) : null;

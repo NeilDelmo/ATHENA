@@ -139,3 +139,25 @@ test('each report editor renders an isolated recovery scope and warning', functi
     $this->get($url)->assertSuccessful()->assertSee('data-report-version-monitor', false)->assertSee('data-state-scope', false)
         ->assertSee('data-proposal-conflict-recovery', false)->assertSee('name="recovery_scope"', false)->assertSee(($this->stateUrl)($kind), false);
 })->with(['monitoring', 'progress', 'terminal']);
+
+test('monitoring forms ignore narrative validation input', function (string $type, bool $saved) {
+    if ($saved) {
+        $this->postJson(($this->saveUrl)('monitoring'), ($this->payload)('monitoring'))->assertSuccessful();
+    }
+    $response = $this->withSession(['_old_input' => [
+        'report_type' => $type, 'draft_id' => 999, 'draft_version' => 999,
+        'tracking_number' => 'Narrative-only tracking', 'reporting_date' => '2099-01-01',
+        'prepared_by_date_signed' => '2099-01-01',
+    ]])->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))
+        ->assertSuccessful()->assertViewHas('selectedReportingDate', '2026-03-31')
+        ->assertDontSee('Narrative-only tracking')->assertDontSee('2099-01-01');
+    if ($saved) {
+        $response->assertSee('value="Local draft"', false);
+    }
+})->with(['progress', 'terminal'])->with([false, true]);
+
+test('invalid monitoring validation dates do not crash the editor', function (string $date) {
+    $this->withSession(['_old_input' => ['work_plan' => [], 'reporting_date' => $date, 'tracking_number' => 'Keep unsaved tracking']])
+        ->get(route('project-progress.create', $this->topic))->assertSuccessful()
+        ->assertViewHas('selectedReportingDate', '2026-03-31')->assertSee('Keep unsaved tracking');
+})->with(['2026-02-31', '2099-01-01', 'not-a-date']);

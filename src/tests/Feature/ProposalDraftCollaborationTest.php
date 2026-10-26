@@ -417,6 +417,54 @@ test('accepted collaborators survive stale revision team lists and retain access
     }
 });
 
+test('late invitation acceptance follows the current submitted project roster', function (bool $firstSignIn, string $stage, bool $retained) {
+    $email = $firstSignIn ? 'late.member@g.batstate-u.edu.ph' : $this->collaborator->email;
+    $membership = $this->draft->members()->create([
+        'user_id' => $firstSignIn ? null : $this->collaborator->id,
+        'name' => 'Late project staff',
+        'email' => $email,
+        'accepted_at' => null,
+    ]);
+    $released = $stage !== 'pending';
+    $topic = TopicProposal::create([
+        'user_id' => $this->owner->id,
+        'research_call_id' => $this->draft->research_call_id,
+        'title' => $this->draft->project_title,
+        'status' => $released ? 'approved' : 'pending',
+        'project_status' => $released ? $stage : null,
+        'notice_to_proceed_issued_at' => $released ? now() : null,
+    ]);
+    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+    $this->draft->update(['topic_id' => $topic->id, 'status' => ProposalDraft::STATUS_SUBMITTED]);
+
+    if (! $retained) {
+        $topic->collaborators()->delete();
+    }
+
+    if ($firstSignIn) {
+        $invitee = User::factory()->create(['email' => $email]);
+        $invitee->assignRole('faculty');
+        app(LinkProposalDraftMemberships::class)->handle($invitee);
+    } else {
+        $invitee = $this->collaborator;
+        $this->actingAs($invitee)
+            ->postJson(route('notifications.proposal-invitations.accept', $membership))
+            ->assertOk();
+    }
+
+    expect($membership->fresh()->accepted_at)->not->toBeNull()
+        ->and($topic->collaborators()->forUser($invitee)->exists())->toBe($retained)
+        ->and($invitee->fresh()->hasRole('faculty_researcher'))->toBe($released && $retained);
+
+    if ($retained) {
+        expect($topic->collaborators()->sole()->user_id)->toBe($invitee->id);
+    } else {
+        expect($topic->collaborators()->count())->toBe(0);
+    }
+})->with(['existing account' => false, 'first sign-in' => true])
+    ->with(['pending', 'ongoing', 'completed'])
+    ->with(['current staff' => true, 'removed from current roster' => false]);
+
 test('pending invitations may still be cancelled before the collaborator joins', function () {
     $membership = $this->draft->members()->create(['user_id' => $this->collaborator->id, 'name' => $this->collaborator->name, 'email' => $this->collaborator->email, 'accepted_at' => null]);
     $this->actingAs($this->owner)->delete(route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]))
@@ -510,6 +558,21 @@ test('workspace invitations require an institutional Google email', function () 
     expect($this->draft->members()->count())->toBe(0);
     Notification::assertNothingSent();
 });
+
+test('workspace invitations reject malformed email values without creating a membership', function (mixed $email) {
+    $this->actingAs($this->owner)
+        ->post(route('faculty.proposal-drafts.members.store', $this->draft), [
+            'name' => 'Invalid invitation',
+            'email' => $email,
+        ])->assertRedirect()->assertSessionHasErrors('email');
+
+    expect($this->draft->members()->count())->toBe(0);
+    Notification::assertNothingSent();
+})->with([
+    'array' => [['unexpected']],
+    'integer' => [123],
+    'null' => [null],
+]);
 
 test('the invitation email explains linked access and owner-only actions', function () {
     $notification = new ProposalWorkspaceInvitation(

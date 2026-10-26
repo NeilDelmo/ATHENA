@@ -125,16 +125,16 @@ export async function uploadRequest(url, options = {}, { root, onProgress, retry
 }
 
 export async function submitFileUploadForm(form, submitter) {
+    if (form.dataset.fileUploadBusy === 'true') return false;
     const body = new FormData(form);
     if (![...body.values()].some(value => value instanceof File && value.size > 0)) {
         HTMLFormElement.prototype.submit.call(form);
         return true;
     }
-    if (form.dataset.fileUploadBusy === 'true') return false;
     if (submitter?.name) body.append(submitter.name, submitter.value);
     form.dataset.fileUploadBusy = 'true';
     form.setAttribute('aria-busy', 'true');
-    const controls = [...form.querySelectorAll('input, button, select, textarea')].filter(control => !control.disabled);
+    const controls = [...form.elements].filter(control => control.matches('input, button, select, textarea') && !control.disabled);
     controls.forEach(control => { control.disabled = true; });
     let succeeded = false;
     try {
@@ -183,8 +183,12 @@ export function initializeFileUploads() {
     initialized = true;
     document.addEventListener('submit', event => {
         const form = event.target;
-        if (event.defaultPrevented || !(form instanceof HTMLFormElement) || form.getAttribute('enctype') !== 'multipart/form-data'
-            || ![...new FormData(form).values()].some(value => value instanceof File && value.size > 0)) return;
+        if (event.defaultPrevented || !(form instanceof HTMLFormElement) || form.getAttribute('enctype') !== 'multipart/form-data') return;
+        if (form.dataset.fileUploadBusy === 'true') {
+            event.preventDefault();
+            return;
+        }
+        if (![...new FormData(form).values()].some(value => value instanceof File && value.size > 0)) return;
         event.preventDefault();
         void submitFileUploadForm(form, event.submitter);
     });

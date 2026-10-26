@@ -28,8 +28,12 @@ class StoreProposalDraftMemberRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if (! is_string($this->input('email'))) {
+            return;
+        }
+
         $this->merge([
-            'email' => Str::lower(trim((string) $this->input('email'))),
+            'email' => Str::lower(trim($this->input('email'))),
         ]);
 
         if ($linkedUser = $this->linkedUser()) {
@@ -65,6 +69,10 @@ class StoreProposalDraftMemberRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
             /** @var ProposalDraft $draft */
             $draft = $this->route('proposalDraft');
 

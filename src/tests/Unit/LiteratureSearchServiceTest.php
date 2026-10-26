@@ -184,6 +184,24 @@ test('duplicates without a DOI merge before citation and access filters are appl
         ->and($search['results'][0]['full_text_provider'])->toBe('Semantic Scholar');
 });
 
+test('DOI link variants from separate indexes merge into one search result', function () {
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => Http::response(['data' => [[
+            'title' => 'Community Mangrove Monitoring', 'authors' => [['name' => 'Maria Santos']],
+            'year' => 2024, 'externalIds' => ['DOI' => 'https://dx.doi.org/10.1000/MONITORING'],
+        ]]]),
+        'api.crossref.org/*' => Http::response(['message' => ['items' => [[
+            'title' => ['Community Mangrove Monitoring'], 'author' => [['given' => 'Maria', 'family' => 'Santos']],
+            'published-online' => ['date-parts' => [[2024]]], 'DOI' => '10.1000/monitoring',
+        ]]]]),
+    ]);
+
+    $results = app(LiteratureSearchService::class)->search('community mangrove monitoring')['results'];
+
+    expect($results)->toHaveCount(1)
+        ->and($results[0]['doi'])->toBe('10.1000/monitoring');
+});
+
 test('different papers with the same title and distinct DOIs remain separate', function () {
     fakeLiteratureIndexes([
         'api.semanticscholar.org/*' => Http::response(['data' => collect(['one', 'two'])->map(fn ($id): array => [

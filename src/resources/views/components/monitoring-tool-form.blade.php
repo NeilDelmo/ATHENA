@@ -16,6 +16,10 @@
     'previousProgressByPeriod' => [],
 ])
 @php
+    $restoreMonitoringInput = session()->hasOldInput('work_plan');
+    $old = fn ($key, $fallback = null) => $restoreMonitoringInput ? old($key, $fallback) : $fallback;
+    $draftVersion = (int) $old('draft_version', $monitoringDraft?->lock_version ?? 0);
+    $draftId = (int) $old('draft_id', $monitoringDraft?->id ?? 0);
     $schedule = app(\App\Services\MonitoringQuarterService::class);
     $submissionOpen = $selectedReportingDate && $schedule->canSubmitForDate($topic, $selectedReportingDate);
     $submissionOpensAt = $selectedReportingDate ? $schedule->forDate($selectedReportingDate, $topic)['opens_at']->format('M j, Y') : '';
@@ -86,10 +90,10 @@
             'actual_amount' => '0',
             'remarks' => '',
         ])->all();
-    $workPlanRows = old('work_plan', $defaultWorkPlan);
+    $workPlanRows = $old('work_plan', $defaultWorkPlan);
     $workPlanRows = is_array($workPlanRows) && $workPlanRows !== [] ? array_values(array_filter($workPlanRows, 'is_array')) : $defaultWorkPlan;
     $workPlanRows = $workPlanRows !== [] ? $workPlanRows : $defaultWorkPlan;
-    $budgetRows = old('budget_utilization', $defaultBudget);
+    $budgetRows = $old('budget_utilization', $defaultBudget);
     $budgetRows = is_array($budgetRows) ? $budgetRows : $defaultBudget;
     $defaultReportingDate = array_key_exists('reporting_date', $draftData)
         ? $draftData['reporting_date']
@@ -114,9 +118,9 @@
         previewUrl: @js(route('project-progress.preview', $topic)),
         previewTitle: 'Monitoring Tool preview',
         draftSaveUrl: @js(route('project-progress.draft', $topic)),
-        initialDraftVersion: @js((int) ($monitoringDraft?->lock_version ?? 0)),
+        initialDraftVersion: @js($draftVersion),
         csrfToken: @js(csrf_token()),
-        initialReportingDate: @js(old('reporting_date', $defaultReportingDate)),
+        initialReportingDate: @js($defaultReportingDate),
         approvedWorkPlanAvailable: @js($approvedWorkPlanAvailable),
         initialPeriodKey: @js($selectedPeriodKey),
         reportCount: @js($monitoringReportCount),
@@ -136,7 +140,7 @@
     @endif
 
     <x-proposal-collaboration-monitor
-        :loaded-version="$monitoringDraft?->lock_version ?? 0"
+        :loaded-version="$draftVersion"
         :state-url="route('project-report-drafts.edit-state', ['topic' => $topic, 'kind' => 'monitoring', 'reportingDate' => $defaultReportingDate, 'source' => $revisionReport?->id ?? 0])"
         :state-scope="$draftRecoveryState['scope'] ?? null"
         :reload-url="route('project-progress.create', ['topic' => $topic, 'reporting_date' => $defaultReportingDate, 'revise_monitoring_report' => $revisionReport?->id])"
@@ -172,7 +176,8 @@
         @if ($revisionReport)
             <input type="hidden" name="source_report_id" value="{{ $revisionReport->id }}">
         @endif
-        <input type="hidden" name="draft_version" value="{{ $monitoringDraft?->lock_version ?? 0 }}">
+        <input type="hidden" name="draft_version" value="{{ $draftVersion }}">
+        <input type="hidden" name="draft_id" value="{{ $draftId }}">
         <input type="hidden" name="recovery_scope" value="{{ $draftRecoveryState['scope'] ?? '' }}">
         <input type="hidden" name="progress_mode" value="evidence">
         <x-assistant-report-editor :context="['report_type' => 'monitoring-tool', 'topic_id' => $topic->id, 'source_key' => $revisionReport ? 'revision:'.$revisionReport->id : 'new']" />
@@ -227,7 +232,7 @@
                                     $periodKey = $quarter['year'].'-'.$quarter['quarter'];
                                     $selected = $periodKey === $selectedPeriodKey;
                                 @endphp
-                                <option data-editor-url="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $quarter['reporting_date']]) }}" value="{{ $selected ? old('reporting_date', $defaultReportingDate) : $quarter['reporting_date'] }}" @selected($selected)>{{ $quarter['label'] }} · {{ $quarter['period'] }}</option>
+                                <option data-editor-url="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $quarter['reporting_date']]) }}" value="{{ $selected ? $defaultReportingDate : $quarter['reporting_date'] }}" @selected($selected)>{{ $quarter['label'] }} · {{ $quarter['period'] }}</option>
                             @endforeach
                         </select>
                     @endif
@@ -442,14 +447,14 @@
         <div class="mt-4 grid gap-4 rounded-xl bg-gray-50 p-4 dark:bg-slate-950 sm:grid-cols-2">
             <div>
                 <label for="prepared_by_date_signed" class="text-sm font-medium text-gray-700 dark:text-slate-200">Date signed by project leader <span class="font-normal text-gray-400">(optional)</span></label>
-                <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
+                <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="$old('prepared_by_date_signed', $defaultPreparedByDate)" :restore-old-input="false" :max="now()->toDateString()" class="mt-1" />
             </div>
             <label class="text-sm font-medium text-gray-700 dark:text-slate-200">Supporting attachment <span class="font-normal text-gray-400">(optional)</span>
                 <input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs">
             </label>
         </div>
 
-            <label class="block text-sm font-medium text-gray-700 dark:text-slate-200">Tracking Number<input name="tracking_number" maxlength="100" autocomplete="off" value="{{ old('tracking_number', $defaultTrackingNumber) }}" class="mt-2 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Example: REC-2026-001…"></label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-slate-200">Tracking Number<input name="tracking_number" maxlength="100" autocomplete="off" value="{{ $old('tracking_number', $defaultTrackingNumber) }}" class="mt-2 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Example: REC-2026-001…"></label>
         </details>
 
         <p class="border-t border-gray-100 pt-5 text-sm text-gray-500">Your draft stays private until you prepare the PDF and submit it.</p>

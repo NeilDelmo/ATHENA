@@ -1,6 +1,10 @@
 @props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'progressDefaults' => [], 'terminalDefaults' => [], 'terminalEvidence' => [], 'quarterOptions' => [], 'selectedReportingDate' => null, 'draftRecoveryState' => null])
 @php
-    $reportType = $preparedReport?->report_type ?? old('report_type', request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress')));
+    $reportType = $preparedReport?->report_type ?? request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress'));
+    $restoreNarrativeInput = old('report_type') === $reportType;
+    $old = fn ($key, $fallback = null) => $restoreNarrativeInput ? old($key, $fallback) : $fallback;
+    $draftVersion = (int) $old('draft_version', $narrativeReportDraft?->lock_version ?? 0);
+    $draftId = (int) $old('draft_id', $narrativeReportDraft?->id ?? 0);
     $reportLabel = $reportType === 'terminal' ? 'Terminal report' : 'Progress report';
     $schedule = app(\App\Services\MonitoringQuarterService::class);
     $submissionOpen = $reportType === 'terminal' ? $schedule->canSubmitTerminal($topic) : ($selectedReportingDate && $schedule->canSubmitForDate($topic, $selectedReportingDate));
@@ -59,7 +63,7 @@
     $approvedEnd = $proposalDraft?->planned_end ?? $approvedStart?->copy()->addMonths((int) $topic->estimated_duration_months);
     $draftData = array_replace($progressDefaults, $draftData);
     $approvedObjectives = (bool) ($progressDefaults['objectives_from_work_plan'] ?? false);
-    $draftData = app(\App\Support\ProgressReportData::class)->normalize($topic, [...$draftData, 'accomplishments' => old('accomplishments', $draftData['accomplishments'] ?? [])]);
+    $draftData = app(\App\Support\ProgressReportData::class)->normalize($topic, [...$draftData, 'accomplishments' => $old('accomplishments', $draftData['accomplishments'] ?? [])]);
     $blankAccomplishment = ['objective' => '', 'target' => '', 'actual' => '', 'activities' => ''];
     $approvedActivities = collect($progressDefaults['accomplishments'] ?? [])->pluck('activities', 'objective');
     $accomplishmentRows = collect($draftData['accomplishments'] ?? [])
@@ -73,7 +77,7 @@
     if ($accomplishmentRows === []) {
         $accomplishmentRows = [$blankAccomplishment];
     }
-    $figureRows = old('figures', $draftData['figures'] ?? []);
+    $figureRows = $old('figures', $draftData['figures'] ?? []);
     if ($figureRows === []) {
         foreach (array_keys($draftData) as $key) {
             if (preg_match('/^photo_caption_(\d+)$/', $key, $matches) === 1) {
@@ -105,8 +109,8 @@
         previewUrl: @js(route('project-narrative-reports.preview', $topic)),
         previewTitle: 'Progress Report preview',
         draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)),
-        initialDraftVersion: @js((int) ($narrativeReportDraft?->lock_version ?? 0)),
-        initialReportingDate: @js(old('reporting_date', $selectedReportingDate)),
+        initialDraftVersion: @js($draftVersion),
+        initialReportingDate: @js($old('reporting_date', $selectedReportingDate)),
         csrfToken: @js(csrf_token()),
         submissionOpen: @js((bool) $submissionOpen),
         submissionOpensAt: @js($submissionOpensAt),
@@ -122,7 +126,7 @@
     @endif
 
     <x-proposal-collaboration-monitor
-        :loaded-version="$narrativeReportDraft?->lock_version ?? 0"
+        :loaded-version="$draftVersion"
         :state-url="route('project-report-drafts.edit-state', ['topic' => $topic, 'kind' => 'progress', 'reportingDate' => $selectedReportingDate, 'source' => 0])"
         :state-scope="$draftRecoveryState['scope'] ?? null"
         :reload-url="route('project-narrative-reports.create', ['topic' => $topic, 'reporting_date' => $selectedReportingDate])"
@@ -144,7 +148,8 @@
     <div class="proposal-edit-pane min-w-0" :inert="previewFullscreen">
     <form id="progress-form-{{ $topic->id }}" x-ref="form" data-narrative-progress-autosave-form data-assistant-report-type="progress-report" data-assistant-report-key="progress-report:topic:{{ $topic->id }}" method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitNarrativeReport($event)">
         @csrf
-        <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
+        <input type="hidden" name="draft_version" value="{{ $draftVersion }}">
+        <input type="hidden" name="draft_id" value="{{ $draftId }}">
         <input type="hidden" name="recovery_scope" value="{{ $draftRecoveryState['scope'] ?? '' }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
         <x-assistant-report-editor :context="['report_type' => 'progress-report', 'topic_id' => $topic->id]" />
@@ -154,7 +159,7 @@
             <select id="progress-reporting-date" @input.stop @change="selectReportingPeriod($event)" :aria-busy="switchingPeriod" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                 <option value="">Choose a quarter</option>
                 @foreach ($quarterOptions as $period)
-                    <option data-editor-url="{{ route('project-narrative-reports.create', ['topic' => $topic, 'reporting_date' => $period['reporting_date']]) }}" value="{{ $period['reporting_date'] }}" @selected(old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
+                    <option data-editor-url="{{ route('project-narrative-reports.create', ['topic' => $topic, 'reporting_date' => $period['reporting_date']]) }}" value="{{ $period['reporting_date'] }}" @selected($old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
                 @endforeach
             </select>
             @error('reporting_date', 'narrativeProgress')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
@@ -192,27 +197,27 @@
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label for="progress_submission_date" class="text-sm font-semibold text-gray-600">Submission date</label>
-                <x-date-picker id="progress_submission_date" name="submission_date" :value="old('submission_date', $defaultSubmissionDate)" :max="now()->toDateString()" required class="mt-1" />
+                <x-date-picker id="progress_submission_date" name="submission_date" :value="$old('submission_date', $defaultSubmissionDate)" :restore-old-input="false" :max="now()->toDateString()" required class="mt-1" />
             </div>
             <label class="text-sm font-semibold text-gray-600">Tracking number <span class="font-normal text-gray-400">(optional)</span>
-                <input type="text" name="tracking_number" value="{{ old('tracking_number', $defaultTrackingNumber) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter the official tracking number">
+                <input type="text" name="tracking_number" value="{{ $old('tracking_number', $defaultTrackingNumber) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter the official tracking number">
             </label>
         </div>
 
         <section class="grid gap-4 md:grid-cols-2">
             <label class="text-sm font-semibold text-gray-600 md:col-span-2">II. Researchers
-                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter one researcher per line">{{ old('researchers', $defaultResearchers) }}</textarea>
+                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter one researcher per line">{{ $old('researchers', $defaultResearchers) }}</textarea>
             </label>
             <div>
                 <label for="implementation_start" class="text-sm font-semibold text-gray-600">III. Approved implementation start</label>
-                <x-date-picker id="implementation_start" name="implementation_start" :value="old('implementation_start', $defaultImplementationStart)" required class="mt-1" />
+                <x-date-picker id="implementation_start" name="implementation_start" :value="$old('implementation_start', $defaultImplementationStart)" :restore-old-input="false" required class="mt-1" />
             </div>
             <div>
                 <label for="implementation_end" class="text-sm font-semibold text-gray-600">III. Approved implementation end</label>
-                <x-date-picker id="implementation_end" name="implementation_end" :value="old('implementation_end', $defaultImplementationEnd)" required class="mt-1" />
+                <x-date-picker id="implementation_end" name="implementation_end" :value="$old('implementation_end', $defaultImplementationEnd)" :restore-old-input="false" required class="mt-1" />
             </div>
             <label class="text-sm font-semibold text-gray-600 md:col-span-2">V. Funding agency
-                <input type="text" name="funding_agency" value="{{ old('funding_agency', $defaultFundingAgency) }}" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-base">
+                <input type="text" name="funding_agency" value="{{ $old('funding_agency', $defaultFundingAgency) }}" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-base">
             </label>
         </section>
 
@@ -285,7 +290,7 @@
                 'results_discussion' => 'X. Results and Discussion',
             ] as $field => $label)
                 <label class="block text-sm font-semibold text-gray-600">{{ $label }}
-                    <textarea name="{{ $field }}" @readonly($field === 'objectives' && filled($progressDefaults['objectives'])) rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ $field === 'objectives' && filled($progressDefaults['objectives']) ? $progressDefaults['objectives'] : old($field, $draftData[$field] ?? '') }}</textarea>
+                    <textarea name="{{ $field }}" @readonly($field === 'objectives' && filled($progressDefaults['objectives'])) rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ $field === 'objectives' && filled($progressDefaults['objectives']) ? $progressDefaults['objectives'] : $old($field, $draftData[$field] ?? '') }}</textarea>
                 </label>
             @endforeach
         </section>
@@ -336,7 +341,7 @@
         <div class="rounded-xl bg-gray-50 p-4">
             <div>
                 <label for="progress_prepared_by_date_signed" class="text-sm font-semibold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
-                <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
+                <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="$old('prepared_by_date_signed', $defaultPreparedByDate)" :restore-old-input="false" :max="now()->toDateString()" class="mt-1" />
             </div>
         </div>
 

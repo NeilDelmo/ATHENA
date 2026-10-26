@@ -341,6 +341,17 @@ test('issuing the Notice to Proceed promotes every accepted linked collaborator 
         ->assertSee('Email Matched Researcher');
 });
 
+test('notice previews return structured validation errors to the editor', function () {
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['approved_budget'] = -1;
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->actingAs($this->staff)
+        ->postJson(route('topics.notice-to-proceed.preview', $this->topic), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('approved_budget');
+});
+
 test('research office staff can preview a Notice to Proceed without issuing it', function () {
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';

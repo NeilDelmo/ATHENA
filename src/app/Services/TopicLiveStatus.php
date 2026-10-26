@@ -28,6 +28,8 @@ class TopicLiveStatus
                 $query = $model::query()->whereBelongsTo($topic, 'topic')
                     ->where(fn (Builder $query) => $query->where('submission_status', 'submitted')
                         ->when($researcher, fn (Builder $query) => $query->orWhere('submission_status', 'prepared')))
+                    ->when($model === ProjectNarrativeReport::class && $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY),
+                        fn (Builder $query): Builder => $query->where('report_type', 'progress'))
                     ->when($head, fn (Builder $query) => $query->visibleToResearchHead())->orderBy('id');
                 $currentIds = $model::query()->whereBelongsTo($topic, 'topic')->latestSubmittedVersion()->pluck('id');
                 $columns = ['id', 'topic_id', 'submitted_by', 'reporting_date', 'reporting_quarter', 'version_number', 'submission_status', 'review_status', 'review_stage'];
@@ -54,7 +56,7 @@ class TopicLiveStatus
                             } else {
                                 $parameters['report_type'] = $kind;
                             }
-                            if (! $report->isPrepared() || $report->submitted_by === $user->id || $kind !== 'monitoring') {
+                            if (! $report->isPrepared() || in_array($user->id, [$report->submitted_by, $topic->user_id], true) || $kind !== 'monitoring') {
                                 $actions[] = ['label' => ($report->isPrepared() ? 'Review prepared ' : 'Correct ').$name, 'url' => route($kind === 'monitoring' ? 'project-progress.create' : 'project-narrative-reports.create', $parameters)];
                             }
                         }
@@ -94,6 +96,8 @@ class TopicLiveStatus
 
         return ['proposal' => self::proposalScope($topic, $version), 'reports' => $reports
             ->filter(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $report->isAvailableToResearchHead())
+            ->reject(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
+                && $report instanceof ProjectNarrativeReport && $report->report_type !== 'progress')
             ->mapWithKeys(fn (ProjectProgressReport|ProjectNarrativeReport $report): array => [self::reportKey($report) => self::reportScope($topic, $report)])->sortKeys()->all()];
     }
 

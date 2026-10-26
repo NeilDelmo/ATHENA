@@ -6,6 +6,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\User;
+use App\Support\DetailedProposalData;
 use App\Support\ProposalDocumentVersionDiff;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,7 @@ class SaveProposalDraftDocument
                 'position',
                 'lock_version',
             ]);
+            $previousSource = $document?->source_data ?? [];
             $sourceChanged = array_key_exists('source_data', $safeAttributes)
                 && ($document === null || ! $this->diff->isEquivalent($document, [
                     'source_data' => $safeAttributes['source_data'],
@@ -113,7 +115,7 @@ class SaveProposalDraftDocument
                 $savedDocument = $document->refresh();
 
                 if ($sourceChanged) {
-                    $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument);
+                    $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument, $previousSource);
                 }
 
                 $this->recordRecoveryPoint(
@@ -136,7 +138,7 @@ class SaveProposalDraftDocument
             ]);
 
             if ($sourceChanged) {
-                $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument);
+                $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument, $previousSource);
             }
 
             $this->recordRecoveryPoint(
@@ -175,12 +177,16 @@ class SaveProposalDraftDocument
         );
     }
 
+    /** @param array<string, mixed> $previousSource */
     private function invalidateOtherPreparedFiles(
         ProposalDraft $draft,
         ProposalDraftDocument $savedDocument,
+        array $previousSource,
     ): void {
         $dependentTypes = match ($savedDocument->document_type) {
-            'detailed_proposal' => ['work_plan'],
+            'detailed_proposal' => DetailedProposalData::fromValidated($previousSource)['specific_objectives']
+                !== DetailedProposalData::fromValidated($savedDocument->source_data ?? [])['specific_objectives']
+                    ? ['work_plan'] : [],
             'work_plan' => ['detailed_proposal'],
             'expense_breakdown' => ['line_item_budget', 'detailed_proposal'],
             'line_item_budget' => ['detailed_proposal', 'initial_screening_form', 'curriculum_vitae'],

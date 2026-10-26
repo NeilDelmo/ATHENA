@@ -204,7 +204,7 @@
                                 <textarea id="saved-evidence-caption-{{ $evidenceCaptionToken }}" name="saved_evidence_captions[{{ $evidenceCaptionToken }}]" rows="2" maxlength="1000" class="{{ $inputClass }} mt-1">{{ old('saved_evidence_captions.'.$evidenceCaptionToken, $evidence['caption'] ?? '') }}</textarea>
                                 <x-input-error :messages="$errors->get('saved_evidence_captions.'.$evidenceCaptionToken)" class="mt-1" />
                             </div>
-                            <label class="inline-flex items-center gap-2 text-sm text-red-700 dark:text-red-300"><input type="checkbox" name="remove_evidence[]" value="{{ hash('sha256', $evidence['path']) }}" class="rounded border-gray-300 text-brand focus:ring-brand"> Remove photo when saving</label>
+                            <label class="inline-flex items-center gap-2 text-sm text-red-700 dark:text-red-300"><input type="checkbox" name="remove_evidence[]" value="{{ $evidenceCaptionToken }}" @checked(in_array($evidenceCaptionToken, (array) old('remove_evidence', []), true)) class="rounded border-gray-300 text-brand focus:ring-brand"> Remove photo when saving</label>
                         @endif
                     </figure>
                 @endforeach

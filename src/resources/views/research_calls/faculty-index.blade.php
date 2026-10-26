@@ -8,8 +8,7 @@
             <div class="absolute inset-y-0 right-0 hidden w-2/5 bg-[radial-gradient(circle_at_center,rgba(185,28,28,0.10),transparent_70%)] sm:block" aria-hidden="true"></div>
             <div class="relative grid gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div class="max-w-2xl">
-                    <span class="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-700 ring-1 ring-inset ring-red-100 dark:bg-red-950/35 dark:text-red-300 dark:ring-red-900"><span class="h-1.5 w-1.5 rounded-full bg-red-600"></span>Faculty research opportunities</span>
-                    <h3 id="faculty-research-call-heading" class="mt-4 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">Find the right call for your next proposal.</h3>
+                    <h3 id="faculty-research-call-heading" class="text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">Research calls</h3>
                     <p class="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">Open calls appear first. Each announcement includes its submission window, maximum budget, review schedule, and official poster when available.</p>
                 </div>
                 <div class="flex flex-col items-stretch gap-3 sm:flex-row lg:flex-col">

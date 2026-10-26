@@ -103,37 +103,14 @@
                         @endauth
                     </div>
 
-                    <div class="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-white/75" aria-label="ATHENA capabilities">
-                        <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Proposals</span>
-                        <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Project teams</span>
-                        <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Monitoring</span>
-                        <span class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-white"></span>Reports</span>
-                    </div>
                 </div>
             </div>
         </section>
 
         <section id="about" class="landing-section landing-section--about scroll-mt-24 py-24 sm:py-28">
-            <div class="landing-grid" aria-hidden="true"></div>
             <div class="relative mx-auto max-w-7xl px-6 lg:px-8">
-                <div class="grid items-center gap-12 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:gap-20">
-                    <div class="reveal landing-visual landing-visual--workflow" data-landing-tilt>
-                        <div class="landing-orbit landing-orbit--one"></div>
-                        <div class="landing-orbit landing-orbit--two"></div>
-                        <div class="relative z-10 mx-auto flex max-w-sm flex-col gap-4 p-7 sm:p-9">
-                            <div class="landing-mini-card landing-mini-card--top self-start">
-                                <span class="landing-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75H6.75A2.25 2.25 0 0 0 4.5 6v12a2.25 2.25 0 0 0 2.25 2.25h10.5A2.25 2.25 0 0 0 19.5 18V9l-5.25-5.25Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75V9h5.25M8.25 13.5h7.5m-7.5 3h5.25"/></svg></span>
-                                <span><strong>Proposal</strong><small>Prepared</small></span>
-                            </div>
-                            <div class="landing-connector self-center"><span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg></div>
-                            <div class="landing-mini-card landing-mini-card--center self-end">
-                                <span class="landing-mini-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span>
-                                <span><strong>Review</strong><small>Institutional assessment</small></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="reveal">
+                <div>
+                    <div>
                         <p class="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7A0019]">System overview</p>
                         <h2 class="mt-4 max-w-2xl text-4xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-5xl">Proposal review and project monitoring.</h2>
                         <p class="mt-7 max-w-2xl text-lg leading-8 text-slate-600">
@@ -161,31 +138,13 @@
 
         <section id="people" class="landing-section landing-section--people scroll-mt-24 py-24 sm:py-28">
             <div class="relative mx-auto max-w-7xl px-6 lg:px-8">
-                <div class="grid items-center gap-12 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] lg:gap-20">
-                    <div class="reveal">
+                <div>
+                    <div>
                         <p class="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7A0019]">Institutional research management</p>
                         <h2 class="mt-4 max-w-2xl text-4xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-5xl">Research roles and responsibilities.</h2>
                         <p class="mt-6 max-w-xl text-base leading-8 text-slate-600">Access proposal reviews, project records, monitoring tools, and reports according to your assigned institutional role.</p>
                     </div>
 
-                    <div class="reveal landing-visual landing-visual--people" data-landing-tilt>
-                        <div class="landing-orbit landing-orbit--one"></div>
-                        <div class="relative z-10 flex h-full items-center justify-center p-7 sm:p-9">
-                            <svg class="h-auto w-full max-w-[19rem] text-[#7A0019]" viewBox="0 0 320 250" fill="none" aria-hidden="true">
-                                <circle cx="160" cy="125" r="104" fill="currentColor" opacity=".06"/>
-                                <path d="M102 183c0-27 20-49 45-49h26c25 0 45 22 45 49v16H102v-16Z" fill="currentColor" opacity=".16"/>
-                                <circle cx="160" cy="103" r="31" fill="currentColor" opacity=".22"/>
-                                <path d="M54 193c0-20 15-36 34-36h15c19 0 34 16 34 36v10H54v-10Z" fill="currentColor" opacity=".1"/>
-                                <circle cx="95" cy="133" r="23" fill="currentColor" opacity=".15"/>
-                                <path d="M183 193c0-20 15-36 34-36h15c19 0 34 16 34 36v10h-83v-10Z" fill="currentColor" opacity=".1"/>
-                                <circle cx="225" cy="133" r="23" fill="currentColor" opacity=".15"/>
-                                <path d="M149 103c6 5 16 5 22 0" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                                <path d="M84 133c4 4 11 4 15 0m118 0c4 4 11 4 15 0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                                <rect x="195" y="36" width="66" height="31" rx="15.5" fill="white" stroke="currentColor" stroke-opacity=".18"/>
-                                <circle cx="214" cy="51.5" r="4" fill="currentColor"/><circle cx="228" cy="51.5" r="4" fill="currentColor" opacity=".55"/><circle cx="242" cy="51.5" r="4" fill="currentColor" opacity=".25"/>
-                            </svg>
-                        </div>
-                    </div>
                 </div>
 
                 @php
@@ -194,13 +153,13 @@
                         ['Research Head', 'Review proposals, guide research teams, and monitor project progress.'],
                         ['Research Office', 'Coordinate submissions, maintain research records, and support reporting.'],
                         ['Faculty Researcher', 'Prepare proposals, manage research documents, and report project milestones.'],
-                        ['Faculty', 'Explore research opportunities, work with your project team, and access research support.'],
+                        ['Faculty', 'View research calls, project invitations, and institutional research guidance.'],
                     ];
                 @endphp
 
                 <div class="mt-14 grid gap-px overflow-hidden rounded-3xl border border-[#7A0019]/10 bg-[#7A0019]/10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     @foreach ($people as $person)
-                        <article class="reveal group bg-white p-7 transition duration-300 hover:bg-[#7A0019]/[0.025] sm:p-8">
+                        <article class="group bg-white p-7 transition duration-300 hover:bg-[#7A0019]/[0.025] sm:p-8">
                             <span class="block h-2 w-2 rounded-full bg-[#7A0019]/25 transition group-hover:bg-[#7A0019]" aria-hidden="true"></span>
                             <h3 class="mt-6 text-xl font-extrabold text-slate-900">{{ $person[0] }}</h3>
                             <p class="mt-3 text-sm leading-7 text-slate-500">{{ $person[1] }}</p>
@@ -211,20 +170,9 @@
         </section>
 
         <section id="features" class="landing-section landing-section--features scroll-mt-24 py-24 sm:py-28">
-            <div class="landing-grid" aria-hidden="true"></div>
             <div class="relative mx-auto max-w-7xl px-6 lg:px-8">
-                <div class="grid items-center gap-12 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:gap-20">
-                    <div class="reveal landing-visual landing-visual--features" data-landing-tilt>
-                        <div class="landing-orbit landing-orbit--two"></div>
-                        <div class="relative z-10 grid h-full grid-cols-2 gap-3 p-7 sm:p-9">
-                            <div class="landing-feature-tile landing-feature-tile--tall"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Zm0 0V3m0 18v-3.75m5.25-5.25H21M3 12h3.75m8.962-3.712 2.652-2.652M5.636 18.364l2.652-2.652m7.424 0 2.652 2.652M5.636 5.636l2.652 2.652"/></svg><span>Proposals</span></div>
-                            <div class="landing-feature-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 18.75V9.375M9.375 18.75V5.625M15 18.75v-7.5m5.25 7.5V3.375"/></svg><span>Analytics</span></div>
-                            <div class="landing-feature-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-3-9 2 2 4-4"/></svg><span>Reviews</span></div>
-                            <div class="landing-feature-tile landing-feature-tile--accent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3"/></svg><span>Records</span></div>
-                        </div>
-                    </div>
-
-                    <div class="reveal max-w-2xl lg:justify-self-end">
+                <div>
+                    <div class="max-w-2xl">
                         <p class="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7A0019]">System functions</p>
                         <h2 class="mt-4 text-4xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-5xl">Research management functions.</h2>
                         <p class="mt-6 text-base leading-8 text-slate-600">Available functions depend on the institutional role assigned to your account.</p>
@@ -244,8 +192,8 @@
 
                 <div class="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                     @foreach ($features as $index => $feature)
-                        <article class="reveal group rounded-3xl border border-slate-200 bg-white p-7 shadow-[0_16px_45px_-36px_rgba(15,23,42,.45)] transition duration-300 hover:-translate-y-1 hover:border-[#7A0019]/25 hover:shadow-[0_22px_50px_-34px_rgba(122,0,25,.3)] sm:p-8">
-                            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7A0019]/5 text-sm font-extrabold text-[#7A0019] transition group-hover:bg-[#7A0019] group-hover:text-white">
+                        <article class="rounded-2xl border border-slate-200 bg-white p-7 sm:p-8">
+                            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7A0019]/5 text-sm font-extrabold text-[#7A0019]">
                                 {{ str_pad($index + 1, 2, '0', STR_PAD_LEFT) }}
                             </div>
                             <h3 class="mt-7 text-xl font-extrabold text-slate-900">{{ $feature[0] }}</h3>
@@ -258,8 +206,7 @@
 
         <section class="bg-white pb-24 pt-4 sm:pb-28">
             <div class="mx-auto max-w-7xl px-6 lg:px-8">
-                <div class="reveal relative overflow-hidden rounded-[2rem] border border-[#7A0019]/10 bg-gradient-to-br from-white via-white to-[#7A0019]/5 px-6 py-14 text-center shadow-[0_28px_70px_-48px_rgba(122,0,25,.45)] sm:px-12 sm:py-16">
-                    <div class="absolute -bottom-28 -right-24 h-64 w-64 rounded-full bg-[#7A0019]/10 blur-3xl" aria-hidden="true"></div>
+                <div class="rounded-2xl border border-[#7A0019]/10 px-6 py-14 text-center sm:px-12 sm:py-16">
                     <div class="relative mx-auto max-w-3xl">
                         <p class="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7A0019]">Authorized access</p>
                         <h2 class="mt-4 text-3xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-4xl">Sign in with your institutional account.</h2>

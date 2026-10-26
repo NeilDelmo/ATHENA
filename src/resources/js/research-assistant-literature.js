@@ -264,6 +264,7 @@ export function researchAssistantLiterature({ savePaper } = {}) {
 
             return packet?.kind === 'results' && packet.proposal_draft_id > 0
                 && count > 0 && count <= maximumLiteratureSelections && !this.literatureBusy(message)
+                && !this.draft?.trim()
                 && (basis !== 'abstract' || packet.results.filter((source) => this.literatureSourceSelected(message, source.source_token))
                     .every((source) => source.description.length >= 80 && source.description !== 'No description available from source.'));
         },
@@ -303,7 +304,7 @@ export function researchAssistantLiterature({ savePaper } = {}) {
                     && draft.evidence_basis !== 'metadata_only'
                     && literatureText(draft.paragraph).length >= minimumLiteratureParagraphLength
                     && literatureText(draft.paragraph).length <= maximumLiteratureParagraphLength)
-                && !this.literatureBusy(message);
+                && !this.literatureBusy(message) && !this.draft?.trim();
         },
 
         async confirmLiteratureDraft(message) {

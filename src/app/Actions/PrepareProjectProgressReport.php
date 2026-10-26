@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -37,6 +38,13 @@ class PrepareProjectProgressReport
         $storedPaths = [];
 
         try {
+            $draft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')
+                ->whereBelongsTo($user, 'user')->forSource($supersedesReport)->first(['id', 'lock_version']);
+            $expectedDraftVersion = (int) ($validated['draft_version'] ?? $draft?->lock_version ?? 0);
+            $expectedDraftId = (int) ($validated['draft_id'] ?? $draft?->id ?? 0);
+            if ($expectedDraftVersion !== ($draft?->lock_version ?? 0) || $expectedDraftId !== ($draft?->id ?? 0)) {
+                throw ValidationException::withMessages(['draft_version' => 'A newer Monitoring Tool draft was saved. Reload the latest draft before preparing its PDF.']);
+            }
             $workPlan = collect($validated['work_plan']);
             $period = $supersedesReport === null
                 ? $this->monitoringQuarterService->forDate($validated['reporting_date'], $topic)
@@ -48,7 +56,7 @@ class PrepareProjectProgressReport
             }
 
             $report = new ProjectProgressReport([
-                ...collect($validated)->except(['attachment', 'source_report_id'])->all(),
+                ...collect($validated)->except(['attachment', 'source_report_id', 'draft_version', 'draft_id'])->all(),
                 'topic_id' => $topic->id,
                 'submitted_by' => $user->id,
                 'reporting_year' => $period['year'],
@@ -88,10 +96,15 @@ class PrepareProjectProgressReport
                 'official_pdf_checksum' => hash('sha256', $pdf),
                 'official_pdf_size' => strlen($pdf),
             ]);
-            DB::transaction(function () use ($topic, $report, $period, $supersedesReport): void {
+            DB::transaction(function () use ($topic, $user, $report, $period, $supersedesReport, $expectedDraftVersion, $expectedDraftId): void {
                 $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
-                if (! $lockedTopic->isMonitoringAvailable()) {
+                if (! $lockedTopic->isMonitoringAvailable() || ! $lockedTopic->isAccessibleTo($user)) {
                     throw ValidationException::withMessages(['preparation' => 'Monitoring is no longer open for this project.']);
+                }
+                $draft = ProjectMonitoringDraft::query()->whereBelongsTo($lockedTopic, 'topic')
+                    ->whereBelongsTo($user, 'user')->forSource($supersedesReport)->lockForUpdate()->first();
+                if (($draft?->lock_version ?? 0) !== $expectedDraftVersion || ($draft?->id ?? 0) !== $expectedDraftId) {
+                    throw ValidationException::withMessages(['draft_version' => 'A newer Monitoring Tool draft was saved. Reload the latest draft before preparing its PDF.']);
                 }
                 if ($lockedTopic->preparedProgressReports()->exists()) {
                     throw ValidationException::withMessages(['preparation' => 'Submit or discard the prepared Monitoring Tool before preparing another quarter.']);
@@ -107,6 +120,7 @@ class PrepareProjectProgressReport
                     }
                 }
                 $report->save();
+                $draft?->delete();
             });
 
             return $report;

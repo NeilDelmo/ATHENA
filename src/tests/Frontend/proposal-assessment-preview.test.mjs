@@ -20,7 +20,11 @@ function renderForms() {
         require 'vendor/autoload.php';
         $app = require 'bootstrap/app.php';
         $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        $previewDisk = Illuminate\Support\Facades\Storage::fake('local', [
+            'root' => storage_path('framework/testing/disks/assessment-preview-'.getmypid()),
+        ]);
         Illuminate\Support\Facades\Auth::setUser((new App\Models\User)->forceFill(['id' => 1]));
+        Illuminate\Support\Facades\Gate::swap(new Illuminate\Auth\Access\Gate($app, fn () => Illuminate\Support\Facades\Auth::user()));
         Illuminate\Support\Facades\Gate::before(fn () => true);
         Illuminate\Support\Facades\View::share('canEditDraft', true);
         $input = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
@@ -34,10 +38,11 @@ function renderForms() {
         ]);
         $checklist = app(App\Support\ProposalPaperCatalog::class)->all()->map(fn ($paper) => [
             'paper' => $paper, 'complete' => true, 'needs_attention' => false, 'status' => 'Complete',
-            'documents' => $paper['mode'] === 'automatic' ? collect() : collect([(object) [
+            'documents' => $paper['mode'] === 'automatic' ? collect() : collect([(new App\Models\ProposalDraftDocument)->forceFill([
+                'document_type' => $paper['document_type'],
                 'source_data' => ['entries' => [['objective' => 'Survey communities', 'expected_output' => 'Survey dataset', 'activity' => 'Conduct survey', 'months' => [1, 2, 3]]]],
                 'file_path' => null, 'mime_type' => null,
-            ]]), 'submission_filename' => 'proposal.pdf',
+            ])]), 'submission_filename' => 'proposal.pdf',
         ]);
         $reviewData = [
             'proposalDraft' => $draft, 'checklist' => $checklist,
@@ -47,6 +52,7 @@ function renderForms() {
             'lineItemBudgetSource' => [], 'expenseBreakdownSource' => [], 'curriculumVitaeSource' => [],
         ];
         $review = Illuminate\Support\Facades\Blade::render($input['review'], $reviewData);
+        $previewDisk->put('prepared.pdf', '%PDF-1.7');
         foreach ($checklist as $item) {
             foreach ($item['documents'] as $document) {
                 $document->file_path = 'prepared.pdf';

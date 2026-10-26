@@ -1510,12 +1510,7 @@ class LiteratureSearchService
             return null;
         }
 
-        return Str::of($doi)
-            ->trim()
-            ->replaceStart('https://doi.org/', '')
-            ->replaceStart('http://doi.org/', '')
-            ->replaceStart('doi:', '')
-            ->toString();
+        return LiteratureSource::normalizeDoi($doi) ?: null;
     }
 
     private function doiUrl(mixed $doi): ?string

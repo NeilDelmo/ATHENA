@@ -68,7 +68,7 @@ class LineItemBudgetDocumentService
 
             return $contents;
         } finally {
-            if ($archiveIsOpen) {
+            if ($archiveIsOpen && $archive->filename !== '') {
                 $archive->close();
             }
 

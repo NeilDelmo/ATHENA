@@ -11,6 +11,11 @@ use Illuminate\Validation\Validator;
 
 class UpdateProjectBudgetUtilizationRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->session()->flash('budget_validation_report_id', $this->route('report')?->getKey());
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -36,6 +41,7 @@ class UpdateProjectBudgetUtilizationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'budget_token' => ['required', 'string', 'regex:/\A[a-f0-9]{64}\z/'],
             'budget_utilization' => ['required', 'array', 'size:3'],
             'budget_utilization.*.type' => [
                 'required',
@@ -46,6 +52,15 @@ class UpdateProjectBudgetUtilizationRequest extends FormRequest
             'budget_utilization.*.amount_requested' => ['required', 'numeric', 'min:0'],
             'budget_utilization.*.actual_amount' => ['required', 'numeric', 'min:0'],
             'budget_utilization.*.remarks' => ['nullable', 'string', 'max:300'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'budget_token.required' => 'Reload the current budget before saving again.',
+            'budget_token.string' => 'Reload the current budget before saving again.',
+            'budget_token.regex' => 'Reload the current budget before saving again.',
         ];
     }
 

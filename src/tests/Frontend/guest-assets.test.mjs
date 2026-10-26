@@ -75,8 +75,8 @@ test(`the public landing page initializes and section navigation closes the menu
             await expect(page).toHaveURL(/#people$/);
             await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toBeHidden({ timeout: 1500 });
         }
-        await page.locator('.reveal').first().scrollIntoViewIfNeeded();
-        await expect(page.locator('.reveal.is-visible').first()).toBeVisible();
+        await page.getByRole('heading', { name: 'Research roles and responsibilities.' }).scrollIntoViewIfNeeded();
+        await expect(page.getByRole('heading', { name: 'Research roles and responsibilities.' })).toBeVisible();
         assert.deepEqual(errors, []);
     } finally {
         await page.close();
@@ -84,6 +84,28 @@ test(`the public landing page initializes and section navigation closes the menu
     }
 });
 }
+
+test('desktop institutional information remains readable when JavaScript is unavailable', { timeout: 15000 }, async () => {
+    const html = guestPage(false, 'welcome');
+    const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage({ javaScriptEnabled: false, viewport: { width: 1440, height: 900 } });
+        await page.route('**/*', route => {
+            const path = new URL(route.request().url()).pathname;
+            if (path.startsWith('/resources/css/')) return route.fulfill({ contentType: 'text/css', body: readFileSync(resolve('public/build', manifest[path.slice(1)].file)) });
+            if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+            return route.fulfill({ body: '', contentType: 'text/plain' });
+        });
+        await page.goto(origin);
+        for (const name of ['Proposal review and project monitoring.', 'Research roles and responsibilities.', 'Research management functions.', 'Sign in with your institutional account.']) {
+            await expect(page.getByRole('heading', { name, exact: true })).toBeVisible({ timeout: 1000 });
+            await expect(page.getByRole('heading', { name, exact: true }).locator('..')).toHaveCSS('opacity', '1', { timeout: 1000 });
+        }
+    } finally {
+        await browser.close();
+    }
+});
 
 test('the minimal login entry preserves theme controls, system changes and the institutional sign-in link', async () => {
     const html = guestPage();
@@ -103,6 +125,7 @@ test('the minimal login entry preserves theme controls, system changes and the i
             return route.fulfill({ body: '', contentType: 'text/plain' });
         });
         await page.goto(`${origin}/login`);
+        await expect(page.getByRole('heading', { name: 'Sign in to ATHENA', exact: true })).toBeVisible();
         const toggle = page.getByRole('button', { name: 'Toggle light and dark theme' });
         await expect(toggle).toHaveAttribute('aria-pressed', 'false');
         await page.emulateMedia({ colorScheme: 'dark' });

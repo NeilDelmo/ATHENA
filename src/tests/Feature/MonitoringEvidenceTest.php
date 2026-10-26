@@ -64,7 +64,7 @@ test('activity targets distinguish quantities from a single output', function (s
 ]);
 
 test('evidence computes partial weighted progress and survives saving and reloading', function () {
-    $payload = ($this->payload)(['activity_evidence' => ['plan-0' => [UploadedFile::fake()->image('interviews.png')]]]);
+    $payload = ($this->payload)(['draft_id' => 0, 'activity_evidence' => ['plan-0' => [UploadedFile::fake()->image('interviews.png')]]]);
     $response = $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), $payload)
         ->assertSuccessful()->assertJsonPath('work_plan.0.accomplished_percentage', '30.00')
         ->assertJsonPath('work_plan.0.target_units', 20)->assertJsonPath('work_plan.0.completed_units', 12);
@@ -82,7 +82,7 @@ test('evidence computes partial weighted progress and survives saving and reload
     }
 
     $this->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
-        'draft_version' => 1, 'work_plan' => [['evidence_ids' => [$file['id']], 'target_units' => 1, 'percent_weight' => 100]],
+        'draft_version' => 1, 'draft_id' => $response->json('draft_id'), 'work_plan' => [['evidence_ids' => [$file['id']], 'target_units' => 1, 'percent_weight' => 100]],
     ]))->assertSuccessful()->assertJsonPath('work_plan.0.accomplished_percentage', '30.00')
         ->assertJsonPath('draft_version', 1);
     $this->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['draft_version' => 1]))
@@ -111,10 +111,116 @@ test('missing proof earns zero and forged evidence or progress cannot be submitt
 test('monitoring drafts and PDF preparation allow unfinished proof', function () {
     $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
         ->assertSuccessful()->assertJsonCount(0, 'work_plan.0.evidence');
-    $this->post(route('project-progress.prepare', $this->topic), ($this->payload)())->assertSessionHasNoErrors();
+    $this->post(route('project-progress.prepare', $this->topic), ($this->payload)(['draft_version' => 1]))->assertSessionHasNoErrors();
     $report = ProjectProgressReport::query()->sole();
     expect($report->isPrepared())->toBeTrue()->and($report->work_plan[0]['evidence'])->toBe([]);
     Storage::disk('local')->assertExists($report->official_pdf_path);
+});
+
+test('preparing an outdated Monitoring Tool keeps the newer private draft', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
+        'tracking_number' => 'Newest saved draft',
+    ]))->assertSuccessful();
+    $url = route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']);
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($url)->post(route('project-progress.prepare', $this->topic), ($this->payload)([
+        'draft_version' => 0, 'tracking_number' => 'Older tab text',
+    ]))->assertSessionHasErrors('draft_version');
+
+    expect(ProjectMonitoringDraft::sole()->source_data['tracking_number'])->toBe('Newest saved draft')
+        ->and(ProjectProgressReport::count())->toBe(0);
+    $this->get($url)->assertSuccessful()->assertSee('name="draft_version" value="0"', false);
+});
+
+test('another report forms validation input cannot replace the Monitoring Tool draft version', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
+        ->assertSuccessful();
+    $response = $this->withSession(['_old_input' => ['report_type' => 'progress', 'draft_version' => 99]])
+        ->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))
+        ->assertSuccessful();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $version = (new DOMXPath($document))->query('//input[@name="draft_version"]')->item(0);
+
+    expect($version->getAttribute('value'))->toBe('1');
+});
+
+test('PDF conversion cannot erase a Monitoring Tool draft saved by another tab', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
+        ->assertSuccessful();
+    $draft = ProjectMonitoringDraft::sole();
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($draft): string {
+            $draft->update(['lock_version' => 2, 'source_data' => [...$draft->source_data, 'tracking_number' => 'Saved during conversion']]);
+
+            return '%PDF-1.4 outdated monitoring draft';
+        });
+
+    $this->post(route('project-progress.prepare', $this->topic), ($this->payload)(['draft_version' => 1]))
+        ->assertSessionHasErrors('draft_version');
+
+    expect(ProjectMonitoringDraft::sole()->source_data['tracking_number'])->toBe('Saved during conversion')
+        ->and(ProjectMonitoringDraft::sole()->lock_version)->toBe(2)
+        ->and(ProjectProgressReport::count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('progress-reports/'.$this->topic->id.'/prepared'))->toBe([]);
+});
+
+test('an old Monitoring Tool tab cannot overwrite a draft restored after discarding its PDF', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
+        ->assertSuccessful();
+    $original = ProjectMonitoringDraft::sole();
+    $stale = ($this->payload)(['draft_version' => 1, 'draft_id' => $original->id]);
+    $this->post(route('project-progress.prepare', $this->topic), $stale)->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::sole();
+    $this->delete(route('project-progress.discard-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    $restored = ProjectMonitoringDraft::sole();
+    expect($restored->id)->not->toBe($original->id)->and($restored->lock_version)->toBe(1);
+
+    $this->postJson(route('project-progress.draft', $this->topic), [...$stale, 'tracking_number' => 'Older tab'])
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_version');
+    $this->post(route('project-progress.prepare', $this->topic), $stale)->assertSessionHasErrors('draft_version');
+    expect(ProjectMonitoringDraft::sole()->id)->toBe($restored->id)
+        ->and(ProjectMonitoringDraft::sole()->source_data)->toBe($restored->source_data)
+        ->and(ProjectProgressReport::count())->toBe(0);
+});
+
+test('replacing a Monitoring Tool draft during PDF conversion cannot reuse its version', function () {
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
+        ->assertSuccessful();
+    $draft = ProjectMonitoringDraft::sole();
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($draft): string {
+            $attributes = $draft->only(['topic_id', 'user_id', 'source_report_id', 'source_key', 'lock_version']);
+            $data = [...$draft->source_data, 'tracking_number' => 'Replacement draft'];
+            $draft->delete();
+            ProjectMonitoringDraft::create([...$attributes, 'source_data' => $data]);
+
+            return '%PDF-1.4 original draft';
+        });
+    $this->post(route('project-progress.prepare', $this->topic), ($this->payload)(['draft_version' => 1]))
+        ->assertSessionHasErrors('draft_version');
+    expect(ProjectMonitoringDraft::sole()->source_data['tracking_number'])->toBe('Replacement draft')
+        ->and(ProjectProgressReport::count())->toBe(0);
+});
+
+test('Monitoring Tool preparation rechecks project membership after PDF conversion', function () {
+    $member = User::factory()->create();
+    $member->assignRole('faculty_researcher');
+    $collaborator = $this->topic->collaborators()->create([
+        'user_id' => $member->id, 'name' => $member->name, 'email' => $member->email, 'accepted_at' => now(),
+    ]);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($collaborator): string {
+            $collaborator->delete();
+
+            return '%PDF-1.4 removed project member';
+        });
+
+    $this->actingAs($member)->post(route('project-progress.prepare', $this->topic), ($this->payload)())
+        ->assertSessionHasErrors('preparation');
+
+    expect(ProjectProgressReport::count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('progress-reports/'.$this->topic->id.'/prepared'))->toBe([]);
 });
 
 test('unsupported oversized or unlinked evidence is rejected without storing files', function (array $files, string $error) {
@@ -202,6 +308,29 @@ test('invalid reporting dates return validation errors while preparing evidence'
     $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['reporting_date' => 'broken']))
         ->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
 });
+
+test('alternate date formats cannot bypass approved monitoring plan synchronization', function (string $date, string $action) {
+    $payload = ($this->payload)([
+        'reporting_date' => $date,
+        'work_plan' => [[
+            'activity' => 'Unapproved activity', 'objective' => 'Unapproved objective', 'percent_weight' => 100,
+            'physical_target' => 'One output', 'target_completion_date' => '2026-03-31',
+            'target_units' => 1, 'progress_unit' => 'completed output', 'completed_units' => 0,
+            'accomplished_percentage' => 0, 'evidence' => [], 'evidence_ids' => [],
+        ]],
+    ]);
+    $this->actingAs($this->researcher);
+    if ($action === 'prepare') {
+        $this->post(route('project-progress.prepare', $this->topic), $payload)->assertSessionHasErrors('reporting_date');
+    } else {
+        $this->postJson(route('project-progress.'.$action, $this->topic), $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    }
+
+    expect(ProjectMonitoringDraft::count())->toBe(0)
+        ->and(ProjectProgressReport::count())->toBe(0);
+})->with(['date with time' => '2026-03-31 00:00:00', 'written date' => 'March 31, 2026'])
+    ->with(['draft', 'prepare', 'preview']);
 
 test('malformed monitoring evidence returns validation errors before calculating file counts', function (?string $date, string $action) {
     $this->actingAs($this->researcher)->postJson(route('project-progress.'.$action, $this->topic), ($this->payload)([

@@ -24,6 +24,7 @@
         'Projects' => [
             ['Research projects', 'research_head.projects.index', 'chart', 'project_monitoring'],
             ['Completed projects', 'research_head.completed-projects.index', 'document', null],
+            ['Post-implementation', 'research-outcomes.index', 'chart', null],
         ],
         'Planning & reports' => [
             ['Research targets', 'research_head.targets.index', 'target', null],
@@ -49,7 +50,7 @@
             <div class="space-y-1">
                 @foreach ($links as [$label, $routeName, $icon, $attentionArea])
                     <a wire:navigate
-                       @if ($routeName === 'research-manuals.index')
+                       @if (in_array($routeName, ['research-manuals.index', 'research-outcomes.index'], true))
                            wire:current="{{ $activeClasses }}"
                        @else
                            wire:current.exact="{{ $activeClasses }}"

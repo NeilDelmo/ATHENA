@@ -95,7 +95,7 @@ test('reviewed notes can be saved and confirmed from either abstracts or full te
     expect($this->draft->literatureSources()->findOrFail($link)->rrl_evidence_basis)->toBe($basis);
 })->with(['abstract', 'full_text']);
 
-test('faculty share one canonical literature record instead of creating duplicate papers', function () {
+test('faculty share one canonical literature record instead of creating duplicate papers', function (string $doi) {
     $route = route('research-support.literature-library.store');
 
     $this->actingAs($this->faculty)
@@ -111,19 +111,25 @@ test('faculty share one canonical literature record instead of creating duplicat
     $this->actingAs($otherFaculty)
         ->postJson($route, [
             ...$this->sourcePayload,
-            'doi' => 'https://doi.org/10.1234/MANGROVE.2024',
+            'doi' => $doi,
             'description' => null,
             'citation_count' => 21,
         ])
         ->assertOk()
         ->assertJsonPath('already_saved', true)
+        ->assertJsonPath('source.doi', '10.1234/mangrove.2024')
         ->assertJsonPath('source.added_by_name', 'Source Library Owner');
 
     expect(LiteratureSource::query()->count())->toBe(1)
         ->and(LiteratureSource::query()->sole()->citation_count)->toBe(21)
         ->and(LiteratureSource::query()->sole()->abstract)
         ->toBe('Community participation improved the continuity of local monitoring activities.');
-});
+})->with([
+    'https://doi.org/10.1234/MANGROVE.2024',
+    'http://dx.doi.org/10.1234/MANGROVE.2024',
+    'https://dx.doi.org/10.1234/MANGROVE.2024',
+    'DOI: https://doi.org/10.1234/MANGROVE.2024',
+]);
 
 test('faculty can search canonical shared literature records before linking one to a proposal', function () {
     $this->actingAs($this->faculty)
@@ -163,6 +169,13 @@ test('an externally found source is saved as a verifiable library record before 
     expect($this->draft->literatureSources()->sole()->rrl_note)->toBeNull();
 });
 
+test('shared collection validation remains JSON for ordinary form requests', function () {
+    $this->actingAs($this->faculty)
+        ->post(route('research-support.literature-collections.store'), ['name' => ''])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
+});
+
 test('shared collections act like collaborative playlists', function () {
     $collectionId = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-collections.store'), [
@@ -192,6 +205,11 @@ test('shared collections act like collaborative playlists', function () {
 
     expect(LiteratureCollection::query()->count())->toBe(1)
         ->and(LiteratureCollection::query()->sole()->sources()->count())->toBe(1);
+
+    $this->postJson(route('research-support.literature-collections.store'), ['name' => 'Environment'])
+        ->assertOk()
+        ->assertJsonPath('already_exists', true)
+        ->assertJsonPath('collection.sources_count', 1);
 });
 
 test('the same shared paper has distinct links in separate proposal drafts', function () {
@@ -435,6 +453,19 @@ test('rrl synthesis refuses records without a usable abstract', function () {
     Http::assertNothingSent();
 });
 
+test('rrl synthesis rejects malformed evidence fields before contacting a provider', function (string $field) {
+    Http::fake();
+
+    $this->actingAs($this->faculty)->postJson(route('research-support.literature-synthesis'), [
+        'title' => 'Malformed evidence',
+        'abstract' => str_repeat('Community monitoring evidence. ', 5),
+        'evidence_basis' => 'abstract',
+        $field => ['unexpected'],
+    ])->assertUnprocessable()->assertJsonValidationErrors($field);
+
+    Http::assertNothingSent();
+})->with(['abstract', 'evidence_basis']);
+
 test('proposal collaborators can link shared papers but unrelated faculty cannot', function () {
     $sourceId = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
@@ -606,9 +637,9 @@ test('a shared paper can be staged directly in the selected detailed proposal', 
 });
 
 test('staged literature actions focus the matching detailed proposal field', function () {
-    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $editorJavaScript = file_get_contents(resource_path('js/detailed-proposal-editor.js'));
 
-    expect($appJavaScript)
+    expect($editorJavaScript)
         ->toContain("this.focusLiteratureDestination(action === 'reference' ? 'rrl' : action);")
         ->toContain("const fieldId = action === 'reference' ? 'references' : 'related-literature';")
         ->toContain('const focusTarget = field._semanticEditor instanceof HTMLElement ? field._semanticEditor : field;')

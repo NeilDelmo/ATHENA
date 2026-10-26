@@ -161,10 +161,8 @@ class ProposalDraftReadiness
                 return false;
             }
 
-            return $documents->every(fn (ProposalDraftDocument $document): bool => filled($document->file_path)
-                && $document->mime_type === 'application/pdf'
-                && ($paper['mode'] !== 'automatic' || ! str_contains($document->file_path, '/prepared/manual/'))
-                && Storage::disk('local')->exists($document->file_path));
+            return $documents->every(fn (ProposalDraftDocument $document): bool => $document->hasCurrentPreparedPdf($draft)
+                && ($paper['mode'] !== 'automatic' || ! str_contains($document->file_path, '/prepared/manual/')));
         });
     }
 

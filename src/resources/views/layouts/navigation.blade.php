@@ -235,6 +235,11 @@
                             </svg>
                             <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Members</span>
                         </a>
+                        <a wire:navigate wire:current="{{ $sidebarCurrentClasses }}" href="{{ route('research-outcomes.index') }}" data-sidebar-attention-url="{{ route('sidebar-attention.open', 'research_outcomes') }}" aria-label="Post-implementation" title="Post-implementation" class="{{ $sidebarLinkClasses }}" :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'">
+                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Post-implementation</span>
+                            <x-sidebar-attention-badge :count="$sidebarAttentionCounts['research_outcomes'] ?? 0" />
+                        </a>
                         <a
                             wire:navigate
                             wire:current="{{ $sidebarCurrentClasses }}"

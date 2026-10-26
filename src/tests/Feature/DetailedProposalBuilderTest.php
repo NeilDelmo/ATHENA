@@ -11,6 +11,7 @@ use App\Support\DetailedProposalData;
 use App\Support\ProposalRevisionSectionCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -1314,6 +1315,65 @@ test('detailed proposal autosave preserves legacy reference-only content', funct
         ->toBe($reference)
         ->and(json_decode($document->source_data['literature_citations'], true, flags: JSON_THROW_ON_ERROR))
         ->toMatchArray($citation);
+});
+
+test('detailed proposal preview returns structured validation errors to the editor', function () {
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), [
+            'leader_email' => 'invalid-email',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('leader_email');
+});
+
+test('detailed proposal requests reject image paths outside the authorized draft', function (string $action) {
+    $foreignPath = 'proposal-drafts/another-private-draft/private-figure.png';
+    Storage::disk('local')->put($foreignPath, UploadedFile::fake()->image('private-figure.png', 37, 29)->getContent());
+    $payload = ($this->payload)([
+        'methodology_images_present' => '1',
+        'methodology_images' => [[
+            'id' => Str::uuid()->toString(),
+            'section' => 'research_design',
+            'alignment' => 'center',
+            'size' => 'medium',
+            'caption' => 'Foreign image',
+            'stored_path' => $foreignPath,
+            'mime_type' => 'image/png',
+        ]],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->json($action === 'update' ? 'PUT' : 'POST', route('faculty.proposal-drafts.detailed-proposal.'.$action, $this->draft), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('methodology_images.0.image');
+})->with(['preview', 'download', 'update']);
+
+test('a missing figure upload cannot silently shift the autosave image identities', function () {
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'methodology_images_present' => '1',
+            'methodology_images' => [
+                [
+                    'client_id' => 'missing-image',
+                    'section' => 'research_design',
+                    'alignment' => 'center',
+                    'size' => 'medium',
+                    'caption' => 'Missing image',
+                ],
+                [
+                    'client_id' => 'uploaded-image',
+                    'section' => 'research_design',
+                    'alignment' => 'center',
+                    'size' => 'medium',
+                    'caption' => 'Uploaded image',
+                    'image' => UploadedFile::fake()->image('uploaded.png'),
+                ],
+            ],
+        ]), ['Accept' => 'application/json'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('methodology_images.0.image');
+
+    expect($this->draft->documents()->exists())->toBeFalse();
 });
 
 test('detailed proposal auto-save synchronizes saved methodology images', function () {

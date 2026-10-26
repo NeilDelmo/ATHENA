@@ -45,15 +45,17 @@
         <x-journal-submission-tracker :topic="$topic" :journal-submissions="$journalSubmissions" :can-track-journals="$canTrackJournals" />
 
         @php
+            $validationContext = session('dissemination_validation_context', []);
+            $restoreConferenceInput = $errors->any() && data_get($validationContext, 'topic_id') === $topic->id && data_get($validationContext, 'kind') === 'conference';
             $conferenceDraft = collect(['candidate_key', 'title', 'url', 'official_url', 'location', 'submission_deadline', 'event_date', 'attendance_mode', 'fees', 'publication_details'])
-                ->mapWithKeys(fn ($field) => [$field => old('conference_id') === 'new' ? old($field, '') : ''])->all();
+                ->mapWithKeys(fn ($field) => [$field => $restoreConferenceInput && data_get($validationContext, 'record_id') === null ? old($field, '') : ''])->all();
         @endphp
         <section id="conferences" class="scroll-mt-28" x-data="projectDissemination({{ Illuminate\Support\Js::from(['endpoints' => ['conferenceSearch' => route('research.dissemination.conferences.search', $topic)], 'query' => $conferenceQuery, 'conferenceDraft' => $conferenceDraft]) }})">
             <h2 class="mb-4 text-xl font-semibold text-gray-950 dark:text-white">Conference shortlist</h2>
             @if (session('success'))
                 <p role="status" class="mb-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-slate-900 dark:text-slate-200">{{ session('success') }}</p>
             @endif
-            @if ($errors->any() && old('conference_id'))
+            @if ($restoreConferenceInput && $errors->any())
                 <ul role="alert" class="mb-4 list-inside list-disc rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             @endif
             <p x-show="error" x-cloak role="alert" class="mb-4 text-sm text-red-700 dark:text-red-300" x-text="error"></p>

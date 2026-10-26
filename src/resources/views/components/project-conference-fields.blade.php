@@ -1,7 +1,10 @@
 @props(['conference' => null, 'reactive' => false])
 @php
     $recordId = $conference?->id ?? 'new';
-    $value = fn ($field) => (string) old('conference_id') === (string) $recordId
+    $validationContext = session('dissemination_validation_context', []);
+    $restore = $errors->any() && data_get($validationContext, 'topic_id') === request()->route('topic')?->id && data_get($validationContext, 'kind') === 'conference'
+        && data_get($validationContext, 'record_id') === $conference?->id;
+    $value = fn ($field) => $restore
         ? old($field) : ($conference?->$field instanceof \DateTimeInterface ? $conference->$field->format('Y-m-d') : ($conference?->$field ?? ''));
     $inputClass = 'mt-1 block w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white';
 @endphp

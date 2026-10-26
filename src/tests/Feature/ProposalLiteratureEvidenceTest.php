@@ -258,16 +258,49 @@ test('whitespace-only evidence and oversized requests are rejected', function ()
     $this->postJson(evidenceRoute('document.store', $this->draft, $this->source), ['file' => UploadedFile::fake()->create('large.pdf', 8193, 'application/pdf')])->assertUnprocessable();
 });
 
-test('DOI lookup retrieves metadata from a fixed provider for explicit review', function () {
+test('DOI lookup retrieves metadata from a fixed provider for explicit review', function (string $identifier) {
     Http::fake(['api.crossref.org/*' => Http::response(['message' => ['title' => ['Coastal Community Monitoring'], 'author' => [['given' => 'Maria', 'family' => 'Santos']], 'issued' => ['date-parts' => [[2024]]], 'container-title' => ['Coastal Journal'], 'DOI' => '10.1234/coastal.2024']])]);
-    $this->postJson(route('research-support.literature-metadata'), ['identifier' => 'https://doi.org/10.1234/coastal.2024'])->assertOk()->assertJsonPath('source.title', 'Coastal Community Monitoring')->assertJsonPath('source.authors', 'Maria Santos')->assertJsonPath('source.year', 2024);
+    $this->postJson(route('research-support.literature-metadata'), ['identifier' => $identifier])->assertOk()->assertJsonPath('source.title', 'Coastal Community Monitoring')->assertJsonPath('source.authors', 'Maria Santos')->assertJsonPath('source.year', 2024);
     Http::assertSent(fn ($request): bool => $request->url() === 'https://api.crossref.org/works/10.1234%2Fcoastal.2024');
-});
+})->with([
+    'https://doi.org/10.1234/coastal.2024',
+    'https://dx.doi.org/10.1234/COASTAL.2024',
+    'DOI: https://doi.org/10.1234/COASTAL.2024',
+]);
 
 test('metadata lookup refuses arbitrary URLs without sending network requests', function () {
     $this->postJson(route('research-support.literature-metadata'), ['identifier' => 'http://127.0.0.1/private'])->assertUnprocessable();
     Http::assertNothingSent();
 });
+
+test('DOI lookup decodes publication text without removing encoded mathematical comparisons', function () {
+    Http::fake(['api.crossref.org/*' => Http::response(['message' => [
+        'title' => ['Coastal <i>monitoring</i> &amp; community reporting'],
+        'abstract' => '<jats:p>Reporting improved &amp; delays were &lt; 1 day.</jats:p>',
+    ]])]);
+
+    $this->postJson(route('research-support.literature-metadata'), ['identifier' => '10.1234/coastal.2024'])
+        ->assertOk()
+        ->assertJsonPath('source.title', 'Coastal monitoring & community reporting')
+        ->assertJsonPath('source.description', 'Reporting improved & delays were < 1 day.');
+});
+
+test('DOI lookup rejects malformed provider fields without importing corrupted metadata', function (array $fields) {
+    Http::fake(['api.crossref.org/*' => Http::response(['message' => array_replace([
+        'title' => ['Coastal Community Monitoring'],
+        'author' => [['given' => 'Maria', 'family' => 'Santos']],
+    ], $fields)])]);
+
+    $this->postJson(route('research-support.literature-metadata'), ['identifier' => '10.1234/coastal.2024'])
+        ->assertStatus(502)
+        ->assertJsonPath('message', 'The metadata provider returned an unreadable result.');
+})->with([
+    'title returned as text instead of a list' => [['title' => 'Coastal Community Monitoring']],
+    'title contains an object' => [['title' => [['unexpected' => 'title']]]],
+    'author name contains an object' => [['author' => [['given' => ['Maria'], 'family' => 'Santos']]]],
+    'journal title contains an object' => [['container-title' => [['unexpected' => 'journal']]]],
+    'volume contains an object' => [['volume' => ['unexpected' => 'volume']]],
+]);
 
 test('a PDF-only manual source can be saved without a DOI or external URL', function () {
     $this->postJson(route('research-support.literature-library.store'), ['title' => 'Unindexed local thesis', 'source' => 'Manual entry'])->assertCreated()->assertJsonPath('source.title', 'Unindexed local thesis');

@@ -52,6 +52,37 @@ beforeEach(function () {
     ]);
 });
 
+test('completion and signed downloads reject damaged terminal PDFs', function (string $damage) {
+    $terminal = ($this->terminal)(['review_status' => ProjectNarrativeReport::STATUS_REVIEWED]);
+    foreach (app(MonitoringQuarterService::class)->projectPeriods($this->topic) as $period) {
+        ($this->monitoring)([
+            'reporting_date' => $period['end'], 'reporting_quarter' => $period['quarter'],
+            'period_start' => $period['start'], 'period_end' => $period['end'],
+            'progress_percentage' => 100, 'review_status' => 'reviewed',
+        ]);
+        $terminal->replicate()->fill([
+            'report_type' => 'progress', 'reporting_date' => $period['end'], 'reporting_quarter' => $period['quarter'],
+            'period_start' => $period['start'], 'period_end' => $period['end'],
+        ])->save();
+    }
+    $path = 'narrative-progress-reports/'.$this->topic->id.'/signed/terminal.pdf';
+    $contents = '%PDF-1.7 signed terminal report';
+    Storage::disk('local')->put($path, $contents);
+    $signed = ['path' => $path, 'original_filename' => 'signed-terminal.pdf', 'checksum' => hash('sha256', $contents)];
+    if ($damage === 'unchecked') {
+        unset($signed['checksum']);
+    } else {
+        Storage::disk('local')->put($path, $damage === 'empty' ? '' : '%PDF-1.7 replaced terminal report');
+    }
+    $terminal->update(['terminal_data' => ['signed_copy' => $signed]]);
+
+    $this->actingAs($this->head)->patch(route('research_head.projects.update-status', $this->topic), [
+        'project_status' => 'completed', 'completion_confirmed' => '1',
+    ])->assertSessionHasErrors('project_status');
+    expect($this->topic->fresh()->project_status)->toBe('ongoing');
+    $this->get(route('project-narrative-reports.signed-copy.download', $terminal))->assertNotFound();
+})->with(['empty', 'replaced', 'unchecked']);
+
 test('cumulative monitoring uses the latest revision within the latest reporting quarter', function () {
     $version = $this->topic->versions()->create([
         'submitted_by' => $this->researcher->id, 'version_number' => 1, 'submission_type' => 'initial',

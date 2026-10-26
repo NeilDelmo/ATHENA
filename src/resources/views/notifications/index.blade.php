@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Notification inbox" subtitle="Find invitations, project team activity, proposal reviews, research-call reminders, and project updates in one place.">
+        <x-page-header title="Notification inbox" subtitle="Invitations, project team activity, proposal reviews, research-call reminders, and project updates.">
             @if ($unreadCount > 0)
                 <x-slot:actions>
                     <form method="POST" action="{{ route('notifications.read-all') }}">

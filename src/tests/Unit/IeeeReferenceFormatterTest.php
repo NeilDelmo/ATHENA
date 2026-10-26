@@ -21,6 +21,11 @@ test('IEEE references preserve author boundaries from imported and manual source
     'compound harvested surnames' => ['de la Cruz, Ana María; Reyes, José', 'A. M. de la Cruz and J. Reyes'],
     'hyphenated given names' => ['Jean-Luc Bertrand-Krajewski; Perrine Hamel', 'J.-L. Bertrand-Krajewski and P. Hamel'],
     'hyphenated initials' => ['J.-L. Bertrand-Krajewski; P. Hamel', 'J.-L. Bertrand-Krajewski and P. Hamel'],
+    'author names containing et al letters' => ['Janet Almeida, Violet Allen', 'J. Almeida and V. Allen'],
+    'one named author followed by et al' => ['Maria Santos et al.', 'M. Santos, et al.'],
+    'truncated imported author list' => ['Maria Santos, Luis Cruz et al.', 'M. Santos, L. Cruz, et al.'],
+    'semicolon-separated et al marker' => ['Maria Santos; Luis Cruz; et al.', 'M. Santos, L. Cruz, et al.'],
+    'et al marker without a period' => ['Maria Santos, ET AL', 'M. Santos, et al.'],
     'unlisted authors' => ['Authors not listed', 'Author not listed'],
     'empty authors' => ['', 'Author not listed'],
 ]);

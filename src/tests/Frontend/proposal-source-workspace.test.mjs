@@ -61,6 +61,22 @@ test('DOI metadata lookup uses server metadata while publication URLs require ma
     assert.equal(state.sourceWorkspaceSourceForm.url, 'https://example.org/publication');
 });
 
+for (const identifier of ['DOI: https://doi.org/10.1234/example', 'doi: https://dx.doi.org/10.1234/example']) {
+    test(`labelled DOI links reach the metadata lookup: ${identifier}`, async () => {
+        const calls = [];
+        const state = workspace(async (url, options) => {
+            calls.push({ url, body: JSON.parse(options.body) });
+            return response({ source: { title: 'Publisher title' } });
+        });
+        state.sourceWorkspaceIdentifier = identifier;
+
+        assert.equal(await state.lookupSourceWorkspaceIdentifier(), true);
+        assert.deepEqual(calls, [{ url: '/metadata', body: { identifier: '10.1234/example' } }]);
+        assert.equal(state.sourceWorkspaceSourceForm.title, 'Publisher title');
+        assert.equal(state.sourceWorkspaceError, '');
+    });
+}
+
 test('reviewed source creation saves metadata then links it to the current paper', async () => {
     const calls = [];
     const state = workspace(async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return response({ source: url === '/library' ? { id: 21, title: 'Reviewed manual source' } : { id: 52, literature_source_id: 21, title: 'Reviewed manual source' } }); });
@@ -392,6 +408,73 @@ test('PDF selection enforces the server upload size of 8 MB', () => {
     assert.equal(state.chooseSourceWorkspacePdf({ target: { files: [{ name: 'big.pdf', size: 8 * 1024 * 1024 + 1 }] } }), false);
     assert.match(state.sourceWorkspaceError, /8 MB/);
     assert.equal(state.chooseSourceWorkspacePdf({ target: { files: [{ name: 'paper.pdf', size: 8 * 1024 * 1024 }] } }), true);
+});
+
+for (const change of ['replace PDF', 'edit authors']) {
+    test(`a failed PDF upload retries the current source details after ${change}`, async () => {
+        const metadata = [];
+        const uploads = [];
+        const shared = new Map();
+        const linked = new Map();
+        const state = workspace(async (url, options) => {
+            if (url === '/library') {
+                const fields = JSON.parse(options.body);
+                metadata.push(fields);
+                const source = { ...fields, id: fields.title === 'Replacement study' ? 22 : 21 };
+                shared.set(source.id, source);
+                return response({ source });
+            }
+            if (url.startsWith('/proposal/sources/')) {
+                const sourceId = Number(url.split('/').at(-1));
+                const source = { ...shared.get(sourceId), id: sourceId + 31, literature_source_id: sourceId };
+                linked.set(source.id, source);
+                return response({ source });
+            }
+            const sourceId = Number(url.split('/').at(-2));
+            uploads.push({ sourceId, file: options.body.get('file').name });
+            return uploads.length === 1 ? response({ message: 'Temporary upload failure' }, false, 503)
+                : response({ source: linked.get(sourceId), passages: [] });
+        });
+        state.sourceWorkspaceTab = 'add';
+        const original = new File(['PDF one'], 'Original study.pdf', { type: 'application/pdf' });
+        state.chooseSourceWorkspacePdf({ target: { files: [original] } });
+        state.sourceWorkspaceSourceForm.authors = 'A. Author';
+        assert.equal(await state.saveSourceWorkspaceMetadata(), false);
+
+        if (change === 'replace PDF') {
+            state.chooseSourceWorkspacePdf({ target: { files: [new File(['PDF two'], 'Replacement study.pdf', { type: 'application/pdf' })] } });
+        } else {
+            state.sourceWorkspaceSourceForm.authors = 'B. Corrected Author';
+        }
+        const saved = await state.saveSourceWorkspaceMetadata();
+
+        assert.equal(metadata.length, 2);
+        assert.equal(saved.id, change === 'replace PDF' ? 53 : 52);
+        assert.deepEqual(uploads[1], { sourceId: saved.id, file: change === 'replace PDF' ? 'Replacement study.pdf' : original.name });
+        if (change === 'edit authors') assert.equal(saved.authors, 'B. Corrected Author');
+        assert.equal(state.sourceWorkspacePendingFile, null);
+        assert.equal(state.sourceWorkspaceError, '');
+    });
+}
+
+test('a PDF already being saved cannot be replaced by another file selection', async () => {
+    let finishMetadata;
+    let uploadedFile;
+    const state = workspace((url, options) => {
+        if (url === '/library') return new Promise((resolve) => { finishMetadata = resolve; });
+        if (url.endsWith('/document')) uploadedFile = options.body.get('file').name;
+        return response({ source: { ...linkedSource, id: 52 }, passages: [] });
+    });
+    const original = new File(['PDF one'], 'Original study.pdf', { type: 'application/pdf' });
+    state.chooseSourceWorkspacePdf({ target: { files: [original] } });
+    const saving = state.saveSourceWorkspaceMetadata();
+    const replacement = new File(['PDF two'], 'Replacement study.pdf', { type: 'application/pdf' });
+    assert.equal(state.chooseSourceWorkspacePdf({ target: { files: [replacement] } }), false);
+    assert.equal(state.sourceWorkspacePendingFile, original);
+    assert.equal(state.sourceWorkspaceSourceForm.title, 'Original study');
+    finishMetadata(response({ source: { id: 21, title: 'Original study' } }));
+    await saving;
+    assert.equal(uploadedFile, original.name);
 });
 
 test('changing tabs during a pending library request prevents stale results and resets loading', async () => {

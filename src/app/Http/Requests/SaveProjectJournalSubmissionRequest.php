@@ -65,6 +65,14 @@ class SaveProjectJournalSubmissionRequest extends FormRequest
             'manuscript_title' => $title,
             'fingerprint' => hash('sha256', Str::lower((is_string($journal) ? $journal : '').'|'.(is_string($title) ? $title : ''))),
         ]);
+        if (! $this->expectsJson()) {
+            $this->session()->flash('dissemination_validation_context', [
+                'topic_id' => $this->route('topic')?->id,
+                'kind' => 'journal',
+                'record_id' => $this->route('journalSubmission')?->id,
+            ]);
+        }
+
     }
 
     public function messages(): array

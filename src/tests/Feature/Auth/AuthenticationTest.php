@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\InvalidStateException;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -52,6 +53,34 @@ test('Google sign in asks the user to choose an account', function () {
         ->toContain('accounts.google.com')
         ->toContain('prompt=select_account')
         ->toContain('hd=g.batstate-u.edu.ph');
+});
+
+test('a Google callback with invalid state cannot authenticate or provision an account', function () {
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    $googleUser = (new Laravel\Socialite\Two\User)->map([
+        'id' => 'invalid-state-google-user',
+        'name' => 'Unverified callback',
+        'email' => 'invalid-state@g.batstate-u.edu.ph',
+        'avatar' => null,
+    ]);
+    $attempts = 0;
+    $provider = Mockery::mock(Provider::class);
+    $provider->shouldReceive('user')->andReturnUsing(function () use (&$attempts, $googleUser) {
+        if ($attempts++ === 0) {
+            throw new InvalidStateException;
+        }
+
+        return $googleUser;
+    });
+    $provider->shouldReceive('stateless')->andReturnSelf();
+    Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
+
+    $this->get(route('auth.google.callback'))
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('google');
+
+    $this->assertGuest();
+    expect(User::where('email', 'invalid-state@g.batstate-u.edu.ph')->exists())->toBeFalse();
 });
 
 test('a BatStateU Google account is provisioned as faculty and authenticated', function () {

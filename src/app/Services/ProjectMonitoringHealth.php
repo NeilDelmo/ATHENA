@@ -23,9 +23,13 @@ class ProjectMonitoringHealth
         $completed = $topic->project_status === TopicProposal::PROJECT_STATUS_COMPLETED;
         $hasSchedule = $this->hasSchedule($topic);
         $window = $hasSchedule ? $this->quarters->reportingWindow($topic) : null;
+        $submittedReports = $topic->progressReports->filter(fn (ProjectProgressReport $report): bool => $report->isSubmitted());
         $visibleReports = $forResearchHead
-            ? $topic->progressReports->filter(fn (ProjectProgressReport $report): bool => $report->isSubmitted() && $report->isAvailableToResearchHead())
-            : $topic->progressReports;
+            ? $submittedReports->filter(fn (ProjectProgressReport $report): bool => $report->isAvailableToResearchHead())
+            : $submittedReports;
+        $visibleReports = $visibleReports->groupBy(fn (ProjectProgressReport $report): string => ($report->period_start
+            ?? $this->quarters->forDate($report->reporting_date, $topic)['start'])->toDateString())
+            ->map(fn (Collection $versions): ProjectProgressReport => $versions->sortBy([['version_number', 'desc'], ['id', 'desc']])->first())->values();
         $latest = $forResearchHead
             ? $visibleReports->sortByDesc(fn (ProjectProgressReport $report): string => $report->reporting_date->format('Y-m-d').sprintf('-%010d', $report->id))->first()
             : $topic->latestProgressReport;

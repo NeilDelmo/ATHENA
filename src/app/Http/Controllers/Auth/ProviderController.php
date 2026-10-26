@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
-use Laravel\Socialite\Two\InvalidStateException;
 use Spatie\Permission\Models\Role;
 
 class ProviderController extends Controller
@@ -34,11 +33,7 @@ class ProviderController extends Controller
         LinkTopicCollaborators $linkTopicCollaborators,
     ): RedirectResponse {
         try {
-            try {
-                $googleUser = Socialite::driver('google')->user();
-            } catch (InvalidStateException $e) {
-                $googleUser = Socialite::driver('google')->stateless()->user();
-            }
+            $googleUser = Socialite::driver('google')->user();
 
             $email = strtolower(trim((string) $googleUser->getEmail()));
 

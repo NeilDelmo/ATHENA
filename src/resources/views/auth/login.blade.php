@@ -43,8 +43,7 @@
             <div class="flex items-center bg-white p-6 transition-colors dark:bg-slate-900 sm:p-8">
                 <div class="w-full">
                     <div>
-                        <span class="inline-flex rounded-full bg-red-50 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-red-700 dark:bg-red-950/50 dark:text-red-300">Secure institutional sign-in</span>
-                        <h2 class="mt-5 text-3xl font-black tracking-tight text-slate-900 dark:text-white">Welcome to ATHENA</h2>
+                        <h1 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Sign in to ATHENA</h1>
                         <p class="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">Continue using the Google account issued by Batangas State University.</p>
                     </div>
 

@@ -47,7 +47,7 @@
                 $paper = $item['paper'];
                 $submissionExtension = Str::upper(pathinfo($item['submission_filename'], PATHINFO_EXTENSION));
                 $submissionFormat = 'PDF';
-                $preparedDocument = $item['documents']->first(fn ($document) => filled($document->file_path) && $document->mime_type === 'application/pdf');
+                $preparedDocument = $item['documents']->first(fn ($document) => $document->hasCurrentPreparedPdf($proposalDraft));
             @endphp
             <article class="p-4 sm:p-5">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

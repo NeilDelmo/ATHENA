@@ -42,26 +42,144 @@ const results = [
     { title: 'Participation in coastal conservation', authors: 'Ana Reyes', year: 2024, source: 'Crossref', venue: 'Marine Studies', doi: '10.1234/coastal', citation_count: 8, description: 'A study of community participation in coastal conservation.', access_status: 'metadata_only' },
 ];
 
-function finderStore(request) {
+function finderStore(request, kind = 'literature') {
     let state;
+    const selectedStoreStart = app.indexOf(`Alpine.store('${kind}Search'`);
+    const selectedStore = app.slice(selectedStoreStart, app.indexOf('\n});', selectedStoreStart) + '\n});'.length);
     const navigations = [];
     const dataset = {
         literatureLibrarySaveUrl: '/library',
         literatureAttachUrlTemplate: '/proposals/__proposal__/sources/__source__',
         literatureSynthesisUrl: '/synthesis',
+        literatureFullTextPreviewUrl: '/full-text',
         literatureDraftUpdateUrlTemplate: '/proposals/__proposal__/links/__link__/draft',
         detailedProposalUrlTemplate: '/proposals/__proposal__/paper',
     };
-    runInNewContext(store, {
+    runInNewContext(`${helpers}\n${selectedStore}`, {
         Alpine: { store(name, value) { state = value; } },
-        document: { querySelector: (selector) => selector === '[data-rrl-workspace]' ? { dataset } : { content: 'token' }, body: { classList: { add() {}, remove() {} } } },
-        window: { location: { origin: 'https://athena.test', assign: (url) => navigations.push(url) }, setTimeout() {} },
+        document: { querySelector: (selector) => selector === '[data-rrl-workspace]' ? { dataset } : { content: 'token' }, body: { dataset: { literatureSearchUrl: '/search', conferenceSearchUrl: '/conference-search' }, classList: { add() {}, remove() {} } } },
+        window: { location: { origin: 'https://athena.test', assign: (url) => navigations.push(url) }, setTimeout() {}, setInterval() { return 1; }, clearInterval() {} },
         fetch: request,
         URL,
     });
     state.selectedProposalId = '42';
     return { state, navigations };
 }
+
+const searchCases = [['literature', false], ['literature', true], ['conference', false], ['conference', true]];
+
+for (const [kind, failed] of searchCases) {
+    test(`clearing ${kind} search discards a pending ${failed ? 'failure' : 'result'}`, async () => {
+        let finishSearch;
+        let failSearch;
+        const { state } = finderStore(() => new Promise((resolve, reject) => { finishSearch = resolve; failSearch = reject; }), kind);
+        state.query = 'coastal monitoring';
+        const pending = state.search();
+        state.clear();
+        if (failed) failSearch(new Error('Old search failed'));
+        else finishSearch(new Response(JSON.stringify({ results, provider_notice: 'Old provider notice' })));
+        await pending;
+
+        assert.equal(state.query, '');
+        assert.equal(state.hasSearched, false);
+        assert.equal(state.results.length, 0);
+        assert.equal(state.selectedIndex ?? null, null);
+        assert.equal(state.error, '');
+        assert.equal(state.providerNotice || '', '');
+        assert.equal(state.isLoading, false);
+        assert.equal(state.loadingTimer, null);
+    });
+}
+
+for (const [kind, failed] of searchCases) {
+    test(`a cleared ${kind} search cannot interrupt its replacement with an old ${failed ? 'failure' : 'result'}`, async () => {
+        const requests = [];
+        const { state } = finderStore(() => new Promise((resolve, reject) => requests.push({ resolve, reject })), kind);
+        state.query = 'coastal monitoring';
+        const first = state.search();
+        state.clear();
+        assert.equal(state.isLoading, false, 'Clear must let the user search again immediately');
+        state.query = 'learning outcomes';
+        const second = state.search();
+        assert.equal(requests.length, 2);
+
+        if (failed) {
+            requests[1].resolve(new Response(JSON.stringify({ results: [{ title: 'Learning outcomes study' }] })));
+            await second;
+            requests[0].resolve(new Response(JSON.stringify({ message: 'Old search failed', failed_sources: ['Old provider'] }), { status: 503 }));
+            await first;
+        } else {
+            requests[0].resolve(new Response(JSON.stringify({ results, provider_notice: 'Old provider notice' })));
+            await first;
+            assert.equal(state.isLoading, true);
+            assert.notEqual(state.loadingTimer, null);
+            assert.equal(state.results.length, 0);
+            requests[1].resolve(new Response(JSON.stringify({ results: [{ title: 'Learning outcomes study' }] })));
+            await second;
+        }
+
+        assert.equal(state.query, 'learning outcomes');
+        assert.equal(state.results[0].title, 'Learning outcomes study');
+        assert.equal(state.error, '');
+        assert.equal(state.providerNotice || '', '');
+        assert.equal(state.failedSources.length, 0);
+        assert.equal(state.isLoading, false);
+    });
+}
+
+test('switching literature results keeps the latest paper preview when an older extraction arrives last', async () => {
+    const requests = [];
+    const { state } = finderStore(() => new Promise((resolve) => requests.push({ resolve })));
+    state.results = results.map((source, index) => ({ ...source, full_text_token: `paper-${index}` }));
+    state.selectedIndex = 0;
+    const first = state.loadFullText();
+    state.selectResult(1);
+    const second = state.loadFullText();
+    requests[1].resolve(new Response(JSON.stringify({ preview_text: 'Second paper text', source_url: 'https://example.org/second', content_type: 'text/html', notice: 'Second paper coverage' })));
+    await second;
+    requests[0].resolve(new Response(JSON.stringify({ preview_text: 'First paper text', source_url: 'https://example.org/first', content_type: 'application/pdf', notice: 'First paper coverage' })));
+    await first;
+
+    assert.equal(state.fullTextPreview, 'Second paper text');
+    assert.equal(state.fullTextSourceUrl, 'https://example.org/second');
+    assert.equal(state.fullTextContentType, 'text/html');
+    assert.equal(state.fullTextNotice, 'Second paper coverage');
+    assert.equal(state.fullTextResultKey, state.resultKey(state.results[1]));
+});
+
+test('an old full-text failure cannot interrupt the next paper extraction', async () => {
+    const requests = [];
+    const { state } = finderStore(() => new Promise((resolve, reject) => requests.push({ resolve, reject })));
+    state.results = results.map((source, index) => ({ ...source, full_text_token: `paper-${index}` }));
+    state.selectedIndex = 0;
+    const first = state.loadFullText();
+    state.selectResult(1);
+    const second = state.loadFullText();
+    requests[0].reject(new Error('First extraction failed'));
+    await first;
+
+    assert.equal(state.fullTextError, '');
+    assert.equal(state.isLoadingFullText, true);
+    requests[1].resolve(new Response(JSON.stringify({ preview_text: 'Second paper text' })));
+    await second;
+    assert.equal(state.fullTextPreview, 'Second paper text');
+    assert.equal(state.isLoadingFullText, false);
+});
+
+test('resetting literature search discards an extraction already in progress', async () => {
+    let finishExtraction;
+    const { state } = finderStore(() => new Promise((resolve) => { finishExtraction = resolve; }));
+    state.results = [{ ...results[0], full_text_token: 'paper-0' }];
+    state.selectedIndex = 0;
+    const pending = state.loadFullText();
+    state.resetFullTextPreview();
+    finishExtraction(new Response(JSON.stringify({ preview_text: 'Discarded paper text' })));
+    await pending;
+
+    assert.equal(state.fullTextPreview, '');
+    assert.equal(state.fullTextResultKey, '');
+    assert.equal(state.isLoadingFullText, false);
+});
 
 test('RRL preparation saves and links once, then requires reviewed confirmation before inserting prose and its reference', async () => {
     const calls = [];

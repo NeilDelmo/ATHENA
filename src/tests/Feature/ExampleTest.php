@@ -5,7 +5,7 @@ it('presents ATHENA as the institutional research system for its authorized user
 
     $response
         ->assertSuccessful()
-        ->assertSee('landing-visual--people', false)
+        ->assertDontSee('landing-visual', false)
         ->assertSee('Research Project Management')
         ->assertSee('Batangas State University - TNEU')
         ->assertSeeInOrder(['VCRDES', 'Research Head', 'Research Office', 'Faculty Researcher', 'Faculty'])

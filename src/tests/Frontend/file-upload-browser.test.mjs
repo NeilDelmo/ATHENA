@@ -5,6 +5,50 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 
+test('repeated submissions cannot bypass a pending upload while its controls are disabled', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    let requests = 0;
+    try {
+        const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('https://athena-upload.test/**', async route => {
+            if (route.request().method() === 'POST') {
+                requests++;
+                await pending;
+                return route.fulfill({ status: 422, json: { errors: { title: ['Use a unique title.'] } } });
+            }
+            return route.fulfill({ contentType: 'text/html', body: '<form id="upload" action="/save" method="POST" enctype="multipart/form-data"><label>Title<input name="title" value="Report"></label><input aria-label="Evidence" type="file" name="evidence"></form><button form="upload" type="submit">Save report</button>' });
+        });
+        await page.goto('https://athena-upload.test/editor');
+        await page.addScriptTag({ content: `${readFileSync(resolve('resources/js/file-upload.js'), 'utf8').replace(/^export /gm, '')}\nwindow.submitUpload=submitFileUploadForm;initializeFileUploads();window.nativeSubmissions=0;HTMLFormElement.prototype.submit=function(){window.nativeSubmissions++;};` });
+        await page.getByLabel('Evidence').setInputFiles({ name: 'proof.png', mimeType: 'image/png', buffer: Buffer.from('proof') });
+        await page.getByRole('button', { name: 'Save report', exact: true }).click();
+        await expect.poll(() => requests).toBe(1);
+        const repeated = await page.evaluate(async () => {
+            const form = document.querySelector('form');
+            const event = new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: document.querySelector('[form="upload"]') });
+            form.dispatchEvent(event);
+            return { prevented: event.defaultPrevented, saved: await window.submitUpload(form), native: window.nativeSubmissions };
+        });
+        assert.deepEqual(repeated, { prevented: true, saved: false, native: 0 });
+        await expect(page.getByRole('button', { name: 'Save report', exact: true })).toBeDisabled();
+        release();
+        await expect(page.getByText('Use a unique title.', { exact: true })).toBeVisible();
+        await expect(page.getByLabel('Title')).toHaveValue('Report');
+        await expect(page.getByRole('button', { name: 'Save report', exact: true })).toBeEnabled();
+        await page.getByRole('button', { name: 'Save report', exact: true }).click();
+        await expect.poll(() => requests).toBe(2);
+        await expect(page.getByRole('button', { name: 'Save report', exact: true })).toBeEnabled();
+        assert.deepEqual(errors, []);
+    } finally {
+        release();
+        await browser.close();
+    }
+});
+
 test('Edge native uploads keep failed edits dirty and leave cleanly after recovering a saved response', { timeout: 60000 }, async () => {
     const app = readFileSync('resources/js/app.js', 'utf8').replaceAll('\r\n', '\n');
     const appSection = (start, end) => {

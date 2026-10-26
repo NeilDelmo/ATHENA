@@ -11,6 +11,7 @@ use App\Services\MonitoringQuarterService;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -143,6 +144,149 @@ beforeEach(function () {
         return array_replace_recursive($payload, $overrides);
     };
 });
+
+test('narrative PDF preparation cannot erase a newer private draft', function (string $type) {
+    if ($type === 'terminal') {
+        ($this->completeQuarterlyProgress)();
+    }
+    $payload = $type === 'terminal' ? ($this->terminalPayload)() : [...($this->progressReportPayload)(), 'report_type' => 'progress'];
+    unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [
+        ...$payload, 'draft_version' => 0, 'introduction' => 'Newest saved narrative',
+    ])->assertSuccessful();
+    $draft = ProjectNarrativeReportDraft::sole();
+    $url = route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => $type, 'reporting_date' => $payload['reporting_date']]);
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($url)->post(route('project-narrative-reports.prepare', $this->topic), [...$payload, 'draft_version' => 0, 'draft_id' => 0])
+        ->assertSessionHasErrors('draft_version', null, 'narrativeProgress');
+
+    expect(ProjectNarrativeReportDraft::sole()->source_data)->toBe($draft->source_data)
+        ->and(ProjectNarrativeReport::prepared()->count())->toBe(0);
+    $response = $this->get($url)->assertSuccessful()->assertSee($payload['introduction']);
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//input[@name="draft_version"]')->item(0)->getAttribute('value'))->toBe('0')
+        ->and($xpath->query('//input[@name="draft_id"]')->item(0)->getAttribute('value'))->toBe('0');
+})->with(['progress', 'terminal']);
+
+test('narrative forms ignore validation state belonging to another report type', function (string $type) {
+    $payload = $type === 'terminal' ? ($this->terminalPayload)() : [...($this->progressReportPayload)(), 'report_type' => 'progress'];
+    $payload['introduction'] = 'Saved narrative content';
+    unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [...$payload, 'draft_version' => 0])
+        ->assertSuccessful();
+    $draft = ProjectNarrativeReportDraft::sole();
+    $response = $this->withSession(['_old_input' => [
+        'report_type' => $type === 'terminal' ? 'progress' : 'terminal', 'draft_id' => 999, 'draft_version' => 999,
+        'introduction' => 'Other report introduction', 'researchers' => 'Other report researcher',
+        'tracking_number' => 'Other report tracking number', 'submission_date' => '2099-01-01',
+        'implementation_start' => '2099-01-01', 'implementation_end' => '2099-01-01', 'prepared_by_date_signed' => '2099-01-01',
+        'accomplishments' => [['objective' => 'Other report objective', 'actual' => 'Other report accomplishment']],
+        'figures' => [['caption' => 'Other report figure']], 'terminal_data' => ['abstract' => 'Other report abstract'],
+    ]])->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => $type, 'reporting_date' => $payload['reporting_date']]))
+        ->assertSuccessful()->assertSee('Saved narrative content')->assertDontSee('Other report')->assertDontSee('2099-01-01');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//input[@name="report_type"]')->item(0)->getAttribute('value'))->toBe($type)
+        ->and($xpath->query('//input[@name="draft_version"]')->item(0)->getAttribute('value'))->toBe('1')
+        ->and($xpath->query('//input[@name="draft_id"]')->item(0)->getAttribute('value'))->toBe((string) $draft->id);
+})->with(['progress', 'terminal']);
+
+test('stale narrative tabs cannot overwrite drafts restored after discarding a PDF', function (string $type) {
+    if ($type === 'terminal') {
+        ($this->completeQuarterlyProgress)();
+    }
+    $payload = $type === 'terminal' ? ($this->terminalPayload)() : [...($this->progressReportPayload)(), 'report_type' => 'progress'];
+    unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [...$payload, 'draft_version' => 0])
+        ->assertSuccessful();
+    $original = ProjectNarrativeReportDraft::sole();
+    $stale = [...$payload, 'draft_version' => 1, 'draft_id' => $original->id];
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $stale)->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::prepared()->sole();
+    $this->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    $restored = ProjectNarrativeReportDraft::sole();
+    expect($restored->id)->not->toBe($original->id)->and($restored->lock_version)->toBe(1);
+
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), [...$stale, 'introduction' => 'Older tab'])
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_version');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $stale)
+        ->assertSessionHasErrors('draft_version', null, 'narrativeProgress');
+    expect(ProjectNarrativeReportDraft::sole()->source_data)->toBe($restored->source_data)
+        ->and(ProjectNarrativeReport::prepared()->count())->toBe(0);
+})->with(['progress', 'terminal']);
+
+test('a failed narrative draft removal keeps the draft and cleans up its prepared PDF', function (string $type) {
+    if ($type === 'terminal') {
+        ($this->completeQuarterlyProgress)();
+    }
+    $payload = $type === 'terminal' ? ($this->terminalPayload)() : [...($this->progressReportPayload)(), 'report_type' => 'progress'];
+    unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [...$payload, 'draft_version' => 0])
+        ->assertSuccessful();
+    $draft = ProjectNarrativeReportDraft::sole();
+    Event::listen('eloquent.deleting: '.ProjectNarrativeReportDraft::class, function (ProjectNarrativeReportDraft $deleting) use ($draft): void {
+        if ($deleting->id === $draft->id) {
+            throw new RuntimeException('Simulated draft removal failure');
+        }
+    });
+    $this->post(route('project-narrative-reports.prepare', $this->topic), [...$payload, 'draft_version' => 1, 'draft_id' => $draft->id])
+        ->assertSessionHasErrors('preparation', null, 'narrativeProgress');
+
+    expect(ProjectNarrativeReportDraft::sole()->source_data)->toBe($draft->source_data)
+        ->and(ProjectNarrativeReport::prepared()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('narrative-progress-reports/'.$this->topic->id.'/prepared'))->toBe([]);
+})->with(['progress', 'terminal']);
+
+test('narrative preparation rechecks project membership after PDF conversion', function (string $type) {
+    if ($type === 'terminal') {
+        ($this->completeQuarterlyProgress)();
+    }
+    $payload = $type === 'terminal' ? ($this->terminalPayload)() : [...($this->progressReportPayload)(), 'report_type' => 'progress'];
+    unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+    $member = User::factory()->create();
+    $member->assignRole('faculty_researcher');
+    $collaborator = $this->topic->collaborators()->create([
+        'user_id' => $member->id, 'name' => $member->name, 'email' => $member->email, 'accepted_at' => now(),
+    ]);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($collaborator): string {
+            $collaborator->delete();
+
+            return '%PDF-1.4 removed project member';
+        });
+    $this->actingAs($member)->post(route('project-narrative-reports.prepare', $this->topic), $payload)
+        ->assertSessionHasErrors('preparation', null, 'narrativeProgress');
+
+    expect(ProjectNarrativeReport::prepared()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('narrative-progress-reports/'.$this->topic->id.'/prepared'))->toBe([]);
+})->with(['progress', 'terminal']);
+
+test('a failed prepared narrative deletion does not leave restored draft images', function (string $type) {
+    if ($type === 'terminal') {
+        ($this->completeQuarterlyProgress)();
+    }
+    $payload = $type === 'terminal' ? ($this->terminalPayload)() : [...($this->progressReportPayload)(), 'report_type' => 'progress'];
+    $payload['photo_1'] = UploadedFile::fake()->image('report-figure.jpg');
+    $payload['photo_caption_1'] = 'Report figure';
+    $payload['photo_section_1'] = 'methodology';
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), $payload)
+        ->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::prepared()->sole();
+    $paths = Storage::disk('local')->allFiles('narrative-progress-reports/'.$this->topic->id);
+    Event::listen('eloquent.deleting: '.ProjectNarrativeReport::class, function (ProjectNarrativeReport $deleting) use ($report): void {
+        if ($deleting->id === $report->id) {
+            throw new RuntimeException('Simulated prepared report deletion failure');
+        }
+    });
+
+    $this->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))->assertInternalServerError();
+    expect($report->fresh()->isPrepared())->toBeTrue()
+        ->and(ProjectNarrativeReportDraft::count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('narrative-progress-reports/'.$this->topic->id))->toBe($paths);
+})->with(['progress', 'terminal']);
 
 function terminalDocumentXml(string $contents): string
 {

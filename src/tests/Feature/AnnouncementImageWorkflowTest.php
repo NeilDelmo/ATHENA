@@ -3,7 +3,10 @@
 use App\Models\AnnouncementImage;
 use App\Models\ResearchCall;
 use App\Models\User;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -81,7 +84,7 @@ test('research heads can manage announcement images and announcements appear in 
         ->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertDontSee(route('announcement-images.show', $announcementImage), false)
-        ->assertSee('No open call');
+        ->assertDontSee('data-research-call-carousel', false);
 
     $this->actingAs($head)
         ->patch(route('announcement-images.update', $announcementImage), [
@@ -137,4 +140,42 @@ test('faculty cannot access announcement image management', function () {
     $this->actingAs($faculty)
         ->get(route('announcement-images.index'))
         ->assertForbidden();
+});
+
+test('failed announcement image storage does not create a broken announcement', function () {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $disk = Mockery::mock(FilesystemAdapter::class);
+    $disk->shouldReceive('putFileAs')->once()->andReturn(false);
+    Storage::shouldReceive('disk')->with('local')->once()->andReturn($disk);
+    Exceptions::fake();
+
+    $this->actingAs($head)->post(route('announcement-images.store'), [
+        'image' => UploadedFile::fake()->image('announcement.png'),
+    ])->assertInternalServerError();
+
+    expect(AnnouncementImage::count())->toBe(0);
+    Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === 'The announcement image could not be stored.');
+});
+
+test('failed announcement creation removes its uploaded image', function () {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    Storage::fake('local');
+    Exceptions::fake();
+    Event::listen('eloquent.creating: '.AnnouncementImage::class, function (): void {
+        throw new RuntimeException('Simulated announcement save failure');
+    });
+
+    try {
+        $this->actingAs($head)->post(route('announcement-images.store'), [
+            'image' => UploadedFile::fake()->image('announcement.png'),
+        ])->assertInternalServerError();
+    } finally {
+        Event::forget('eloquent.creating: '.AnnouncementImage::class);
+    }
+
+    expect(AnnouncementImage::count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('announcements'))->toBeEmpty();
+    Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === 'Simulated announcement save failure');
 });

@@ -23,9 +23,10 @@ class SaveProjectMonitoringDraft
     ): ProjectMonitoringDraft {
         $normalizedSourceData = $this->normalizeSourceData($sourceData);
         $expectedScope = $normalizedSourceData['recovery_scope'] ?? null;
-        unset($normalizedSourceData['recovery_scope']);
+        $expectedDraftId = $normalizedSourceData['draft_id'] ?? null;
+        unset($normalizedSourceData['recovery_scope'], $normalizedSourceData['draft_id']);
 
-        return DB::transaction(function () use ($topic, $user, $sourceReport, $expectedVersion, $normalizedSourceData, $expectedScope): ProjectMonitoringDraft {
+        return DB::transaction(function () use ($topic, $user, $sourceReport, $expectedVersion, $normalizedSourceData, $expectedScope, $expectedDraftId): ProjectMonitoringDraft {
             $topic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $draft = ProjectMonitoringDraft::query()
                 ->whereBelongsTo($topic, 'topic')
@@ -35,7 +36,7 @@ class SaveProjectMonitoringDraft
                 ->first();
             $currentVersion = $draft?->lock_version ?? 0;
 
-            if ($currentVersion !== $expectedVersion) {
+            if ($currentVersion !== $expectedVersion || ($expectedDraftId !== null && (int) $expectedDraftId !== ($draft?->id ?? 0))) {
                 throw ValidationException::withMessages([
                     'draft_version' => 'A newer saved monitoring draft is available. Reload the page before saving again.',
                 ]);

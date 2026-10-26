@@ -48,6 +48,7 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
             ...app(ReportFigureDraftService::class)->rules($this),
             'reporting_date' => [Rule::requiredIf($this->input('report_type') === 'progress' && $this->allFiles() !== []), 'nullable', 'date_format:Y-m-d'],
             'draft_version' => ['required', 'integer', 'min:0'],
+            'draft_id' => ['sometimes', 'integer', 'min:0'],
             'recovery_scope' => ['sometimes', 'string', 'size:64'],
             'report_type' => ['sometimes', Rule::in(['progress', 'terminal'])],
             'submission_date' => ['nullable', 'date', 'before_or_equal:today'],

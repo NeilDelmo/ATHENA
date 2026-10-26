@@ -10,7 +10,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class AnnouncementImageController extends Controller
 {
@@ -25,10 +27,22 @@ class AnnouncementImageController extends Controller
 
     public function store(StoreAnnouncementImageRequest $request): RedirectResponse
     {
-        AnnouncementImage::create([
-            'image_path' => $request->file('image')->store('announcements', 'local'),
-            'research_call_id' => $request->validated('research_call_id'),
-        ]);
+        $path = $request->file('image')->store('announcements', 'local');
+
+        if ($path === false) {
+            throw new RuntimeException('The announcement image could not be stored.');
+        }
+
+        try {
+            AnnouncementImage::create([
+                'image_path' => $path,
+                'research_call_id' => $request->validated('research_call_id'),
+            ]);
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+
+            throw $exception;
+        }
 
         return redirect()->route('announcement-images.index')->with('success', 'Announcement image uploaded successfully.');
     }

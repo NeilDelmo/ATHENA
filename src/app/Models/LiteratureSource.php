@@ -95,9 +95,8 @@ class LiteratureSource extends Model
         return Str::of((string) $doi)
             ->lower()
             ->trim()
-            ->replaceStart('https://doi.org/', '')
-            ->replaceStart('http://doi.org/', '')
-            ->replaceStart('doi:', '')
+            ->replaceMatches('/^doi:\s*/u', '')
+            ->replaceMatches('~^https?://(?:dx\.)?doi\.org/~u', '')
             ->trim()
             ->toString();
     }

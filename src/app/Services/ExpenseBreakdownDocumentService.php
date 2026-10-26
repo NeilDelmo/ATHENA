@@ -2,11 +2,18 @@
 
 namespace App\Services;
 
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
 use RuntimeException;
 use ZipArchive;
 
 class ExpenseBreakdownDocumentService
 {
+    private const S = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+    private const COLUMN_PERCENTAGES = [10, 11, 12, 19, 19, 5, 5, 9, 10];
+
     /** @param array<string, mixed> $expenseBreakdown */
     public function generate(array $expenseBreakdown): string
     {
@@ -35,12 +42,14 @@ class ExpenseBreakdownDocumentService
             $workbookXml = $archive->getFromName('xl/workbook.xml');
             $workbookRelationshipsXml = $archive->getFromName('xl/_rels/workbook.xml.rels');
             $contentTypesXml = $archive->getFromName('[Content_Types].xml');
+            $stylesXml = $archive->getFromName('xl/styles.xml');
 
             if (
                 $worksheetXml === false
                 || $workbookXml === false
                 || $workbookRelationshipsXml === false
                 || $contentTypesXml === false
+                || $stylesXml === false
             ) {
                 throw new RuntimeException('The Estimated Expense Breakdown workbook structure is incomplete.');
             }
@@ -57,6 +66,7 @@ class ExpenseBreakdownDocumentService
                 'xl/workbook.xml',
                 $this->renderWorkbookXml($workbookXml, $layout['last_row']),
             );
+            $this->writeEntry($archive, 'xl/styles.xml', $this->renderStylesXml($stylesXml));
             $this->writeEntry(
                 $archive,
                 'xl/_rels/workbook.xml.rels',
@@ -100,15 +110,15 @@ class ExpenseBreakdownDocumentService
         $rows[] = $this->row(1, [
             $this->stringCell('A', 1, 59, 'Estimated Breakdown and Details of Expenses'),
             ...$this->emptyCells(1, range('B', 'I'), 58),
-        ], 14.25);
+        ], 16.5);
         $merges[] = 'A1:I1';
-        $rows[] = $this->blankRow(2, 58);
+        $rows[] = $this->row(2, $this->emptyCells(2, range('A', 'I'), 58), 13.5);
         $rows[] = $this->row(3, [
             $this->stringCell('A', 3, 60, 'Project Title: '.$expenseBreakdown['project_title']),
             ...$this->emptyCells(3, range('B', 'I'), 58),
-        ], 14.25);
+        ], null);
         $merges[] = 'A3:I3';
-        $rows[] = $this->blankRow(4, 58);
+        $rows[] = $this->row(4, $this->emptyCells(4, range('A', 'I'), 58), 9);
 
         $headers = [
             'A' => 'Account',
@@ -128,8 +138,8 @@ class ExpenseBreakdownDocumentService
             $merges[] = $column.'5:'.$column.'6';
         }
 
-        $rows[] = $this->row(5, $headerCells, 14.25);
-        $rows[] = $this->row(6, $this->emptyCells(6, range('A', 'I'), 47), 14.25);
+        $rows[] = $this->row(5, $headerCells, 15.75);
+        $rows[] = $this->row(6, $this->emptyCells(6, range('A', 'I'), 47), 15.75);
 
         $rowNumber = 7;
         $sectionTotalRows = [];
@@ -204,13 +214,6 @@ class ExpenseBreakdownDocumentService
 
         $rows[] = $this->grandTotalRow($rowNumber, $sectionTotalRows, $expenseBreakdown['grand_total']);
         $merges[] = 'A'.$rowNumber.':H'.$rowNumber;
-        $rowNumber++;
-        $rows[] = $this->footerBlankRow($rowNumber);
-        $rowNumber++;
-        $rows[] = $this->noteRow($rowNumber);
-        $merges[] = 'A'.$rowNumber.':E'.$rowNumber;
-        $rowNumber++;
-        $rows[] = $this->footerBlankRow($rowNumber);
 
         return [
             'sheet_data' => '<sheetData>'.implode('', $rows).'</sheetData>',
@@ -240,12 +243,69 @@ class ExpenseBreakdownDocumentService
                 ->implode('')
             .'</mergeCells>';
 
-        return $this->replaceOnce(
+        $xml = $this->replaceOnce(
             '/<mergeCells\b[^>]*>.*?<\/mergeCells>/s',
             $mergeCells,
             $xml,
             'merged cells',
         );
+
+        $columns = [];
+        foreach (self::COLUMN_PERCENTAGES as $index => $percentage) {
+            $column = $index + 1;
+            $width = (768 * $percentage / 100 - 5) / 7;
+            $columns[] = '<col min="'.$column.'" max="'.$column.'" width="'.$this->number($width).'" customWidth="1"/>';
+        }
+        $xml = $this->replaceOnce('/<cols>.*?<\/cols>/s', '<cols>'.implode('', $columns).'</cols>', $xml, 'column widths');
+        $document = new DOMDocument;
+        if (! $document->loadXML($xml, LIBXML_NONET)) {
+            throw new RuntimeException('The Estimated Expense Breakdown worksheet contains invalid XML.');
+        }
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('s', self::S);
+        $pageSetup = $xpath->query('/s:worksheet/s:pageSetup')->item(0);
+        if (! $pageSetup instanceof DOMElement) {
+            throw new RuntimeException('The Estimated Expense Breakdown page settings are missing.');
+        }
+        $pageSetup->removeAttribute('scale');
+        $pageSetup->setAttribute('fitToWidth', '1');
+        $pageSetup->setAttribute('fitToHeight', '0');
+
+        return $document->saveXML();
+    }
+
+    private function renderStylesXml(string $xml): string
+    {
+        $document = new DOMDocument;
+        if (! $document->loadXML($xml, LIBXML_NONET)) {
+            throw new RuntimeException('The Estimated Expense Breakdown styles contain invalid XML.');
+        }
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('s', self::S);
+        $fonts = $xpath->query('/s:styleSheet/s:fonts/s:font');
+        foreach ($fonts as $index => $font) {
+            if ($index !== 0) {
+                $font->getElementsByTagName('sz')->item(0)->setAttribute('val', '7.5');
+            }
+        }
+        $styles = $xpath->query('/s:styleSheet/s:cellXfs/s:xf');
+        $fontCount = $fonts->length;
+        foreach ([59 => 13.5, 60 => 9.75, 63 => 8.25, 33 => 8.25] as $styleIndex => $size) {
+            $style = $styles->item($styleIndex);
+            $font = $fonts->item((int) $style->getAttribute('fontId'))->cloneNode(true);
+            $font->getElementsByTagName('sz')->item(0)->setAttribute('val', (string) $size);
+            $style->setAttribute('fontId', (string) $fontCount++);
+            $fonts->item(0)->parentNode->appendChild($font);
+        }
+        $fonts->item(0)->parentNode->setAttribute('count', (string) $fontCount);
+        foreach ($styles as $style) {
+            $alignment = $style->getElementsByTagName('alignment')->item(0);
+            if ($alignment instanceof DOMElement) {
+                $alignment->setAttribute('wrapText', '1');
+            }
+        }
+
+        return $document->saveXML();
     }
 
     private function renderWorkbookXml(string $xml, int $lastRow): string
@@ -255,6 +315,12 @@ class ExpenseBreakdownDocumentService
             '<definedName name="_xlnm.Print_Area" localSheetId="0">Breakdown!$A$1:$I$'.$lastRow.'</definedName>',
             $xml,
             'print area',
+        );
+        $xml = $this->replaceOnce(
+            '/<\/definedNames>/',
+            '<definedName name="_xlnm.Print_Titles" localSheetId="0">Breakdown!$5:$6</definedName></definedNames>',
+            $xml,
+            'repeating table headers',
         );
 
         return $this->replaceOnce(
@@ -348,7 +414,8 @@ class ExpenseBreakdownDocumentService
             );
         }
 
-        return $this->row($row, $cells, 15);
+        // Calc must fit wrapped content instead of clipping it to a fixed height.
+        return $this->row($row, $cells, null);
     }
 
     private function subAccountTotalRow(
@@ -403,34 +470,12 @@ class ExpenseBreakdownDocumentService
         ], 15);
     }
 
-    private function noteRow(int $row): string
-    {
-        return $this->row($row, [
-            $this->stringCell('A', $row, 41, '*please remove the blank rows to simplify the form'),
-            ...$this->emptyCells($row, range('B', 'E'), 42),
-            ...$this->emptyCells($row, range('F', 'G'), 14),
-            ...$this->emptyCells($row, range('H', 'I'), 6),
-        ], 20.25);
-    }
-
-    private function blankRow(int $row, int $style): string
-    {
-        return $this->row($row, $this->emptyCells($row, range('A', 'I'), $style), 14.25);
-    }
-
-    private function footerBlankRow(int $row): string
-    {
-        return $this->row($row, [
-            ...$this->emptyCells($row, range('A', 'E'), 40),
-            ...$this->emptyCells($row, range('F', 'G'), 14),
-            ...$this->emptyCells($row, range('H', 'I'), 6),
-        ], 15);
-    }
-
     /** @param list<string> $cells */
-    private function row(int $row, array $cells, float $height): string
+    private function row(int $row, array $cells, ?float $height): string
     {
-        return '<row r="'.$row.'" spans="1:9" ht="'.$this->number($height).'" customHeight="1">'
+        $heightAttributes = $height === null ? '' : ' ht="'.$this->number($height).'" customHeight="1"';
+
+        return '<row r="'.$row.'" spans="1:9"'.$heightAttributes.'>'
             .implode('', $cells)
             .'</row>';
     }

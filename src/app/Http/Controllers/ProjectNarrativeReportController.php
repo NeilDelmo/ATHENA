@@ -21,6 +21,7 @@ use App\Services\ProgressReportDocumentService;
 use App\Services\ProgressReportEvidenceService;
 use App\Services\ProjectMonitoringFormDataService;
 use App\Services\ProjectReportDraftState;
+use App\Services\ProjectReportEvidence;
 use App\Services\ProjectReportReviewService;
 use App\Services\ReportFigureDraftService;
 use App\Services\SidebarAttentionService;
@@ -171,11 +172,6 @@ class ProjectNarrativeReportController extends Controller
                 ], 'narrativeProgress');
         }
 
-        ProjectNarrativeReportDraft::query()
-            ->whereBelongsTo($topic, 'topic')
-            ->whereBelongsTo($request->user(), 'user')
-            ->where('report_type', $request->input('report_type', 'progress'))
-            ->delete();
         $evidenceService->deleteUnreferenced($topic, $request->attributes->get('progress_report_evidence_paths', []));
         app(ReportFigureDraftService::class)->deleteUnreferenced($topic, $request->attributes->get('report_figure_previous_paths', []));
 
@@ -203,6 +199,7 @@ class ProjectNarrativeReportController extends Controller
         return response()->json([
             'message' => 'Progress Report draft saved.',
             'draft_version' => $draft->lock_version,
+            'draft_id' => $draft->id,
             'accomplishments' => $draft->source_data['accomplishments'] ?? [],
             'images' => app(ReportFigureDraftService::class)->displayImages($topic, $draft->source_data),
         ]);
@@ -213,7 +210,7 @@ class ProjectNarrativeReportController extends Controller
         TopicProposal $topic,
         ProjectNarrativeReport $report,
     ): RedirectResponse {
-        if (! filled($report->official_pdf_path) || ! Storage::disk('local')->exists($report->official_pdf_path)) {
+        if (! filled($report->official_pdf_path) || ! app(ProjectReportReviewService::class)->hasAvailablePdf($report)) {
             return back()->withErrors([
                 'preparation' => 'The prepared Progress Report PDF is unavailable. Discard it and prepare the form again.',
             ], 'narrativeProgress');
@@ -268,8 +265,8 @@ class ProjectNarrativeReportController extends Controller
                 ])->errorBag('narrativeProgress');
             }
             $lockedReport->setRelation('topic', $lockedTopic);
-            app(ReportFigureDraftService::class)->restoreDraft($lockedReport, $request->user());
             $lockedReport->delete();
+            app(ReportFigureDraftService::class)->restoreDraft($lockedReport, $request->user());
 
             return $lockedReport;
         });
@@ -401,6 +398,10 @@ class ProjectNarrativeReportController extends Controller
             if ($report->id !== $latestId) {
                 throw ValidationException::withMessages(['review' => 'A newer Terminal Report is already in progress. Review the latest submission.']);
             }
+            if ($validated['review_status'] === ProjectNarrativeReport::STATUS_REVIEWED
+                && ! app(ProjectReportReviewService::class)->hasAvailablePdf($report)) {
+                throw ValidationException::withMessages(['review' => 'The submitted report PDF is unavailable or changed. Request a corrected submission before accepting it.']);
+            }
             $reviewAttributes = [...$validated, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()];
             if ($validated['review_status'] === ProjectNarrativeReport::STATUS_REVISION_REQUESTED && $report->hasSignedCopy()) {
                 $terminalData = $report->terminal_data ?? [];
@@ -481,7 +482,7 @@ class ProjectNarrativeReportController extends Controller
         );
     }
 
-    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ProgressReportEvidenceService $evidenceService, ImagePreviewService $previews): StreamedResponse
+    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ProjectReportEvidence $evidenceService, ImagePreviewService $previews): StreamedResponse
     {
         $file = null;
         if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER) && $topic->isAccessibleTo($request->user())) {
@@ -513,7 +514,7 @@ class ProjectNarrativeReportController extends Controller
                 }
             }
         }
-        abort_unless($file && $evidenceService->isStoredEvidence($topic, $file), 404);
+        abort_unless($file && $evidenceService->isStoredEvidence($topic, 'narrative', $file), 404);
 
         $mimeType = Storage::disk('local')->mimeType($file['path']);
         if ($request->boolean('preview')) {
@@ -623,7 +624,7 @@ class ProjectNarrativeReportController extends Controller
     {
         $this->authorizeViewer($request, $report);
         $signedCopy = $report->signedCopy();
-        abort_unless($signedCopy !== null && Storage::disk('local')->exists($signedCopy['path']), 404);
+        abort_unless(app(ProjectReportReviewService::class)->hasAvailableSignedCopy($report), 404);
 
         return Storage::disk('local')->download(
             $signedCopy['path'],

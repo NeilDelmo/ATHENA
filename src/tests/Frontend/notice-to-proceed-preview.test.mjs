@@ -64,6 +64,7 @@ test('opening the shared panel previews current values without submitting the no
     assert.equal(requests.length, 1);
     assert.equal(requests[0].url, '/notice/preview');
     assert.equal(requests[0].method, 'POST');
+    assert.equal(requests[0].headers.Accept, 'application/json');
     assert.equal(requests[0].body.values.resolution_number, 'LREC-01');
     assert.equal(requests[0].headers['X-CSRF-TOKEN'], 'csrf-token');
 });

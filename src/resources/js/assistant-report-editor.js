@@ -110,10 +110,16 @@ export function assistantReportEditor(config = {}, dependencies = {}) {
             event.detail.promise = this.prepare(event.detail.review_only === true);
         },
         onNavigate(event) {
-            const restoredEdits = config.unsaved && ['college-quarterly', 'rms-quarterly'].includes(this.context?.report_type);
-            if (!this.editable || this.autoSave() || (!restoredEdits && this.fingerprint(true) === this.initialNavigationFingerprint)) return;
+            const quarterly = ['college-quarterly', 'rms-quarterly'].includes(config.context?.report_type);
+            if (['beforeunload', 'livewire:navigate'].includes(event.type) && !quarterly) return;
+            const restoredEdits = config.unsaved && quarterly;
+            if (this.submitting || !this.editable || this.autoSave()
+                || (event.type === 'beforeunload' && this.form()?.dataset.fileUploadBusy === 'true')
+                || (!restoredEdits && this.fingerprint(true) === this.initialNavigationFingerprint)) return;
             this.error = 'Save your current report edits before opening another report.';
-            event.detail.allowed = false;
+            if (event.detail) event.detail.allowed = false;
+            event.preventDefault?.();
+            if (event.type === 'beforeunload') event.returnValue = '';
         },
         onApply(event) {
             if (event.detail.report_key !== reportKey(this.context)) return;

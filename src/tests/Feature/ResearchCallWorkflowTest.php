@@ -257,6 +257,8 @@ test('faculty research calls prioritize open opportunities and archive only call
         ->get(route('research-calls.index'))
         ->assertOk()
         ->assertSee('data-faculty-research-calls', false)
+        ->assertSee('Research calls')
+        ->assertDontSee('Find the right call for your next proposal.')
         ->assertSee('Open for submission')
         ->assertSee($this->call->title)
         ->assertSee('data-research-call-poster-preview', false)

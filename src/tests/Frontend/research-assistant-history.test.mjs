@@ -9,22 +9,56 @@ import { serializeAssistantProposalChanges } from '../../resources/js/research-a
 import { normalizeAssistantReportChanges } from '../../resources/js/research-assistant-report-changes.js';
 
 const app = readFileSync('resources/js/app.js', 'utf8');
-const methods = ['saveConversation', 'retry', 'hasConversation', 'upsertHistory', 'setError']
+const methods = ['saveConversation', 'retry', 'hasConversation', 'upsertHistory', 'setError', 'queueHistorySearch', 'openHistorySearch', 'closeHistorySearch']
     .map((name) => app.match(new RegExp(`    (?:async )?${name}\\(([^)]*)\\) \\{([\\s\\S]*?)\\n    \\},`))[0]).join('\n');
 const response = (payload, status = 200) => ({ ok: status === 200, status, json: async () => payload });
 
-function assistant(fetchHistory) {
+function assistant(fetchHistory, browserWindow = {}) {
     const document = { querySelector: () => ({ content: 'csrf' }) };
     return {
         ...researchAssistantHistory([], fetchHistory),
-        ...new Function('document', 'fetch', 'serializeAssistantLiterature', 'serializeAssistantProposalChanges', 'normalizeAssistantReportChanges',
-            `return ({${methods}});`)(document, fetchHistory, serializeAssistantLiterature, serializeAssistantProposalChanges, normalizeAssistantReportChanges),
+        ...new Function('document', 'fetch', 'serializeAssistantLiterature', 'serializeAssistantProposalChanges', 'normalizeAssistantReportChanges', 'window',
+            `return ({${methods}});`)(document, fetchHistory, serializeAssistantLiterature, serializeAssistantProposalChanges, normalizeAssistantReportChanges, browserWindow),
         messages: [{ role: 'user', content: 'How do I prepare a research proposal?' }],
         currentConversationId: null, historySavePromise: null,
         historySearchQuery: '', historySearchResults: [], error: '', errorTitle: '',
+        historySearchSequence: 0,
         historyUrl: () => '/history', contextPayload: () => null,
         requestReply: () => assert.fail('Retrying a history save must not generate another AI reply'),
     };
+}
+
+for (const action of ['clear', 'close', 'reopen']) {
+    test(`a late chatbot history search cannot replace the list after ${action}`, async () => {
+        const timers = [];
+        let finishSearch;
+        const store = assistant(() => new Promise((resolve) => { finishSearch = resolve; }), {
+            location: { origin: 'https://athena.test' },
+            setTimeout(callback) { timers.push(callback); return timers.length; },
+            clearTimeout() {},
+        });
+        store.history = [{ id: 7, title: 'Coastal research' }, { id: 8, title: 'Learning outcomes' }];
+        store.historyLoaded = true;
+        store.historySearchResults = store.history;
+        store.historySearchOpen = true;
+        store.historySearchQuery = 'coastal';
+        store.queueHistorySearch();
+        const pendingSearch = timers.shift()();
+
+        if (action === 'close') {
+            store.closeHistorySearch();
+        } else if (action === 'reopen') {
+            await store.openHistorySearch();
+        } else {
+            store.historySearchQuery = '';
+            store.queueHistorySearch();
+        }
+        finishSearch(response({ conversations: [store.history[0]] }));
+        await pendingSearch;
+
+        assert.deepEqual(store.historySearchResults, store.history);
+        assert.equal(store.historySearchLoading, false);
+    });
 }
 
 test('a reply arriving during a pending save is persisted before a fresh page loads history', async () => {

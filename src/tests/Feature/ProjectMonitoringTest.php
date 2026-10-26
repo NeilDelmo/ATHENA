@@ -19,6 +19,7 @@ use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -354,7 +355,7 @@ test('three quarterly report pairs preserve approved values and editable results
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     $this->patch(route('research_head.narrative-progress-reports.review', $terminal), ['review_status' => 'reviewed'])->assertSessionHasNoErrors();
     $this->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminal), [
-        'signed_report' => UploadedFile::fake()->create('signed-terminal.pdf', 100, 'application/pdf'),
+        'signed_report' => UploadedFile::fake()->createWithContent('signed-terminal.pdf', '%PDF-1.7 signed terminal report'),
     ])->assertSessionHasNoErrors();
     $this->patch(route('research_head.projects.update-status', $this->topic), ['project_status' => 'completed', 'completion_confirmed' => true])->assertSessionHasNoErrors();
     expect($this->topic->fresh()->project_status)->toBe('completed');
@@ -431,6 +432,7 @@ test('the project leader assigns an accepted group member as project secretary',
     $this->actingAs($projectMember)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
         ->put(route('project-budget.update', [$this->topic, $report]), [
+            'budget_token' => $report->budgetToken(),
             'budget_utilization' => [
                 ['type' => 'Purchase Request', 'details' => 'Laboratory supplies', 'amount_requested' => 12000, 'actual_amount' => 10000, 'remarks' => 'Delivered'],
                 ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
@@ -509,6 +511,7 @@ test('the project secretary has budget priority while other project members may 
     $this->actingAs($this->researcher)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
         ->put(route('project-budget.update', [$this->topic, $report]), [
+            'budget_token' => $report->budgetToken(),
             'budget_utilization' => [
                 ['type' => 'Purchase Request', 'details' => 'Laboratory supplies', 'amount_requested' => 12000, 'actual_amount' => 10000, 'remarks' => 'Delivered'],
                 ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
@@ -544,6 +547,7 @@ test('project secretary budget confirmation keeps the approved project cap', fun
     $this->actingAs($this->secretary)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->put(route('research_secretary.projects.budget.update', [$this->topic, $report]), [
+            'budget_token' => $report->budgetToken(),
             'budget_utilization' => [
                 ['type' => 'Purchase Request', 'details' => 'Over budget', 'amount_requested' => 51000, 'actual_amount' => 51000, 'remarks' => ''],
                 ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
@@ -553,6 +557,142 @@ test('project secretary budget confirmation keeps the approved project cap', fun
         ->assertSessionHasErrors('budget_utilization');
 
     expect($report->fresh()->budget_prepared_at)->toBeNull();
+});
+
+test('monitoring budget saves preserve reports changed during PDF conversion', function (string $change) {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    $path = $report->official_pdf_path;
+    $expectedPdf = Storage::disk('local')->get($path);
+    $budget = $report->budget_utilization;
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($change, $report, $path, &$budget, &$expectedPdf): string {
+            if ($change === 'submitted') {
+                $report->update(['submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED]);
+            } elseif ($change === 'completed') {
+                $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
+            } else {
+                $budget = array_map(fn (array $row): array => [...$row, 'details' => 'Budget saved by another member'], $budget);
+                $expectedPdf = '%PDF-1.4 another saved budget';
+                Storage::disk('local')->put($path, $expectedPdf);
+                $report->update(['budget_utilization' => $budget, 'official_pdf_checksum' => hash('sha256', $expectedPdf)]);
+            }
+
+            return '%PDF-1.4 changed budget';
+        });
+
+    $this->put(route('project-budget.update', [$this->topic, $report]), [
+        'budget_token' => $report->budgetToken(),
+        'budget_utilization' => array_map(fn (array $row): array => [...$row, 'details' => 'Unsaved budget edit'], $budget),
+    ])->assertSessionHasErrors('budget_utilization');
+
+    expect($report->fresh()->budget_utilization)->toBe($budget)
+        ->and($report->fresh()->official_pdf_checksum)->toBe(hash('sha256', $expectedPdf))
+        ->and(Storage::disk('local')->get($path))->toBe($expectedPdf);
+})->with(['submitted', 'completed', 'another budget save']);
+
+test('outdated budget forms cannot overwrite the saved budget or regenerate its PDF', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    $before = $report->only(['budget_utilization', 'official_pdf_path', 'official_pdf_checksum', 'budget_prepared_at']);
+    $conversions = $this->pdfConverter->conversionCount;
+    $this->put(route('project-budget.update', [$this->topic, $report]), [
+        'budget_token' => str_repeat('a', 64),
+        'budget_utilization' => array_map(fn (array $row): array => [...$row, 'details' => 'Outdated browser edit'], $report->budget_utilization),
+    ])->assertSessionHasErrors('budget_token');
+    expect($report->fresh()->only(array_keys($before)))->toBe($before)
+        ->and($this->pdfConverter->conversionCount)->toBe($conversions);
+});
+
+test('budget validation from one report cannot populate another project budget form', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    $otherTopic = TopicProposal::create([
+        'user_id' => $this->researcher->id, 'title' => 'Separate budget project', 'status' => 'approved', 'project_status' => 'ongoing',
+        'estimated_budget' => 50000, 'estimated_duration_months' => 12, 'notice_to_proceed_issued_at' => now()->subMonths(3),
+    ]);
+    $other = $otherTopic->preparedProgressReports()->create([
+        ...$report->only($report->getFillable()), 'topic_id' => $otherTopic->id,
+        'budget_utilization' => array_map(fn (array $row): array => [...$row, 'details' => 'Saved second project budget'], $report->budget_utilization),
+    ]);
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from(route('project-budget.edit', [$this->topic, $report]))
+        ->put(route('project-budget.update', [$this->topic, $report]), [
+            'budget_token' => str_repeat('a', 64),
+            'budget_utilization' => array_map(fn (array $row): array => [...$row, 'details' => 'Private first report entry', 'amount_requested' => -1], $report->budget_utilization),
+        ])->assertSessionHasErrors();
+    $this->get(route('project-budget.edit', [$otherTopic, $other]))->assertOk()
+        ->assertSee('Saved second project budget')->assertDontSee('Private first report entry')
+        ->assertDontSee('Please correct the budget entries.');
+});
+
+test('two budget tabs retain the original edit token and preserve the newer saved budget', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    $editUrl = route('project-budget.edit', [$this->topic, $report]);
+    $updateUrl = route('project-budget.update', [$this->topic, $report]);
+    $document = new DOMDocument;
+    @$document->loadHTML($this->get($editUrl)->assertOk()->getContent());
+    $token = (new DOMXPath($document))->query('//input[@name="budget_token"]')->item(0)?->getAttribute('value');
+    expect($token)->toBe($report->budgetToken());
+    $savedRows = array_map(fn (array $row): array => [...$row, 'details' => 'Saved from the first tab'], $report->budget_utilization);
+    $this->put($updateUrl, ['budget_token' => $token, 'budget_utilization' => $savedRows])->assertSessionHasNoErrors();
+    $savedReport = $report->fresh();
+    $conversions = $this->pdfConverter->conversionCount;
+    expect($savedReport->budgetToken())->not->toBe($token);
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($editUrl)->put($updateUrl, [
+        'budget_token' => $token,
+        'budget_utilization' => array_map(fn (array $row): array => [...$row, 'details' => 'Unsaved second tab edit'], $savedRows),
+    ])->assertSessionHasErrors('budget_token');
+    $response = $this->get($editUrl)->assertOk()->assertSee('Unsaved second tab edit')->assertSee('Reload current budget');
+    @$document->loadHTML($response->getContent());
+    expect((new DOMXPath($document))->query('//input[@name="budget_token"]')->item(0)->getAttribute('value'))->toBe($token)
+        ->and($report->fresh()->budget_utilization)->toBe($savedRows)
+        ->and($report->fresh()->official_pdf_path)->toBe($savedReport->official_pdf_path)
+        ->and($this->pdfConverter->conversionCount)->toBe($conversions);
+    Storage::disk('local')->assertExists($savedReport->official_pdf_path);
+});
+
+test('budget saves require a valid edit token', function (mixed $token) {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    $conversions = $this->pdfConverter->conversionCount;
+    $this->put(route('project-budget.update', [$this->topic, $report]), [
+        'budget_token' => $token, 'budget_utilization' => $report->budget_utilization,
+    ])->assertSessionHasErrors('budget_token');
+    expect($this->pdfConverter->conversionCount)->toBe($conversions);
+})->with([null, 'not-a-version', ['invalid']]);
+
+test('a failed monitoring budget save preserves its previous PDF and removes the replacement', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+    $report = ProjectProgressReport::query()->sole();
+    $path = $report->official_pdf_path;
+    $originalPdf = Storage::disk('local')->get($path);
+    $budget = $report->budget_utilization;
+    Event::listen('eloquent.saving: '.ProjectProgressReport::class, function (ProjectProgressReport $saving) use ($report): void {
+        if ($saving->id === $report->id && $saving->isDirty('budget_utilization')) {
+            throw new RuntimeException('Simulated budget persistence failure');
+        }
+    });
+
+    $this->put(route('project-budget.update', [$this->topic, $report]), [
+        'budget_token' => $report->budgetToken(),
+        'budget_utilization' => array_map(fn (array $row): array => [...$row, 'details' => 'Unsaved edit'], $budget),
+    ])->assertSessionHasErrors('budget_utilization');
+
+    expect($report->fresh()->budget_utilization)->toBe($budget)
+        ->and($report->fresh()->official_pdf_path)->toBe($path)
+        ->and(Storage::disk('local')->get($path))->toBe($originalPdf)
+        ->and(Storage::disk('local')->allFiles('progress-reports/'.$this->topic->id.'/prepared'))->toBe([$path]);
 });
 
 test('monitoring and progress reports have matching quarter counts dates and form links', function () {
@@ -1869,7 +2009,7 @@ test('a project requires the reviewed terminal reports signed PDF before complet
 
     $this->actingAs($this->head)
         ->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminalReport), [
-            'signed_report' => UploadedFile::fake()->create('signed-terminal-report.pdf', 120, 'application/pdf'),
+            'signed_report' => UploadedFile::fake()->createWithContent('signed-terminal-report.pdf', '%PDF-1.7 signed terminal report'),
         ])
         ->assertSessionHasNoErrors()
         ->assertSessionHas('success', 'Signed Terminal Report recorded. The project may now be completed when every other completion requirement is satisfied.');
@@ -1901,7 +2041,7 @@ test('a project requires the reviewed terminal reports signed PDF before complet
         'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
     ])->assertSessionHasNoErrors();
     $this->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminalReport), [
-        'signed_report' => UploadedFile::fake()->create('corrected-signed-terminal-report.pdf', 120, 'application/pdf'),
+        'signed_report' => UploadedFile::fake()->createWithContent('corrected-signed-terminal-report.pdf', '%PDF-1.7 corrected signed terminal report'),
     ])->assertSessionHasNoErrors();
 
     $this->patch(route('research_head.projects.update-status', $this->topic), [

@@ -81,6 +81,9 @@
                     <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Reports are read-only.</p>
                 @endif
             </div>
+            @if ($topic->isCompletedProject() && Auth::user()->isUsingWorkspace(['faculty_researcher', 'research_head']))
+                <a wire:navigate href="{{ route('research-outcomes.projects.show', $topic) }}" class="rounded-lg border border-brand/20 bg-white px-4 py-2 text-sm font-semibold text-brand hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-600 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-slate-800">Post-implementation labels</a>
+            @endif
     @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject())
         <div
             x-data="projectStatusManager(@js(old('project_status', $storedProjectStatus)), @js($errors->has('project_status') || $errors->has('completion_confirmed')))"

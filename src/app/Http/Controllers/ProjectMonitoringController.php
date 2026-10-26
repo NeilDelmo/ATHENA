@@ -23,9 +23,11 @@ use App\Services\MonitoringToolDocumentService;
 use App\Services\ProjectDocumentLibrary;
 use App\Services\ProjectMonitoringFormDataService;
 use App\Services\ProjectReportDraftState;
+use App\Services\ProjectReportEvidence;
 use App\Services\ProjectReportReviewService;
 use App\Services\SidebarAttentionService;
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -78,10 +80,16 @@ class ProjectMonitoringController extends Controller
             return redirect()->to(route('topics.show', $topic).'#project-monitoring')
                 ->withErrors(['monitoring' => 'No reporting period is open for a new report. Check the schedule below.']);
         }
+        $oldReportingDate = $request->session()->hasOldInput('work_plan') ? $request->old('reporting_date') : null;
+        $parsedOldDate = is_string($oldReportingDate) ? DateTimeImmutable::createFromFormat('!Y-m-d', $oldReportingDate) : false;
+        if (! $parsedOldDate || $parsedOldDate->format('Y-m-d') !== $oldReportingDate
+            || ! $quarterService->canDraftForDate($topic, $oldReportingDate)) {
+            $oldReportingDate = null;
+        }
         $selectedReportingDate = $data['revisionReport']?->reporting_date?->toDateString()
             ?? $draftDate
             ?? $preparedDate
-            ?? $request->old('reporting_date')
+            ?? $oldReportingDate
             ?? $requestedDate
             ?? $quarterOptions->first()['reporting_date']
             ?? null;
@@ -378,12 +386,6 @@ class ProjectMonitoringController extends Controller
                 ]);
         }
 
-        ProjectMonitoringDraft::query()
-            ->whereBelongsTo($topic, 'topic')
-            ->whereBelongsTo($request->user(), 'user')
-            ->forSource($sourceReport)
-            ->delete();
-
         app(MonitoringEvidenceService::class)->deleteUnreferenced($topic, collect($request->attributes->get('monitoring_evidence_rows', []))->flatMap(fn (array $row): array => array_column($row['evidence'] ?? [], 'path'))->all());
 
         return redirect()->route('project-progress.create', [
@@ -415,6 +417,7 @@ class ProjectMonitoringController extends Controller
         return response()->json([
             'message' => 'Monitoring Tool draft saved.',
             'draft_version' => $draft->lock_version,
+            'draft_id' => $draft->id,
             'work_plan' => $draft->source_data['work_plan'] ?? [],
         ]);
     }
@@ -424,7 +427,7 @@ class ProjectMonitoringController extends Controller
         TopicProposal $topic,
         ProjectProgressReport $report,
     ): RedirectResponse {
-        if (! filled($report->official_pdf_path) || ! Storage::disk('local')->exists($report->official_pdf_path)) {
+        if (! filled($report->official_pdf_path) || ! app(ProjectReportReviewService::class)->hasAvailablePdf($report)) {
             return back()->withErrors([
                 'preparation' => 'The prepared Monitoring Tool PDF is unavailable. Discard it and prepare the form again.',
             ]);
@@ -623,8 +626,7 @@ class ProjectMonitoringController extends Controller
             }
 
             if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
-                && (! $terminalReport->hasSignedCopy()
-                    || ! Storage::disk('local')->exists($terminalReport->signedCopy()['path']))) {
+                && ! app(ProjectReportReviewService::class)->hasAvailableSignedCopy($terminalReport)) {
                 throw ValidationException::withMessages(['project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.']);
             }
 
@@ -663,7 +665,7 @@ class ProjectMonitoringController extends Controller
         return Storage::disk('local')->download($report->attachment_path);
     }
 
-    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ImagePreviewService $previews): StreamedResponse
+    public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ProjectReportEvidence $evidenceService, ImagePreviewService $previews): StreamedResponse
     {
         $file = null;
         if ($request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user())) {
@@ -695,7 +697,7 @@ class ProjectMonitoringController extends Controller
                 }
             }
         }
-        abort_unless($file && str_starts_with($file['path'], 'progress-reports/'.$topic->id.'/evidence/') && ! str_contains($file['path'], '..') && Storage::disk('local')->exists($file['path']), 404);
+        abort_unless($file && $evidenceService->isStoredEvidence($topic, 'monitoring', $file), 404);
 
         $mimeType = Storage::disk('local')->mimeType($file['path']);
         if ($request->boolean('preview')) {

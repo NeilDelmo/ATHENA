@@ -1,6 +1,8 @@
 @props(['topic', 'submission' => null, 'returnToFinder' => false])
 @php
-    $restore = !old('conference_id') && (string) old('journal_submission_id', '') === (string) ($submission?->id ?? '');
+    $validationContext = session('dissemination_validation_context', []);
+    $restore = $errors->any() && data_get($validationContext, 'topic_id') === $topic->id && data_get($validationContext, 'kind') === 'journal'
+        && data_get($validationContext, 'record_id') === $submission?->id;
     $value = fn ($field, $default = '') => $restore ? old($field, $default) : $default;
     $prefix = 'journal-entry-'.($submission?->id ?? 'new');
     $stage = $value('status', $submission?->status ?? 'shortlisted');

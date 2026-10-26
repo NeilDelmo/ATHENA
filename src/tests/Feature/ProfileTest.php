@@ -24,6 +24,7 @@ test('authenticated users can view their Google managed profile', function () {
         ->assertSee('managed by Batangas State University')
         ->assertSee('Proposal defaults')
         ->assertSee('Curriculum vitae defaults')
+        ->assertSee('Agency, education, and areas of specialization used in proposal documents.')
         ->assertSee('Access and permissions')
         ->assertDontSee('Recent proposals')
         ->assertSee('Sign out securely')

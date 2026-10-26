@@ -123,6 +123,7 @@ class ProjectArchive
             $folder = '04-monitoring-reports/report-'.$report->id.'-v'.($report->version_number ?: 1);
             $record = $this->record($folder, 'official', $report->official_pdf_filename ?: 'monitoring-tool.pdf', $report->official_pdf_path, 'Monitoring Tool', 'Version '.($report->version_number ?: 1), $report->submitted_at ?? $report->created_at);
             $record['period'] = $report->reporting_period_label;
+            $record['checksum'] = $report->official_pdf_checksum;
             if (blank($report->official_pdf_path) && is_array($report->work_plan) && is_array($report->budget_utilization)) {
                 $record['generate'] = fn (): string => app(DocumentPdfConverter::class)->convertDocx(app(MonitoringToolDocumentService::class)->generate($report));
             }
@@ -139,6 +140,7 @@ class ProjectArchive
             $folder = ($report->report_type === 'terminal' ? '06-terminal-reports/' : '05-progress-reports/').'report-'.$report->id.'-v'.($report->version_number ?: 1);
             $record = $this->record($folder, 'official', $report->official_pdf_filename ?: 'project-report.pdf', $report->official_pdf_path, $report->report_label, 'Version '.($report->version_number ?: 1), $report->submitted_at ?? $report->created_at);
             $record['period'] = $report->reporting_period_label ?: $report->submission_date?->toDateString();
+            $record['checksum'] = $report->official_pdf_checksum;
             if (blank($report->official_pdf_path)) {
                 $record['generate'] = fn (): string => app(DocumentPdfConverter::class)->convertDocx(app(ProgressReportDocumentService::class)->generate($report));
             }
@@ -150,7 +152,8 @@ class ProjectArchive
                 }
             }
             if (($signed = $report->signedCopy()) !== null) {
-                $records[] = $this->record($folder, 'signed', $signed['original_filename'] ?? 'signed-report.pdf', $signed['path'], 'Signed '.$report->report_label, $record['edition'], $report->updated_at);
+                $records[] = [...$this->record($folder, 'signed', $signed['original_filename'] ?? 'signed-report.pdf', $signed['path'], 'Signed '.$report->report_label, $record['edition'], $report->updated_at),
+                    'checksum' => $signed['checksum'] ?? null];
             }
         }
 
@@ -235,11 +238,17 @@ class ProjectArchive
         if (isset($record['mime_types']) && ! in_array(Storage::disk('local')->mimeType($path), $record['mime_types'], true)) {
             return [...$entry, 'note' => 'Stored file format is unavailable for download.'];
         }
+        $size = filesize($absolute);
+        $checksum = hash_file('sha256', $absolute);
+        if (array_key_exists('checksum', $record)
+            && ($size === 0 || ! is_string($record['checksum']) || ! hash_equals($record['checksum'], $checksum))) {
+            return [...$entry, 'note' => 'Stored report file is empty or could not be verified; file unavailable.'];
+        }
         if (! $zip->addFile($absolute, $entry['archive_path'])) {
             throw new RuntimeException('A stored file could not be added to the project archive.');
         }
 
-        return [...$entry, 'status' => 'included', 'size' => filesize($absolute), 'sha256' => hash_file('sha256', $absolute)];
+        return [...$entry, 'status' => 'included', 'size' => $size, 'sha256' => $checksum];
     }
 
     private function filename(string $filename): string

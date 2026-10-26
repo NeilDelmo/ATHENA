@@ -16,6 +16,12 @@ class WordDocumentPaginationService
 
     public function addPageNumbers(ZipArchive $archive, ?string $repeatFooterContaining = null): void
     {
+        // Commit edited entries before reading them again for page numbering.
+        $path = $archive->filename;
+        if (! $archive->close() || $archive->open($path) !== true) {
+            throw new RuntimeException('The edited Word document could not be reopened for page numbering.');
+        }
+
         $footerPartNames = $this->footerPartNames($archive);
         $repeatedFooterXml = $repeatFooterContaining === null
             ? null

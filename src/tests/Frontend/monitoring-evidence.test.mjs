@@ -108,7 +108,7 @@ test('the rendered monitoring form uploads, computes, autosaves and restores evi
                     for(const [,file] of uploads) evidence.push({id:'00000000-0000-4000-8000-'+String(window.saveRequests.length).padStart(12,'0'),name:file.name});
                     const units=Number(fields.find(([name])=>name==='work_plan[0][completed_units]')?.[1]||0);
                     window.savedRows=JSON.parse(JSON.stringify([{...current,evidence,pendingEvidenceCount:0,completed_units:units,accomplished_percentage:evidence.length?Number((50*units/20).toFixed(2)):0}]));
-                    return {ok:true,status:200,json:async()=>({draft_version:window.saveRequests.length+1,work_plan:window.savedRows})};
+                    return {ok:true,status:200,json:async()=>({draft_version:window.saveRequests.length+1,draft_id:12345,work_plan:window.savedRows})};
                 };
                 document.addEventListener('alpine:init',()=>{
                     ${datePicker}
@@ -126,6 +126,7 @@ test('the rendered monitoring form uploads, computes, autosaves and restores evi
             await panel.getByRole('button', { name: 'Remove interviews.png' }).click();
             await page.waitForFunction(() => window.monitorState.entries[0].completion === 0);
             assert.equal(await page.evaluate(() => window.monitorState.finishMonitoringDraftAutoSave()), true);
+            assert.equal(await page.locator('[name="draft_id"]').inputValue(), '12345');
             await panel.locator('input[type="file"]').setInputFiles({ name: 'proof.png', mimeType: 'image/png', buffer: image });
             await page.waitForFunction(() => window.monitorState.entries[0].completion === 60);
             assert.equal(await page.evaluate(() => window.monitorState.finishMonitoringDraftAutoSave()), true);
@@ -153,6 +154,7 @@ test('the rendered monitoring form uploads, computes, autosaves and restores evi
             await page.locator('[data-proposal-workspace-toolbar] button[type="submit"]').click();
             await page.waitForFunction(() => Boolean(window.preparedFields));
             assert.equal(await page.evaluate(() => window.preparedFields.find(([name]) => name === 'work_plan[0][accomplished_percentage]')[1]), '15');
+            assert.equal(await page.evaluate(() => window.preparedFields.find(([name]) => name === 'draft_id')[1]), '12345');
             assert.equal(await page.evaluate(() => window.preparedFields.filter(([name]) => name === 'work_plan[0][evidence_ids][]').length), 2);
             assert.equal(await page.evaluate(() => window.preparedFields.find(([name]) => name === 'activity_evidence[plan-0][]')[1]), '');
             assert.deepEqual(errors, []);

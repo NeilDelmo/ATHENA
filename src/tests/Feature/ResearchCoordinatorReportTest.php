@@ -614,6 +614,37 @@ test('coordinators may remove saved draft images and replace them without leavin
     Storage::disk('local')->assertExists($original[1]['path']);
 });
 
+test('appendix photo removal selections survive validation errors', function () {
+    Storage::fake('local');
+    $report = CollegeQuarterlyReport::factory()->create([
+        'college' => $this->coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 3,
+        'evidence' => [
+            ['path' => 'college-quarterly-reports/remove.png', 'caption' => 'Remove', 'mime_type' => 'image/png', 'original_filename' => 'remove.png'],
+            ['path' => 'college-quarterly-reports/keep.png', 'caption' => 'Keep', 'mime_type' => 'image/png', 'original_filename' => 'keep.png'],
+        ],
+    ]);
+    $token = hash('sha256', $report->evidence[0]['path']);
+    $url = route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]);
+    $this->from($url)->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
+        'reviewed_by' => str_repeat('x', 256), 'remove_evidence' => [$token],
+    ])->assertSessionHasErrors('reviewed_by');
+
+    $response = $this->get($url)->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $checked = $xpath->query('//input[@name="remove_evidence[]" and @checked]');
+    expect($checked)->toHaveCount(1)
+        ->and($checked->item(0)->getAttribute('value'))->toBe($token)
+        ->and($report->fresh()->evidence)->toHaveCount(2);
+
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
+        'reviewed_by' => 'Research Head', 'remove_evidence' => [$checked->item(0)->getAttribute('value')],
+    ])->assertSessionHasNoErrors();
+    expect($report->fresh()->evidence)->toHaveCount(1)
+        ->and($report->fresh()->evidence[0]['original_filename'])->toBe('keep.png');
+});
+
 test('image removal rejects submitted reports and never selects another college report', function () {
     Storage::fake('local');
     $path = 'college-quarterly-reports/retained.png';

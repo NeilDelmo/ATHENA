@@ -1,11 +1,13 @@
 <?php
 
+use App\Actions\SaveProposalDraftDocument;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
 use App\Support\ProposalDraftReadiness;
 use App\Support\WorkPlanProposalObjectives;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -50,6 +52,32 @@ test('the Work Plan editor imports proposal objectives and preserves existing ac
         ->assertSee('readonly required', false)->assertDontSee('Add another objective')
         ->assertViewHas('sourceData', fn (array $source): bool => $source['entries'] == $this->entries);
 });
+
+test('proposal narrative edits preserve the prepared Work Plan unless its objectives change', function (bool $objectivesChanged) {
+    Storage::fake('local');
+    $path = $this->draft->storageDirectory().'/prepared/work-plan/current.pdf';
+    Storage::disk('local')->put($path, '%PDF-1.7 prepared Work Plan');
+    $workPlan = $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'position' => 0,
+        'source_data' => ['entries' => $this->entries],
+        'file_path' => $path,
+        'mime_type' => 'application/pdf',
+        'completed_at' => now(),
+    ]);
+    $source = [...$this->proposal->source_data, 'related_literature' => 'Updated research evidence.'];
+    if ($objectivesChanged) {
+        $source['specific_objectives'][0]['description'] = 'Measure the revised baseline';
+    }
+
+    app(SaveProposalDraftDocument::class)->handle(
+        $this->draft, $this->faculty, ProposalVersionFile::TYPE_DETAILED_PROPOSAL, 0, 0,
+        ['source_data' => $source, 'completed_at' => now()],
+    );
+
+    expect($workPlan->fresh()->file_path)->toBe($objectivesChanged ? null : $path);
+    Storage::disk('local')->assertExists($path);
+})->with(['narrative only' => false, 'shared objectives' => true]);
 
 test('Work Plan saving and preview use authoritative objectives instead of submitted wording', function () {
     $entries = $this->entries;

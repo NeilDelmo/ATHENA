@@ -7,6 +7,7 @@ import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-wo
 import { proposalCitationField } from '../../resources/js/proposal-semantic-editor.js';
 import { proposalSourceWorkspace } from '../../resources/js/proposal-source-workspace.js';
 import { formatPersonName } from '../../resources/js/proposal-people.js';
+import { saveProposalPaperWithDraftFallback } from '../../resources/js/proposal-paper-autosave.js';
 
 const sourceWorkspace = 'const uploadRequest = (...args) => fetch(...args);\n' + readFileSync(new URL('../../resources/js/proposal-source-workspace.js', import.meta.url), 'utf8').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
 const semanticHelpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
@@ -35,6 +36,140 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
     instance.assignMethodologyImageFile = () => {};
     return instance;
 }
+
+test('an autosave response preserves images selected or replaced after that request started', () => {
+    class Input {
+        constructor(file) { this.file = file; }
+        set value(value) { if (value === '') this.file = null; }
+    }
+    const uploadedFile = { name: 'uploaded.png' };
+    const replacementFile = { name: 'replacement.png' };
+    const newFile = { name: 'new.png' };
+    const inputs = {
+        'methodology-image-file-replaced': new Input(replacementFile),
+        'methodology-image-file-new': new Input(newFile),
+        'methodology-image-file-saved': new Input(uploadedFile),
+    };
+    const state = editor({
+        document: { getElementById: (id) => inputs[id] },
+        HTMLInputElement: Input,
+        URL: { revokeObjectURL() {} },
+    });
+    state.methodologyImages = [
+        { clientId: 'replaced', id: '', previewUrl: 'blob:replacement', currentFile: replacementFile },
+        { clientId: 'new', id: '', previewUrl: 'blob:new', currentFile: newFile },
+        { clientId: 'saved', id: '', previewUrl: 'blob:saved', currentFile: uploadedFile },
+    ];
+
+    state.applySavedMethodologyImages([
+        { client_id: 'replaced', id: 'server-replaced', url: '/old-upload.png' },
+        { client_id: 'saved', id: 'server-saved', url: '/saved.png' },
+    ], new Map([['replaced', uploadedFile], ['saved', uploadedFile]]));
+
+    assert.equal(state.methodologyImages[0].id, 'server-replaced');
+    assert.equal(state.methodologyImages[0].previewUrl, 'blob:replacement');
+    assert.equal(state.methodologyImages[0].currentFile, replacementFile);
+    assert.equal(inputs['methodology-image-file-replaced'].file, replacementFile);
+    assert.equal(inputs['methodology-image-file-new'].file, newFile);
+    assert.equal(state.methodologyImages[2].previewUrl, '/saved.png');
+    assert.equal(state.methodologyImages[2].currentFile, null);
+    assert.equal(inputs['methodology-image-file-saved'].file, null);
+});
+
+test('an image selected before the next DOM update survives acknowledgement cleanup', () => {
+    class Input {
+        constructor(file) { this.file = file; }
+        set value(value) { if (value === '') this.file = null; }
+    }
+    const uploadedFile = { name: 'uploaded.png' };
+    const replacementFile = { name: 'replacement.png' };
+    const input = new Input(uploadedFile);
+    const state = editor({
+        document: { getElementById: () => input },
+        HTMLInputElement: Input,
+        URL: { revokeObjectURL() {} },
+    });
+    const updates = [];
+    state.$nextTick = (callback) => updates.push(callback);
+    const image = { clientId: 'image', id: '', previewUrl: 'blob:uploaded', currentFile: uploadedFile };
+    state.methodologyImages = [image];
+    state.applySavedMethodologyImages([{ client_id: 'image', id: 'server-image', url: '/saved.png' }], new Map([['image', uploadedFile]]));
+    image.currentFile = replacementFile;
+    input.file = replacementFile;
+    updates.forEach((callback) => callback());
+
+    assert.equal(input.file, replacementFile);
+});
+
+test('autosave acknowledges the submitted image without discarding a later replacement', async () => {
+    class Form {}
+    class Input {
+        set value(value) { if (value === '') this.file = null; }
+    }
+    const originalFile = { name: 'original.png' };
+    const replacementFile = { name: 'replacement.png' };
+    const input = new Input();
+    const form = new Form();
+    form.querySelector = () => null;
+    let completeRequest;
+    const state = editor({
+        document: { getElementById: () => input },
+        HTMLFormElement: Form,
+        HTMLInputElement: Input,
+        saveProposalPaperWithDraftFallback,
+        URL: { revokeObjectURL() {} },
+        fetch: () => new Promise((resolve) => { completeRequest = resolve; }),
+    });
+    state.$el = { dataset: {} };
+    state.detailedProposalAutoSaveForm = () => form;
+    state.detailedProposalFingerprint = () => 'changed';
+    state.detailedProposalFormData = () => ({});
+    state.detailedProposalShouldSaveAsDraft = () => true;
+    state.detailedProposalAutoSaveStatus = () => {};
+    state.updateDetailedProposalCompletionStatus = () => {};
+    state.scheduleDetailedProposalAutoSave = () => {};
+    const image = { clientId: 'image', id: '', previewUrl: 'blob:original', currentFile: originalFile };
+    state.methodologyImages = [image];
+    const saving = state.saveDetailedProposal();
+    assert.equal(typeof completeRequest, 'function');
+    image.currentFile = replacementFile;
+    image.previewUrl = 'blob:replacement';
+    input.file = replacementFile;
+    state.autoSaveRevision++;
+    completeRequest({
+        ok: true,
+        status: 200,
+        json: async () => ({
+            document_version: 1, draft_version: 0, saved_as_draft: true,
+            methodology_images: [{ client_id: 'image', id: 'saved-image', url: '/original.png' }],
+        }),
+    });
+    await saving;
+
+    assert.equal(image.id, 'saved-image');
+    assert.equal(image.currentFile, replacementFile);
+    assert.equal(image.previewUrl, 'blob:replacement');
+    assert.equal(input.file, replacementFile);
+    assert.equal(state.autoSaveInFlight, false);
+});
+
+test('Word downloads request structured validation errors and display them before downloading', async () => {
+    let requestedAccept;
+    const state = editor({
+        isEmbeddedRevisionEditor: () => false,
+        fetch: async (_url, options) => {
+            requestedAccept = options.headers.Accept;
+            return { status: 422, json: async () => ({ errors: { leader_email: ['Enter a valid leader email.'] } }) };
+        },
+    });
+    state.validateForm = () => true;
+    state.formData = () => ({});
+    await state.downloadDocument();
+
+    assert.equal(requestedAccept, 'application/json');
+    assert.equal(state.validationMessage, 'Enter a valid leader email.');
+    assert.equal(state.downloadLoading, false);
+});
 
 test('choosing a project team member reuses their title and contact without keeping another person details', () => {
     const state = editor({ formatPersonName });
@@ -599,6 +734,7 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
     const statusWrapper = view.match(/<div x-show="showDetailedProposalSaveStatus"[^>]*>[\s\S]*?<\/div>/)[0].replace('<x-proposal-autosave-status />', status);
     const validation = view.match(/<div x-show="validationMessage"[^>]*><\/div>/)[0];
     const checkButton = view.match(/<button type="button" @click="checkDetailedProposalRequirements\(\)"[^>]*>[\s\S]*?<\/button>/)[0];
+    const checkResult = view.match(/<p[^>]*data-proposal-requirements-result[^>]*><\/p>/)?.[0] || '';
     const helpers = readFileSync(new URL('../../resources/js/proposal-paper-autosave.js', import.meta.url), 'utf8').replaceAll('export ', '');
     const alpine = readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8');
     const manifest = JSON.parse(readFileSync(new URL('../../public/build/manifest.json', import.meta.url), 'utf8'));
@@ -613,7 +749,7 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 page.on('pageerror', error => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${css}[x-cloak]{display:none!important}</style><body>
                     <div x-data="completionPanelTest" data-paper-editor data-detailed-proposal-autosave="true" data-paper-project-details-complete="true" class="mx-auto max-w-4xl space-y-6 p-4">
-                        ${validation}${statusWrapper}${checkButton}${panel}
+                        ${validation}${statusWrapper}${checkButton}${checkResult}${panel}
                         <form x-ref="form"><input type="hidden" name="save_as_draft" data-paper-save-mode value="0">
                             <label for="responsibility-percentage">Responsibility percentage</label>
                             <input id="responsibility-percentage" name="responsibilities[0][percentage]" type="number" required min="1" max="100" aria-label="Responsibility percentage" class="block w-full rounded-lg border-slate-300 bg-white dark:bg-slate-900 dark:text-white">
@@ -674,6 +810,7 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 assert.equal(await page.locator('#'+feedbackId).isVisible(), true);
                 await page.getByRole('button', { name: 'Check requirements' }).click();
                 await checklist.waitFor({ state: 'visible' });
+                assert.match(await page.locator('[data-proposal-requirements-result]').innerText(), /requirements need attention/);
                 if (process.env.ATHENA_DESIGN_SNAPSHOTS === '1' && width === 1440 && !dark) {
                     await page.screenshot({ path: '../tmp/detailed-proposal-requirements.png' });
                 }
@@ -694,6 +831,8 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 await page.locator('#leader-contact').fill('09123456789');
                 await page.getByRole('button', { name: 'Check requirements' }).click();
                 await checklist.waitFor({ state: 'hidden' });
+                assert.equal(await page.locator('[data-proposal-requirements-result]').isVisible(), true);
+                assert.match(await page.locator('[data-proposal-requirements-result]').innerText(), /required fields are complete/);
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
                 await page.evaluate(() => {
                     const wrapper = document.createElement('div');

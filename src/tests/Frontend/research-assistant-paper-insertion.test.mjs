@@ -70,6 +70,7 @@ function editor() {
         relatedLiterature: '<p>Existing unsaved literature paragraph.</p>',
         literatureSources: [], references: '', literatureSourceNotice: '', savesScheduled: 0,
         plainText: (value) => String(value).replace(/<[^>]*>/g, ''),
+        escapeLiteratureHtml: escapeAssistantHtml,
         upsertLiteratureSource(saved) { this.literatureSources = [saved]; },
         recordLiteratureCitation: () => 1,
         appendLiteratureText: (current, added) => `${current}\n\n${added}`,
@@ -108,6 +109,31 @@ test('reviewed paragraph markup is escaped before insertion', () => {
     paper.applyAssistantLiterature({ ...packet, sources: [{ ...source, rrl_note: '<img src=x onerror=alert(1)> Reviewed research paragraph.' }] });
     assert.equal(paper.relatedLiterature.includes('<img'), false);
     assert.ok(paper.relatedLiterature.includes('&lt;img'));
+});
+
+test('saved source paragraphs are inserted as text through the shared insertion path', () => {
+    const paper = editor();
+    const note = 'The study compares <control> & treatment outcomes across coastal communities.';
+    assert.equal(paper.addLiteratureSourceToRrl({ ...source, rrl_note: note }, true), true);
+    assert.equal(paper.relatedLiterature.includes('<control>'), false);
+    assert.ok(paper.relatedLiterature.includes(escapeAssistantHtml(note)));
+});
+
+test('chat insertion keeps the saved source paragraph unescaped in source state', () => {
+    const paper = editor();
+    const note = 'The study compares <control> & treatment outcomes across coastal communities.';
+    paper.applyAssistantLiterature({ ...packet, sources: [{ ...source, rrl_note: note }] });
+    assert.equal(paper.literatureSources[0].rrl_note, note);
+    assert.ok(paper.relatedLiterature.includes(escapeAssistantHtml(note)));
+    assert.equal(paper.relatedLiterature.includes('&amp;lt;'), false);
+});
+
+test('an existing citation number still receives its managed source association', () => {
+    const paper = editor();
+    const note = 'Community participation supports sustained monitoring in coastal communities [1].';
+    assert.equal(paper.addLiteratureSourceToRrl({ ...source, rrl_note: note }, true), true);
+    assert.ok(paper.relatedLiterature.includes('data-proposal-citation="51"'));
+    assert.equal(paper.relatedLiterature.match(/\[1\]/g)?.length, 1);
 });
 
 function chat(fetchReply) {

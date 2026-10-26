@@ -154,7 +154,6 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceImportIndex: 0,
         sourceWorkspaceSourceForm: emptySourceForm(),
         sourceWorkspacePendingFile: null,
-        sourceWorkspacePendingLinkedSource: null,
         sourceWorkspaceAiMode: 'explain',
         sourceWorkspaceClaim: '',
         sourceWorkspaceInstruction: '',
@@ -359,10 +358,10 @@ export function proposalSourceWorkspace(config = {}) {
                 return false;
             } finally { if (version === this.sourceWorkspaceVersion) this.sourceWorkspaceLoading = false; }
         },
-        async sourceWorkspaceLinkLibrary(source) {
+        async sourceWorkspaceLinkLibrary(source, refreshExisting = false) {
             const existing = (this.literatureSources || []).find((item) => Number(item.literature_source_id) === Number(source.id));
-            if (existing) return existing;
-            if (this.linkExistingLibrarySource) return this.linkExistingLibrarySource(source);
+            if (existing && !refreshExisting) return existing;
+            if (this.linkExistingLibrarySource && !refreshExisting) return this.linkExistingLibrarySource(source);
             const url = String(config.linkUrlTemplate || '').replace('__literature_source__', encodeURIComponent(String(source.id)));
             const payload = await this.sourceWorkspaceRequest(url, { method: 'POST', body: JSON.stringify({ research_context: ['Sources workspace'] }) });
             if (!payload.source?.id) throw new Error('The source could not be linked to this paper.');
@@ -637,14 +636,13 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceImports = [];
             this.sourceWorkspaceImportIndex = 0;
             this.sourceWorkspacePendingFile = null;
-            this.sourceWorkspacePendingLinkedSource = null;
             this.sourceWorkspaceError = '';
             this.sourceWorkspaceNotice = '';
         },
         async lookupSourceWorkspaceIdentifier() {
             if (this.sourceWorkspaceBusy() || !this.sourceWorkspaceIdentifier.trim()) return false;
             const identifier = this.sourceWorkspaceIdentifier.trim();
-            const doi = identifier.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '');
+            const doi = identifier.replace(/^doi:\s*/i, '').replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '');
             if (!/^10\.\d{4,9}\/\S+$/i.test(doi)) {
                 const url = sourceWorkspaceSafeUrl(identifier);
                 if (!url) { this.sourceWorkspaceError = 'Enter a DOI or a complete HTTP or HTTPS publication URL.'; return false; }
@@ -682,6 +680,7 @@ export function proposalSourceWorkspace(config = {}) {
             return this.parseSourceWorkspaceImport();
         },
         chooseSourceWorkspacePdf(event) {
+            if (this.sourceWorkspaceBusy()) return false;
             const file = event?.target?.files?.[0];
             if (!file || !/\.pdf$/i.test(file.name) || file.size > 8 * 1024 * 1024) { this.sourceWorkspaceError = 'Choose a PDF under 8 MB.'; return false; }
             this.sourceWorkspacePendingFile = file;
@@ -718,18 +717,13 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceSaving = true;
             this.sourceWorkspaceError = '';
             try {
-                let linked = this.sourceWorkspacePendingLinkedSource;
-                if (!linked) {
-                    const metadata = { ...form, title: form.title.trim(), authors: sourceAuthors(form.authors), year: form.year ? Number(form.year) : null, source: form.source || 'Manual entry', url: form.url ? sourceWorkspaceSafeUrl(form.url) : null };
-                    const payload = await this.sourceWorkspaceRequest(config.storeUrl, { method: 'POST', body: JSON.stringify(metadata) });
-                    if (!payload.source?.id) throw new Error('The source metadata could not be saved.');
-                    linked = await this.sourceWorkspaceLinkLibrary(payload.source);
-                    if (this.sourceWorkspacePendingFile) this.sourceWorkspacePendingLinkedSource = linked;
-                }
+                const metadata = { ...form, title: form.title.trim(), authors: sourceAuthors(form.authors), year: form.year ? Number(form.year) : null, source: form.source || 'Manual entry', url: form.url ? sourceWorkspaceSafeUrl(form.url) : null };
+                const payload = await this.sourceWorkspaceRequest(config.storeUrl, { method: 'POST', body: JSON.stringify(metadata) });
+                if (!payload.source?.id) throw new Error('The source metadata could not be saved.');
+                const linked = await this.sourceWorkspaceLinkLibrary(payload.source, true);
                 if (this.sourceWorkspacePendingFile) {
                     await this.sourceWorkspaceUploadDocument(linked.id, this.sourceWorkspacePendingFile);
                     this.sourceWorkspacePendingFile = null;
-                    this.sourceWorkspacePendingLinkedSource = null;
                 }
                 this.sourceWorkspaceNotice = 'Source saved to the shared library and added to this proposal.';
                 const imported = this.sourceWorkspaceImports[Number(this.sourceWorkspaceImportIndex)];

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class ProposalDraftDocument extends Model
 {
@@ -52,5 +53,24 @@ class ProposalDraftDocument extends Model
     public function hasStagedFile(): bool
     {
         return filled($this->file_path);
+    }
+
+    public function hasCurrentPreparedPdf(ProposalDraft $draft): bool
+    {
+        if ($this->mime_type !== 'application/pdf' || blank($this->file_path)
+            || ! Storage::disk('local')->exists($this->file_path)) {
+            return false;
+        }
+
+        if ($this->document_type !== ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN
+            || config('proposal_papers.expense-breakdown.mode') !== 'generated'
+            || ! is_array($this->source_data['items'] ?? null)
+            || ! str_starts_with($this->file_path, $draft->storageDirectory().'/prepared/')
+            || str_contains($this->file_path, '/prepared/manual/')
+            || ! $draft->isEditable()) {
+            return true;
+        }
+
+        return ($this->source_data['pdf_layout_version'] ?? null) === config('expense_breakdown.pdf_layout_version');
     }
 }

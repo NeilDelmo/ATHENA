@@ -59,6 +59,7 @@ use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchManualController;
 use App\Http\Controllers\ResearchManualReaderController;
 use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
+use App\Http\Controllers\ResearchOutcomeController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RevisionPaperPreviewController;
 use App\Http\Controllers\RoleSelectionController;
@@ -303,10 +304,10 @@ Route::post('/topics/{topic}/head-uploads', [TopicController::class, 'storeHeadU
     ->name('topics.head-uploads.store');
 
 Route::get('/research-calls', [ResearchCallController::class, 'index'])
-    ->middleware(['auth', 'workspace:faculty|research_head'])
+    ->middleware(['auth', 'workspace:faculty|faculty_researcher|research_head'])
     ->name('research-calls.index');
 Route::get('/research-calls/{researchCall}/reference-image', [ResearchCallController::class, 'sourceImage'])
-    ->middleware(['auth', 'workspace:faculty|research_head'])
+    ->middleware(['auth', 'workspace:faculty|faculty_researcher|research_head'])
     ->name('research-calls.reference-image');
 
 Route::middleware(['auth', 'workspace:research_head'])->prefix('announcement-images')->name('announcement-images.')->group(function () {
@@ -338,6 +339,17 @@ Route::post('/research-calls/{researchCall}/deadline-dismissal', [ResearchCallDe
 Route::post('/sidebar-attention/{area}', [SidebarAttentionController::class, 'open'])
     ->middleware('auth')
     ->name('sidebar-attention.open');
+
+Route::middleware(['auth', 'workspace:faculty_researcher|research_office|research_head'])
+    ->prefix('research-outcomes')->name('research-outcomes.')->group(function () {
+        Route::get('/', [ResearchOutcomeController::class, 'index'])->name('index');
+        Route::get('/create', [ResearchOutcomeController::class, 'create'])->name('create');
+        Route::post('/', [ResearchOutcomeController::class, 'store'])->name('store');
+        Route::get('/projects/{topic}', [ResearchOutcomeController::class, 'showProject'])->name('projects.show');
+        Route::put('/projects/{topic}', [ResearchOutcomeController::class, 'updateProject'])->name('projects.update');
+        Route::get('/records/{outcome}', [ResearchOutcomeController::class, 'show'])->name('show');
+        Route::put('/records/{outcome}', [ResearchOutcomeController::class, 'update'])->name('update');
+    });
 
 Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');

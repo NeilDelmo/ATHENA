@@ -113,7 +113,7 @@ class SubmitProposalDraft
                 }
 
                 $document = $draft->documents->firstWhere('document_type', $paper['document_type']);
-                if ($onlyMissing && $this->preparedFileExists($document, $paper)) {
+                if ($onlyMissing && $this->preparedFileExists($document, $paper, $draft)) {
                     continue;
                 }
 
@@ -134,7 +134,7 @@ class SubmitProposalDraft
             unset($generatedPapers);
             $detailedPaper = $this->catalog->get('detailed-proposal');
 
-            if ($detailedPaper['mode'] !== 'upload' && (! $onlyMissing || ! $this->preparedFileExists($draft->documents->firstWhere('document_type', $detailedPaper['document_type']), $detailedPaper))) {
+            if ($detailedPaper['mode'] !== 'upload' && (! $onlyMissing || ! $this->preparedFileExists($draft->documents->firstWhere('document_type', $detailedPaper['document_type']), $detailedPaper, $draft))) {
                 $preparedFiles[] = $this->generateDetailedProposal(
                     $draft,
                     $draft->documents->firstWhere('document_type', $detailedPaper['document_type']),
@@ -214,11 +214,10 @@ class SubmitProposalDraft
     }
 
     /** @param array<string, mixed> $paper */
-    private function preparedFileExists(?ProposalDraftDocument $document, array $paper): bool
+    private function preparedFileExists(?ProposalDraftDocument $document, array $paper, ProposalDraft $draft): bool
     {
-        return $document !== null && filled($document->file_path) && $document->mime_type === 'application/pdf'
-            && ($paper['mode'] !== 'automatic' || ! str_contains($document->file_path, '/prepared/manual/'))
-            && Storage::disk('local')->exists($document->file_path);
+        return $document !== null && $document->hasCurrentPreparedPdf($draft)
+            && ($paper['mode'] !== 'automatic' || ! str_contains($document->file_path, '/prepared/manual/'));
     }
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -598,7 +597,10 @@ class SubmitProposalDraft
         )->validate();
         $expenseBreakdown = ExpenseBreakdownData::fromValidated($validated);
 
-        return ['contents' => $this->expenseBreakdownDocumentService->generate($expenseBreakdown), 'source_data' => $validated];
+        return [
+            'contents' => $this->expenseBreakdownDocumentService->generate($expenseBreakdown),
+            'source_data' => [...$validated, 'pdf_layout_version' => config('expense_breakdown.pdf_layout_version')],
+        ];
     }
 
     /** @return array<string, mixed> */

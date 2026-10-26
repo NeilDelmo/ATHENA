@@ -3,7 +3,6 @@ import { autoSaveHasStaleVersionError, autoSaveValidationMessage, proposalPaperF
 import { buildLiteratureSearchPayload, buildLiteratureSearchQuery, fetchLiteratureSearch, literatureSearchHistoryTitle } from './proposal-literature-search.js';
 import { currentReviewedLiteratureSources } from './research-assistant-paper-insertion.js';
 import { detailedProposalPreviewWorkspace, initializeDetailedProposalWritingTools } from './detailed-proposal-workspace.js';
-import { escapeAssistantHtml } from './research-assistant-markdown.js';
 import { filterWorkspacePeople, formatPersonName, personInitials } from './proposal-people.js';
 import { isEmbeddedRevisionEditor } from './revision-editor-context.js';
 import { prepareReviewedSourceDraft } from './proposal-source-draft-insertion.js';
@@ -150,6 +149,12 @@ export default function registerDetailedProposalEditor(Alpine, {
 
         get showCompletionChecklist() {
             return this.requirementsReviewed && Object.keys(this.completionErrors).length > 0;
+        },
+
+        get detailedProposalRequirementsResult() {
+            return this.showCompletionChecklist
+                ? 'Some requirements need attention. Select a requirement below to finish it.'
+                : 'All required fields are complete. PDF preparation status is shown above.';
         },
 
         init() {
@@ -456,9 +461,8 @@ export default function registerDetailedProposalEditor(Alpine, {
             let added = 0;
             (Array.isArray(packet.sources) ? packet.sources : []).slice(0, 3).forEach((source) => {
                 if (!Number(source.id) || source.rrl_draft_status !== 'confirmed') return;
-                const safeSource = { ...source, rrl_note: escapeAssistantHtml(String(source.rrl_note || '')) };
-                this.upsertLiteratureSource(safeSource);
-                if (this.addLiteratureSourceToRrl(safeSource, true)) added++;
+                this.upsertLiteratureSource(source);
+                if (this.addLiteratureSourceToRrl(source, true)) added++;
             });
             packet.handled = true;
             packet.added = added;
@@ -2046,6 +2050,7 @@ export default function registerDetailedProposalEditor(Alpine, {
             this.detailedProposalAutoSaveStatus('Saving changes…', 'saving');
 
             try {
+                let submittedImageFiles;
                 const { response, payload, completionErrors } = await saveProposalPaperWithDraftFallback({
                     saveAsDraft: this.detailedProposalShouldSaveAsDraft(),
                     save: async (saveAsDraft) => {
@@ -2053,9 +2058,11 @@ export default function registerDetailedProposalEditor(Alpine, {
                             saveMode.value = saveAsDraft ? '1' : '0';
                         }
 
+                        const formData = this.detailedProposalFormData(form);
+                        submittedImageFiles = new Map(this.methodologyImages.map((image) => [String(image.clientId), image.currentFile]));
                         const response = await uploadRequest(config.updateUrl || form.action, {
                             method: form.method,
-                            body: this.detailedProposalFormData(form),
+                            body: formData,
                             headers: {
                                 Accept: 'application/json',
                                 'X-CSRF-TOKEN': config.csrfToken,
@@ -2097,7 +2104,7 @@ export default function registerDetailedProposalEditor(Alpine, {
                 if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
                 if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
 
-                this.applySavedMethodologyImages(payload.methodology_images || []);
+                this.applySavedMethodologyImages(payload.methodology_images || [], submittedImageFiles);
                 this.detailedProposalStarted = true;
                 this.detailedProposalComplete = !payload.saved_as_draft;
                 this.updateDetailedProposalCompletionStatus();
@@ -2135,7 +2142,7 @@ export default function registerDetailedProposalEditor(Alpine, {
             }
         },
 
-        applySavedMethodologyImages(savedImages) {
+        applySavedMethodologyImages(savedImages, submittedImageFiles) {
             const imagesByClientId = new Map(
                 savedImages
                     .filter((image) => image && image.client_id && image.id && image.url)
@@ -2145,19 +2152,20 @@ export default function registerDetailedProposalEditor(Alpine, {
             this.methodologyImages.forEach((image) => {
                 const savedImage = imagesByClientId.get(String(image.clientId));
 
-                if (!savedImage) return;
+                if (!savedImage || !submittedImageFiles.has(String(image.clientId))) return;
+
+                image.id = String(savedImage.id);
+
+                if (image.currentFile !== submittedImageFiles.get(String(image.clientId))) return;
 
                 if (image.previewUrl.startsWith('blob:')) URL.revokeObjectURL(image.previewUrl);
-                image.id = String(savedImage.id);
                 image.previewUrl = String(savedImage.url);
                 image.currentFile = null;
-            });
 
-            this.$nextTick(() => {
-                this.methodologyImages.forEach((image) => {
+                this.$nextTick(() => {
                     const input = document.getElementById(`methodology-image-file-${image.clientId}`);
 
-                    if (input instanceof HTMLInputElement) input.value = '';
+                    if (input instanceof HTMLInputElement && image.currentFile === null) input.value = '';
                 });
             });
         },
@@ -2187,8 +2195,8 @@ export default function registerDetailedProposalEditor(Alpine, {
                 return false;
             }
 
-            const normalizedNote = this.plainText(note).toLowerCase().replace(/\s+/g, ' ');
-            const normalizedRelatedLiterature = this.plainText(this.relatedLiterature).toLowerCase().replace(/\s+/g, ' ');
+            const normalizedNote = note.replace(/\[\d+\]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const normalizedRelatedLiterature = this.plainText(this.relatedLiterature).replace(/\[\d+\]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
             if (normalizedNote && normalizedRelatedLiterature.includes(normalizedNote)) {
                 if (!quiet) this.literatureSourceNotice = 'That source already appears in the Review of Related Literature field.';
@@ -2197,7 +2205,10 @@ export default function registerDetailedProposalEditor(Alpine, {
 
             const referenceNumber = this.recordLiteratureCitation(source, 'related_literature', note);
             const marker = `<span data-proposal-citation="${Number(source.id)}"> [${referenceNumber}]</span>`;
-            const citedNote = note.includes(`[${referenceNumber}]`) ? note : `${note}${marker}`;
+            const escapedNote = this.escapeLiteratureHtml(note);
+            const citedNote = escapedNote.includes(`[${referenceNumber}]`)
+                ? escapedNote.replaceAll(`[${referenceNumber}]`, marker)
+                : `${escapedNote}${marker}`;
 
             this.relatedLiterature = this.appendLiteratureText(this.relatedLiterature, citedNote);
             this.synchronizeLiteratureCitations();
@@ -2868,7 +2879,7 @@ export default function registerDetailedProposalEditor(Alpine, {
                 const response = await fetch(config.downloadUrl, {
                     method: 'POST',
                     headers: {
-                        Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        Accept: 'application/json',
                         'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0',
                         'X-CSRF-TOKEN': config.csrfToken,
                     },

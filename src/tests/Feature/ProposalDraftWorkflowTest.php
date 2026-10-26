@@ -173,7 +173,7 @@ beforeEach(function () {
         'references' => 'Author, A. (2025). Coastal habitat restoration. Research Journal, 1(1), 1-10.',
     ];
 
-    $this->completeDraft = function (ProposalDraft $draft): ProposalDraft {
+    $this->completeDraft = function (ProposalDraft $draft, bool $prepare = true): ProposalDraft {
         $draft->update(($this->projectDetails)());
         $draft->update(['signatory_selections' => [
             'comment_response_head' => ['name' => 'Selected Research Head'],
@@ -244,7 +244,29 @@ beforeEach(function () {
         }
 
         $draft = $draft->fresh(['documents', 'researchCall']);
-        app(SubmitProposalDraft::class)->prepare($draft, $this->faculty);
+        if ($prepare) {
+            app(SubmitProposalDraft::class)->prepare($draft, $this->faculty);
+        }
+
+        return $draft->fresh(['documents', 'researchCall']);
+    };
+
+    $this->prepareExpenseLayoutDraft = function (): ProposalDraft {
+        $draft = ($this->completeDraft)(($this->createDraft)(), prepare: false);
+        foreach (app(ProposalPaperCatalog::class)->all()->except('expense-breakdown') as $paper) {
+            $path = $draft->storageDirectory().'/prepared/fixtures/'.$paper['slug'].'/paper.pdf';
+            Storage::disk('local')->put($path, "%PDF-1.7\n".$paper['slug']);
+            $draft->documents()->updateOrCreate([
+                'document_type' => $paper['document_type'],
+                'position' => 0,
+            ], [
+                'file_path' => $path,
+                'original_filename' => $paper['slug'].'.pdf',
+                'mime_type' => 'application/pdf',
+                'completed_at' => now(),
+            ]);
+        }
+        app(SubmitProposalDraft::class)->prepare($draft, $this->faculty, onlyMissing: true);
 
         return $draft->fresh(['documents', 'researchCall']);
     };
@@ -310,6 +332,50 @@ test('faculty update an unseen submitted package repeatedly without replacing it
         ->assertDontSee('Package update before review')->assertDontSee('Latest submitted package');
     $this->actingAs($this->head)->get(route('research_head.received-submissions.index', ['type' => 'update']))
         ->assertOk()->assertSee('Submission update')->assertViewHas('submissions', fn ($submissions): bool => $submissions->count() === 2);
+});
+
+test('edited proposal fields regenerate PDFs for Version 3 before Research Head review', function () {
+    Notification::fake();
+    Queue::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $preparation = app(ProposalPdfPreparation::class);
+
+    for ($number = 2; $number <= 3; $number++) {
+        $submitted = $topic->fresh()->latestVersion->files;
+        $previousContents = $submitted->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]);
+        $draft = app(CreateProposalRevisionDraft::class)->handle($topic->fresh(), $this->faculty);
+        $document = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+        $before = $draft->documents->keyBy('document_type')->map->file_path;
+
+        $this->actingAs($this->faculty)
+            ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $draft), [
+                ...$document->source_data,
+                'project_leader' => $draft->project_leader,
+                'draft_version' => $draft->lock_version,
+                'document_version' => $document->lock_version,
+                'related_literature' => 'Updated research evidence for Version '.$number.'.',
+            ])->assertOk()->assertJsonPath('saved_as_draft', false)->assertJsonPath('completion_errors', []);
+        $draft->refresh()->load('documents');
+        expect(app(ProposalDraftReadiness::class)->errors($draft))->toBe([])
+            ->and($preparation->status($draft)['prepared'])->toBe(6);
+        $this->postJson(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+            ->assertAccepted()->assertJsonPath('preparation.status', 'queued');
+        $preparation->run($draft->id);
+        $draft->refresh()->load('documents');
+        expect($preparation->status($draft)['status'])->toBe('ready')
+            ->and($preparation->status($draft)['prepared'])->toBe(7);
+        foreach ($draft->documents as $current) {
+            if ($current->document_type !== ProposalVersionFile::TYPE_DETAILED_PROPOSAL) {
+                expect($current->file_path)->toBe($before[$current->document_type]);
+            }
+        }
+        foreach ($previousContents as $path => $contents) {
+            expect(Storage::disk('local')->get($path))->toBe($contents);
+        }
+        $this->post(route('faculty.proposal-drafts.submit', $draft))->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
+        expect($topic->fresh()->latestVersion->version_number)->toBe($number)
+            ->and($topic->fresh()->latestVersion->files)->toHaveCount(7);
+    }
 });
 
 test('version two submission preserves saved form history when an older recovery PDF is missing', function () {
@@ -1097,6 +1163,107 @@ test('automatic PDFs regenerate affected files without changing editor versions 
     $currentPaths = $current->pluck('file_path')->all();
     $preparation->run($draft->id);
     expect($draft->fresh()->documents->pluck('file_path')->all())->toEqualCanonicalizing($currentPaths);
+});
+
+test('expense PDF layout changes regenerate only the outdated system PDF', function (?int $layoutVersion) {
+    Cache::flush();
+    Queue::fake();
+    config(['expense_breakdown.pdf_layout_version' => 2]);
+    $draft = ($this->prepareExpenseLayoutDraft)();
+    $before = $draft->documents->keyBy('document_type');
+    $expense = $before['expense_breakdown'];
+    $source = $expense->source_data;
+    unset($source['pdf_layout_version']);
+    if ($layoutVersion !== null) {
+        $source['pdf_layout_version'] = $layoutVersion;
+    }
+    $expense->updateQuietly(['source_data' => $source]);
+    $draft->refresh()->load('documents');
+    $preparation = app(ProposalPdfPreparation::class);
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft))->toBeFalse()
+        ->and($preparation->status($draft)['prepared'])->toBe(6);
+    $url = route('faculty.proposal-drafts.submission-files.download', [$draft, 'expense-breakdown']);
+    $this->actingAs($this->faculty)->get($url)->assertNotFound();
+    $this->get(route('faculty.proposal-drafts.review', $draft))
+        ->assertOk()->assertSee('Preview Estimated Expense Breakdown')->assertDontSee($url, false);
+    $this->postJson(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertAccepted()->assertJsonPath('preparation.status', 'queued');
+    $preparation->run($draft->id);
+    $current = $draft->fresh()->documents->keyBy('document_type');
+
+    expect($current['expense_breakdown']->file_path)->not->toBe($expense->file_path)
+        ->and($current['expense_breakdown']->source_data['pdf_layout_version'])->toBe(2)
+        ->and($current->pluck('lock_version', 'id')->all())->toBe($before->pluck('lock_version', 'id')->all())
+        ->and($preparation->status($draft->fresh())['status'])->toBe('ready');
+    foreach ($before as $type => $document) {
+        if ($type !== 'expense_breakdown') {
+            expect($current[$type]->file_path)->toBe($document->file_path);
+        }
+    }
+})->with(['legacy PDF' => null, 'previous layout' => 1]);
+
+test('expense PDF layout changes preserve manual uploads and locked draft files', function (string $state) {
+    Queue::fake();
+    config(['expense_breakdown.pdf_layout_version' => 2]);
+    $draft = ($this->prepareExpenseLayoutDraft)();
+    $expense = $draft->documents->firstWhere('document_type', 'expense_breakdown');
+    $path = match ($state) {
+        'manual replacement' => $draft->storageDirectory().'/prepared/manual/expense-breakdown/replacement.pdf',
+        'uploaded paper' => $draft->storageDirectory().'/expense-breakdown/uploaded.pdf',
+        default => $expense->file_path,
+    };
+    $contents = "%PDF-1.7\nPreserved expense paper";
+    Storage::disk('local')->put($path, $contents);
+    $expense->updateQuietly([
+        'file_path' => $path,
+        'source_data' => [...$expense->source_data, 'pdf_layout_version' => 1],
+    ]);
+    if ($state === 'locked draft') {
+        $draft->updateQuietly(['status' => ProposalDraft::STATUS_SUBMITTING]);
+    }
+    $draft->refresh()->load('documents');
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft))->toBeTrue();
+    app(ProposalPdfPreparation::class)->run($draft->id);
+    expect($expense->fresh()->file_path)->toBe($path)
+        ->and(Storage::disk('local')->get($path))->toBe($contents);
+    $download = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.submission-files.download', [$draft, 'expense-breakdown']))
+        ->assertOk()->assertDownload($expense->original_filename);
+    expect($download->streamedContent())->toBe($contents);
+})->with(['manual replacement', 'uploaded paper', 'locked draft']);
+
+test('expense PDF layout metadata keeps the current review preview and download identical', function () {
+    Queue::fake();
+    config(['expense_breakdown.pdf_layout_version' => 2]);
+    $draft = ($this->prepareExpenseLayoutDraft)();
+    $expense = $draft->documents->firstWhere('document_type', 'expense_breakdown');
+    $preparation = app(ProposalPdfPreparation::class);
+    expect($expense->source_data['pdf_layout_version'] ?? null)->toBe(2)
+        ->and($preparation->status($draft)['prepared'])->toBe(7)
+        ->and($preparation->status($draft)['status'])->toBe('ready');
+    $preparation->run($draft->id);
+    expect($expense->fresh()->file_path)->toBe($expense->file_path);
+
+    $url = route('faculty.proposal-drafts.submission-files.download', [$draft, 'expense-breakdown']);
+    $review = $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.review', $draft))->assertOk();
+    $dom = new DOMDocument;
+    @$dom->loadHTML(str_replace('@click=', 'data-click=', $review->getContent()));
+    $xpath = new DOMXPath($dom);
+    $article = $xpath->query('//article[.//h4[normalize-space(.)="Estimated Expense Breakdown"]]')->item(0);
+    expect($article)->not->toBeNull()
+        ->and($xpath->query('.//a[@href="'.$url.'"]', $article)->length)->toBe(1);
+    $preview = $xpath->query('.//button[normalize-space(.)="Preview prepared PDF"]', $article)->item(0);
+    expect($preview)->not->toBeNull();
+    preg_match("/JSON\\.parse\\('(.*)'\\)/", $preview->getAttribute('data-click'), $matches);
+    $previewOptions = json_decode(json_decode('"'.$matches[1].'"', flags: JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
+    expect($previewOptions['previewUrl'])->toBe($url);
+
+    $previewResponse = $this->get($url)->assertOk();
+    $downloadResponse = $this->get($url)->assertDownload($expense->original_filename);
+    expect($previewResponse->streamedContent())->toBe(Storage::disk('local')->get($expense->file_path))
+        ->and($downloadResponse->streamedContent())->toBe($previewResponse->streamedContent());
 });
 
 test('PDF preparation retries temporary failures within a durable limit and preserves recovery and submitted files', function () {

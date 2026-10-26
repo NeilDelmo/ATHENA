@@ -52,7 +52,7 @@ beforeEach(function () {
             'reporting_year' => 2026, 'reporting_quarter' => 1, 'version_number' => 1,
             'progress_percentage' => 30, 'accomplishments' => 'Field work complete.', 'submitted_at' => now(),
             'official_pdf_path' => ($this->store)('progress-reports/'.$this->topic->id.'/'.Str::uuid().'.pdf'),
-            'official_pdf_filename' => 'monitoring.pdf', ...$attributes,
+            'official_pdf_filename' => 'monitoring.pdf', 'official_pdf_checksum' => hash('sha256', '%PDF-1.7 official paper'), ...$attributes,
         ]);
     };
     $this->narrative = function (array $attributes = []) {
@@ -63,7 +63,7 @@ beforeEach(function () {
             'introduction' => 'Water research.', 'objectives' => 'Measure water quality.',
             'methodology' => 'Field sampling.', 'results_discussion' => 'Samples collected.', 'photos' => [],
             'submitted_at' => now(), 'official_pdf_path' => ($this->store)('narrative-progress-reports/'.$this->topic->id.'/'.Str::uuid().'.pdf'),
-            'official_pdf_filename' => 'progress.pdf', ...$attributes,
+            'official_pdf_filename' => 'progress.pdf', 'official_pdf_checksum' => hash('sha256', '%PDF-1.7 official paper'), ...$attributes,
         ]);
     };
     $this->readArchive = function (?User $viewer = null): array {
@@ -217,12 +217,59 @@ test('archive preserves terminal report signed copies and figures with submitted
     ($this->narrative)([
         'report_type' => 'terminal',
         'photos' => [['path' => $figurePath, 'original_name' => 'poster.jpg']],
-        'terminal_data' => ['signed_copy' => ['path' => $signedPath, 'original_filename' => 'signed-terminal.pdf']],
+        'terminal_data' => ['signed_copy' => ['path' => $signedPath, 'original_filename' => 'signed-terminal.pdf', 'checksum' => hash('sha256', '%PDF-1.7 official paper')]],
     ]);
     $entries = ($this->readArchive)();
     expect(implode('\n', array_keys($entries)))->toContain('progress-proof.pdf', 'poster.jpg', 'signed-terminal.pdf')
         ->and(implode('\n', $entries))->toContain('poster-image');
 });
+
+test('archives mark changed report PDFs as unavailable', function (string $kind, string $damage) {
+    $report = $kind === 'monitoring' ? ($this->monitoring)() : ($this->narrative)(['report_type' => $kind === 'signed' ? 'terminal' : $kind]);
+    $path = $report->official_pdf_path;
+    $filename = $report->official_pdf_filename;
+    if ($kind === 'signed') {
+        $path = ($this->store)('narrative-progress-reports/'.$this->topic->id.'/signed/terminal.pdf');
+        $filename = 'signed-terminal.pdf';
+        $signed = ['path' => $path, 'original_filename' => $filename, 'checksum' => hash('sha256', '%PDF-1.7 official paper')];
+        if ($damage === 'unchecked') {
+            unset($signed['checksum']);
+        }
+        $report->update(['terminal_data' => ['signed_copy' => $signed]]);
+    } elseif ($damage === 'unchecked') {
+        $report->update(['official_pdf_checksum' => null]);
+    }
+    if ($damage !== 'unchecked') {
+        Storage::disk('local')->put($path, $damage === 'empty' ? '' : '%PDF-1.7 altered official report');
+    }
+
+    $entries = ($this->readArchive)();
+    $manifest = json_decode($entries['manifest.json'], true, flags: JSON_THROW_ON_ERROR);
+    $file = collect($manifest['files'])->firstWhere('filename', $filename);
+    expect($file['status'])->toBe('unavailable')
+        ->and($entries)->not->toHaveKey($file['archive_path'])
+        ->and($manifest['missing_files'])->toBe(1)
+        ->and($entries['INDEX.txt'])->toContain('INCOMPLETE');
+})->with(['monitoring', 'progress', 'terminal', 'signed'])->with(['replaced', 'empty', 'unchecked']);
+
+test('unsafe report paths do not abort the project archive', function (string $kind, string $path) {
+    if ($kind === 'signed') {
+        ($this->narrative)(['report_type' => 'terminal', 'terminal_data' => ['signed_copy' => [
+            'path' => $path, 'original_filename' => 'unsafe-report.pdf', 'checksum' => hash('sha256', 'unsafe report'),
+        ]]]);
+    } else {
+        ($kind === 'monitoring' ? $this->monitoring : $this->narrative)([
+            'official_pdf_path' => $path, 'official_pdf_filename' => 'unsafe-report.pdf',
+        ]);
+    }
+    $entries = ($this->readArchive)();
+    $manifest = json_decode($entries['manifest.json'], true, flags: JSON_THROW_ON_ERROR);
+    $file = collect($manifest['files'])->firstWhere('filename', 'unsafe-report.pdf');
+    expect($file['status'])->toBe('unavailable')
+        ->and($manifest['missing_files'])->toBe(1)
+        ->and($entries)->not->toHaveKey($file['archive_path'])
+        ->and($entries['INDEX.txt'])->toContain('INCOMPLETE');
+})->with(['monitoring', 'progress', 'signed'])->with(['../outside.pdf', 'C:\\private\\report.pdf']);
 
 test('archive construction removes its temporary zip when storage fails', function () {
     $this->topic->projectDocuments()->create([

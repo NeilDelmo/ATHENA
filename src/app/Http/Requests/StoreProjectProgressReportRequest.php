@@ -62,7 +62,9 @@ class StoreProjectProgressReportRequest extends FormRequest
 
         return [
             ...app(MonitoringEvidenceService::class)->rules($this),
-            'reporting_date' => ['required', 'date', 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
+            'draft_version' => ['sometimes', 'integer', 'min:0'],
+            'draft_id' => ['sometimes', 'integer', 'min:0'],
+            'reporting_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
             'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],

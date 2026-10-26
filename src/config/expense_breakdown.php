@@ -2,6 +2,7 @@
 
 return [
     'template_path' => resource_path('documents/Estimated Breakdown and Details of Expenses.xlsx'),
+    'pdf_layout_version' => 2,
     'max_items' => 100,
     'maximum_quantity' => 1000000,
     'maximum_unit_cost' => 1000000000,

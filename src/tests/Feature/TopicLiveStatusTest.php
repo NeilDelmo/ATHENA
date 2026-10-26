@@ -67,6 +67,53 @@ test('live report status hides unforwarded reports from the head and invalidates
     expect($this->getJson($this->url)->assertSuccessful()->json('reports.'.$key.'.actions'))->toBeEmpty();
 });
 
+test('office secretary live status and snapshots exclude terminal reports', function () {
+    $terminal = ProjectNarrativeReport::create([
+        'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id, 'report_type' => 'terminal',
+        'submission_date' => '2026-12-31', 'researchers' => $this->researcher->name,
+        'implementation_start' => '2026-01-01', 'implementation_end' => '2026-12-31',
+        'budget' => 100, 'funding_agency' => 'University', 'accomplishment_summary' => 'Final report',
+        'introduction' => 'Introduction', 'objectives' => 'Objectives', 'methodology' => 'Methods',
+        'results_discussion' => 'Results', 'photos' => [],
+    ]);
+    $secretary = User::factory()->create(['college' => 'CICS']);
+    $secretary->assignRole(['research_secretary', 'faculty_researcher']);
+    $this->topic->collaborators()->create([
+        'user_id' => $secretary->id, 'name' => $secretary->name, 'email' => $secretary->email, 'accepted_at' => now(),
+    ]);
+    $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
+    $reports = $this->getJson($this->url)->assertSuccessful()->json('reports');
+    expect($reports)->toHaveKey('monitoring:'.$this->report->id)->not->toHaveKey('terminal:'.$terminal->id);
+    $page = $this->get(route('topics.show', $this->topic))->assertSuccessful();
+    preg_match('/data-live-snapshot="([^"]+)"/', $page->getContent(), $match);
+    $snapshot = json_decode(html_entity_decode($match[1], ENT_QUOTES), true, flags: JSON_THROW_ON_ERROR);
+    expect($snapshot['reports'])->not->toHaveKey('terminal:'.$terminal->id);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+    expect($this->getJson($this->url)->assertSuccessful()->json('reports'))->toHaveKey('terminal:'.$terminal->id);
+});
+
+test('the project leader can open a members prepared monitoring tool from live status', function () {
+    $member = User::factory()->create();
+    $member->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create([
+        'user_id' => $member->id, 'name' => $member->name, 'email' => $member->email, 'accepted_at' => now(),
+    ]);
+    $this->report->update(['submission_status' => 'prepared', 'submitted_by' => $member->id]);
+    $this->actingAs($this->researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+    $record = $this->getJson($this->url)->assertSuccessful()->json('reports.monitoring:'.$this->report->id);
+    $url = route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']);
+    expect($record['actions'])->toHaveCount(1)->and($record['actions'][0]['url'])->toBe($url)
+        ->and($record['url'])->toBe($url);
+    $page = $this->get(route('topics.show', $this->topic))->assertSuccessful();
+    $document = new DOMDocument;
+    @$document->loadHTML($page->getContent());
+    $xpath = new DOMXPath($document);
+    $link = $xpath->query('//*[@data-monitoring-quarter="1"]//a[@data-monitoring-action]')->item(0);
+    expect($link?->getAttribute('href'))->toBe($url);
+    $this->get($url)->assertSuccessful()->assertSee('Submit to Research Office Secretary');
+});
+
 test('live proposal workflow exposes the current action without returning proposal paper contents', function () {
     $this->topic->update(['status' => 'pending', 'notice_to_proceed_issued_at' => null]);
     $this->researcher->assignRole('faculty');

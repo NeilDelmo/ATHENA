@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -87,12 +88,24 @@ class ResearchCallController extends Controller
         $validated = $request->validated();
         $imagePath = $request->file('reference_image')?->store('research-calls', 'local');
 
-        $call = ResearchCall::create([
-            ...collect($validated)->except('reference_image')->all(),
-            'maximum_budget' => ResearchCall::MAXIMUM_BUDGET,
-            'reference_image_path' => $imagePath,
-            'created_by' => $request->user()->id,
-        ]);
+        if ($imagePath === false) {
+            throw new RuntimeException('The research-call poster could not be stored.');
+        }
+
+        try {
+            $call = ResearchCall::create([
+                ...collect($validated)->except('reference_image')->all(),
+                'maximum_budget' => ResearchCall::MAXIMUM_BUDGET,
+                'reference_image_path' => $imagePath,
+                'created_by' => $request->user()->id,
+            ]);
+        } catch (Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('local')->delete($imagePath);
+            }
+
+            throw $exception;
+        }
         if ($call->isAcceptingSubmissions()) {
             $this->openingNotifications->process($call, includeReminder: false);
         }
@@ -105,6 +118,11 @@ class ResearchCallController extends Controller
         $validated = $request->validated();
         $oldImagePath = $researchCall->reference_image_path;
         $newImagePath = $request->file('reference_image')?->store('research-calls', 'local');
+
+        if ($newImagePath === false) {
+            throw new RuntimeException('The research-call poster could not be stored.');
+        }
+
         $attributes = collect($validated)->except('reference_image')->all();
         $attributes['maximum_budget'] = ResearchCall::MAXIMUM_BUDGET;
         $attributes['reference_image_path'] = $newImagePath ?? $oldImagePath;

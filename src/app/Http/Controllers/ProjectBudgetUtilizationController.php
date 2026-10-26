@@ -16,6 +16,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProjectBudgetUtilizationController extends Controller
@@ -90,34 +92,65 @@ class ProjectBudgetUtilizationController extends Controller
         MonitoringToolDocumentService $documentService,
         DocumentPdfConverter $pdfConverter,
     ): RedirectResponse {
+        if (! hash_equals($report->budgetToken(), $request->validated('budget_token'))) {
+            throw ValidationException::withMessages([
+                'budget_token' => 'This budget changed after you opened the form. Reload the current budget before saving again.',
+            ]);
+        }
         $report->loadMissing(['topic.user', 'submitter', 'reviewer']);
         $report->fill([
             'budget_utilization' => $request->validated('budget_utilization'),
             'budget_prepared_by' => $request->user()->id,
             'budget_prepared_at' => now(),
         ]);
+        $previousPdfPath = $report->official_pdf_path;
+        $updatedPdfPath = null;
 
         try {
             $pdf = $pdfConverter->convertDocx($documentService->generate($report));
+            $report = DB::transaction(function () use ($request, $topic, $report, $pdf, &$updatedPdfPath): ProjectProgressReport {
+                $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+                $lockedReport = ProjectProgressReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+                if (! $lockedReport->isPrepared() || $lockedReport->topic_id !== $lockedTopic->id
+                    || ! $lockedTopic->canPrepareMonitoringBudget($request->user())
+                    || ! hash_equals($lockedReport->budgetToken(), $request->validated('budget_token'))) {
+                    throw ValidationException::withMessages([
+                        'budget_utilization' => 'This Monitoring Tool changed or is no longer editable. Reload the report before saving its budget.',
+                    ]);
+                }
+                if (! filled($lockedReport->official_pdf_path)) {
+                    throw new \RuntimeException('The prepared Monitoring Tool PDF is unavailable.');
+                }
+                $updatedPdfPath = 'progress-reports/'.$topic->id.'/prepared/'.Str::uuid().'.pdf';
+                if (! Storage::disk('local')->put($updatedPdfPath, $pdf)) {
+                    throw new \RuntimeException('The updated Monitoring Tool PDF could not be stored.');
+                }
+                $lockedReport->fill([
+                    ...$report->only(['budget_utilization', 'budget_prepared_by', 'budget_prepared_at']),
+                    'official_pdf_path' => $updatedPdfPath,
+                    'official_pdf_checksum' => hash('sha256', $pdf),
+                    'official_pdf_size' => strlen($pdf),
+                ])->save();
 
-            if (! filled($report->official_pdf_path) || ! Storage::disk('local')->put($report->official_pdf_path, $pdf)) {
-                throw new \RuntimeException('The updated Monitoring Tool PDF could not be stored.');
-            }
-
-            $report->fill([
-                'official_pdf_checksum' => hash('sha256', $pdf),
-                'official_pdf_size' => strlen($pdf),
-            ])->save();
+                return $lockedReport->setRelation('topic', $lockedTopic);
+            });
         } catch (\Throwable $exception) {
+            if ($updatedPdfPath !== null) {
+                Storage::disk('local')->delete($updatedPdfPath);
+            }
+            if ($exception instanceof ValidationException) {
+                throw $exception;
+            }
             report($exception);
 
             return back()->withInput()->withErrors([
                 'budget_utilization' => 'The budget could not be applied to the prepared Monitoring Tool. Please try again.',
             ]);
         }
+        Storage::disk('local')->delete($previousPdfPath);
 
         $budgetPreparer = $request->user();
-        $preparerLabel = $topic->research_secretary_id === $budgetPreparer->id
+        $preparerLabel = $report->topic->research_secretary_id === $budgetPreparer->id
             ? 'The assigned project secretary'
             : $budgetPreparer->name;
 

@@ -60,6 +60,10 @@ class StoreResearchCallRequest extends FormRequest
                 ['lrec_start_date', 'lrec_end_date'],
                 ['implementation_start_date', 'implementation_end_date'],
             ] as [$startField, $endField]) {
+                if ($validator->errors()->hasAny([$startField, $endField])) {
+                    continue;
+                }
+
                 $start = $this->input($startField);
                 $end = $this->input($endField);
 

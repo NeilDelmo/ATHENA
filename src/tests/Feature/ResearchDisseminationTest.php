@@ -94,6 +94,71 @@ test('completed projects retain dissemination access and preserve archived monit
     $this->post(route('project-progress.store', $this->topic))->assertForbidden();
 });
 
+test('dissemination validation recovery stays with its project and form', function (string $kind, string $destination) {
+    $marker = 'Unfinished venue from project A';
+    $source = route('research.dissemination.show', $this->topic);
+    $payload = $kind === 'journal'
+        ? ['journal_name' => $marker, 'manuscript_title' => 'Project A manuscript', 'status' => 'invalid', 'journal_submission_id' => '']
+        : ['title' => $marker, 'url' => 'https://example.org/project-a', 'status' => 'invalid', 'conference_id' => 'new'];
+    if ($destination === 'malformed') {
+        $payload['journal_submission_id'] = ['invalid'];
+        $payload['conference_id'] = ['invalid'];
+    }
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($source)->post(route($kind === 'journal' ? 'research.dissemination.journal-submissions.store' : 'research.dissemination.conferences.store', $this->topic), $payload)
+        ->assertSessionHasErrors('status');
+    $target = $destination === 'other' ? TopicProposal::create([
+        'user_id' => $this->researcher->id, 'title' => 'Other archived project',
+        'status' => 'approved', 'project_status' => 'completed',
+    ]) : $this->topic;
+    $response = $this->get(route('research.dissemination.show', $target))->assertSuccessful();
+    if ($destination === 'other') {
+        $response->assertDontSee($marker)->assertDontSee('Please correct these details:');
+    } else {
+        $response->assertSee($marker);
+    }
+})->with(['journal', 'conference'])->with(['same', 'other', 'malformed']);
+
+test('failed dissemination edits restore only the record from the update route', function (string $kind) {
+    $factory = $kind === 'journal' ? ProjectJournalSubmission::factory() : ProjectConference::factory();
+    $record = $factory->create(['topic_id' => $this->topic->id, 'added_by' => $this->researcher->id]);
+    $other = $factory->create(['topic_id' => $this->topic->id, 'added_by' => $this->researcher->id]);
+    $update = route($kind === 'journal' ? 'research.dissemination.journal-submissions.update' : 'research.dissemination.conferences.update', [$this->topic, $record]);
+    $source = route('research.dissemination.show', $this->topic);
+    $payload = $kind === 'journal'
+        ? ['journal_name' => $record->journal_name, 'manuscript_title' => $record->manuscript_title]
+        : ['title' => $record->title, 'url' => $record->url];
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($source)->patch($update, [...$payload, 'status' => 'invalid', 'notes' => 'Keep this failed edit',
+        'journal_submission_id' => $other->id, 'conference_id' => $other->id,
+    ])->assertSessionHasErrors('status');
+    $response = $this->get($source)->assertSuccessful();
+    if ($kind === 'journal') {
+        $response->assertSee('Please correct these details:');
+    }
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $form = $xpath->query('//form[@action="'.$update.'"]')->item(0);
+    expect($xpath->query('.//textarea[@name="notes"]', $form)->item(0)->textContent)->toBe('Keep this failed edit')
+        ->and($xpath->query('ancestor::details[1]', $form)->item(0)->hasAttribute('open'))->toBeTrue();
+    $otherUpdate = route($kind === 'journal' ? 'research.dissemination.journal-submissions.update' : 'research.dissemination.conferences.update', [$this->topic, $other]);
+    expect($xpath->query('//form[@action="'.$otherUpdate.'"]//textarea[@name="notes"]')->item(0)->textContent)->toBe('');
+})->with(['journal', 'conference']);
+
+test('expired conference search results preserve the failed form and display the expiry error', function () {
+    $source = route('research.dissemination.show', $this->topic);
+    $this->withCookie(config('session.cookie'), session()->getId());
+    $this->from($source)->post(route('research.dissemination.conferences.store', $this->topic), [
+        'conference_id' => 'new', 'candidate_key' => str_repeat('a', 64),
+        'title' => 'Unsaved conference from an expired search', 'url' => 'https://example.org/conference',
+        'status' => 'shortlisted', 'notes' => 'Keep my notes after expiry',
+    ])->assertSessionHasErrors('conference');
+    $this->get($source)->assertSuccessful()->assertSee('This search result expired.')
+        ->assertSee('Unsaved conference from an expired search')->assertSee('Keep my notes after expiry');
+    expect(ProjectConference::count())->toBe(0);
+});
+
 test('journal finder ranks venues from related articles without creating publication records', function () {
     Http::fake([
         'api.openalex.org/works*' => Http::response([
@@ -312,13 +377,13 @@ test('papers from another author cannot be silently imported and provider failur
     $this->postJson(route('research.dissemination.conferences.search', $this->topic), ['query' => 'coastal'])->assertStatus(503);
 });
 
-test('DOI lookup supports confirmed imports and manual entries deduplicate without losing project links', function () {
+test('DOI lookup supports confirmed imports and manual entries deduplicate without losing project links', function (string $doi) {
     Http::fake(['api.openalex.org/works?*' => Http::response(['results' => [disseminationWork()], 'meta' => ['count' => 1]])]);
-    $this->postJson(route('research.dissemination.doi', $this->topic), ['doi' => 'https://doi.org/10.1234/COASTAL'])->assertOk()->assertJsonPath('paper.doi', '10.1234/coastal');
+    $this->postJson(route('research.dissemination.doi', $this->topic), ['doi' => $doi])->assertOk()->assertJsonPath('paper.doi', '10.1234/coastal');
     $this->postJson(route('research.dissemination.import', $this->topic), ['work_id' => 'W456', 'lookup_doi' => '10.1234/coastal', 'confirmed' => true])->assertOk();
     $this->post(route('research.dissemination.manual', $this->topic), [
         'title' => 'Same paper', 'authors' => 'Researcher', 'year' => 2026, 'type' => 'journal-article',
-        'doi' => 'https://doi.org/10.1234/COASTAL', 'confirmed' => true,
+        'doi' => $doi, 'confirmed' => true,
     ])->assertSessionHasNoErrors();
     expect(ResearchPublication::count())->toBe(1);
     $publication = ResearchPublication::firstOrFail();
@@ -327,7 +392,11 @@ test('DOI lookup supports confirmed imports and manual entries deduplicate witho
     $this->delete(route('research.dissemination.unlink', [$this->topic, $publication]))->assertSessionHasNoErrors();
     expect($this->topic->publications()->count())->toBe(0)->and($other->publications()->count())->toBe(1);
     $this->assertModelExists($publication);
-});
+})->with([
+    'https://doi.org/10.1234/COASTAL',
+    'https://dx.doi.org/10.1234/COASTAL',
+    'DOI: https://doi.org/10.1234/COASTAL',
+]);
 
 test('conference discovery parses real table rows keeps deadlines distinct and saves source snapshots', function () {
     Http::fake(['www.wikicfp.com/*' => Http::response(<<<'HTML'

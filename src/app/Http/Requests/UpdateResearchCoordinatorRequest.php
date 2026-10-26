@@ -34,7 +34,7 @@ class UpdateResearchCoordinatorRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if ($this->string('action')->toString() !== 'assign') {
+                if ($this->input('action') !== 'assign') {
                     return;
                 }
 

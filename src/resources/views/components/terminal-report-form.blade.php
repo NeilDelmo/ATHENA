@@ -1,8 +1,12 @@
 @props(['topic', 'draft' => null, 'defaults' => [], 'evidence' => [], 'standalone' => false, 'draftRecoveryState' => null])
 @php
-    $data = app(\App\Support\TerminalReportData::class)->normalize($topic, [...array_replace($defaults, $draft?->source_data ?? []), 'accomplishments' => old('accomplishments', $draft?->source_data['accomplishments'] ?? $defaults['accomplishments'] ?? [])]);
+    $restoreTerminalInput = old('report_type') === 'terminal';
+    $old = fn ($key, $fallback = null) => $restoreTerminalInput ? old($key, $fallback) : $fallback;
+    $draftVersion = (int) $old('draft_version', $draft?->lock_version ?? 0);
+    $draftId = (int) $old('draft_id', $draft?->id ?? 0);
+    $data = app(\App\Support\TerminalReportData::class)->normalize($topic, [...array_replace($defaults, $draft?->source_data ?? []), 'accomplishments' => $old('accomplishments', $draft?->source_data['accomplishments'] ?? $defaults['accomplishments'] ?? [])]);
     $terminal = $data['terminal_data'] ?? [];
-    $value = fn ($key, $fallback = '') => old($key, data_get($data, $key, $fallback));
+    $value = fn ($key, $fallback = '') => $old($key, data_get($data, $key, $fallback));
     $input = 'mt-2 block min-h-12 w-full rounded-xl border-gray-300 bg-white px-3 py-2.5 text-base text-gray-950 shadow-sm transition placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
     $authors = $value('terminal_data.authors', []);
     $accomplishments = $data['accomplishments'] ?: [['objective' => '', 'target' => '', 'actual' => '']];
@@ -28,10 +32,10 @@
     data-proposal-paper-workspace
     data-monitoring-paper-workspace
     data-narrative-progress-autosave="true"
-    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), previewTitle: 'Terminal Report preview', draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token()), submissionOpen: @js($submissionOpen), submissionOpensAt: @js($submissionOpensAt)})"
+    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), previewTitle: 'Terminal Report preview', draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js($draftVersion), csrfToken: @js(csrf_token()), submissionOpen: @js($submissionOpen), submissionOpensAt: @js($submissionOpensAt)})"
 >
     <x-proposal-collaboration-monitor
-        :loaded-version="$draft?->lock_version ?? 0"
+        :loaded-version="$draftVersion"
         :state-url="route('project-report-drafts.edit-state', ['topic' => $topic, 'kind' => 'terminal', 'reportingDate' => 'terminal', 'source' => 0])"
         :state-scope="$draftRecoveryState['scope'] ?? null"
         :reload-url="route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => 'terminal'])"
@@ -65,7 +69,8 @@
     >
         @csrf
         <input type="hidden" name="report_type" value="terminal">
-        <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
+        <input type="hidden" name="draft_version" value="{{ $draftVersion }}">
+        <input type="hidden" name="draft_id" value="{{ $draftId }}">
         <input type="hidden" name="recovery_scope" value="{{ $draftRecoveryState['scope'] ?? '' }}">
         <x-assistant-report-editor :context="['report_type' => 'terminal-report', 'topic_id' => $topic->id]" />
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open {{ $submissionOpensAt }}.</p>

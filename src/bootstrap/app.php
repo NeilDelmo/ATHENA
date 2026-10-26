@@ -35,15 +35,13 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*')
-                || ($request->hasHeader('X-Athena-Upload-ID') && $request->expectsJson())
+            fn (Request $request) => $request->expectsJson()
+                || $request->is('api/*')
                 || $request->routeIs('research-support.chat')
                 || $request->routeIs('research-manuals.guidance-check')
-                || ($request->expectsJson() && $request->routeIs('research-manuals.show'))
                 || $request->routeIs('research-support.proposal-changes.resolve')
                 || $request->routeIs('research-support.report-changes.resolve')
                 || $request->routeIs('research-support.history', 'research-support.history.*', 'research-support.contexts')
-                || ($request->expectsJson() && $request->routeIs('research.dissemination.*'))
                 || $request->routeIs(
                     'research-support.literature-*',
                     'research-support.conference-search',
@@ -57,42 +55,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 || $request->routeIs(
                     'faculty.proposal-drafts.work-plan.preview',
                     'faculty.proposal-drafts.work-plan.download',
-                )
-                || ($request->expectsJson() && $request->routeIs(
-                    'research_coordinator.reports.*',
-                    'research_head.quarterly-reports.*',
-                    'research_head.rms-quarterly-reports.*',
-                    'workspace.store',
-                    'role-selection.store',
-                    'topics.head-uploads.store',
-                    'topics.versions.files.annotations.store',
-                    'topics.versions.files.annotations.update',
-                    'topics.versions.files.annotations.destroy',
-                    'faculty.proposal-drafts.details.update',
-                    'faculty.proposal-drafts.revision-files.store',
-                    'faculty.topics.revision.preview',
-                    'faculty.proposal-drafts.detailed-proposal.download',
-                    'faculty.proposal-drafts.curriculum-vitae.download',
-                    'faculty.proposal-drafts.detailed-proposal.update',
-                    'faculty.proposal-drafts.work-plan.update',
-                    'faculty.proposal-drafts.line-item-budget.update',
-                    'faculty.proposal-drafts.line-item-budget.preview',
-                    'faculty.proposal-drafts.line-item-budget.download',
-                    'faculty.proposal-drafts.expense-breakdown.update',
-                    'faculty.proposal-drafts.expense-breakdown.preview',
-                    'faculty.proposal-drafts.expense-breakdown.download',
-                    'faculty.proposal-drafts.curriculum-vitae.update',
-                    'project-progress.draft',
-                    'project-report-drafts.edit-state',
-                    'notifications.read',
-                    'notifications.read-all',
-                    'notifications.open',
-                    'project-narrative-reports.draft',
-                    'project-narrative-reports.preview',
-                    'project-progress.preview',
-                    'research_head.topics.notice-to-proceed.store',
-                    'research_head.projects.workspace.update',
-                    'research_head.projects.workspace.documents',
-                )),
+                ),
         );
     })->create();

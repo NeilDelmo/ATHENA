@@ -59,6 +59,9 @@ class ProjectReportReviewService
             if ($report->review_status !== 'pending') {
                 throw ValidationException::withMessages(['review' => 'This report has already been reviewed. Reload the project.']);
             }
+            if ($status === 'reviewed' && filled($report->official_pdf_path) && ! $this->hasAvailablePdf($report)) {
+                throw ValidationException::withMessages(['review' => 'The submitted report PDF is unavailable or changed. Request a corrected submission before accepting it.']);
+            }
             $report->update([
                 'review_stage' => $status === 'reviewed' ? 'head' : 'secretary',
                 'review_status' => $status === 'reviewed' ? 'reviewed' : 'pending',
@@ -100,13 +103,26 @@ class ProjectReportReviewService
         }
     }
 
-    private function hasAvailablePdf(ProjectProgressReport|ProjectNarrativeReport $report): bool
+    public function hasAvailablePdf(ProjectProgressReport|ProjectNarrativeReport $report): bool
     {
         if (filled($report->official_pdf_path)) {
-            return filled($report->official_pdf_filename) && Storage::disk('local')->exists($report->official_pdf_path);
+            return filled($report->official_pdf_filename) && filled($report->official_pdf_checksum)
+                && Storage::disk('local')->exists($report->official_pdf_path)
+                && Storage::disk('local')->size($report->official_pdf_path) > 0
+                && hash_equals($report->official_pdf_checksum, hash_file('sha256', Storage::disk('local')->path($report->official_pdf_path)));
         }
 
         return $report instanceof ProjectNarrativeReport || is_array($report->work_plan) && is_array($report->budget_utilization);
+    }
+
+    public function hasAvailableSignedCopy(ProjectNarrativeReport $report): bool
+    {
+        $signedCopy = $report->signedCopy();
+
+        return $report->hasSignedCopy() && is_string($signedCopy['checksum'] ?? null)
+            && Storage::disk('local')->exists($signedCopy['path'])
+            && Storage::disk('local')->size($signedCopy['path']) > 0
+            && hash_equals($signedCopy['checksum'], hash_file('sha256', Storage::disk('local')->path($signedCopy['path'])));
     }
 
     private function notify(Collection $recipients, ProjectProgressReport|ProjectNarrativeReport $report, string $title, string $message, string $workspace, string $level = 'info'): void

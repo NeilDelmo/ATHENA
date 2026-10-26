@@ -19,6 +19,28 @@ const earlierHtml = '<p>Last good paper</p>';
 const currentHtml = '<p>Current paper</p>';
 const flushPreview = () => new Promise((resolve) => setImmediate(resolve));
 
+test('CV Word downloads negotiate field errors and display them without downloading a file', async () => {
+    const componentStart = app.indexOf("Alpine.data('proposalDraftCurriculumVitae',");
+    const methodStart = app.indexOf('    async downloadDocument()', componentStart);
+    const method = app.slice(methodStart, app.indexOf('    printPreview()', methodStart));
+    let requestedAccept;
+    const state = runInNewContext(`(config => ({ ${method} }))`, {
+        Error,
+        isEmbeddedRevisionEditor: () => false,
+        fetch: async (_url, options) => {
+            requestedAccept = options.headers.Accept;
+            return Response.json({ errors: { 'people.0.email': ['Enter a valid email.'] } }, { status: 422 });
+        },
+    })({ downloadUrl: '/cv/download', csrfToken: 'csrf-token' });
+    state.validateForm = () => true;
+    state.formData = () => new FormData();
+    await state.downloadDocument();
+
+    assert.equal(requestedAccept, 'application/json');
+    assert.equal(state.validationMessage, 'Enter a valid email.');
+    assert.equal(state.downloadLoading, false);
+});
+
 function editor(t, name) {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const componentStart = app.indexOf(`Alpine.data('${name}',`);

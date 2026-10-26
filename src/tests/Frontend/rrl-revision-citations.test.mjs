@@ -76,7 +76,7 @@ test('accepting a reordered RRL preserves source locators and saves synchronized
                 literatureSources:[{id:42,reference:'Local reporting study.'},{id:43,reference:'Village monitoring study.'}],
                 literatureCitations:[{source_link_id:42,field:'related_literature',locator:'p. 8'},
                     {source_link_id:43,field:'related_literature',locator:'pp. 3, 5'}],
-                methodology:{},specificObjectives:[],proposalChangeApplying:false,proposalChangeAppliedIds:[],
+                methodology:{},methodologyImages:[],specificObjectives:[],proposalChangeApplying:false,proposalChangeAppliedIds:[],
                 proposalChangeNotice:'',proposalChangeError:'',autoSaveBlocked:false,autoSaveInFlight:false,autoSaveRevision:0,
                 init(){this.$nextTick(()=>{initializeSemanticEditors();this.lastSavedDetailedProposal=this.detailedProposalFingerprint(this.$refs.form);window.editorReady=true;});},
                 markProposalPreviewStale(){},focusProposalRequirement(){},applySavedMethodologyImages(){},updateDetailedProposalCompletionStatus(){},

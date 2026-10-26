@@ -84,6 +84,7 @@ class SidebarAttentionService
             ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS => 'faculty.submissions',
             ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS => 'research.index',
             ProposalActivityNotification::SIDEBAR_AREA_RMS_REPORTS => 'research_head.rms-quarterly-reports.index',
+            ProposalActivityNotification::SIDEBAR_AREA_RESEARCH_OUTCOMES => 'research-outcomes.index',
         };
     }
 
@@ -93,6 +94,7 @@ class SidebarAttentionService
     private function availableAreasFor(User $user): array
     {
         return match ($user->activeWorkspace()) {
+            User::WORKSPACE_RESEARCH_OFFICE => [ProposalActivityNotification::SIDEBAR_AREA_RESEARCH_OUTCOMES],
             User::WORKSPACE_RESEARCH_HEAD => [
                 ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
                 ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
@@ -201,6 +203,7 @@ class SidebarAttentionService
     private function knownAreas(): array
     {
         return [
+            ProposalActivityNotification::SIDEBAR_AREA_RESEARCH_OUTCOMES,
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
             ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,

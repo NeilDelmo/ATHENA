@@ -60,6 +60,8 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
+            'draft_version' => ['sometimes', 'integer', 'min:0'],
+            'draft_id' => ['sometimes', 'integer', 'min:0'],
             ...app(ProgressReportEvidenceService::class)->rules($this),
             ...app(ReportFigureDraftService::class)->rules($this),
             'reporting_date' => [Rule::excludeIf($this->input('report_type') === 'terminal'), 'required', 'date_format:Y-m-d'],

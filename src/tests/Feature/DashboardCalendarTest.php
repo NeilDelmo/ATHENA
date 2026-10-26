@@ -13,8 +13,10 @@ use App\Models\User;
 use App\Services\DashboardCalendar as Calendar;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -54,6 +56,37 @@ test('calendar derives official dates and follows schedule changes without dupli
     $events = $calendar->events($this->head, CarbonImmutable::parse('2026-09-01'), CarbonImmutable::parse('2026-09-30')->endOfDay());
     expect($events->where('title', 'Submission deadline'))->toHaveCount(0);
     $this->get(route('research-calls.index', ['call' => $this->call->id]))->assertOk()->assertSee('Oct 2, 2026');
+});
+
+test('faculty researchers can follow official calendar links and view published posters', function () {
+    Role::findOrCreate('faculty_researcher');
+    $this->faculty->assignRole('faculty_researcher');
+    $this->actingAs($this->faculty)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+    Storage::fake('local');
+    $this->call->update(['reference_image_path' => UploadedFile::fake()->image('calendar-poster.png')->store('research-calls', 'local')]);
+    $event = app(Calendar::class)->events($this->faculty, CarbonImmutable::parse('2026-09-01'), CarbonImmutable::parse('2026-09-30')->endOfDay())
+        ->firstWhere('id', 'call-'.$this->call->id.'-closes_at');
+
+    $this->get($event['url'])->assertOk()->assertSee($this->call->title);
+    $this->get(route('research-calls.reference-image', $this->call))->assertOk()->assertHeader('Content-Type', 'image/png');
+    $this->get(route('research-calls.index'))->assertOk()->assertSee($this->call->title);
+    $this->get(route('faculty.proposal-drafts.create'))->assertForbidden();
+
+    $private = $this->call->replicate();
+    $private->fill(['title' => 'Private draft call', 'status' => 'draft'])->save();
+    $this->get(route('research-calls.index'))->assertOk()->assertDontSee('Private draft call');
+    $this->get(route('research-calls.index', ['call' => $private->id]))->assertNotFound();
+    $this->get(route('research-calls.reference-image', $private))->assertNotFound();
+});
+
+test('researcher schedule pages do not offer proposal actions unavailable in their workspace', function () {
+    Role::findOrCreate('faculty_researcher');
+    $this->faculty->assignRole('faculty_researcher');
+    $this->actingAs($this->faculty)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+
+    $this->view('research_calls.calendar-detail', ['call' => $this->call, 'milestones' => Calendar::MILESTONES])
+        ->assertDontSee('Create proposal')
+        ->assertDontSee(route('faculty.proposal-drafts.create', ['research_call_id' => $this->call->id]), false);
 });
 
 test('faculty calendars hide drafts and unrelated closed calls but retain participated calls', function () {
@@ -224,6 +257,35 @@ test('calendar removes submitted reports and accomplished approved work plan tar
     $progress->update(['review_status' => 'revision_requested']);
     expect(($this->projectEvents)($this->faculty)->pluck('title')->all())->toContain('Monitoring Tool Q1 deadline', 'Progress Report Q1 deadline');
 });
+
+test('calendar keeps prepared reports pending until they are submitted', function (string $type, string $eventTitle) {
+    $topic = ($this->calendarProject)();
+    $this->actingAs($this->faculty);
+    $attributes = [
+        'topic_id' => $topic->id, 'submitted_by' => $this->faculty->id,
+        'submission_status' => 'prepared', 'version_number' => 1,
+        'reporting_date' => '2026-09-15', 'reporting_quarter' => 1,
+    ];
+    $report = $type === 'monitoring'
+        ? ProjectProgressReport::create([...$attributes, 'reporting_year' => 2026, 'progress_percentage' => 50, 'accomplishments' => 'Samples collected'])
+        : ProjectNarrativeReport::create([
+            ...$attributes, 'report_type' => $type,
+            'submission_date' => '2026-09-15', 'researchers' => $this->faculty->name,
+            'implementation_start' => '2026-06-16', 'implementation_end' => '2026-12-15',
+            'budget' => 1000, 'funding_agency' => 'University', 'accomplishment_summary' => 'Samples collected',
+            'introduction' => 'Water quality study.', 'objectives' => 'Measure water quality.',
+            'methodology' => 'Collect samples.', 'results_discussion' => 'Inventory recorded.', 'photos' => [],
+        ]);
+
+    expect(($this->projectEvents)($this->faculty)->pluck('title')->all())->toContain($eventTitle);
+
+    $report->update(['submission_status' => 'submitted', 'submitted_at' => now()]);
+    expect(($this->projectEvents)($this->faculty)->pluck('title')->all())->not->toContain($eventTitle);
+})->with([
+    ['monitoring', 'Monitoring Tool Q1 deadline'],
+    ['progress', 'Progress Report Q1 deadline'],
+    ['terminal', 'Terminal report submissions open'],
+]);
 
 test('calendar project access follows the active workspace and accepted collaboration', function () {
     $this->faculty->update(['college' => 'CICS']);

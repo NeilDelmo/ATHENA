@@ -87,6 +87,7 @@ test('full-paper generation rejects browser text and incomplete scoped identifie
     [['evidence_text' => str_repeat('FORGED PAPER TEXT ', 40)], 'evidence_text'],
     [['proposal_draft_id' => 1], 'source_link_id'],
     [['source_link_id' => 1], 'proposal_draft_id'],
+    [['full_text_token' => str_repeat('x', 8193)], 'full_text_token'],
 ]);
 
 test('scoped generation cannot read another proposal source or an inaccessible draft', function (bool $outsider) {
@@ -102,8 +103,16 @@ test('scoped generation cannot read another proposal source or an inaccessible d
     Http::assertNothingSent();
 })->with([true, false]);
 
-test('standalone generation resolves provider issued full text and reports its coverage', function () {
-    $token = LiteratureFullTextToken::issue(['url' => 'https://example.org/study.pdf', 'provider' => 'fixture']);
+test('standalone generation resolves provider issued full text and reports its coverage', function (bool $longLink) {
+    $source = ['url' => 'https://example.org/study.pdf', 'provider' => 'fixture'];
+    if ($longLink) {
+        $source['url'] .= '?signature='.str_repeat('a', 2000);
+        $source['identifier'] = str_repeat('b', 255);
+    }
+    $token = LiteratureFullTextToken::issue($source);
+    if ($longLink) {
+        expect(strlen($token))->toBeGreaterThan(4096)->toBeLessThanOrEqual(8192);
+    }
     $coverage = ['characters' => mb_strlen($this->fullText), 'character_limit' => 120000, 'page_limit' => 200,
         'total_pages' => 2, 'extracted_pages' => 2, 'truncated' => false, 'limited' => false, 'complete' => true,
         'partial_or_unknown' => false, 'unreadable_pages' => []];
@@ -111,7 +120,7 @@ test('standalone generation resolves provider issued full text and reports its c
     $this->postJson(route('research-support.literature-synthesis'), ['title' => $this->source['title'], 'full_text_token' => $token])
         ->assertSuccessful()->assertJsonPath('basis', 'full_text')->assertJsonPath('coverage', $coverage);
     Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'longitudinal matched-village design'));
-});
+})->with([false, true]);
 
 test('partial or legacy PDF evidence cannot be presented as whole-paper generation', function (array $coverage) {
     $linked = ($this->attachSource)();

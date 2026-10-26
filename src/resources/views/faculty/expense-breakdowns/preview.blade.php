@@ -18,7 +18,7 @@
                         <th scope="col">Account</th>
                         <th scope="col">Sub-account</th>
                         <th scope="col">Particular/s</th>
-                        <th scope="col">Descriptions/Specifications/Details</th>
+                        <th scope="col">Descriptions/ Specifications/ Details</th>
                         <th scope="col">Purpose in the project</th>
                         <th scope="col">Unit</th>
                         <th scope="col">Qty.</th>
