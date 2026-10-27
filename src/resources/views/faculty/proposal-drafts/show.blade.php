@@ -130,18 +130,8 @@
                                     <p class="mt-2 text-[11px] text-gray-500 dark:text-slate-400">Attachment A adds one M1-M12 sheet for each 12-month project period.</p>
                                     @error('duration_months')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                                 </div>
-                                <div>
-                                    <label for="planned_start" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Planned Start <span class="text-red-600">Required</span></label>
-                                    <x-date-picker id="planned_start" name="planned_start" model="plannedStart" :min="$minimumProjectDate" required class="mt-2" />
-                                    <p class="mt-2 text-[11px] text-gray-500 dark:text-slate-400">Only today and future dates can be selected.</p>
-                                    @error('planned_start')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
-                                </div>
-                                <div>
-                                    <label for="planned_end" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Planned End <span class="text-red-600">Required</span></label>
-                                    <x-date-picker id="planned_end" name="planned_end" model="plannedEnd" :min="$minimumProjectDate" required class="mt-2" />
-                                    <p class="mt-2 text-[11px] text-gray-500 dark:text-slate-400">Automatically calculated from the total duration and planned start.</p>
-                                    @error('planned_end')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
-                                </div>
+                                <x-proposal-planned-date field="start" :research-call="$proposalDraft->researchCall" :minimum-date="$minimumProjectDate" />
+                                <x-proposal-planned-date field="end" :research-call="$proposalDraft->researchCall" :minimum-date="$minimumProjectDate" />
                             </div>
 
                             <div>

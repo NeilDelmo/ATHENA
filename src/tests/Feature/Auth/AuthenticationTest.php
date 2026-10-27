@@ -4,6 +4,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\WorkspacePreference;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
@@ -28,6 +29,20 @@ function mockGoogleUser(string $email, string $avatar = 'https://example.com/ava
 
     Socialite::shouldReceive('driver')->once()->with('google')->andReturn($provider);
 }
+
+dataset('persistent account workspaces', [
+    'Faculty only' => [['faculty'], 'faculty', 'faculty.dashboard'],
+    'Faculty with researcher role' => [['faculty_researcher'], 'faculty', 'faculty.dashboard'],
+    'Faculty Researcher' => [['faculty_researcher'], 'faculty_researcher', 'faculty.dashboard'],
+    'Coordinator only' => [['research_coordinator'], 'research_office', 'research_coordinator.dashboard'],
+    'Coordinator' => [['research_coordinator', 'faculty'], 'research_office', 'research_coordinator.dashboard'],
+    'Coordinator using Faculty' => [['research_coordinator', 'faculty'], 'faculty', 'faculty.dashboard'],
+    'Coordinator using Faculty Researcher' => [['research_coordinator', 'faculty_researcher'], 'faculty_researcher', 'faculty.dashboard'],
+    'Research Head' => [['research_head'], 'research_head', 'research_head.dashboard'],
+    'Research Head using Faculty' => [['research_head'], 'faculty', 'faculty.dashboard'],
+    'Secretary only' => [['research_secretary'], 'research_secretary', 'research_secretary.dashboard'],
+    'Secretary' => [['research_secretary', 'research_coordinator'], 'research_secretary', 'research_secretary.dashboard'],
+]);
 
 test('login screen presents institutional Google sign in and theme controls', function () {
     $this->get('/login')
@@ -180,6 +195,117 @@ test('a remembered Google user is restored after their session is lost', functio
     $this->assertAuthenticated();
     expect(Auth::viaRemember())->toBeTrue();
 });
+
+test('remembered users stay in their selected workspace after session loss', function (array $roles, string $workspace, string $dashboard) {
+    $this->withoutVite();
+    foreach ($roles as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+    $user = User::factory()->create(['email' => 'returning.user@g.batstate-u.edu.ph']);
+    $user->assignRole($roles);
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    config()->set('services.google.remember_login', true);
+    mockGoogleUser($user->email);
+
+    $rememberCookieName = Auth::guard('web')->getRecallerName();
+    $rememberCookie = $this->get('/auth/google/callback')
+        ->assertRedirect(route($user->hasMultipleWorkspaces() ? 'workspace.select' : 'dashboard'))
+        ->getCookie($rememberCookieName);
+    $preferenceCookie = $this->post(route('workspace.store'), ['workspace' => $workspace])
+        ->assertRedirect(route($dashboard))
+        ->getCookie(WorkspacePreference::COOKIE_NAME);
+
+    expect($rememberCookie)->not->toBeNull()
+        ->and($preferenceCookie)->not->toBeNull();
+
+    $this->flushSession();
+    Auth::forgetGuards();
+
+    $this->withCookies([
+        $rememberCookieName => $rememberCookie->getValue(),
+        WorkspacePreference::COOKIE_NAME => $preferenceCookie->getValue(),
+    ])->withCredentials()->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonPath('workspace', $workspace)
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+
+    $this->assertAuthenticatedAs($user);
+    expect(Auth::viaRemember())->toBeTrue();
+    Auth::forgetGuards();
+    $this->get(route($dashboard))->assertOk()
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+    $this->get(route('dashboard'))->assertRedirect(route($dashboard));
+    $otherDashboard = in_array($workspace, ['faculty', 'faculty_researcher'], true)
+        ? 'research_head.dashboard' : 'faculty.dashboard';
+    $this->get(route($otherDashboard))->assertForbidden()
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+    $this->get(route('dashboard'))->assertRedirect(route($dashboard));
+})->with('persistent account workspaces');
+
+test('Google sign in restores the same account workspace preference after logout', function (array $roles, string $workspace, string $dashboard) {
+    $this->withoutVite();
+    foreach ($roles as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+    $user = User::factory()->create(['email' => 'returning.user@g.batstate-u.edu.ph']);
+    $user->assignRole($roles);
+    $preferenceCookie = $this->actingAs($user)
+        ->post(route('workspace.store'), ['workspace' => $workspace])
+        ->getCookie(WorkspacePreference::COOKIE_NAME);
+
+    expect($preferenceCookie)->not->toBeNull();
+
+    $logoutResponse = $this->withCookie(WorkspacePreference::COOKIE_NAME, $preferenceCookie->getValue())
+        ->post('/logout')->assertRedirect('/');
+    expect($logoutResponse->getCookie(WorkspacePreference::COOKIE_NAME)?->isCleared() ?? false)->toBeFalse();
+    $this->assertGuest();
+    $this->flushSession();
+    Auth::forgetGuards();
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    mockGoogleUser($user->email);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head',
+        'active_role' => 'research_coordinator',
+        'url.intended' => route('research_head.dashboard'),
+    ])->get('/auth/google/callback')
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace)
+        ->assertSessionMissing('url.intended');
+
+    if ($user->hasRole('research_coordinator') && $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
+        expect(session('active_role'))->toBe($workspace === 'research_office' ? 'research_coordinator' : 'faculty');
+    } else {
+        expect(session('active_role'))->toBeNull();
+    }
+    $this->assertAuthenticatedAs($user);
+    $this->get(route('dashboard'))->assertRedirect(route($dashboard));
+    $this->get(route($dashboard))->assertOk()
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+})->with('persistent account workspaces');
+
+test('Google sign in ignores foreign malformed and unavailable workspace preferences', function (bool $foreignAccount, string $workspace) {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'research_head']);
+    $head = User::factory()->create(['email' => 'head.preference@g.batstate-u.edu.ph']);
+    $head->assignRole('research_head');
+    $accountId = $foreignAccount ? User::factory()->create()->id : $head->id;
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    mockGoogleUser($head->email);
+
+    $this->withCookie(WorkspacePreference::COOKIE_NAME, $accountId.':'.$workspace)
+        ->get('/auth/google/callback')
+        ->assertRedirect(route('workspace.select'))
+        ->assertSessionMissing(User::ACTIVE_WORKSPACE_SESSION_KEY);
+
+    $this->assertAuthenticatedAs($head);
+    $this->get(route('faculty.dashboard'))->assertForbidden();
+    expect($head->fresh()->getRoleNames()->all())->toBe(['research_head']);
+})->with([
+    'another account' => [true, 'faculty'],
+    'malformed payload' => [false, 'faculty:unexpected'],
+    'unavailable workspace' => [false, 'faculty_researcher'],
+]);
 
 test('a Google avatar URL longer than 255 characters is stored', function () {
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);

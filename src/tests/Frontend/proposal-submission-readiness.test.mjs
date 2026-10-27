@@ -119,6 +119,7 @@ test('readiness automatically reveals exact fields, saves before guidance, and n
         const hub = await fixture(`${panel}<button data-proposal-readiness-continue data-url="/ready">Review submission</button>`, response);
         const proceed = hub.page.getByRole('button', { name: 'Review submission' });
         await proceed.click();
+        await expect(hub.page.locator('[data-proposal-readiness-label]')).toHaveText('Complete these fields');
         await expect.poll(() => hub.page.evaluate(() => window.navigations.length)).toBe(1);
         assert.deepEqual(await hub.page.evaluate(() => window.order), ['save', 'fetch']);
         assert.match((await hub.page.evaluate(() => window.navigations))[0], /proposal_requirement=entries/);

@@ -27,7 +27,7 @@
 @else
     <div data-page-header-variant="simple" {{ $attributes->class(['flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between']) }}>
         <div class="min-w-0 sm:min-w-[min(100%,16rem)] sm:flex-1">
-            <h1 class="text-3xl font-black tracking-tight text-slate-950 dark:text-white">{{ $title }}</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white">{{ $title }}</h1>
 
             @if ($subtitle)
                 <p class="mt-1 text-base leading-6 text-slate-500 dark:text-slate-400">{{ $subtitle }}</p>

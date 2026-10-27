@@ -123,7 +123,7 @@ test('two and five workspaces and the legacy role selector retain their form con
 async function switchingPage(browser, kind = 'three') {
     const rendered = selector(kind);
     const navigationView = readFileSync(resolve(`resources/views/layouts/${kind === 'role' ? 'app' : 'navigation'}.blade.php`), 'utf8');
-    const switchNavigation = navigationView.match(/<a\s+(wire:navigate(?:\.hover)?)\s+href="[^"\r\n]*'role-selection\.show'[^"\r\n]*"/)?.[1];
+    const switchNavigation = navigationView.match(/<a\s+(wire:navigate(?:\.hover)?)\s+href="[^"\r\n]*'workspace\.select'[^"\r\n]*"/)?.[1];
     assert.ok(switchNavigation, 'Switch Workspace must keep Livewire navigation');
     const originalAction = rendered.match(/<form method="POST" action="([^"]+)" data-workspace-switch/)[1];
     const origin = 'http://athena-switching.test';

@@ -10,7 +10,7 @@
                 <p class="text-stone-800 dark:text-stone-200" x-text="$store.researchAssistant.proposalRrlAssessmentText(message)"></p>
                 <p class="mt-1 text-xs text-stone-600 dark:text-stone-300">A source count does not verify quality or guarantee approval.</p>
                 <p x-show="$store.researchAssistant.proposalRrlRequirementSource(message)" class="mt-1 break-words text-xs text-stone-600 dark:text-stone-300" x-text="'Manual basis: ' + ($store.researchAssistant.proposalRrlRequirementSource(message)?.title || '')"></p>
-                <button type="button" @click="$store.researchAssistant.findProposalStudies(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="mt-2 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800">Find additional studies</button>
+                <button type="button" @click="$store.researchAssistant.findProposalStudies(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="gap-2 mt-2 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><x-assistant-icon />Find additional studies</button>
             </div>
             <div class="divide-y divide-stone-200 dark:divide-stone-700">
                 <template x-for="suggestion in message.proposal_changes.suggestions" :key="suggestion.id">
@@ -32,7 +32,7 @@
                 </template>
             </div>
             <div x-show="message.proposal_changes.suggestions.some(suggestion => suggestion.stale)" class="border-t border-stone-200 px-4 py-3 dark:border-stone-700">
-                <button type="button" @click="$store.researchAssistant.refreshProposalChanges(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800">Request updated suggestions</button>
+                <button type="button" @click="$store.researchAssistant.refreshProposalChanges(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="gap-2 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><x-assistant-icon />Request updated suggestions</button>
             </div>
         </div>
     </template>

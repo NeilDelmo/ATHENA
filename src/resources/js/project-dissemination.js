@@ -37,7 +37,9 @@ export function projectDissemination(config) {
                 },
                 body: JSON.stringify(data),
             });
-            const payload = await response.json().catch(() => ({}));
+            const payload = await response.json().catch(() => {
+                throw new Error('The server returned an unexpected response. Reload this page and try again.');
+            });
             if (!response.ok) {
                 throw new Error(Object.values(payload.errors || {}).flat().join(' ') || payload.message || 'The request could not be completed. Reload the page and try again.');
             }

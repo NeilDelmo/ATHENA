@@ -7,6 +7,7 @@ use App\Actions\LinkTopicCollaborators;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\InstitutionalEmail;
+use App\Support\WorkspacePreference;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -61,15 +62,17 @@ class ProviderController extends Controller
             Auth::login($user, (bool) config('services.google.remember_login', false));
             $request->session()->regenerate();
 
-            // Always let the application choose the correct dashboard for the
-            // authenticated user's role. An intended URL may point to a page
-            // protected by a different role and would otherwise cause a 403
-            // immediately after a successful sign-in.
+            // An intended URL may require another workspace or belong to a previous account.
             $request->session()->forget([
                 'url.intended',
                 'active_role',
                 User::ACTIVE_WORKSPACE_SESSION_KEY,
+                User::WORKSPACE_RECOVERY_SESSION_KEY,
             ]);
+
+            if (WorkspacePreference::restore($request)) {
+                return redirect()->route('dashboard');
+            }
 
             if ($user->hasMultipleWorkspaces()) {
                 return redirect()->route('workspace.select');

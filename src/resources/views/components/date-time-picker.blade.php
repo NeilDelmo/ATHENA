@@ -66,7 +66,11 @@
             <p class="text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Submission time</p>
             <div class="mt-2 grid grid-cols-2 gap-2">
                 <select x-model="hour" x-on:change="setTime" class="rounded-xl border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Hour"><template x-for="option in hourOptions" x-bind:key="option.value"><option x-bind:value="option.value" x-text="option.label"></option></template></select>
-                <select x-model="minute" x-on:change="setTime" class="rounded-xl border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Minute"><option value="00">:00</option><option value="15">:15</option><option value="30">:30</option><option value="45">:45</option></select>
+                <select x-model="minute" x-on:change="setTime" class="rounded-xl border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Minute">
+                    @foreach (range(0, 59) as $minute)
+                        <option value="{{ sprintf('%02d', $minute) }}">:{{ sprintf('%02d', $minute) }}</option>
+                    @endforeach
+                </select>
             </div>
         </div>
 

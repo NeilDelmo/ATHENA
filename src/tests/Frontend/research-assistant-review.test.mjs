@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -7,6 +8,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 import { researchAssistantReview } from '../../resources/js/research-assistant-review.js';
+import { journalFinder } from '../../resources/js/journal-finder.js';
 import { normalizeAssistantLiterature, serializeAssistantLiterature } from '../../resources/js/research-assistant-literature.js';
 import { normalizeAssistantProposalChanges, serializeAssistantProposalChanges } from '../../resources/js/research-assistant-proposal-changes.js';
 import { normalizeAssistantReportChanges, reportContext } from '../../resources/js/research-assistant-report-changes.js';
@@ -62,6 +64,60 @@ function reviewItem(context = { topic_id: 12, workflow_scope: 'review' }, focus 
 
 globalThis.HTMLElement = class {};
 globalThis.document = { activeElement: null };
+
+test('suggested prompts preserve an unfinished composer message', async () => {
+    const store = assistant(async () => assert.fail('An unfinished message must not be sent by another action'));
+    store.draft = 'My unfinished question about the project';
+    await store.sendPrompt('Compare these journal recommendations.');
+    assert.equal(store.draft, 'My unfinished question about the project');
+    assert.deepEqual(store.messages, []);
+    assert.equal(store.errorTitle, 'Finish your current message');
+});
+
+test('suggested prompts cannot replace the composer while another operation blocks sending', async () => {
+    for (const state of [{ isLoading: true }, { sendInProgress: true }, { retryAfter: 20 },
+        { documentAnalysisPending: true }, { disseminationSaving: true },
+        { proposalChangesOperationPending: true }, { reportChangesOperationPending: true }]) {
+        const store = assistant(async () => assert.fail('No request should start'), state);
+        await store.sendPrompt('Compare these journal recommendations.');
+        assert.equal(store.draft, '');
+        assert.deepEqual(store.messages, []);
+    }
+});
+
+test('journal comparison opens the assistant and preserves an unfinished question', async context => {
+    const previousWindow = globalThis.window;
+    const store = assistant(async () => assert.fail('The unfinished question must remain unsent'), {
+        openDrawer() { this.drawerOpen = true; },
+        proposalChangesBusy() { return false; },
+    });
+    store.draft = 'My unfinished question';
+    globalThis.window = { Alpine: { store: () => store } };
+    context.after(() => { globalThis.window = previousWindow; });
+    const finder = journalFinder({ query: 'Coastal monitoring' });
+    finder.results = [{ name: 'Coastal Research', fit_score: 80 }];
+    await finder.askAthena();
+    assert.equal(store.draft, 'My unfinished question');
+    assert.equal(store.drawerOpen, true);
+    assert.equal(store.messages.length, 0);
+});
+
+test('journal comparison shows the generated answer when the composer is clear', async context => {
+    const previousWindow = globalThis.window;
+    const store = assistant(undefined, {
+        openDrawer() { this.drawerOpen = true; },
+        proposalChangesBusy() { return false; },
+    });
+    globalThis.window = { Alpine: { store: () => store } };
+    context.after(() => { globalThis.window = previousWindow; });
+    const finder = journalFinder({ query: 'Coastal monitoring' });
+    finder.results = [{ name: 'Coastal Research', fit_score: 80 }];
+    await finder.askAthena();
+    assert.equal(store.drawerOpen, true);
+    assert.match(store.messages[0].content, /Coastal Research/);
+    assert.equal(store.messages[1].role, 'assistant');
+    assert.equal(store.draft, '');
+});
 
 test('a review saves the previous conversation before starting a separate focused chat', async () => {
     const requests = [];
@@ -445,9 +501,15 @@ test('structured reviews survive replies, saved history, restoration, copying, a
 
 test('review starters launch through the actual welcome and menu controls in light, dark, mobile, and desktop layouts', async () => {
     const fixture = readFileSync(resolve('storage/framework/testing/research-assistant.html'), 'utf8');
-    const welcome = readFileSync(resolve('resources/views/components/research-assistant-welcome.blade.php'), 'utf8');
+    const { welcome, menu } = JSON.parse(execFileSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        echo json_encode([
+            'welcome' => Illuminate\Support\Facades\Blade::render('<x-research-assistant-welcome />'),
+            'menu' => Illuminate\Support\Facades\Blade::render('<x-research-assistant-menu id="test" />'),
+        ]);
+    `], { encoding: 'utf8' }));
     const template = welcome.match(/<template x-for="item[\s\S]*?<\/template>/)[0];
-    const menu = readFileSync(resolve('resources/views/components/research-assistant-menu.blade.php'), 'utf8');
     const menuTemplate = menu.match(/<template x-for="review[\s\S]*?<\/template>/)[0];
     const composer = readFileSync(resolve('resources/views/components/research-assistant-composer.blade.php'), 'utf8');
     const targetChip = composer.match(/<div data-assistant-review-target[\s\S]*?<\/div>/)[0];
@@ -486,6 +548,7 @@ test('review starters launch through the actual welcome and menu controls in lig
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
                 const starter = page.getByRole('button', { name: 'Check proposal consistency', exact: false }).first();
                 await expect(starter).toBeVisible();
+                await expect(starter.locator('[data-assistant-icon]')).toBeVisible();
                 await starter.focus();
                 await page.keyboard.press('Enter');
                 await expect.poll(() => page.evaluate(() => window.reviewCalls.length)).toBe(1);
@@ -499,6 +562,7 @@ test('review starters launch through the actual welcome and menu controls in lig
                 await page.evaluate(() => window.finishReview());
                 await expect(starter).toBeEnabled();
                 const menuAction = page.getByRole('button', { name: 'Check revision responses', exact: true });
+                await expect(menuAction.locator('[data-assistant-icon]')).toBeVisible();
                 await menuAction.click();
                 await expect.poll(() => page.evaluate(() => window.reviewCalls.length)).toBe(2);
                 assert.equal(await page.evaluate(() => window.reviewCalls[1][1].review_focus), 'revision_response');

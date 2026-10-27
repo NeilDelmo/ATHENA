@@ -11,7 +11,7 @@
     <div class="flex flex-col gap-4 border-b-2 border-gray-950 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white">
         <div>
             <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Structured evidence</p>
-            <h3 id="terminal-tables-heading" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Research tables</h3>
+            <h3 id="terminal-tables-heading" class="text-2xl font-bold text-gray-950 dark:text-white">Research tables</h3>
             <p class="mt-2 max-w-3xl text-gray-600 dark:text-slate-300">Create a table for methods, measurements, comparisons, or findings. Position 0 places it at the end of the selected section.</p>
         </div>
         <button
@@ -23,14 +23,14 @@
     </div>
 
     <div x-show="tables.length === 0" class="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-800/50">
-        <p class="font-serif text-xl font-bold text-gray-950 dark:text-white">No tables added yet</p>
+        <p class="text-xl font-bold text-gray-950 dark:text-white">No tables added yet</p>
         <p class="mt-2 text-gray-600 dark:text-slate-300">Choose “Create table” to start with two columns and one row.</p>
     </div>
 
     <template x-for="(table, ti) in tables" :key="ti">
         <article class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <header class="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700 dark:bg-slate-800">
-                <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white" x-text="'Table ' + (ti + 1)"></h4>
+                <h4 class="text-xl font-bold text-gray-950 dark:text-white" x-text="'Table ' + (ti + 1)"></h4>
                 <button type="button" @click="tables.splice(ti, 1); $dispatch('input')" class="min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2 font-bold text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950">Remove table</button>
             </header>
 

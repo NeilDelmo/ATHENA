@@ -7,12 +7,12 @@
     class="flex flex-wrap items-center gap-2 border-b border-stone-200 pb-4 dark:border-stone-700">
     <button type="button" @click="reviewReport()" :disabled="working || !context"
         class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100">
-        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 11l2 2 4-4M9 3H5v18h14V3h-4M9 2h6v4H9z" /></svg>
+        <x-assistant-icon />
         Check with Athena
     </button>
     <button type="button" @click="requestChanges()" :disabled="working || !context || !editable"
         class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-red-900 px-3 py-2 text-sm font-semibold text-white hover:bg-red-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50">
-        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z" /></svg>
+        <x-assistant-icon />
         Review suggested edits
     </button>
     <p x-show="!context" class="w-full text-xs text-stone-600 dark:text-stone-300">Save a draft first to check or revise this report.</p>

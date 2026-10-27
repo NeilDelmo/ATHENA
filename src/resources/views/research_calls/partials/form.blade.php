@@ -120,7 +120,7 @@
             </label>
             <div class="mt-3 flex items-center justify-between gap-3">
                 <p data-research-call-image-name class="min-w-0 truncate text-xs font-bold text-gray-600 dark:text-slate-300">{{ $currentImageUrl ? 'Current poster saved. Choose a new image to replace it.' : '' }}</p>
-                <button type="button" data-research-call-extract disabled class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-3.5 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-950">
+                <button type="button" data-research-call-extract disabled class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-3.5 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-950"><x-assistant-icon />
                     <svg data-research-call-extract-spinner class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-30" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle><path class="opacity-90" fill="currentColor" d="M21 12a9 9 0 00-9-9v3a6 6 0 016 6h3z"></path></svg>
                     <span data-research-call-extract-label>Read image</span>
                 </button>

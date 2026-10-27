@@ -8,6 +8,7 @@
     'model' => null,
     'min' => null,
     'max' => null,
+    'referenceDates' => [],
     'required' => false,
     'placeholder' => 'Select date',
 ])
@@ -22,10 +23,11 @@
         min: @js($min),
         max: @js($max),
         required: @js((bool) $required),
+        referenceDates: @js($referenceDates),
     })"
     @if ($model) x-modelable="value" x-model="{{ $model }}" @endif
     x-on:click.outside="close"
-    {{ $attributes->class(['relative']) }}
+    {{ $attributes->except('aria-describedby')->class(['relative']) }}
 >
     <input
         type="hidden"
@@ -56,6 +58,7 @@
             aria-autocomplete="none"
             aria-required="{{ $required ? 'true' : 'false' }}"
             role="combobox"
+            {{ $attributes->only('aria-describedby') }}
             inputmode="none"
             autocomplete="off"
             placeholder="{{ $placeholder }}"
@@ -154,6 +157,7 @@
                     x-on:click="selectDate(day.iso)"
                     x-bind:disabled="!day.selectable"
                     x-bind:aria-label="day.label"
+                    x-bind:title="day.referenceLabel || null"
                     x-bind:aria-current="day.isToday ? 'date' : null"
                     x-bind:aria-pressed="day.isSelected"
                     x-bind:class="{
@@ -163,11 +167,21 @@
                         'ring-1 ring-inset ring-red-300': day.isToday && !day.isSelected,
                         'cursor-not-allowed text-gray-300 opacity-40': !day.selectable,
                     }"
-                    class="inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1"
-                    x-text="day.dayNumber"
-                ></button>
+                    class="relative inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1"
+                >
+                    <span x-text="day.dayNumber"></span>
+                    <span x-show="day.referenceLabel" aria-hidden="true" :class="day.isSelected ? 'bg-white' : 'bg-amber-600'" class="absolute bottom-1 h-1 w-1 rounded-full"></span>
+                </button>
             </template>
         </div>
+
+        @if ($referenceDates !== [])
+            <div class="mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-600" aria-label="Implementation dates">
+                @foreach ($referenceDates as $reference)
+                    <p class="flex items-center gap-2"><span aria-hidden="true" class="h-1 w-1 shrink-0 rounded-full bg-amber-600"></span>{{ $reference['label'] }} · {{ \Carbon\CarbonImmutable::parse($reference['date'])->format('M j, Y') }}</p>
+                @endforeach
+            </div>
+        @endif
 
         <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
             <button

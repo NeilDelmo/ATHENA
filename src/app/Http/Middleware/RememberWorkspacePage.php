@@ -2,11 +2,14 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use App\Support\WorkspaceLocation;
+use App\Support\WorkspacePreference;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -19,6 +22,16 @@ class RememberWorkspacePage
      */
     public function handle(Request $request, Closure $next): Response
     {
+        WorkspacePreference::restore($request);
+        $user = $request->user();
+        if ($user && $user->selectedWorkspace() === null && $user->hasMultipleWorkspaces() && Auth::viaRemember()) {
+            $request->session()->put(User::WORKSPACE_RECOVERY_SESSION_KEY, $user->getAuthIdentifier());
+        }
+        if ($request->isMethod('GET') && ! $request->expectsJson() && $request->routeIs('dashboard')
+            && $user && $user->selectedWorkspace() === null
+            && $request->session()->get(User::WORKSPACE_RECOVERY_SESSION_KEY) === $user->getAuthIdentifier()) {
+            return redirect()->route('workspace.select');
+        }
         $pending = $request->session()->get('workspace_resume');
         $resuming = $request->isMethod('GET') && is_array($pending)
             && ($pending['user_id'] ?? null) === $request->user()?->id
@@ -47,6 +60,8 @@ class RememberWorkspacePage
             && ! $request->boolean('revision_embed') && ! preg_match('/(?:preview|download|edit-state|\.files\.|\.photos\.)/', (string) $route->getName())) {
             $request->session()->put(WorkspaceLocation::key($request->user()->id, $workspace), ['url' => $request->fullUrl(), 'saved_at' => time()]);
         }
+
+        WorkspacePreference::remember($request);
 
         return $response;
     }

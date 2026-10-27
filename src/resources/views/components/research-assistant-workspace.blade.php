@@ -13,7 +13,7 @@
         <div class="p-4">
             <div class="flex items-center gap-3 px-1 py-2">
                 <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-900 text-white">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                    <x-assistant-icon class="h-5 w-5" />
                 </div>
                 <div>
                     <p class="text-sm font-semibold text-gray-900 dark:text-white">Athena AI</p>
@@ -70,7 +70,7 @@
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16" /></svg>
                 </button>
                 <div class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-900 text-white sm:flex lg:hidden">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                    <x-assistant-icon class="h-4 w-4" />
                 </div>
                 <div class="min-w-0">
                     <h3 id="assistant-heading" class="truncate text-sm font-semibold text-gray-900 dark:text-white">Athena</h3>
@@ -112,7 +112,7 @@
                         </div>
                         <div x-show="message.role === 'assistant'" class="flex w-full gap-3 sm:gap-4">
                             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-900 text-white">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                                <x-assistant-icon class="h-4 w-4" />
                             </div>
                             <div data-assistant-response x-data="researchAssistantCitations" @click="openCitation($event, message)" class="min-w-0 flex-1 text-base leading-relaxed text-stone-950 dark:text-stone-100">
                                 <p class="mb-1 text-xs font-semibold text-red-900 dark:text-red-200">Athena</p>
@@ -133,7 +133,7 @@
 
                 <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex gap-4" role="status" aria-label="Athena is preparing a response">
                     <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-900 text-white">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg>
+                        <x-assistant-icon class="h-4 w-4" />
                     </div>
                     <div class="flex h-8 items-center gap-1.5">
                         <span class="h-2 w-2 animate-bounce motion-reduce:animate-none rounded-full bg-gray-400 [animation-delay:-0.3s]"></span>

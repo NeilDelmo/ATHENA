@@ -42,7 +42,7 @@ const results = [
     { title: 'Participation in coastal conservation', authors: 'Ana Reyes', year: 2024, source: 'Crossref', venue: 'Marine Studies', doi: '10.1234/coastal', citation_count: 8, description: 'A study of community participation in coastal conservation.', access_status: 'metadata_only' },
 ];
 
-function finderStore(request, kind = 'literature') {
+function finderStore(request, kind = 'literature', assistant = null) {
     let state;
     const selectedStoreStart = app.indexOf(`Alpine.store('${kind}Search'`);
     const selectedStore = app.slice(selectedStoreStart, app.indexOf('\n});', selectedStoreStart) + '\n});'.length);
@@ -55,8 +55,9 @@ function finderStore(request, kind = 'literature') {
         literatureDraftUpdateUrlTemplate: '/proposals/__proposal__/links/__link__/draft',
         detailedProposalUrlTemplate: '/proposals/__proposal__/paper',
     };
-    runInNewContext(`${helpers}\n${selectedStore}`, {
-        Alpine: { store(name, value) { state = value; } },
+    const compactText = app.match(/function compactAssistantText\([\s\S]*?\r?\n\}/)[0];
+    runInNewContext(`${compactText}\n${helpers}\n${selectedStore}`, {
+        Alpine: { store(name, value) { if (value === undefined) return assistant; state = value; } },
         document: { querySelector: (selector) => selector === '[data-rrl-workspace]' ? { dataset } : { content: 'token' }, body: { dataset: { literatureSearchUrl: '/search', conferenceSearchUrl: '/conference-search' }, classList: { add() {}, remove() {} } } },
         window: { location: { origin: 'https://athena.test', assign: (url) => navigations.push(url) }, setTimeout() {}, setInterval() { return 1; }, clearInterval() {} },
         fetch: request,
@@ -67,6 +68,26 @@ function finderStore(request, kind = 'literature') {
 }
 
 const searchCases = [['literature', false], ['literature', true], ['conference', false], ['conference', true]];
+
+for (const kind of ['literature', 'conference']) {
+    test(`${kind} analysis opens the assistant without replacing an unfinished chat`, async () => {
+        const source = app.match(/    async sendPrompt\([\s\S]*?\n    \},/)[0];
+        const assistant = {
+            ...new Function(`return ({${source}});`)(),
+            draft: 'My unfinished question', isLoading: false,
+            proposalChangesBusy: () => false,
+            openDrawer() { this.drawerOpen = true; },
+            setError(title) { this.errorTitle = title; },
+            send: () => assert.fail('The unfinished question must not be sent'),
+        };
+        const { state } = finderStore(() => assert.fail('No search is needed'), kind, assistant);
+        state.results = results;
+        await state.askAthena();
+        assert.equal(assistant.drawerOpen, true);
+        assert.equal(assistant.draft, 'My unfinished question');
+        assert.equal(assistant.errorTitle, 'Finish your current message');
+    });
+}
 
 for (const [kind, failed] of searchCases) {
     test(`clearing ${kind} search discards a pending ${failed ? 'failure' : 'result'}`, async () => {

@@ -1617,7 +1617,7 @@ test('automatic submission guidance is connected to the hub and every paper edit
     $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()->assertSee('data-proposal-readiness-continue', false)
         ->assertSee('data-proposal-paper="details"', false)
-        ->assertSee('Required information needs attention')
+        ->assertSee('Complete these fields')
         ->assertDontSee('Open section');
 
     foreach (['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae'] as $paper) {
@@ -1753,6 +1753,42 @@ test('prepared draft previews preserve collaborator access and locked editing', 
     $this->get($previewUrl)->assertOk();
     $this->actingAs($this->head)->get($previewUrl)->assertForbidden();
 });
+
+test('proposal dates use only their linked published implementation schedule', function (string $callState, bool $hasSchedule) {
+    $this->call->update([
+        'status' => $callState === 'unlinked' ? 'open' : $callState,
+        'implementation_start_date' => '2027-02-01',
+        'implementation_end_date' => '2027-08-01',
+        'initial_evaluation_start_date' => '2027-01-11',
+        'paper_revisions_end_date' => '2027-01-25',
+    ]);
+    $draft = ($this->createDraft)([
+        'research_call_id' => $callState === 'unlinked' ? null : $this->call->id,
+    ]);
+
+    foreach (['faculty.proposal-drafts.show', 'faculty.proposal-drafts.details.edit'] as $route) {
+        $response = $this->actingAs($this->faculty)->get(route($route, $draft))->assertOk();
+        if ($hasSchedule) {
+            $response->assertSee('2027-02-01')->assertSee('2027-08-01')
+                ->assertSee('Implementation begins')->assertSee('Implementation ends');
+        } else {
+            $response->assertDontSee('2027-02-01')->assertDontSee('2027-08-01')
+                ->assertDontSee('Implementation begins')->assertDontSee('Implementation ends');
+        }
+        $response->assertDontSee('2027-01-11')->assertDontSee('2027-01-25');
+    }
+
+    $this->putJson(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+        'planned_start' => '2027-01-01',
+        'planned_end' => '2028-01-01',
+    ]))->assertOk()->assertJsonPath('project_details_complete', true);
+    expect($draft->fresh()->planned_start->toDateString())->toBe('2027-01-01');
+})->with([
+    'published schedule' => ['open', true],
+    'closed linked call' => ['closed', true],
+    'unpublished schedule' => ['draft', false],
+    'unlinked draft' => ['unlinked', false],
+]);
 
 test('project details are validated once and reused by the Work Plan workflow', function () {
     $draft = ($this->createDraft)();

@@ -115,7 +115,7 @@ export default function initProposalSubmissionReadiness({
             if (safeProposalReadinessUrl(panel.dataset.proposalReadinessUrl) !== url) continue;
             const label = panel.querySelector('[data-proposal-readiness-label]');
             if (label) label.textContent = {
-                incomplete: 'Required information needs attention', office: 'Awaiting Research Office setup',
+                incomplete: 'Complete these fields', office: 'Awaiting Research Office setup',
                 prepare: 'Content complete · PDFs need preparation', ready: 'Ready to turn in',
             }[data.status] || 'Review submission requirements';
             const list = panel.querySelector('[data-proposal-readiness-issues]');

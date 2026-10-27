@@ -269,7 +269,7 @@
                 <h2 x-show="$store.sidebar.open" class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</h2>
             @endif
             @if (Auth::user()->hasMultipleWorkspaces())
-                <a wire:navigate.hover href="{{ route(Auth::user()->hasRole('research_coordinator') ? 'role-selection.show' : 'workspace.select') }}" aria-label="Switch Workspace" title="Switch Workspace" class="{{ $sidebarLinkClasses }}" :class="!$store.sidebar.open && 'justify-center !px-0'">
+                <a wire:navigate.hover href="{{ route('workspace.select') }}" aria-label="Switch Workspace" title="Switch Workspace" class="{{ $sidebarLinkClasses }}" :class="!$store.sidebar.open && 'justify-center !px-0'">
                     <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h14m0 0-4-4m4 4-4 4M17 17H3m0 0 4 4m-4-4 4-4" /></svg>
                     <span x-show="$store.sidebar.open">Switch Workspace</span>
                 </a>

@@ -1,3 +1,10 @@
+function readWorkspaceLocations(storage, key) {
+    try {
+        const value = JSON.parse(storage.getItem(key) || '{}');
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch { return {}; }
+}
+
 export function workspacePageState(section) {
     function context() {
         if (typeof document === 'undefined' || typeof window === 'undefined') return null;
@@ -9,7 +16,7 @@ export function workspacePageState(section) {
         read() {
             const current = context();
             try {
-                const page = JSON.parse(sessionStorage.getItem(current?.key) || '{}').pages?.[current?.page];
+                const page = readWorkspaceLocations(sessionStorage, current?.key).pages?.[current?.page];
                 return page?.savedAt > Date.now() - 86400000 ? page[section] : null;
             } catch { return null; }
         },
@@ -17,7 +24,7 @@ export function workspacePageState(section) {
             const current = context();
             if (!current || JSON.stringify(value).length > 3000) return;
             try {
-                const stored = JSON.parse(sessionStorage.getItem(current.key) || '{}');
+                const stored = readWorkspaceLocations(sessionStorage, current.key);
                 const pages = Object.entries(stored.pages || {}).filter(([, page]) => page.savedAt > Date.now() - 86400000);
                 const previous = stored.pages?.[current.page] || {};
                 const next = { ...previous, [section]: value, savedAt: Date.now() };
@@ -43,7 +50,7 @@ export function initializeWorkspaceSwitching(navigate, doc = document, browser =
             const key = locationPrefix + userId;
             Object.keys(browser.sessionStorage).filter(item => item.startsWith(locationPrefix) && item !== key)
                 .forEach(item => browser.sessionStorage.removeItem(item));
-            return { key, values: JSON.parse(browser.sessionStorage.getItem(key) || '{}') };
+            return { key, values: readWorkspaceLocations(browser.sessionStorage, key) };
         } catch { return null; }
     }
 

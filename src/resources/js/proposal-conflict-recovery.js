@@ -65,7 +65,7 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
     try { storage = window.localStorage; } catch {
         for (const host of document.querySelectorAll('[data-proposal-conflict-recovery]')) {
             host.hidden = false;
-            host.textContent = 'Recovery storage is unavailable in this browser. Keep this page open and copy unsaved entries before leaving.';
+            host.textContent = 'This browser can’t keep a copy of your changes. Keep this page open and copy your work before leaving.';
             host.className = 'mt-3 text-sm leading-6 text-red-800 dark:text-red-200';
         }
         return () => {};
@@ -176,9 +176,9 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
         }
 
         function recoveryControls() {
-            const controls = element('div', '', 'flex flex-wrap gap-2');
+            const controls = element('div', '', 'flex shrink-0 flex-wrap items-center gap-3');
             if (needsCheck && warning.hidden) {
-                const retry = element('button', key === liveKey ? 'Retry draft saving' : 'Check latest saved version', 'min-h-11 rounded-lg bg-red-900 px-4 py-2 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700');
+                const retry = element('button', key === liveKey ? 'Try saving again' : 'Check saved version', 'min-h-11 rounded-lg bg-red-900 px-4 py-2 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700');
                 retry.type = 'button';
                 retry.addEventListener('click', async () => {
                     retry.disabled = true;
@@ -187,7 +187,7 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
                 });
                 controls.append(retry);
             }
-            const discard = element('button', 'Discard recovery copy', 'min-h-11 rounded-lg border border-slate-300 px-4 py-2 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-slate-600');
+            const discard = element('button', 'Delete browser copy', 'min-h-11 rounded px-1 text-xs text-slate-500 underline decoration-slate-300 underline-offset-4 transition-colors hover:text-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-red-200');
             discard.type = 'button';
             discard.addEventListener('click', () => {
                 try { storage.removeItem(key); } catch { storageFailed = true; render(); return; }
@@ -208,12 +208,17 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
             host.replaceChildren();
             host.hidden = !sessionActive || (!record?.fields.length && !record?.hasFiles && !storageFailed);
             if (host.hidden) return;
-            host.className = 'mt-4 space-y-3 rounded-xl border border-red-200 bg-white p-4 text-sm text-slate-800 dark:border-red-900 dark:bg-slate-900 dark:text-slate-100';
-            host.append(element('p', storageFailed ? 'Recovery copy could not be saved. Keep this page open and copy your entries before leaving.'
-                : 'Recovery copy saved locally in this browser for 24 hours. It is not yet saved to ATHENA.', 'font-semibold text-red-900 dark:text-red-200'));
+            host.className = 'mt-3 space-y-3 border-t border-slate-200 py-3 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200';
+            const summary = element('div', '', 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6');
+            const description = element('div', '', 'min-w-0 space-y-1');
+            description.append(element('p', storageFailed ? 'This browser couldn’t save your changes. Keep this page open and copy your work before leaving.'
+                : 'Not saved to ATHENA yet', storageFailed ? 'font-medium text-red-800 dark:text-red-200' : 'font-medium'));
+            if (!storageFailed) description.append(element('p', 'Your changes are kept in this browser for 24 hours.', 'text-xs leading-5 text-slate-500 dark:text-slate-400'));
+            summary.append(description);
+            host.append(summary);
             if (!record) return;
             if (restoredCopies.length > 1) {
-                const label = element('label', 'Recovery copy', 'block font-semibold');
+                const label = element('label', 'Choose a saved copy', 'block font-semibold');
                 const select = element('select', '', 'mt-1 block max-w-full rounded-lg border-slate-300 text-sm dark:bg-slate-800');
                 select.id = `proposal-recovery-copy-${liveKey.split(':').at(-1)}`;
                 label.htmlFor = select.id;
@@ -226,23 +231,22 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
                 select.addEventListener('change', () => { ({ key, record } = restoredCopies.find(copy => copy.key === select.value)); render(); });
                 host.append(label, select);
             }
-            if (record.hasFiles) host.append(element('p', 'Select image and attachment files again. Recovery keeps text and choices only.', 'text-xs leading-5'));
+            if (record.hasFiles) host.append(element('p', 'Select image and attachment files again. This browser only keeps your text and choices.', 'text-xs leading-5'));
             const controls = recoveryControls();
             if (key === liveKey) {
-                host.append(element('p', needsCheck ? 'Continue editing here. Before retrying draft saving, ATHENA will check the latest saved version.'
-                    : 'You can continue editing. Your normal draft saving will save these changes when available.', 'text-xs leading-5'));
-                host.append(controls);
+                if (needsCheck) description.append(element('p', 'Keep editing. We’ll check the latest version before saving.', 'text-xs leading-5 text-slate-500 dark:text-slate-400'));
+                summary.append(controls);
                 return;
             }
             const current = fieldValues(form);
             const isLatest = !needsCheck && verifiedVersion === currentVersion() && warning.hidden;
             if (!isLatest) {
-                host.append(element('p', warning.hidden ? 'Check the latest saved version before comparing or reapplying your entries.'
-                    : 'Load the latest saved work below to compare your entries. Your teammate’s saved version stays protected.', 'text-xs leading-5'));
+                host.append(element('p', warning.hidden ? 'Check what’s saved in ATHENA before restoring your changes.'
+                    : 'Load the latest saved work below to compare it with your changes.', 'text-xs leading-5'));
                 host.append(controls);
                 return;
             }
-            host.append(element('p', 'Compare your recovery copy with the latest saved work. Only the fields you select will be reapplied.', 'leading-6'));
+            host.append(element('p', 'Choose which changes to restore. Anything you leave unchecked will stay as it is.', 'leading-6'));
             const selections = [];
             for (const field of record.fields) {
                 const comparison = current.get(field.name);
@@ -255,9 +259,9 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
                 checkbox.disabled = !sameRow || comparison.type !== field.type;
                 label.append(checkbox, document.createTextNode(field.label));
                 row.append(label);
-                if (comparison && !sameRow) row.append(element('p', 'This row changed or moved since your recovery copy. Compare the text and copy it into the correct row.', 'text-xs leading-5 text-red-800 dark:text-red-200'));
+                if (comparison && !sameRow) row.append(element('p', 'This row changed or moved. Copy your text into the correct row.', 'text-xs leading-5 text-red-800 dark:text-red-200'));
                 const columns = element('div', '', 'grid min-w-0 gap-3 sm:grid-cols-2');
-                for (const [title, value] of [[`Latest on this page${comparison ? ` · ${comparison.label}` : ''}`, comparison?.value ?? 'This field or row no longer exists. Add the row before reapplying, or copy your text below.'], ['Your recovery copy', field.value]]) {
+                for (const [title, value] of [[`Latest on this page${comparison ? ` · ${comparison.label}` : ''}`, comparison?.value ?? 'This field or row no longer exists. Add the row first, or copy your text below.'], ['Your changes', field.value]]) {
                     const column = element('div', '', 'min-w-0');
                     column.append(element('p', title, 'mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400'));
                     const writtenText = field.richText && typeof value === 'string' ? new DOMParser().parseFromString(value, 'text/html').body.textContent : value;
@@ -294,7 +298,7 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
                 if (applied) root.dataset.paperDirty = 'true';
                 persist();
                 capture(false);
-                render(`${applied} field${applied === 1 ? '' : 's'} reapplied. ${skipped ? `${skipped} field${skipped === 1 ? ' was' : 's were'} left alone because you edited it after opening this comparison.` : 'Your normal draft saving will save these changes.'}`);
+                render(`${applied} field${applied === 1 ? '' : 's'} restored. ${skipped ? `${skipped} field${skipped === 1 ? ' was' : 's were'} left alone because you edited it after opening this comparison.` : 'These changes will save with your draft.'}`);
             });
             controls.prepend(apply);
             host.append(controls);
@@ -343,7 +347,7 @@ export default function initializeProposalConflictRecovery({ resumeSave = () => 
                             : state.is_removed ? 'This paper was removed. Load the latest saved work before continuing.' : 'The saved version or report scope has changed. Load the latest saved work before continuing.';
                         const alpine = window.Alpine?.$data?.(root);
                         if (alpine) alpine.autoSaveBlocked = true;
-                        localStatus('The saved version changed. Your local recovery copy is kept for comparison.');
+                        localStatus('The saved version changed. Your changes are still in this browser.');
                         render();
                         return false;
                     }

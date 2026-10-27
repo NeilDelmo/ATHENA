@@ -387,7 +387,7 @@
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['literature'] }}</label>
                             <button type="button" @click="requestRrlRevision()" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked || !relatedLiterature.trim()" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 5 4 4M5 19l4-1 11-11a2.8 2.8 0 0 0-4-4L5 14l-1 6ZM13 20h7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <x-assistant-icon />
                                 <span x-text="rrlRevisionPending ? 'Preparing review…' : 'Revise RRL'">Revise RRL</span>
                             </button>
                         </div>

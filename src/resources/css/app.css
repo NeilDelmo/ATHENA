@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+    [data-faculty-shell] :is(.font-black, .font-extrabold) {
+        @apply font-bold;
+    }
+}
+
 /* Match filled brand actions to the monitoring revision action, keeping table controls intact. */
 html :is(button, a, input[type="submit"], input[type="button"], [role="button"]):is(.bg-brand, [class~="bg-[#7A0019]"], [class~="bg-[#7a0019]"], .dashboard-action, .rh-button):not(:where(table *, [role="table"] *, [role="grid"] *)) {
     background-color: theme('colors.red.700');
@@ -908,7 +914,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     border-radius: 50%;
     background: #b91c1c;
     color: white;
-    font: 700 12px/1 system-ui, sans-serif;
+    font: 700 12px/1 theme('fontFamily.sans');
     transform: translate(-25%, -25%);
     box-shadow: 0 1px 5px rgb(0 0 0 / .25);
 }
@@ -932,7 +938,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     border-radius: 999px;
     background: #b91c1c;
     color: white;
-    font: 700 11px/1 system-ui, sans-serif;
+    font: 700 11px/1 theme('fontFamily.sans');
     box-shadow: 0 1px 3px rgb(0 0 0 / .2);
 }
 .pdf-annotation-area-mode .pdf-annotation-page .textLayer :is(span, br) {

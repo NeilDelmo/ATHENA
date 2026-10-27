@@ -79,7 +79,7 @@ test('conflict recovery survives reload, compares latest text, reapplies selecte
         await page.evaluate(() => { const input = document.createElement('input'); input.name = 'new_row_text'; input.value = 'Text from a newly added row'; document.querySelector('form').append(input); });
         await page.locator('[name="figure"]').setInputFiles({ name: 'diagram.png', mimeType: 'image/png', buffer: Buffer.from('file') });
         await page.evaluate(() => { document.querySelector('[data-paper-editor]').dataset.paperDirty = 'true'; document.querySelector('[data-proposal-stale-warning]').hidden = false; });
-        await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('Recovery copy saved');
+        await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('Not saved to ATHENA yet');
         const saved = await page.evaluate(() => Object.entries(localStorage).find(([key]) => key.startsWith('athena-proposal-recovery:'))?.[1]);
         assert.ok(saved.includes('My unsaved title'));
         assert.ok(!saved.includes('SECRET'));
@@ -107,7 +107,7 @@ test('conflict recovery survives reload, compares latest text, reapplies selecte
         await page.evaluate(() => { document.querySelector('[data-paper-editor]').dataset.paperDirty = 'false'; });
         await expect(recovery).toContainText('My unsaved rationale');
         assert.ok(!await page.evaluate(() => JSON.stringify(Object.entries(localStorage)).includes('My unsaved title')), 'confirmed server-save equality clears the reapplied title');
-        while (await recovery.isVisible()) await recovery.getByRole('button', { name: 'Discard recovery copy' }).click();
+        while (await recovery.isVisible()) await recovery.getByRole('button', { name: 'Delete browser copy' }).click();
         await expect(recovery).toBeHidden();
         await page.evaluate(() => {
             localStorage.setItem('athena-proposal-recovery:1:expired', JSON.stringify({ savedAt: Date.now() - 90000000, fields: [{name:'private',value:'expired',label:'Private'}] }));
@@ -129,6 +129,6 @@ test('conflict recovery survives reload, compares latest text, reapplies selecte
             document.querySelector('[data-paper-editor]').dataset.paperDirty='true';
             document.querySelector('[data-proposal-stale-warning]').hidden=false;
         });
-        await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('Recovery copy could not be saved');
+        await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('This browser couldn’t save your changes');
     } finally { await browser.close(); }
 });

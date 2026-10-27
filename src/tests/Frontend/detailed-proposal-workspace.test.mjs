@@ -237,7 +237,7 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 assert.equal(await page.getByRole('button', { name: 'Sources', exact: true }).count(), 0);
                 assert.equal(await page.locator('[data-writing-menu-toggle]').count(), 2);
                 assert.equal(await page.getByRole('button', { name: 'More', exact: true }).count(), 0);
-                assert.equal(await page.locator('[data-writing-editor-expand]').count(), 2);
+                await expect(page.getByRole('button', { name: /Expand .* editor|Shrink .* editor/ })).toHaveCount(0);
                 assert.equal(await page.locator('[data-writing-expand]').count(), 0);
                 await page.evaluate(() => {
                     const field = document.createElement('textarea');
@@ -246,12 +246,10 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                     document.querySelector('form').append(label, field);
                     initializeSemanticEditors();
                 });
-                const dynamicExpand = page.locator('[data-writing-editor-expand="new-method-details"]');
-                await dynamicExpand.waitFor();
-                await dynamicExpand.click();
-                await expect(dynamicExpand).toHaveAttribute('aria-expanded', 'true');
-                await dynamicExpand.click();
-                await expect(dynamicExpand).toHaveAttribute('aria-expanded', 'false');
+                const dynamicEditor = page.getByRole('textbox', { name: 'New method details', exact: true });
+                await dynamicEditor.fill('New method text');
+                await expect(page.locator('#new-method-details')).toHaveValue(/New method text/);
+                await expect(page.getByRole('button', { name: /Expand .* editor|Shrink .* editor/ })).toHaveCount(0);
                 await page.locator('#date').focus();
                 const citationBounds = await page.locator('[data-writing-cite]').boundingBox();
                 const toolbarBounds = await page.locator('[data-proposal-writing-toolbar]').boundingBox();
@@ -370,13 +368,6 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 await page.getByRole('button', { name: 'Insert', exact: true }).click();
                 await page.locator('[data-writing-image]').click();
                 assert.deepEqual(await page.evaluate(() => window.imageTargets), ['rationale']);
-                const expandButton = page.locator('[data-writing-editor-expand="rationale"]');
-                await expandButton.click();
-                assert.ok((await rationale.boundingBox()).height >= 320);
-                await expect(expandButton).toHaveText('Shrink editor');
-                await expect(expandButton).toHaveAttribute('aria-expanded', 'true');
-                await expandButton.click();
-                await expect(expandButton).toHaveText('Expand editor');
                 assert.ok((await rationale.boundingBox()).height < 320);
                 await page.locator('#date').focus();
                 assert.equal(await page.locator('[data-writing-cite]').isDisabled(), true);

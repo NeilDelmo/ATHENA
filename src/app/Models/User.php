@@ -35,6 +35,8 @@ class User extends Authenticatable
 {
     public const ACTIVE_WORKSPACE_SESSION_KEY = 'active_workspace';
 
+    public const WORKSPACE_RECOVERY_SESSION_KEY = 'workspace_recovery_user_id';
+
     public const WORKSPACE_FACULTY = 'faculty';
 
     public const WORKSPACE_FACULTY_RESEARCHER = 'faculty_researcher';
@@ -201,6 +203,18 @@ class User extends Authenticatable
 
     public function activeWorkspace(): ?string
     {
+        $selected = $this->selectedWorkspace();
+        if ($selected !== null) {
+            return $selected;
+        }
+
+        return session(self::WORKSPACE_RECOVERY_SESSION_KEY) === $this->getAuthIdentifier()
+            ? null
+            : ($this->availableWorkspaceKeys()[0] ?? null);
+    }
+
+    public function selectedWorkspace(): ?string
+    {
         $selected = session(self::ACTIVE_WORKSPACE_SESSION_KEY);
 
         if (is_string($selected) && $this->canUseWorkspace($selected)) {
@@ -219,7 +233,7 @@ class User extends Authenticatable
             }
         }
 
-        return $this->availableWorkspaceKeys()[0] ?? null;
+        return null;
     }
 
     /**

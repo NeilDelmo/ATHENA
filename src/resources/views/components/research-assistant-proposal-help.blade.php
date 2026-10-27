@@ -9,6 +9,7 @@
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
             <template x-for="option in $store.researchAssistant.proposalHelpOptions()" :key="option.key">
                 <button type="button" @click="$store.researchAssistant.startProposalHelp(option, $event.currentTarget)" :disabled="$store.researchAssistant.reviewLaunchBusy() || !!$store.researchAssistant.draft.trim()" class="flex min-h-11 items-start gap-3 rounded-lg border border-stone-300 bg-stone-50 px-4 py-3 text-left hover:border-red-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:bg-stone-800 dark:hover:border-red-300 dark:hover:bg-stone-900">
+                    <x-assistant-icon />
                     <span><span class="block text-sm font-semibold text-stone-950 dark:text-stone-100" x-text="option.label"></span><span class="mt-1 block text-xs leading-5 text-stone-600 dark:text-stone-300" x-text="option.description"></span></span>
                 </button>
             </template>

@@ -132,6 +132,28 @@ test('a faculty researcher can also enter the regular faculty workspace', functi
         ->assertDontSee('Research Head');
 });
 
+test('coordinators can reach every assigned workspace from both switch menus', function () {
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $user = User::factory()->create();
+    $user->assignRole(['research_coordinator', 'faculty_researcher', 'research_head']);
+
+    $response = $this->actingAs($user)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_office', 'active_role' => 'research_coordinator'])
+        ->get(route('research_coordinator.dashboard'))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $links = (new DOMXPath($document))->query('//a[normalize-space(.)="Switch Workspace"]');
+
+    expect($links->length)->toBe(2);
+    foreach ($links as $link) {
+        expect($link->getAttribute('href'))->toBe(route('workspace.select'));
+    }
+
+    $this->get(route('workspace.select'))->assertOk()
+        ->assertSee('Faculty Researcher')->assertSee('Research Head')->assertSee('Research Coordinator')
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, 'research_office');
+});
+
 test('the chooser marks only the selected workspace and keeps the existing form values', function (string $currentWorkspace) {
     $user = User::factory()->create();
     $user->assignRole(['research_head', 'faculty_researcher']);

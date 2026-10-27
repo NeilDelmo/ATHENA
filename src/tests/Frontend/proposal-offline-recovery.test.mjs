@@ -97,7 +97,8 @@ test('unfinished text and choices survive closing an editor and require a fresh 
         await page.getByLabel('Choice B', { exact: true }).check();
         await page.locator('[name="figure"]').setInputFiles({ name: 'diagram.png', mimeType: 'image/png', buffer: Buffer.from('FILE_SECRET') });
         const panel = page.locator('[data-proposal-conflict-recovery]');
-        await expect(panel).toContainText('saved locally in this browser');
+        await expect(panel).toContainText('Not saved to ATHENA yet');
+        await expect(panel).toContainText('Your changes are kept in this browser for 24 hours.');
         const saved = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
         for (const secret of ['CSRF_SECRET', 'PASSWORD_SECRET', 'LINKED_SECRET', 'FILE_SECRET', 'diagram.png']) assert.ok(!saved.includes(secret), secret);
         assert.ok(saved.includes('My unfinished title'));
@@ -136,7 +137,7 @@ test('reconnect checks current state before resuming drafts and protects newer t
         await expect(page.locator('[data-proposal-autosave-message]')).toContainText('Saved locally only');
         assert.equal(await page.evaluate(() => window.saves), 0);
         state.authorized = true;
-        await page.getByRole('button', { name: 'Retry draft saving' }).click();
+        await page.getByRole('button', { name: 'Try saving again' }).click();
         await expect.poll(() => page.evaluate(() => window.saves)).toBe(1);
         await page.evaluate(() => window.dispatchEvent(new Event('offline')));
         state.version = 2;
@@ -172,7 +173,7 @@ test('duplicate tabs keep separate copies and logout prevents an older tab repop
         await first.close();
         await second.close();
         const reopened = await open();
-        await expect(reopened.getByLabel('Recovery copy', { exact:true })).toHaveValue(/athena-proposal-recovery:/);
+        await expect(reopened.getByLabel('Choose a saved copy', { exact:true })).toHaveValue(/athena-proposal-recovery:/);
         assert.equal(await reopened.locator('[data-proposal-conflict-recovery] select option').count(), 2);
         state.user = '2';
         const otherAccount = await open();
@@ -194,7 +195,7 @@ test('disabled recovery storage gives an honest warning while keeping text edita
         const { context, open } = await fixture(browser);
         await context.addInitScript(() => Object.defineProperty(window, 'localStorage', { configurable:true, get() { throw new Error('Storage denied'); } }));
         const page = await open();
-        await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('Recovery storage is unavailable');
+        await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('This browser can’t keep a copy of your changes');
         await page.getByLabel('Project title', { exact:true }).fill('Still editable');
         await expect(page.getByLabel('Project title', { exact:true })).toHaveValue('Still editable');
         await context.close();
@@ -208,7 +209,7 @@ test('discarding a current recovery copy does not recreate it when the page clos
         const page = await open();
         await page.getByLabel('Project title', { exact:true }).fill('Explicitly discarded local copy');
         await expect(page.locator('[data-proposal-conflict-recovery]')).toBeVisible();
-        await page.getByRole('button', { name:'Discard recovery copy' }).click();
+        await page.getByRole('button', { name:'Delete browser copy' }).click();
         await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
         assert.equal((await page.evaluate(recoveryKeys)).length, 0);
         await page.close();

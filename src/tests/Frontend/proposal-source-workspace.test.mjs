@@ -596,6 +596,14 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 assert.deepEqual(passageRequest.body, { quote, note: '', page: 2, kind: 'quote' });
                 const checkbox = page.getByRole('checkbox', { name: `Use excerpt ${firstId} for AI help`, exact: true });
                 await checkbox.check();
+                await page.getByText('Other AI help', { exact: true }).click();
+                const assistance = page.locator('button').filter({ has: page.locator('span[x-text*="Check support"]') });
+                for (const [mode, label] of [['explain', 'Explain excerpts'], ['support', 'Check support'], ['synthesize', 'Draft synthesis']]) {
+                    await page.getByLabel('AI help', { exact: true }).selectOption(mode);
+                    await expect(assistance).toHaveText(label);
+                    await expect(assistance.locator('[data-assistant-icon]')).toBeVisible();
+                }
+                await page.getByText('Other AI help', { exact: true }).click();
                 await page.getByRole('button', { name: 'Draft from selected evidence', exact: true }).click();
                 const review = page.getByLabel('AI response', { exact: true });
                 await expect(review).toBeVisible();

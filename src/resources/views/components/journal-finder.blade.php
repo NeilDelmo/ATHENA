@@ -134,7 +134,7 @@
                         Compared <span class="font-bold" x-text="relatedArticles"></span> distinct articles across multiple OpenAlex searches.
                     </p>
                 </div>
-                <button type="button" @click="askAthena()" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40">Ask Athena to compare</button>
+                <button type="button" @click="askAthena()" class="gap-2 inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"><x-assistant-icon />Ask Athena to compare</button>
             </div>
             <p class="text-sm text-gray-600 dark:text-slate-300" x-text="'Search terms: ' + keywords.join(', ')"></p>
 

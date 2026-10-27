@@ -236,41 +236,6 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         }
     };
 
-    const expansionControls = [];
-    const addExpansionControls = () => workspace.querySelectorAll('[data-semantic-editor]').forEach((field) => {
-        if (!field._semanticEditor || field._semanticEditor.parentElement.querySelector('[data-writing-editor-expand]')) return;
-        const controls = document.createElement('div');
-        controls.className = 'proposal-editor-actions';
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.dataset.writingEditorExpand = field.id;
-        button.textContent = 'Expand editor';
-        button.setAttribute('aria-expanded', 'false');
-        field._semanticEditor.id ||= `${field.id}-editor`;
-        button.setAttribute('aria-controls', field._semanticEditor.id);
-        const label = field.labels?.[0]?.textContent?.trim() || field.name || 'writing';
-        button.setAttribute('aria-label', `Expand ${label} editor`);
-        button.addEventListener('mousedown', (event) => { field._semanticApi.saveSelection(); event.preventDefault(); });
-        button.addEventListener('click', () => {
-            const expanded = field._semanticEditor.parentElement.classList.toggle('proposal-writing-expanded');
-            button.textContent = expanded ? 'Shrink editor' : 'Expand editor';
-            button.setAttribute('aria-expanded', String(expanded));
-            button.setAttribute('aria-label', `${expanded ? 'Shrink' : 'Expand'} ${label} editor`);
-            field._semanticApi.restoreSelection();
-            field._semanticEditor.focus();
-        });
-        controls.appendChild(button);
-        field._semanticEditor.before(controls);
-        expansionControls.push(controls);
-    });
-    addExpansionControls();
-    const expansionObserver = new MutationObserver((mutations) => {
-        if (mutations.some(({ addedNodes }) => [...addedNodes].some((node) => node instanceof HTMLElement
-            && (node.matches('[data-semantic-editor], .semantic-rich-text-editor') || node.querySelector('[data-semantic-editor], .semantic-rich-text-editor'))))) {
-            addExpansionControls();
-        }
-    });
-    expansionObserver.observe(workspace, { childList: true, subtree: true });
     const onOutsidePointerDown = (event) => { if (!toolbar.contains(event.target)) closeMenu(); };
     const onTableKeydown = (event) => {
         if (event.key !== 'Tab' || !fieldAt(event.target)) return;
@@ -319,8 +284,6 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
 
     return () => {
         closeMenu();
-        expansionObserver.disconnect();
-        expansionControls.forEach((controls) => controls.remove());
         workspace.removeEventListener('focusin', onFocus);
         workspace.removeEventListener('input', update);
         workspace.removeEventListener('dragover', onDragover);

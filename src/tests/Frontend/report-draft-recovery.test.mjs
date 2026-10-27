@@ -111,7 +111,7 @@ for (const kind of ['monitoring', 'progress', 'terminal']) {
             await page.getByLabel('Findings', { exact: true }).fill('Keep this recovery finding');
             await page.getByLabel('Choice B', { exact: true }).check();
             await page.getByLabel('Evidence', { exact: true }).setInputFiles({ name: 'private-proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('FILE_SECRET') });
-            await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('saved locally in this browser');
+            await expect(page.locator('[data-proposal-conflict-recovery]')).toContainText('Not saved to ATHENA yet');
             const saved = await context.storageState();
             const serialized = JSON.stringify(saved);
             for (const secret of ['CSRF_SECRET', 'APPROVED_SECRET', 'FILE_SECRET', 'private-proof.pdf']) assert.ok(!serialized.includes(secret), secret);
@@ -156,7 +156,7 @@ for (const kind of ['monitoring', 'progress', 'terminal']) {
             await expect(page.locator('[data-proposal-autosave-message]')).toContainText('Saved locally only');
             assert.equal(state.posts.length, 0);
             state.authorized = true;
-            await page.getByRole('button', { name: 'Retry draft saving' }).click();
+            await page.getByRole('button', { name: 'Try saving again' }).click();
             await expect.poll(() => state.posts.length).toBe(1);
             await expect.poll(() => page.locator('[name="draft_version"]').inputValue()).toBe('1');
             await offline(page);
@@ -203,7 +203,7 @@ test('discarded file recovery stays discarded and report recovery is isolated by
         await offline(page);
         await page.getByLabel('Introduction', { exact: true }).fill('Discarded local copy');
         await page.getByLabel('Evidence', { exact: true }).setInputFiles({ name: 'proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('file') });
-        await page.getByRole('button', { name: 'Discard recovery copy' }).click();
+        await page.getByRole('button', { name: 'Delete browser copy' }).click();
         await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
         assert.equal((await page.evaluate(keys)).length, 0);
         await page.getByLabel('Introduction', { exact: true }).fill('Q1 private work');

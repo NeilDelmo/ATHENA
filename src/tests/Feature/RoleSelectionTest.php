@@ -57,7 +57,7 @@ test('dual role users can open workspace switching from the account menu', funct
         ->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertSee('Switch Workspace')
-        ->assertSee(route('role-selection.show'), false);
+        ->assertSee(route('workspace.select'), false);
 });
 
 test('users can continue as faculty for the current session', function () {

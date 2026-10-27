@@ -11,7 +11,7 @@ const source = app.slice(
     app.indexOf("Alpine.data('fileDropzone',"),
 );
 
-function createMenu({ area = 'proposal_submissions', actionUrl = null, ok = true, fetcher = null } = {}) {
+function createMenu({ area = 'proposal_submissions', actionUrl = null, ok = true, fetcher = null, confirmed = false } = {}) {
     const item = {
         id: 'notification-1',
         read_at: null,
@@ -29,8 +29,10 @@ function createMenu({ area = 'proposal_submissions', actionUrl = null, ok = true
         }),
         showProposalConfirmation: async () => {
             calls.push(['invitation', item.read_at]);
-            return false;
+            return confirmed;
         },
+        Swal: { fire: async (options) => calls.push(['dialog', options]) },
+        proposalDialogTheme: () => ({}),
     });
     const menu = factory({
         notifications: [item],
@@ -71,6 +73,32 @@ test('viewing an invitation marks it read even when acceptance is declined', asy
         ['invitation', item.read_at],
     ]);
 });
+
+for (const workloadWarning of [null, 'Your project workload is above the recommended limit.']) {
+    test(`accepting an invitation explains the current workspace destination${workloadWarning ? ' with a workload warning' : ''}`, async () => {
+        const message = 'Invitation accepted. Switch to Faculty when you want to edit this proposal.';
+        const { menu, item, calls } = createMenu({
+            actionUrl: '/invitation/accept',
+            confirmed: true,
+            fetcher: async (url) => ({
+                ok: true,
+                json: async () => url === '/invitation/accept'
+                    ? { accepted: true, url: '/research-coordinator/dashboard', message, workload_warning: workloadWarning }
+                    : { read: true, unread_count: 0 },
+            }),
+        });
+
+        await menu.acceptProposalInvitation(item);
+
+        const dialog = calls.find(([kind]) => kind === 'dialog')[1];
+        assert.ok(dialog.text.includes(message));
+        if (workloadWarning) assert.ok(dialog.text.includes(workloadWarning));
+        assert.equal(dialog.confirmButtonText, 'Continue');
+        assert.equal(item.data.action_completed, true);
+        assert.equal(item.data.action_url, undefined);
+        assert.deepEqual(calls.at(-1), ['navigate', '/research-coordinator/dashboard']);
+    });
+}
 
 test('an unsuccessful read request does not clear the unread indicator', async () => {
     const { menu, item } = createMenu({ ok: false });

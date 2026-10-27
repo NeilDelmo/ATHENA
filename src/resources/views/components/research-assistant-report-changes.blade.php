@@ -24,7 +24,7 @@
                     </article>
                 </template>
             </div>
-            <button x-show="message.report_changes.suggestions.some(item => item.stale)" type="button" @click="$store.researchAssistant.refreshReportChanges(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="m-4 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:text-red-200">Request updated suggestions</button>
+            <button x-show="message.report_changes.suggestions.some(item => item.stale)" type="button" @click="$store.researchAssistant.refreshReportChanges(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="gap-2 m-4 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:text-red-200"><x-assistant-icon />Request updated suggestions</button>
         </div>
     </template>
 </section>

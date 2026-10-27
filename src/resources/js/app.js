@@ -2332,6 +2332,12 @@ Alpine.store('researchAssistant', {
     },
 
     async sendPrompt(prompt, action = null, contextOverride = null) {
+        if (this.isLoading || this.sendInProgress || this.documentAnalysisPending || this.disseminationSaving
+            || this.proposalChangesOperationPending || this.reportChangesOperationPending || this.retryAfter > 0) return null;
+        if (this.draft.trim() && this.draft.trim() !== prompt.trim()) {
+            this.setError('Finish your current message', 'Send or clear the message you are writing before starting another AI action.');
+            return null;
+        }
         this.draft = prompt;
         return this.send(action, contextOverride);
     },
@@ -4255,17 +4261,10 @@ Alpine.store('literatureSearch', {
 
         const assistant = Alpine.store('researchAssistant');
 
-        if (!assistant || assistant.isLoading) return;
+        if (!assistant || assistant.proposalChangesBusy()) return;
 
-        assistant.draft = this.athenaPrompt();
-        assistant.send();
-
-        window.setTimeout(() => {
-            document.getElementById('assistant-heading')?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start',
-            });
-        });
+        assistant.openDrawer();
+        return assistant.sendPrompt(this.athenaPrompt());
     },
 
     athenaPrompt() {
@@ -4438,17 +4437,10 @@ Alpine.store('conferenceSearch', {
 
         const assistant = Alpine.store('researchAssistant');
 
-        if (!assistant || assistant.isLoading) return;
+        if (!assistant || assistant.proposalChangesBusy()) return;
 
-        assistant.draft = this.athenaPrompt();
-        assistant.send();
-
-        window.setTimeout(() => {
-            document.getElementById('assistant-heading')?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start',
-            });
-        });
+        assistant.openDrawer();
+        return assistant.sendPrompt(this.athenaPrompt());
     },
 
     athenaPrompt() {
@@ -4677,11 +4669,31 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
     },
 }));
 
+Alpine.data('proposalDateGuidance', (config = {}) => ({
+    implementationStart: normalizeIsoDate(config.start),
+    implementationEnd: normalizeIsoDate(config.end),
+    dateLabel: config.label,
+
+    dateWarning(value) {
+        const date = normalizeIsoDate(value);
+        if (!date) return '';
+
+        const beforeStart = this.implementationStart && date < this.implementationStart;
+        const afterEnd = this.implementationEnd && date > this.implementationEnd;
+        if (!beforeStart && !afterEnd) return '';
+
+        const boundary = beforeStart ? this.implementationStart : this.implementationEnd;
+        const formatted = new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric', year: 'numeric' }).format(localDateFromIso(boundary));
+        return `Your ${this.dateLabel} is ${beforeStart ? 'before the scheduled implementation start' : 'after the scheduled implementation end'} on ${formatted}. You can keep this date.`;
+    },
+}));
+
 Alpine.data('datePicker', (config = {}) => ({
     value: normalizeIsoDate(config.initialValue),
     min: normalizeIsoDate(config.min) || '1900-01-01',
     max: normalizeIsoDate(config.max) || '2100-12-31',
     required: Boolean(config.required),
+    referenceDates: config.referenceDates || [],
     isOpen: false,
     suppressFocusOpen: false,
     viewMonth: new Date().getMonth(),
@@ -4726,6 +4738,7 @@ Alpine.data('datePicker', (config = {}) => ({
             const date = new Date(calendarStart);
             date.setDate(calendarStart.getDate() + index);
             const iso = isoDateFromLocal(date);
+            const referenceLabel = this.referenceDates.filter(reference => reference.date === iso).map(reference => reference.label).join(' · ');
 
             return {
                 iso,
@@ -4735,7 +4748,8 @@ Alpine.data('datePicker', (config = {}) => ({
                     month: 'long',
                     day: 'numeric',
                     year: 'numeric',
-                }).format(date),
+                }).format(date) + (referenceLabel ? ` · ${referenceLabel}` : ''),
+                referenceLabel,
                 isCurrentMonth: date.getMonth() === safeMonth,
                 isToday: iso === today,
                 isSelected: iso === this.value,
@@ -5238,9 +5252,9 @@ Alpine.data('notificationMenu', (config) => ({
 
         await Swal.fire({
             title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'Project staff membership confirmed',
-            text: payload.workload_warning || `You can now access the current draft “${proposalTitle}”.`,
+            text: [payload.workload_warning, payload.message || `You can now access the current draft “${proposalTitle}”.`].filter(Boolean).join('\n\n'),
             icon: payload.workload_warning ? 'warning' : 'success',
-            confirmButtonText: 'Open draft',
+            confirmButtonText: 'Continue',
             confirmButtonColor: '#dc2626',
             ...proposalDialogTheme(),
         });
@@ -9426,19 +9440,10 @@ initializeWorkspaceSwitching((url) => Livewire.navigate(url));
 const initializeManilaClock = createManilaClock();
 document.addEventListener('livewire:navigated', initializeManilaClock);
 Livewire.start();
-initializeManilaClock();
-initializeAnnouncementImageUploads();
-initializeResearchCallCarousels();
-initializeResearchCallImageExtractors();
-initializeResearchCallPosterPreviews();
-initializeRevisionTargetFocus();
-initializeProposalSubmissionReadiness();
-initializeProposalPdfPreparation();
-initializeResearchManualChecks();
 initializeFileUploads();
-initializeTopicLiveStatus();
-synchronizePdfReadingAccount();
+// Embedded editors must advertise loading before their iframe load event.
 initializeRevisionWorkspace(showProposalConfirmation);
+// Livewire also fires this event on the initial page load.
 document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
 document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
 document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
@@ -9454,5 +9459,3 @@ document.addEventListener('livewire:navigated', () => initializeRevisionWorkspac
 document.addEventListener('livewire:navigated', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeRevisionTargetFocus);
-window.requestAnimationFrame(initializeSemanticEditors);
-window.requestAnimationFrame(initializeProposalRecovery);

@@ -97,10 +97,13 @@ class NotificationController extends Controller
     ): View|RedirectResponse {
         Gate::authorize('review', $proposalDraftMember);
 
-        $this->activateFacultyWorkspace($request);
-
         if ($proposalDraftMember->isAccepted()) {
-            return redirect()->route('faculty.proposal-drafts.show', $proposalDraftMember->draft);
+            if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
+                return redirect()->route('faculty.proposal-drafts.show', $proposalDraftMember->draft);
+            }
+
+            return redirect()->route($request->user()->dashboardRouteName() ?? 'workspace.select')
+                ->with('status', 'This invitation is already accepted. Switch to the Faculty workspace to edit the shared proposal.');
         }
 
         $proposalDraftMember->loadMissing('draft.owner:id,name', 'draft.researchCall');
@@ -133,9 +136,14 @@ class NotificationController extends Controller
         );
         $this->completeInvitationNotification($request, $proposalDraftMember);
 
-        $this->activateFacultyWorkspace($request);
-
-        $url = route('faculty.proposal-drafts.show', $proposalDraft);
+        $usingFaculty = $request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY);
+        $url = $usingFaculty
+            ? route('faculty.proposal-drafts.show', $proposalDraft)
+            : route($request->user()->dashboardRouteName() ?? 'workspace.select');
+        $message = $usingFaculty
+            ? 'Invitation accepted. You can now edit the shared proposal.'
+            : 'Invitation accepted. Switch to the Faculty workspace to edit the shared proposal.';
+        $request->session()->flash('status', $message);
 
         if (! $request->expectsJson()) {
             return redirect()->to($url)->with('workload_warning', $workloadWarning);
@@ -144,18 +152,9 @@ class NotificationController extends Controller
         return response()->json([
             'accepted' => true,
             'url' => $url,
+            'message' => $message,
             'workload_warning' => $workloadWarning,
         ]);
-    }
-
-    private function activateFacultyWorkspace(Request $request): void
-    {
-        if (! $request->user()->isUsingWorkspace([
-            User::WORKSPACE_FACULTY,
-            User::WORKSPACE_FACULTY_RESEARCHER,
-        ])) {
-            $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
-        }
     }
 
     private function completeInvitationNotification(Request $request, ProposalDraftMember $proposalDraftMember): void

@@ -49,3 +49,32 @@ test('an HTML login response cannot become a successful empty search', async () 
     assert.match(finder.error, /unexpected response/);
     assert.equal(finder.isLoading, false);
 });
+
+test('journal comparison keeps the title and abstract that produced the results when inputs change', async context => {
+    const previousWindow = globalThis.window;
+    let prompt;
+    globalThis.window = { Alpine: { store: () => ({
+        proposalChangesBusy: () => false,
+        openDrawer() {},
+        sendPrompt(value) { prompt = value; },
+    }) } };
+    context.after(() => { globalThis.window = previousWindow; });
+    globalThis.document = { querySelector: () => ({ content: 'test-csrf' }) };
+    let finish;
+    globalThis.fetch = () => new Promise(resolve => { finish = resolve; });
+    const finder = journalFinder({ endpoint: '/search', query: 'Coastal monitoring', context: 'Sampling coastal waters.' });
+    const searching = finder.search();
+    finder.query = 'Maternal nutrition';
+    finder.context = 'Tracking nutrition during pregnancy.';
+    finish(response({ results: [{ name: 'Coastal Research', fit_score: 80 }] }));
+    await searching;
+    await finder.askAthena();
+    assert.match(prompt, /Paper\/topic: Coastal monitoring/);
+    assert.match(prompt, /Abstract\/keywords: Sampling coastal waters\./);
+    assert.doesNotMatch(prompt, /Maternal nutrition|pregnancy/);
+    finder.query = 'School attendance';
+    finder.context = 'Monitoring attendance in rural schools.';
+    await finder.askAthena();
+    assert.match(prompt, /Paper\/topic: Coastal monitoring/);
+    assert.doesNotMatch(prompt, /School attendance|rural schools/);
+});

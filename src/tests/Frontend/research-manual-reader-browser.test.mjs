@@ -277,9 +277,11 @@ test('manual reader reuses the shared thumbnail and modal with complete search, 
             await reader.locator('[data-manual-guidance] summary').click();
             await expect(reader.getByLabel('Ask about this edition', { exact: true })).toHaveAttribute('data-manual-question', '');
             await reader.locator('[data-manual-question]').fill('What ethics review is required?');
+            await expect(reader.getByRole('button', { name: 'Check guidance', exact: true }).locator('[data-assistant-icon]')).toBeVisible();
             await reader.getByRole('button', { name: 'Check guidance', exact: true }).click();
             const answer = reader.locator('[data-manual-guidance-result]');
             await expect(answer).toContainText('Review ethics clearance. <img');
+            await expect(reader.getByRole('button', { name: 'Check guidance', exact: true }).locator('[data-assistant-icon]')).toBeVisible();
             await expect(answer.locator('img')).toHaveCount(0);
             await expect(answer.getByRole('link')).toHaveAttribute('href', `${origin}/fixture#page=2`);
             const pdfUrl = JSON.parse(await thumbnail.getAttribute('data-pdf-annotation-config')).pdfUrl;
@@ -341,10 +343,12 @@ test('manual reader reuses the shared thumbnail and modal with complete search, 
 
                 const candidateReader = editionReaders.nth(1);
                 await candidateReader.locator('[data-manual-guidance] summary').click();
+                await expect(candidateReader.locator('[aria-label="Sample guidance questions"] button').first().locator('[data-assistant-icon]')).toBeVisible();
                 await candidateReader.locator('[data-manual-question]').fill('What ethics review is required?');
                 await candidateReader.getByRole('button', { name: 'Check guidance', exact: true }).click();
                 const checks = candidateReader.locator('[data-manual-guidance-result] article');
                 await expect(checks).toHaveCount(1);
+                await expect(candidateReader.locator('[data-manual-run-checks] [data-assistant-icon]')).toBeVisible();
                 await candidateReader.locator('[data-manual-run-checks]').click();
                 await expect(candidateReader.locator('[data-manual-run-checks]')).toBeEnabled();
                 await expect(checks).not.toHaveCount(1);

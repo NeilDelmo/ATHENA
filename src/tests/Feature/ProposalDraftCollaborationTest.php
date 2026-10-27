@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -326,8 +326,16 @@ test('the project leader assigns an accepted team member as secretary for the fu
         ->and($topic->collaborators()->where('user_id', $this->collaborator->id)->sole()->project_role)->toBe('secretary');
 });
 
-test('a research head can review and accept a collaboration invitation from their workspace', function () {
-    $this->collaborator->syncRoles('research_head');
+dataset('collaboration invitation workspaces', [
+    'Faculty' => [User::WORKSPACE_FACULTY, ['faculty'], 'faculty.dashboard'],
+    'Faculty Researcher' => [User::WORKSPACE_FACULTY_RESEARCHER, ['faculty_researcher'], 'faculty.dashboard'],
+    'Research Head' => [User::WORKSPACE_RESEARCH_HEAD, ['research_head'], 'research_head.dashboard'],
+    'Research Coordinator' => [User::WORKSPACE_RESEARCH_OFFICE, ['faculty', 'research_coordinator'], 'research_coordinator.dashboard'],
+    'Research Office Secretary' => [User::WORKSPACE_RESEARCH_SECRETARY, ['faculty', 'research_secretary'], 'research_secretary.dashboard'],
+]);
+
+test('collaboration invitation review and acceptance preserve the selected workspace', function (string $workspace, array $roles, string $dashboard) {
+    $this->collaborator->syncRoles($roles);
     $membership = $this->draft->members()->create([
         'user_id' => $this->collaborator->id,
         'name' => $this->collaborator->name,
@@ -336,23 +344,104 @@ test('a research head can review and accept a collaboration invitation from thei
     ]);
 
     $this->actingAs($this->collaborator)
-        ->withSession(['active_workspace' => User::WORKSPACE_RESEARCH_HEAD])
+        ->withSession(['active_workspace' => $workspace])
         ->get(route('notifications.proposal-invitations.show', $membership))
         ->assertOk()
         ->assertSee('Project staff invitation')
         ->assertSee('Shared Coastal Research')
-        ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
+        ->assertSessionHas('active_workspace', $workspace);
 
-    $this->actingAs($this->collaborator)
+    $response = $this->actingAs($this->collaborator)
         ->post(route('notifications.proposal-invitations.accept', $membership))
-        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft))
-        ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
+        ->assertRedirect($workspace === User::WORKSPACE_FACULTY
+            ? route('faculty.proposal-drafts.show', $this->draft)
+            : route($dashboard))
+        ->assertSessionHas('active_workspace', $workspace);
+
+    if ($workspace !== User::WORKSPACE_FACULTY) {
+        $response->assertSessionHas('status', fn (string $message): bool => str_contains($message, 'Switch to the Faculty workspace'));
+    }
 
     expect($membership->fresh()->accepted_at)->not->toBeNull();
 
     $this->actingAs($this->collaborator)
+        ->post(route('workspace.store'), ['workspace' => User::WORKSPACE_FACULTY])
+        ->assertRedirect();
+    $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk();
+})->with('collaboration invitation workspaces');
+
+test('json invitation acceptance keeps the selected workspace and explains where to continue', function (string $workspace, array $roles, string $dashboard) {
+    $this->collaborator->syncRoles($roles);
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => null,
+    ]);
+
+    $response = $this->actingAs($this->collaborator)
+        ->withSession(['active_workspace' => $workspace])
+        ->postJson(route('notifications.proposal-invitations.accept', $membership))
+        ->assertOk()
+        ->assertJson([
+            'accepted' => true,
+            'url' => $workspace === User::WORKSPACE_FACULTY
+                ? route('faculty.proposal-drafts.show', $this->draft)
+                : route($dashboard),
+        ])
+        ->assertSessionHas('active_workspace', $workspace);
+
+    expect($response->json('message'))->toBeString()->not->toBeEmpty();
+    $response->assertSessionHas('status', $response->json('message'));
+    if ($workspace !== User::WORKSPACE_FACULTY) {
+        expect($response->json('message'))->toContain('Switch to the Faculty workspace');
+    }
+    expect($membership->fresh()->accepted_at)->not->toBeNull();
+})->with('collaboration invitation workspaces');
+
+test('already accepted invitation links keep the selected workspace', function (string $workspace, array $roles, string $dashboard) {
+    $this->collaborator->syncRoles($roles);
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => now(),
+    ]);
+
+    $response = $this->actingAs($this->collaborator)
+        ->withSession(['active_workspace' => $workspace])
+        ->get(route('notifications.proposal-invitations.show', $membership))
+        ->assertRedirect($workspace === User::WORKSPACE_FACULTY
+            ? route('faculty.proposal-drafts.show', $this->draft)
+            : route($dashboard))
+        ->assertSessionHas('active_workspace', $workspace);
+
+    if ($workspace !== User::WORKSPACE_FACULTY) {
+        $response->assertSessionHas('status', fn (string $message): bool => str_contains($message, 'Switch to the Faculty workspace'));
+    }
+})->with('collaboration invitation workspaces');
+
+test('a selected workspace does not grant access to another persons invitation', function () {
+    $this->outsider->assignRole('research_head');
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => null,
+    ]);
+
+    $this->actingAs($this->outsider)
+        ->withSession(['active_workspace' => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('notifications.proposal-invitations.show', $membership))
+        ->assertForbidden()
+        ->assertSessionHas('active_workspace', User::WORKSPACE_RESEARCH_HEAD);
+    $this->postJson(route('notifications.proposal-invitations.accept', $membership))
+        ->assertForbidden()
+        ->assertSessionHas('active_workspace', User::WORKSPACE_RESEARCH_HEAD);
+
+    expect($membership->fresh()->accepted_at)->toBeNull();
 });
 
 test('accepted team members and their project roles are restored when a revision workspace is created', function () {

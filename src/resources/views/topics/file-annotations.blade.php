@@ -87,10 +87,10 @@
                                 <template x-if="config.researchHeadAvatar"><img :src="config.researchHeadAvatar" alt="" class="h-full w-full object-cover" x-on:error="config.researchHeadAvatar = null"></template>
                                 <span x-show="!config.researchHeadAvatar" x-text="reviewerInitials(config.researchHeadName || 'Research Head')"></span>
                             </span>
-                            <div class="min-w-0"><p class="font-serif text-lg font-bold text-red-950 dark:text-red-100">{{ $topic->review_stage === 'lrec' ? 'LREC comments' : 'Research Head comments' }}</p><p class="truncate text-sm text-red-800 dark:text-red-200" x-text="config.isLrecReview ? 'Recorded by ' + config.researchHeadName : (config.researchHeadName || 'Research Head')"></p></div>
+                            <div class="min-w-0"><p class="text-lg font-bold text-red-950 dark:text-red-100">{{ $topic->review_stage === 'lrec' ? 'LREC comments' : 'Research Head comments' }}</p><p class="truncate text-sm text-red-800 dark:text-red-200" x-text="config.isLrecReview ? 'Recorded by ' + config.researchHeadName : (config.researchHeadName || 'Research Head')"></p></div>
                         </div>
                         <div class="mb-3 flex items-center justify-between gap-2">
-                            <h3 id="annotation-comments-heading" class="font-serif text-lg font-bold text-gray-950 dark:text-white">Comments <span class="ml-1 font-sans text-sm font-semibold text-gray-500" x-text="reviewerCommentCount"></span></h3>
+                            <h3 id="annotation-comments-heading" class="text-lg font-bold text-gray-950 dark:text-white">Comments <span class="ml-1 font-sans text-sm font-semibold text-gray-500" x-text="reviewerCommentCount"></span></h3>
                             <span class="rounded-full bg-gray-100 px-2.5 py-1 text-sm font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300" x-show="canAnnotate">Draft review</span>
                         </div>
                         <div class="space-y-3" aria-labelledby="annotation-comments-heading">
@@ -131,7 +131,7 @@
                     <section x-ref="commentComposer" x-show="draftSelection" x-cloak role="dialog" aria-labelledby="revision-comment-title" @keydown.escape.stop.prevent="cancelDraft()" @keydown.ctrl.enter.prevent="saveAnnotation()" @keydown.meta.enter.prevent="saveAnnotation()" class="fixed z-[120] w-[410px] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
                         <div class="flex items-start justify-between gap-3">
                             <div>
-                                <h3 id="revision-comment-title" class="font-serif text-xl font-bold text-gray-950 dark:text-white" x-text="editingAnnotationId ? 'Edit comment' : 'Revision comment'"></h3>
+                                <h3 id="revision-comment-title" class="text-xl font-bold text-gray-950 dark:text-white" x-text="editingAnnotationId ? 'Edit comment' : 'Revision comment'"></h3>
                                 <p class="mt-1 text-sm text-gray-500">Page <span x-text="draftSelection?.pageNumber"></span> · <span x-text="draftSelection?.type === 'pin' ? 'Pinned location' : 'Highlighted location'"></span></p>
                             </div>
                             <button type="button" @click="cancelDraft()" :disabled="saving" aria-label="Close comment editor" class="rounded px-2 text-xl text-gray-500 disabled:opacity-40">×</button>

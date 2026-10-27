@@ -7,6 +7,8 @@ export function journalFinder(config = {}) {
         endpoint: config.endpoint,
         query: config.query || '',
         context: config.context || '',
+        lastSearchQuery: '',
+        lastSearchContext: '',
         openAccessOnly: false,
         recentYears: 10,
         indexing: 'prefer_scopus',
@@ -24,10 +26,11 @@ export function journalFinder(config = {}) {
 
         async search() {
             const query = this.query.trim();
+            const context = this.context.trim();
             this.error = '';
             this.hasSearched = true;
 
-            if (query.length < 3 && this.context.trim().length < 3) {
+            if (query.length < 3 && context.length < 3) {
                 this.results = [];
                 this.error = 'Paste an abstract or enter a paper title or specific subject terms.';
                 return;
@@ -52,7 +55,7 @@ export function journalFinder(config = {}) {
                     },
                     body: JSON.stringify({
                         query: query || null,
-                        context: this.context.trim() || null,
+                        context: context || null,
                         open_access: this.openAccessOnly,
                         recent_years: Number(this.recentYears),
                         indexing: this.indexing,
@@ -72,6 +75,8 @@ export function journalFinder(config = {}) {
                     throw new Error(validationMessage || payload.message || 'The journal search could not be completed.');
                 }
 
+                this.lastSearchQuery = query;
+                this.lastSearchContext = context;
                 this.results = Array.isArray(payload.results) ? payload.results : [];
                 this.warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
                 this.keywords = Array.isArray(payload.keywords) ? payload.keywords : [];
@@ -101,7 +106,7 @@ export function journalFinder(config = {}) {
             if (!this.results.length) return;
 
             const assistant = window.Alpine?.store('researchAssistant');
-            if (!assistant || assistant.isLoading) return;
+            if (!assistant || assistant.proposalChangesBusy()) return;
 
             const journals = this.results.slice(0, 6).map((journal, index) => {
                 const evidence = (journal.sample_articles || [])
@@ -117,16 +122,17 @@ export function journalFinder(config = {}) {
                 ].filter(Boolean).join('\n');
             }).join('\n\n');
 
-            assistant.draft = [
+            const prompt = [
                 'Compare these evidence-based journal recommendations for my paper.',
-                `Paper/topic: ${compactJournalText(this.query, 500)}`,
-                this.context.trim() ? `Abstract/keywords: ${compactJournalText(this.context, 1200)}` : '',
+                `Paper/topic: ${compactJournalText(this.lastSearchQuery, 500)}`,
+                this.lastSearchContext ? `Abstract/keywords: ${compactJournalText(this.lastSearchContext, 1200)}` : '',
                 '',
                 journals,
                 '',
                 'Recommend a shortlist and explain fit, possible tradeoffs, and what I must verify on each official journal website. Do not invent acceptance rates, fees, indexing, or submission requirements.',
             ].filter((line) => line !== '').join('\n');
-            assistant.send();
+            assistant.openDrawer();
+            return assistant.sendPrompt(prompt);
         },
 
         clear() {
@@ -137,6 +143,8 @@ export function journalFinder(config = {}) {
             this.copyMessage = '';
             this.query = '';
             this.context = '';
+            this.lastSearchQuery = '';
+            this.lastSearchContext = '';
             this.openAccessOnly = false;
             this.recentYears = 10;
             this.indexing = 'prefer_scopus';

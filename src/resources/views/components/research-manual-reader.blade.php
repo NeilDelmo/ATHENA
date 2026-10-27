@@ -43,12 +43,12 @@
                 <p class="text-sm leading-6 text-slate-500 dark:text-slate-400">Test chatbot answers using only this edition’s indexed passages. Review each AI answer and its citations; completing a check does not approve the answer or activate the manual. The latest ten checks remain on this page until you leave.</p>
                 <div class="flex flex-wrap gap-2" aria-label="Sample guidance questions">
                     @foreach ($reader['guidance_questions'] ?? [] as $question)
-                        <button type="button" x-on:click="askGuidance(@js($question))" x-bind:disabled="guidanceLoading || suiteRunning" class="min-h-11 rounded-lg border border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:text-red-300">{{ $question }}</button>
+                        <button type="button" x-on:click="askGuidance(@js($question))" x-bind:disabled="guidanceLoading || suiteRunning" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:text-red-300"><x-assistant-icon />{{ $question }}</button>
                     @endforeach
                 </div>
                 @if (($reader['guidance_questions'] ?? []) !== [])
                     <div class="flex flex-wrap items-center gap-3">
-                        <button type="button" x-on:click="runGuidanceChecks()" x-bind:disabled="guidanceLoading || suiteRunning" class="workspace-secondary disabled:opacity-50" data-manual-run-checks>Run {{ count($reader['guidance_questions']) }} suggested checks</button>
+                        <button type="button" x-on:click="runGuidanceChecks()" x-bind:disabled="guidanceLoading || suiteRunning" class="workspace-secondary gap-2 disabled:opacity-50" data-manual-run-checks><x-assistant-icon />Run {{ count($reader['guidance_questions']) }} suggested checks</button>
                         <button type="button" x-show="suiteRunning" x-cloak x-on:click="stopGuidanceChecks()" class="workspace-secondary">Stop checks</button>
                         <p x-show="suiteProgress" x-text="suiteProgress" class="text-sm text-slate-500 dark:text-slate-400" role="status"></p>
                     </div>
@@ -57,7 +57,7 @@
                     <label x-bind:for="$id('manual-question')" class="block text-sm font-semibold text-slate-800 dark:text-slate-200">Ask about this edition</label>
                     <div class="flex flex-col gap-2 sm:flex-row">
                         <input x-bind:id="$id('manual-question')" data-manual-question x-model="question" x-bind:disabled="suiteRunning" type="text" maxlength="1500" required placeholder="Enter a research policy question" class="min-h-11 min-w-0 flex-1 rounded-lg border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-red-600 focus:ring-red-600 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                        <button type="submit" x-bind:disabled="guidanceLoading || suiteRunning || !question.trim()" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-900" x-text="guidanceLoading ? 'Checking…' : 'Check guidance'">Check guidance</button>
+                        <button type="submit" x-bind:disabled="guidanceLoading || suiteRunning || !question.trim()" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-900"><x-assistant-icon /><span x-text="guidanceLoading ? 'Checking…' : 'Check guidance'">Check guidance</span></button>
                     </div>
                 </form>
                 <p x-show="guidanceLoading" x-cloak role="status" class="text-sm text-slate-500 dark:text-slate-400">Checking this edition’s guidance…</p>

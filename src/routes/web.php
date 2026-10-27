@@ -81,7 +81,7 @@ Route::get('/dashboard', function () {
     $user = Auth::user();
     $dashboardRoute = $user->dashboardRouteName();
 
-    if ($user->isUsingWorkspace(['research_head', 'research_secretary'])) {
+    if ($user->selectedWorkspace() !== null || $user->isUsingWorkspace(['research_head', 'research_secretary'])) {
         return redirect()->route($dashboardRoute);
     }
 
