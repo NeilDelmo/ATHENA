@@ -197,7 +197,10 @@ export function projectWorkspace(config = {}) {
                 const year = projectYear(project);
                 counts.set(year, (counts.get(year) || 0) + 1);
             });
-            return [...counts].map(([year, count]) => ({ year, count }))
+            return [...counts].map(([year, count]) => ({ year, count,
+                needs_attention: this.projects.some(project => projectYear(project) === year && this.hasAttention(project)),
+                has_new_activity: this.projects.some(project => projectYear(project) === year && project.has_new_activity),
+            }))
                 .sort((first, second) => second.year.localeCompare(first.year, undefined, { numeric: true }));
         },
 
@@ -270,6 +273,19 @@ export function projectWorkspace(config = {}) {
             return descendants;
         },
 
+        hasAttention(item) { return Boolean(item?.has_new_activity || item?.needs_attention || Number(item?.pending) > 0); },
+        folderHasNewActivity(id) {
+            const descendants = this.descendantIds(id);
+            const unreadProjectIds = new Set(this.projects.filter(project => project.has_new_activity).map(project => project.id));
+            return this.workspace.assignments.some(item => descendants.has(item.folder_id) && unreadProjectIds.has(item.project_id));
+        },
+        folderNeedsAttention(id) {
+            const descendants = this.descendantIds(id);
+            const projectIds = new Set(this.workspace.assignments.filter(item => descendants.has(item.folder_id)).map(item => item.project_id));
+            const shortcuts = this.shortcuts.filter(item => descendants.has(item.folder_id));
+            return this.projects.some(project => projectIds.has(project.id) && this.hasAttention(project))
+                || shortcuts.some(shortcut => this.documentsByProject[shortcut.project_id]?.documents.some(document => document.key === shortcut.document_key && this.hasAttention(document)));
+        },
         folderDepth(id) { return Math.max(0, this.folderPath(id).length - 1); },
         folderCount(id) {
             const descendants = this.descendantIds(id);

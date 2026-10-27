@@ -28,7 +28,7 @@
     <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         @forelse ($items as $project)
             <article class="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800" wire:key="analytics-project-{{ $project['id'] }}">
-                <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="break-words font-semibold hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:text-rose-300">{{ $project['title'] }}</a>
+                <h4 class="break-words font-semibold">{{ $project['title'] }}</h4>
                 <p class="break-words text-sm rh-muted">Lead: {{ $project['lead'] }}</p>
                 <strong class="text-sm {{ $project['status'] === 'delayed' ? 'text-red-700 dark:text-red-300' : 'text-brand dark:text-rose-300' }}">{{ $statuses->firstWhere('key', $project['status'])['label'] ?? str($project['status'])->headline() }}</strong>
                 @if ($project['delay_reason'])
@@ -43,10 +43,10 @@
                     <div class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label="{{ $project['title'] }} reported completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ min(100, max(0, $project['progress'])) }}"><div class="h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ min(100, max(0, $project['progress'])) }}%"></div></div>
                 @endif
                 @foreach ($project['issues']->reject(fn ($issue) => $issue['type'] === 'delayed')->take(2) as $issue)
-                    <a href="{{ $issue['url'] }}" class="break-words text-sm font-medium text-brand underline decoration-brand/30 underline-offset-4 hover:decoration-brand dark:text-rose-300">{{ $issue['issue'] }}</a>
+                    <a href="{{ $issue['url'] }}" class="rh-button-secondary !h-auto !justify-start whitespace-normal break-words !text-left">{{ $issue['issue'] }}</a>
                 @endforeach
                 <p class="text-sm rh-muted">{{ $project['report_date'] ? 'Latest Monitoring Tool: '.$project['report_date'] : 'No monitoring tool submitted' }}</p>
-                <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" aria-label="{{ $project['status'] === 'completed' ? 'Open project archive' : 'Inspect monitoring' }}: {{ $project['title'] }}" class="mt-auto inline-flex min-h-[44px] items-center gap-2 self-start text-sm font-semibold text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-rose-300">{{ $project['status'] === 'completed' ? 'Open project archive' : 'Inspect monitoring' }} <span aria-hidden="true">&rarr;</span></a>
+                <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" aria-label="{{ $project['status'] === 'completed' ? 'Open project archive' : 'Inspect monitoring' }}: {{ $project['title'] }}" class="rh-button-secondary mt-auto self-start">{{ $project['status'] === 'completed' ? 'Open project archive' : 'Inspect monitoring' }} <span aria-hidden="true">&rarr;</span></a>
             </article>
         @empty
             <p class="py-6 text-center rh-muted md:col-span-2 xl:col-span-3">No projects match this status in the selected cohort. Choose another status or adjust the academic year and submission dates.</p>

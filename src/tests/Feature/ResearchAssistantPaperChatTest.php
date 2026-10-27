@@ -21,6 +21,54 @@ beforeEach(function () {
     $this->actingAs($this->faculty);
 });
 
+test('saved visual reading history retains selected page numbers without image payloads', function () {
+    $this->postJson(route('research-support.history.save'), [
+        'messages' => [
+            ['role' => 'user', 'content' => 'Explain the diagram on page 2.'],
+            ['role' => 'assistant', 'content' => 'The diagram shows the sampling process.', 'document_reading' => [
+                'label' => 'Selected PDF', 'format' => 'PDF', 'basis' => 'uploaded_file',
+                'coverage' => ['selected_passages' => 1, 'total_passages' => 5, 'omitted_passages' => 4,
+                    'truncated' => true, 'visual_pages' => [2], 'limitations' => ['Only PDF page 2 was visually inspected.']],
+            ]],
+        ],
+    ])->assertSuccessful()->assertJsonPath('conversation.messages.1.document_reading.coverage.visual_pages', [2]);
+
+    $reading = ResearchAssistantConversation::query()->where('user_id', $this->faculty->id)->firstOrFail()->messages[1]['document_reading'];
+    expect($reading['coverage']['visual_pages'])->toBe([2])
+        ->and(json_encode($reading))->not->toContain('PRIVATE_IMAGE', 'data:image');
+});
+
+test('two visual answers can save the same PDF page in one conversation', function () {
+    $reading = ['label' => 'Selected PDF', 'format' => 'PDF', 'basis' => 'uploaded_file',
+        'coverage' => ['visual_pages' => [2]]];
+
+    $this->postJson(route('research-support.history.save'), [
+        'messages' => [
+            ['role' => 'user', 'content' => 'Explain the diagram on page 2.'],
+            ['role' => 'assistant', 'content' => 'The diagram shows the sampling process.', 'document_reading' => $reading],
+            ['role' => 'user', 'content' => 'Read the labels on that image again.'],
+            ['role' => 'assistant', 'content' => 'The labels identify the sampling stages.', 'document_reading' => $reading],
+        ],
+    ])->assertSuccessful()->assertJsonPath('conversation.messages.1.document_reading.coverage.visual_pages', [2])
+        ->assertJsonPath('conversation.messages.3.document_reading.coverage.visual_pages', [2]);
+});
+
+test('choosing the saved section after RRL clarification reads its text without requesting edits', function (string $choice) {
+    $this->draft->documents()->create(['document_type' => 'detailed_proposal', 'position' => 0,
+        'source_data' => ['related_literature' => 'Coastal research identifies the Zirconium calibration gap in existing turbidity studies.']]);
+
+    $this->postJson(route('research-support.chat'), [
+        'messages' => [
+            ['role' => 'user', 'content' => 'RRL part'],
+            ['role' => 'assistant', 'content' => 'Do you mean requirements, reviewing your saved RRL, or finding studies?'],
+            ['role' => 'user', 'content' => $choice],
+        ],
+        'context' => ['proposal_draft_id' => $this->draft->id],
+    ])->assertSuccessful()->assertJsonMissingPath('literature')->assertJsonMissingPath('proposal_changes.suggestions.0');
+
+    Http::assertSent(fn ($request): bool => str_contains(collect($request['messages'])->pluck('content')->join("\n"), 'Zirconium calibration gap'));
+})->with(['The saved section', 'Reviewing my saved section']);
+
 test('ordinary questions read saved work plan activities without a PDF or a current paper slug', function () {
     $this->draft->documents()->create(['document_type' => 'detailed_proposal', 'position' => 0,
         'source_data' => ['specific_objectives' => [['description' => 'Measure coastal turbidity']]]]);

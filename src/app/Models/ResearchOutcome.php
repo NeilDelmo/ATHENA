@@ -55,6 +55,11 @@ class ResearchOutcome extends Model
         return $this->topic?->user ?? $this->leader;
     }
 
+    public function projectCollege(): ?string
+    {
+        return $this->topic_id ? $this->topic->projectCollege() : $this->leader->college;
+    }
+
     public function detailUrl(): string
     {
         return $this->topic_id

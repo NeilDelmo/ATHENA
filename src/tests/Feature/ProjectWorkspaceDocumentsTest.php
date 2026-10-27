@@ -6,11 +6,13 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use App\Services\ProjectDocumentLibrary;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -38,6 +40,48 @@ beforeEach(function () {
         'introduction' => 'Coastal community research.', 'objectives' => 'Map coastal conditions.',
         'methodology' => 'Community observations.', 'results_discussion' => 'Mapping completed.', 'photos' => [],
     ];
+});
+
+test('activity badges identify only current reports awaiting head review and clear after acceptance', function () {
+    Storage::set('local', Storage::fake('workspace-activity-'.getmypid()));
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $base = ['topic_id' => $this->project->id, 'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-06-30',
+        'progress_percentage' => 50, 'accomplishments' => 'Field work.', 'work_plan' => [], 'budget_utilization' => [],
+        'submission_status' => 'submitted', 'review_stage' => 'head', 'review_status' => 'pending'];
+    $current = ProjectProgressReport::create($base);
+    $old = ProjectProgressReport::create([...$base, 'reporting_date' => '2026-03-31']);
+    $replacement = ProjectProgressReport::create([...$base, 'reporting_date' => '2026-03-31', 'supersedes_report_id' => $old->id, 'version_number' => 2, 'review_status' => 'reviewed']);
+    $secretary = ProjectProgressReport::create([...$base, 'reporting_date' => '2026-09-30', 'review_stage' => 'secretary']);
+    Storage::disk('local')->put('activity-report.pdf', '%PDF-1.7 demo');
+    $narrative = $this->project->narrativeReports()->create([...$this->reportAttributes, 'submission_status' => 'submitted', 'review_status' => 'pending', 'official_pdf_path' => 'activity-report.pdf']);
+    $oldNarrative = $this->project->narrativeReports()->create([...$this->reportAttributes, 'report_type' => 'progress', 'reporting_date' => '2026-03-31', 'reporting_quarter' => 1, 'submission_status' => 'submitted', 'review_status' => 'pending']);
+    $this->project->narrativeReports()->create([...$this->reportAttributes, 'report_type' => 'progress', 'reporting_date' => '2026-03-31', 'reporting_quarter' => 1, 'submission_status' => 'submitted', 'review_status' => 'reviewed', 'version_number' => 2]);
+    $documents = collect($this->getJson($this->documentsUrl)->assertSuccessful()->json('documents'))->keyBy('key');
+    expect($documents['monitoring-report-'.$current->id]['needs_attention'])->toBeTrue()
+        ->and($documents['monitoring-report-'.$old->id]['needs_attention'])->toBeFalse()
+        ->and($documents['monitoring-report-'.$replacement->id]['needs_attention'])->toBeFalse()
+        ->and($documents->has('monitoring-report-'.$secretary->id))->toBeFalse()
+        ->and($documents['narrative-report-'.$narrative->id]['needs_attention'])->toBeTrue()
+        ->and($documents['narrative-report-'.$oldNarrative->id]['needs_attention'])->toBeFalse();
+    $response = $this->get(route('research_head.projects.index'))->assertSuccessful();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['needs_attention'])->toBeTrue();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['has_new_activity'])->toBeFalse();
+    $current->update(['review_status' => 'reviewed']);
+    $narrative->update(['review_status' => 'reviewed']);
+    $response = $this->get(route('research_head.projects.index'))->assertSuccessful();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['needs_attention'])->toBeFalse();
+    $notification = $this->head->notifications()->create([
+        'id' => (string) Str::uuid(), 'type' => ProposalActivityNotification::class,
+        'data' => ['title' => 'New project activity', 'message' => 'A project update is available.', 'topic_id' => $this->project->id,
+            'url' => route('topics.show', $this->project), 'workspace' => User::WORKSPACE_RESEARCH_HEAD, 'sidebar_area' => 'project_monitoring'],
+    ]);
+    $response = $this->get(route('research_head.projects.index'))->assertSuccessful();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['needs_attention'])->toBeTrue();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['has_new_activity'])->toBeTrue();
+    $notification->markAsRead();
+    $response = $this->get(route('research_head.projects.index'))->assertSuccessful();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['needs_attention'])->toBeFalse();
+    expect(collect($response->viewData('workspaceProjects'))->firstWhere('id', $this->project->id)['has_new_activity'])->toBeFalse();
 });
 
 test('research head opens project files through the existing private document routes', function () {

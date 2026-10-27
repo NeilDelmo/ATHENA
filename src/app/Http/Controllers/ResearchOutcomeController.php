@@ -22,11 +22,9 @@ class ResearchOutcomeController extends Controller
     {
         Gate::authorize('viewAny', ResearchOutcome::class);
         $user = $request->user();
-        $projects = TopicProposal::query()->completedProject()->with(['user', 'researchOutcome'])
+        $projects = TopicProposal::query()->completedProject()->withProjectCollege()->with(['user', 'researchOutcome'])
             ->when($user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER), fn (Builder $query) => $query->accessibleTo($user))
-            ->when($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE), fn (Builder $query) => $query
-                ->whereHas('user', fn (Builder $leader) => $leader->where('college', $user->college))
-                ->when(blank($user->college), fn (Builder $empty) => $empty->whereKey(-1)))
+            ->when($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE), fn (Builder $query) => $query->forCollege($user->college))
             ->orderBy('title')->orderBy('id')->get()
             ->map(fn (TopicProposal $topic): ResearchOutcome => $this->projectOutcome($topic));
         $other = ResearchOutcome::query()->whereNull('topic_id')->with('leader')
@@ -70,6 +68,7 @@ class ResearchOutcomeController extends Controller
 
     public function showProject(TopicProposal $topic): View
     {
+        $topic = TopicProposal::query()->withProjectCollege()->findOrFail($topic->id);
         $outcome = $this->projectOutcome($topic);
         Gate::authorize('view', $outcome);
         $topic->load(['user', 'collaborators.user', 'revisionDraft.members.user']);
@@ -147,9 +146,9 @@ class ResearchOutcomeController extends Controller
     private function notifyCoordinators(ResearchOutcome $outcome): string
     {
         $leader = $outcome->projectLeader();
+        $college = $outcome->projectCollege();
         $recipients = User::query()->assignedToRole('research_coordinator')
-            ->where('college', $leader->college)
-            ->when(blank($leader->college), fn (Builder $query) => $query->whereKey(-1))->get();
+            ->whereIn('college', TopicProposal::collegeAliases($college))->get();
         $labels = collect($outcome->labels)->map(fn (string $label): string => ResearchOutcome::LABELS[$label])->implode(', ');
         foreach ($recipients as $recipient) {
             $recipient->notify(new ProposalActivityNotification(

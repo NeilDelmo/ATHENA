@@ -24,16 +24,18 @@
             </button>
         </header>
 
-        <nav x-show="sourceWorkspaceView === 'list'" class="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-200 px-3 dark:border-slate-700 sm:px-5" aria-label="Source collections">
+        <div x-show="sourceWorkspaceView === 'list'" class="shrink-0 border-b border-slate-200 px-4 py-3 dark:border-slate-700 sm:px-6">
+        <nav class="flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900" role="tablist" aria-label="Source collections" @keydown="navigateSourceWorkspaceTabs($event)">
             <template x-for="tab in [{ id: 'paper', label: 'This proposal' }, { id: 'library', label: 'Shared library' }, { id: 'search', label: 'Academic search' }, { id: 'add', label: 'Add source' }]" :key="tab.id">
-                <button type="button" @click="setSourceWorkspaceTab(tab.id)" :disabled="sourceWorkspaceSaving || sourceWorkspaceAiLoading" :aria-current="sourceWorkspaceTab === tab.id ? 'page' : false" :class="sourceWorkspaceTab === tab.id ? 'border-red-700 text-red-800 dark:text-red-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'" class="min-h-12 shrink-0 border-b-2 px-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 disabled:opacity-40 sm:px-3" x-text="tab.label"></button>
+                <button :id="'proposal-source-tab-' + tab.id" type="button" role="tab" aria-controls="proposal-source-collection-panel" @click="setSourceWorkspaceTab(tab.id)" :disabled="sourceWorkspaceSaving || sourceWorkspaceAiLoading" :aria-selected="sourceWorkspaceTab === tab.id" :tabindex="sourceWorkspaceTab === tab.id ? 0 : -1" :class="sourceWorkspaceTab === tab.id ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'" class="inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 py-2.5 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-red-700 disabled:opacity-40" x-text="tab.label"></button>
             </template>
         </nav>
+        </div>
         <div x-show="sourceWorkspaceCitationMode && sourceWorkspaceSelectedClaim()" class="shrink-0 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
             <p x-show="sourceWorkspaceCitationMode && sourceWorkspaceSelectedClaim()" class="line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300"><span class="font-semibold">Selected claim: </span><span x-text="sourceWorkspaceSelectedClaim()"></span></p>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto">
+        <div id="proposal-source-collection-panel" role="tabpanel" :aria-labelledby="'proposal-source-tab-' + sourceWorkspaceTab" class="min-h-0 flex-1 overflow-y-auto">
             <div x-show="sourceWorkspaceError" role="alert" class="border-b border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 sm:px-6" x-text="sourceWorkspaceError"></div>
             <p x-show="sourceWorkspaceNotice" role="status" class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 sm:px-6" x-text="sourceWorkspaceNotice"></p>
 

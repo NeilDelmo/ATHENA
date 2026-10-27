@@ -7,6 +7,7 @@ use App\Models\ResearchPublication;
 use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ResearchAssistantContexts;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
@@ -372,7 +373,7 @@ test('papers from another author cannot be silently imported and provider failur
     Http::fake(['api.openalex.org/works/W456*' => Http::response(disseminationWork('A999'))]);
     $this->postJson(route('research.dissemination.import', $this->topic), ['work_id' => 'W456', 'confirmed' => true])->assertUnprocessable();
     expect(ResearchPublication::count())->toBe(0);
-    Http::fake(['api.openalex.org/authors?*' => Http::response([], 429), 'www.wikicfp.com/*' => Http::response('', 503)]);
+    Http::fake(['api.openalex.org/authors?*' => Http::response([], 429), 'www.wikicfp.com/*' => Http::response('', 503), 'easychair.org/cfp/' => Http::response('', 503)]);
     $this->postJson(route('research.dissemination.authors', $this->topic), ['query' => 'Researcher'])->assertUnprocessable()->assertJsonValidationErrors('discovery');
     $this->postJson(route('research.dissemination.conferences.search', $this->topic), ['query' => 'coastal'])->assertStatus(503);
 });
@@ -398,8 +399,41 @@ test('DOI lookup supports confirmed imports and manual entries deduplicate witho
     'DOI: https://doi.org/10.1234/COASTAL',
 ]);
 
+test('AI and the project conference finder expose the same default query', function () {
+    $context = app(ResearchAssistantContexts::class)->summary($this->topic, $this->researcher);
+    $this->get(route('research.dissemination.show', $this->topic))->assertOk()
+        ->assertViewHas('conferenceQuery', 'coastal monitoring');
+
+    expect($context['dissemination']['conference_query'])->toBe('coastal monitoring');
+    Http::assertNothingSent();
+});
+
+test('conference location filters include matches beyond the first twelve ranked listings', function () {
+    $rows = '';
+    foreach (range(1, 14) as $index) {
+        $rows .= '<tr><td><a href="/cfp/servlet/event.showcfp?eventid='.$index.'">Coastal monitoring '.$index.'</a></td>'
+            .'<td>Where: '.($index === 14 ? 'Manila, Philippines' : 'Singapore').' When: Dec 10, 2099 Deadline: Nov 10, 2099</td></tr>';
+    }
+    Http::fake(['www.wikicfp.com/*' => Http::response('<table>'.$rows.'</table>'), 'easychair.org/cfp/' => Http::response('', 503)]);
+    $this->postJson(route('research.dissemination.conferences.search', $this->topic), [
+        'query' => 'coastal monitoring', 'scope' => 'local', 'open_only' => true,
+    ])->assertOk()->assertJsonCount(1, 'results')->assertJsonPath('results.0.title', 'Coastal monitoring 14');
+});
+
+test('conference discovery accepts common two letter research acronyms in both search entry points', function () {
+    Http::fake([
+        'easychair.org/cfp/' => Http::response('', 503),
+        'www.wikicfp.com/*' => Http::response('<table><tr><td><a href="/cfp/servlet/event.showcfp?eventid=123">Artificial Intelligence Forum</a></td><td>When: Dec 12, 2099 Deadline: Nov 10, 2099</td></tr></table>'),
+    ]);
+
+    foreach ([route('research.dissemination.conferences.search', $this->topic), route('research-support.conference-search')] as $url) {
+        $this->postJson($url, ['query' => 'AI'])->assertOk()->assertJsonCount(1, 'results')
+            ->assertJsonPath('results.0.title', 'Artificial Intelligence Forum');
+    }
+});
+
 test('conference discovery parses real table rows keeps deadlines distinct and saves source snapshots', function () {
-    Http::fake(['www.wikicfp.com/*' => Http::response(<<<'HTML'
+    Http::fake(['easychair.org/cfp/' => Http::response('', 503), 'www.wikicfp.com/*' => Http::response(<<<'HTML'
         <table>
         <tr><td><a href="/cfp/servlet/event.showcfp?eventid=123">COAST 2099</a></td><td>Coastal monitoring conference</td></tr>
         <tr><td>Jul 21, 2099 - Jul 22, 2099</td><td>Manila, Philippines</td><td>May 15, 2099</td></tr>
@@ -413,7 +447,7 @@ test('conference discovery parses real table rows keeps deadlines distinct and s
         ->and($data[0]['event_starts_on'])->toBe('2099-07-21')
         ->and($data[1]['deadline_status'])->toBe('unknown');
     $this->postJson(route('research.dissemination.conferences.search', $this->topic), ['query' => 'coastal monitoring', 'scope' => 'local'])->assertOk();
-    Http::assertSentCount(1);
+    Http::assertSentCount(2);
     foreach (range(1, 2) as $attempt) {
         $this->post(route('research.dissemination.conferences.store', $this->topic), [
             'candidate_key' => $data[0]['candidate_key'], 'title' => 'Forged result',

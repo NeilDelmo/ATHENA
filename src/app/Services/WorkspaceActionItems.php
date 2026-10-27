@@ -58,10 +58,10 @@ class WorkspaceActionItems
             $topics = TopicProposal::query()->where(function (Builder $query) use ($user, $workspace): void {
                 $query->accessibleForDocumentRelease($user)->awaitingDocumentRelease();
                 if ($workspace === User::WORKSPACE_RESEARCH_OFFICE && filled($user->college)) {
-                    $query->orWhere(fn (Builder $lrec): Builder => $lrec->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $user->college))
+                    $query->orWhere(fn (Builder $lrec): Builder => $lrec->forCollege($user->college)
                         ->where('review_stage', 'lrec')->whereIn('status', [TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW]));
                 }
-            })->with('user')->oldest('status_started_at')->get();
+            })->withProjectCollege()->with('user')->oldest('status_started_at')->get();
             foreach ($topics as $topic) {
                 $label = match (true) {
                     Gate::forUser($user)->allows('startLrecReview', $topic) => 'Start the queued LREC review',

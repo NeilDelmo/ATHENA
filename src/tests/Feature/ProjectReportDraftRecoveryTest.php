@@ -132,12 +132,13 @@ test('removing a saved report draft changes its edit state and stale retry is re
     $this->postJson(($this->saveUrl)($kind), ($this->payload)($kind, 1))->assertUnprocessable()->assertJsonValidationErrors('draft_version');
 })->with(['monitoring', 'progress', 'terminal']);
 
-test('each report editor renders an isolated recovery scope and warning', function (string $kind) {
+test('each report editor keeps its save scope and warning without browser recovery', function (string $kind) {
     $url = $kind === 'monitoring'
         ? route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31'])
         : route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => $kind, 'reporting_date' => '2026-03-31']);
     $this->get($url)->assertSuccessful()->assertSee('data-report-version-monitor', false)->assertSee('data-state-scope', false)
-        ->assertSee('data-proposal-conflict-recovery', false)->assertSee('name="recovery_scope"', false)->assertSee(($this->stateUrl)($kind), false);
+        ->assertDontSee('data-proposal-conflict-recovery', false)->assertSee('data-proposal-stale-warning', false)
+        ->assertSee('name="recovery_scope"', false)->assertSee(($this->stateUrl)($kind), false);
 })->with(['monitoring', 'progress', 'terminal']);
 
 test('monitoring forms ignore narrative validation input', function (string $type, bool $saved) {

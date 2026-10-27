@@ -3,6 +3,13 @@
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\File;
 
+test('saved-version warnings keep reload protection without manual recovery controls', function () {
+    $html = Blade::render('<x-proposal-collaboration-monitor :loaded-version="2" state-url="/state" reload-url="/editor" />');
+
+    expect($html)->toContain('data-proposal-stale-warning')->toContain('data-proposal-load-latest')
+        ->not->toContain('data-proposal-conflict-recovery')->not->toContain('recovery status');
+});
+
 test('every logout form uses the shared SweetAlert confirmation', function () {
     foreach ([
         'resources/views/layouts/app.blade.php',

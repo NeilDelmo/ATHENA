@@ -121,6 +121,7 @@ class ProjectDisseminationController extends Controller
         $data['results'] = collect($data['results'])
             ->filter(fn (array $item): bool => ! $request->validated('scope') || $item['scope'] === $request->validated('scope'))
             ->filter(fn (array $item): bool => ! $request->boolean('open_only') || $item['deadline_status'] !== 'closed')
+            ->take(30)
             ->map(function (array $item) use ($request, $topic): array {
                 $key = hash('sha256', $item['url'].Str::random(20));
                 Cache::put($this->candidateCacheKey($request, $topic, $key), $item, now()->addHours(2));

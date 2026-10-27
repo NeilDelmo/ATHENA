@@ -79,7 +79,7 @@ class ManageProjectDisseminationRequest extends FormRequest
             ],
             $this->routeIs('research.dissemination.link') => ['publication_id' => ['required', 'integer']],
             $this->routeIs('research.dissemination.conferences.search') => [
-                'query' => ['required', 'string', 'min:3', 'max:140'],
+                'query' => ['required', 'string', 'min:2', 'max:140'],
                 'scope' => ['nullable', Rule::in(['local', 'international', 'online'])],
                 'open_only' => ['nullable', 'boolean'],
             ],

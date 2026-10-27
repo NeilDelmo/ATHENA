@@ -21,8 +21,8 @@
                     @forelse ($outcomes as $outcome)
                         <tr>
                             <th scope="row" class="max-w-md px-5 py-4 font-normal">
-                                <a wire:navigate href="{{ $outcome->detailUrl() }}" class="font-semibold text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-red-300">{{ $outcome->projectTitle() }}</a>
-                                <p class="mt-1 text-slate-600 dark:text-slate-400">{{ $outcome->projectLeader()->name }} <span class="text-slate-400">({{ $outcome->projectLeader()->college ?: 'College not set' }})</span></p>
+                                <a wire:navigate href="{{ $outcome->detailUrl() }}" class="dashboard-action !justify-start !text-left">{{ $outcome->projectTitle() }}</a>
+                                <p class="mt-1 text-slate-600 dark:text-slate-400">{{ $outcome->projectLeader()->name }} <span class="text-slate-400">({{ $outcome->projectCollege() ?: 'College not set' }})</span></p>
                             </th>
                             <td class="px-5 py-4 text-slate-600 dark:text-slate-300">{{ App\Models\ResearchOutcome::FUNDING_SOURCES[$outcome->funding_source] }}</td>
                             <td class="px-5 py-4">

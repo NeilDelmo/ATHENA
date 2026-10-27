@@ -2037,8 +2037,6 @@ export default function registerDetailedProposalEditor(Alpine, {
 
             if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-            if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
             const fingerprint = this.detailedProposalFingerprint(form);
 
             if (fingerprint === this.lastSavedDetailedProposal) return;
@@ -2125,7 +2123,6 @@ export default function registerDetailedProposalEditor(Alpine, {
                     'saved',
                 );
             } catch (error) {
-                this.$el._proposalRecovery?.connectionFailed();
                 this.$el.dataset.paperDirty = 'true';
 
                 if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {

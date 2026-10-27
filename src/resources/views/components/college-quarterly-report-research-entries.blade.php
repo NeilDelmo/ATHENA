@@ -18,7 +18,7 @@
             <input type="hidden" :name="`manual_research[${index}][id]`" :value="research.id">
             <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-semibold text-gray-700 dark:text-slate-300" x-text="`Research project ${index + 1}`"></p>
-                <button type="button" @click="manual_research.splice(index, 1)" class="rounded text-sm font-semibold text-red-700 focus-visible:outline focus-visible:outline-2 dark:text-red-300" :aria-label="`Remove additional faculty research ${index + 1}`">Remove project</button>
+                <button type="button" @click="manual_research.splice(index, 1)" class="dashboard-action" :aria-label="`Remove additional faculty research ${index + 1}`">Remove project</button>
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
                 @foreach ($fields as $field => $label)

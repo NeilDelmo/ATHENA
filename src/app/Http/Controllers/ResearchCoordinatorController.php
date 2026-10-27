@@ -33,8 +33,7 @@ class ResearchCoordinatorController extends Controller
                 'expert_review',
                 'for_final_decision',
             ])
-            ->whereHas('user', fn (Builder $query) => $query->where('college', $coordinator->college))
-            ->when(blank($coordinator->college), fn (Builder $query) => $query->whereRaw('1 = 0'))
+            ->forCollege($coordinator->college)
             ->orderByRaw('COALESCE(status_started_at, created_at)')
             ->orderBy('id')
             ->paginate(12);

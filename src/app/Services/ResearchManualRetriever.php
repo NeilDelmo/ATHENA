@@ -10,7 +10,7 @@ use JsonException;
 
 class ResearchManualRetriever
 {
-    private const CACHE_VERSION = 8;
+    private const CACHE_VERSION = 9;
 
     /** @var list<string> */
     private const STOP_WORDS = [
@@ -22,7 +22,7 @@ class ResearchManualRetriever
         'the', 'their', 'them', 'then', 'there', 'these', 'they', 'this', 'those', 'to', 'under', 'us',
         'was', 'were', 'what', 'when', 'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you',
         'your', 'much', 'receive', 'allowed', 'according', 'state', 'batangas', 'show', 'list', 'tell', 'say', 'section',
-        'through', 'developed', 'often', 'ongoing', 'earned',
+        'through', 'developed', 'often', 'ongoing', 'earned', 'part',
     ];
 
     /** @var list<string> */
@@ -206,6 +206,9 @@ class ResearchManualRetriever
     {
         $sources = [];
         $documentCount = count($index['chunks']);
+        $asksLiteratureCount = in_array('relatedliterature', $terms, true)
+            && (array_intersect($terms, ['many', 'minimum', 'maximum', 'least', 'most', 'count', 'number', 'enough']) !== []
+                || preg_grep('/^\d+$/', $terms) !== []);
 
         foreach ($index['chunks'] as $chunk) {
             $score = $this->sectionScore($chunk['section'], $requestedSections);
@@ -239,10 +242,10 @@ class ResearchManualRetriever
                 $score += in_array($term, ['relatedliterature', 'intellectualproperty'], true) ? $inverseFrequency * 4 : 0;
             }
 
-            $hasWrittenLiteratureRequirement = $chunk['source_kind'] === 'appendix'
-                && in_array('relatedliterature', $matchedTerms, true)
-                && preg_match('/\b(?:minimum(?: of)?|at least|maximum(?: of)?|no (?:more|less) than)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i', $chunk['content']) === 1;
+            $hasWrittenLiteratureRequirement = in_array('relatedliterature', $matchedTerms, true)
+                && preg_match('/\b(?:minimum(?: of)?|at least|maximum(?: of)?|no (?:more|less) than)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:related\s+)?(?:[a-z]+\/)?(?:literature|studies|references?|sources?)\b/i', $chunk['content']) === 1;
             $score *= ($chunk['source_kind'] === 'appendix') === $prefersForms || $hasWrittenLiteratureRequirement ? 1.25 : 0.6;
+            $score += $asksLiteratureCount && $hasWrittenLiteratureRequirement ? 10.0 : 0.0;
 
             if ($score < $minimumScore) {
                 continue;
@@ -466,7 +469,7 @@ class ResearchManualRetriever
                         : $word),
             };
 
-            if (Str::length($word) >= 2 && ! in_array($word, self::STOP_WORDS, true)) {
+            if ((Str::length($word) >= 2 || ctype_digit($word)) && ! in_array($word, self::STOP_WORDS, true)) {
                 $tokens[] = $word;
             }
         }

@@ -12,7 +12,7 @@ class ConferenceSearchController extends Controller
     public function __invoke(Request $request, ConferenceScraperService $conferenceScraper): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'query' => ['required', 'string', 'min:3', 'max:140'],
+            'query' => ['required', 'string', 'min:2', 'max:140'],
         ]);
 
         if ($validator->fails()) {
@@ -23,6 +23,7 @@ class ConferenceSearchController extends Controller
         }
 
         $payload = $conferenceScraper->search($validator->validated()['query']);
+        $payload['results'] = array_slice($payload['results'], 0, 30);
 
         if ($conferenceScraper->allSourcesFailed()) {
             return response()->json([

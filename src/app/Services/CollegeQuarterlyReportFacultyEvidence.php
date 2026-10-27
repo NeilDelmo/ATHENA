@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\CollegeQuarterlyReport;
 use App\Models\TopicProposal;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -24,7 +23,7 @@ class CollegeQuarterlyReportFacultyEvidence
 
         return TopicProposal::query()->withIssuedNotice()
             ->where('notice_to_proceed_issued_at', '<=', $period['end'])
-            ->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $coordinator->college))
+            ->forCollege($coordinator->college)
             ->with([
                 'progressReports' => fn ($reports) => $reports->visibleToResearchHead()->with('submitter'),
                 'narrativeReports' => fn ($reports) => $reports->visibleToResearchHead()->with('submitter'),

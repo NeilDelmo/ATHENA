@@ -282,6 +282,26 @@ test('plain RRL questions retrieve explicit proposal instructions rather than un
     'How recent should my RRL references be?',
 ]);
 
+test('RRL count questions rank the written literature minimum above repeated mentions and methodology counts', function (string $question, string $literatureUnit) {
+    config(['research_assistant.manual.maximum_chunks' => 1]);
+    ($this->writeManualIndex)([
+        ['id' => 'overview', 'section' => 'Review of Related Literature', 'source_kind' => 'policy', 'page_start' => 40, 'page_end' => 40, 'content' => str_repeat('The RRL part explains the related literature references and organizes the RRL section. ', 12)],
+        ['id' => 'methodology', 'section' => 'RRL and Methodology', 'source_kind' => 'appendix', 'page_start' => 80, 'page_end' => 80, 'content' => 'RRL: summarize related literature references in this part. Methodology: a minimum of 30 respondents is required. '.str_repeat('RRL references support the related literature section. ', 8)],
+        ['id' => 'minimum', 'section' => 'DETAILED RESEARCH PROPOSAL', 'source_kind' => 'appendix', 'page_start' => 92, 'page_end' => 92, 'content' => 'XI. Review of Related Literature: (minimum of ten '.$literatureUnit.' reviewed). XII. Methodology.'],
+    ]);
+    $sources = app(ResearchManualRetriever::class)->retrieve($question);
+
+    expect($sources)->toHaveCount(1)
+        ->and($sources[0]['chunk_id'])->toBe('minimum')
+        ->and($sources[0]['content'])->toContain('minimum of ten');
+})->with([
+    'How many RRL references do I need?',
+    'What is the minimum for my RRL part?',
+    'How many references belong in the related literature section?',
+    'Do I need 10 RRL?',
+    'Do I need 5 RRL?',
+])->with(['literature/studies', 'litemture/studies']);
+
 test('policy questions prefer policy text and explicit templates prefer appendix forms', function () {
     config(['research_assistant.manual.maximum_chunks' => 1]);
     ($this->writeManualIndex)([

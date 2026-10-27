@@ -6,7 +6,6 @@ use App\Models\ProposalVersionFile;
 use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -30,7 +29,7 @@ class CollegeQuarterlyReportData
         $period = $this->quarters->forYearAndQuarter($year, $quarter);
         $projects = TopicProposal::query()->withIssuedNotice()
             ->where('notice_to_proceed_issued_at', '<=', $period['end'])
-            ->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $coordinator->college))
+            ->forCollege($coordinator->college)
             ->with([
                 'user', 'researchSecretary', 'collaborators.user', 'researchCall',
                 'versions' => fn (HasMany $versions): HasMany => $versions->reorder()->orderByDesc('version_number')->limit(1),

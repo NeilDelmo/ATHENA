@@ -28,6 +28,40 @@ class ResearchAssistantLiteratureService
         private LiteratureSynthesisEvidenceResolver $evidenceResolver,
     ) {}
 
+    public function clarificationReply(string $question): ?string
+    {
+        $subject = '/\b(?:rrl|rrs|review\s+of\s+(?:related\s+)?(?:literature|studies)|related\s+literature|literature\s+review)\b/iu';
+        if (Str::length($question) > 160 || preg_match($subject, $question) !== 1) {
+            return null;
+        }
+
+        $remainder = preg_replace($subject, '', $question);
+        $remainder = preg_replace('/\b(?:i|a|an|the|my|our|this|that|part|section|chapter|please|help|me|with|in|on|about|for|proposal|paper|research|can|could|would|you|show|see|need)\b|[^\pL\pN]/iu', '', $remainder);
+
+        return $remainder === ''
+            ? 'Do you mean the Research Manual\'s RRL requirements, reviewing your saved RRL section, or finding studies for your topic?'
+            : null;
+    }
+
+    /** @param list<array{role: string, content: string}> $recentMessages */
+    public function resolveQuestion(string $question, array $recentMessages): string
+    {
+        $previous = collect($recentMessages)->where('role', 'user')->last();
+        if (! $previous || $this->clarificationReply($previous['content']) === null) {
+            return $question;
+        }
+
+        $choice = Str::of($question)->lower()->trim()->replaceMatches('/[.!?]+$/u', '')->toString();
+
+        return match (true) {
+            preg_match('/^(?:the\s+)?(?:minimum(?:\s+count)?|how\s+many)$/u', $choice) === 1 => 'How many RRL studies does the Research Manual require?',
+            preg_match('/^(?:the\s+)?(?:(?:research\s+)?manual(?:\s+requirements?)?|requirements?)$/u', $choice) === 1 => 'What are the Research Manual requirements for the RRL section?',
+            preg_match('/^(?:(?:read|review|show)\s+)?(?:my|our|the)\s+(?:saved\s+)?(?:rrl(?:\s+section)?|section)$/u', $choice) === 1 => 'Read my saved RRL section.',
+            preg_match('/^(?:(?:find|finding|search\s+for)\s+)?(?:studies|sources|papers)$/u', $choice) === 1 => 'Find studies for my proposal\'s RRL.',
+            default => $question,
+        };
+    }
+
     public function isLiteratureRequest(string $question, ?string $action = null): bool
     {
         if ($action !== null) {
@@ -35,7 +69,10 @@ class ResearchAssistantLiteratureService
         }
 
         if (preg_match('/^\s*(?:(?:please|can\s+you|could\s+you|would\s+you)\s+)*(?:how\b|what\s+(?:is|are)\b|explain\b)/iu', $question) === 1
-            || preg_match('/\b(?:give|show)\s+(?:me\s+)?(?:an?\s+)?(?:examples?|samples?)\b/iu', $question) === 1) {
+            || preg_match('/\b(?:give|show)\s+(?:me\s+)?(?:an?\s+)?(?:examples?|samples?)\b/iu', $question) === 1
+            || (preg_match('/\b(?:rrl|related\s+literature|literature\s+review)\b/iu', $question) === 1
+                && preg_match('/\b(?:requirements?|minimum|format|guidelines?)\b/iu', $question) === 1
+                && preg_match('/\b(?:find|search|look\s+for|recommend)\b/iu', $question) !== 1)) {
             return false;
         }
 

@@ -557,7 +557,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await page.getByRole('button', { name: 'Close Sources', exact: true }).focus();
                 await page.keyboard.press('Shift+Tab');
                 await expect(sourceRow.getByRole('button', { name: 'View details', exact: true })).toBeFocused();
-                await page.getByRole('button', { name: 'Shared library', exact: true }).click();
+                await page.getByRole('tab', { name: 'Shared library', exact: true }).click();
                 const savedLibraryRow = page.locator('article').filter({ has: page.getByRole('heading', { name: linkedSource.title, exact: true }) });
                 await expect(savedLibraryRow.getByText('Added to proposal', { exact: true })).toBeVisible();
                 await expect(savedLibraryRow.getByRole('button', { name: 'Add to proposal', exact: true })).toBeHidden();
@@ -566,7 +566,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await expect(newLibraryRow.getByText(librarySource.description, { exact: true })).toBeVisible();
                 await expect(newLibraryRow.getByRole('link', { name: 'Visit website', exact: true })).toHaveAttribute('href', librarySource.url);
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).literatureSources.length), 1, 'Browsing shared sources should not add them to the proposal');
-                await page.getByRole('button', { name: 'Add source', exact: true }).click();
+                await page.getByRole('tab', { name: 'Add source', exact: true }).click();
                 await page.locator('summary').filter({ hasText: 'Reference details' }).click();
                 await page.getByLabel('Publication type', { exact: true }).selectOption('report');
                 await page.getByLabel('Volume', { exact: true }).fill('12');
@@ -574,7 +574,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await page.getByLabel('Pages', { exact: true }).fill('14–28');
                 await page.getByLabel('Publisher', { exact: true }).fill('Research Press');
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).sourceWorkspaceSourceForm.publisher), 'Research Press');
-                await page.getByRole('button', { name: 'This proposal', exact: true }).click();
+                await page.getByRole('tab', { name: 'This proposal', exact: true }).click();
                 await page.getByRole('button', { name: 'View details', exact: true }).click();
                 const summary = page.getByRole('region', { name: 'Abstract or description', exact: true });
                 await expect(summary.getByText(linkedSource.description, { exact: true })).toBeVisible();

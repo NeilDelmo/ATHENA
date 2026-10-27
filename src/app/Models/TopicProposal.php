@@ -362,13 +362,84 @@ class TopicProposal extends Model
             || $this->collaborators()->forUser($user)->exists();
     }
 
+    public function projectCollege(): ?string
+    {
+        if (! array_key_exists('submitted_proposal_college', $this->attributes)) {
+            $college = $this->newQuery()->select($this->qualifyColumn('id'))->withProjectCollege()->find($this->getKey())?->submitted_proposal_college;
+            $this->setAttribute('submitted_proposal_college', $college);
+            $this->syncOriginalAttribute('submitted_proposal_college');
+        }
+
+        return self::collegeAliases($this->attributes['submitted_proposal_college'] ?? $this->user?->college)[0] ?? null;
+    }
+
+    public function belongsToCollege(?string $college): bool
+    {
+        $projectCollege = $this->projectCollege();
+
+        return $projectCollege !== null && in_array(mb_strtolower($projectCollege), array_map(mb_strtolower(...), self::collegeAliases($college)), true);
+    }
+
+    /** @return list<string> */
+    public static function collegeAliases(?string $college): array
+    {
+        $college = trim($college ?? '');
+        if ($college === '') {
+            return [];
+        }
+        foreach (User::COLLEGES as $code => $name) {
+            if (strcasecmp($college, $code) === 0 || strcasecmp($college, $name) === 0) {
+                return [$name, $code];
+            }
+        }
+
+        return [$college];
+    }
+
+    public function scopeWithProjectCollege(Builder $query): Builder
+    {
+        return $query->addSelect(['submitted_proposal_college' => self::submittedCollegeQuery($query->qualifyColumn('id'))]);
+    }
+
+    public function scopeForCollege(Builder $query, ?string $college): Builder
+    {
+        $colleges = self::collegeAliases($college);
+        if ($colleges === []) {
+            return $query->whereRaw('1 = 0');
+        }
+        $proposal = self::submittedCollegeQuery($query->qualifyColumn('id'));
+        $owner = User::query()->select('college')->whereColumn('id', $query->qualifyColumn('user_id'))->limit(1);
+        $expression = 'LOWER(COALESCE(('.$proposal->toSql().'), ('.$owner->toSql().')))';
+
+        return $query->whereRaw($expression.' IN ('.implode(', ', array_fill(0, count($colleges), '?')).')', [
+            ...$proposal->getBindings(), ...$owner->getBindings(), ...array_map(mb_strtolower(...), $colleges),
+        ]);
+    }
+
+    private static function submittedCollegeQuery(string $topicKey): Builder
+    {
+        $files = new ProposalVersionFile;
+        $versions = new ProposalVersion;
+        $query = $files->newQuery();
+        $field = $query->getQuery()->getGrammar()->wrap($files->qualifyColumn('source_data->proponent_college'));
+        $college = "NULLIF(NULLIF(TRIM({$field}), ''), 'null')";
+
+        return $query->selectRaw($college)
+            ->join($versions->getTable(), $versions->qualifyColumn('id'), '=', $files->qualifyColumn('proposal_version_id'))
+            ->whereColumn($versions->qualifyColumn('topic_id'), $topicKey)
+            ->where($files->qualifyColumn('document_type'), ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+            ->whereRaw($college.' IS NOT NULL')
+            ->orderByDesc($versions->qualifyColumn('version_number'))->orderByDesc($versions->qualifyColumn('id'))
+            ->orderBy($files->qualifyColumn('position'))->orderBy($files->qualifyColumn('id'))->limit(1);
+    }
+
     public function scopeAccessibleForDocumentRelease(Builder $query, User $user): Builder
     {
         return $query->where(function (Builder $query) use ($user): void {
             $query->whereRaw('1 = 0');
 
             if ($user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY]) && filled($user->college)) {
-                $query->orWhereHas('user', fn (Builder $owner): Builder => $owner->where('college', $user->college));
+                $query->orWhere(fn (Builder $college): Builder => $college->forCollege($user->college));
             }
 
             if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
@@ -383,7 +454,7 @@ class TopicProposal extends Model
             return false;
         }
 
-        return (filled($user->college) && $this->user?->college === $user->college)
+        return $this->belongsToCollege($user->college)
             || ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $this->research_secretary_id === $user->getKey());
     }
 
@@ -393,14 +464,13 @@ class TopicProposal extends Model
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $user->college));
+        return $query->forCollege($user->college);
     }
 
     public function canReviewImplementationReports(User $user): bool
     {
         return $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
-            && filled($user->college)
-            && $this->user?->college === $user->college;
+            && $this->belongsToCollege($user->college);
     }
 
     public function scopeAwaitingDocumentRelease(Builder $query): Builder

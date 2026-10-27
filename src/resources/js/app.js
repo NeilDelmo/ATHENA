@@ -50,7 +50,6 @@ import initializeRevisionTargetFocus from './revision-target-focus';
 import initProposalSubmissionReadiness from './proposal-submission-readiness';
 import initializeProposalPdfPreparation from './proposal-pdf-preparation';
 import initializeResearchManualChecks from './research-manual-checks';
-import initializeProposalConflictRecovery from './proposal-conflict-recovery';
 import { isEmbeddedRevisionEditor, embeddedRevisionFileSaved } from './revision-editor-context';
 import {
     filterWorkspacePeople,
@@ -493,6 +492,18 @@ function initializeSemanticEditors() {
             const editCitation = (event) => {
                 const marker = event.target.closest?.('[data-proposal-citation]');
                 if (!sharedToolbar || !marker || !editor.contains(marker)) return;
+                if (event.type === 'keydown' && ['Backspace', 'Delete'].includes(event.key)) {
+                    event.preventDefault();
+                    const range = document.createRange();
+                    range.selectNode(marker);
+                    editor.focus();
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    document.execCommand('delete');
+                    saveSelection();
+                    return;
+                }
                 if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
                 event.preventDefault();
                 const range = document.createRange();
@@ -1638,9 +1649,7 @@ document.addEventListener('click', async (event) => {
         return;
     }
 
-    const message = action.matches('[data-proposal-load-latest]') && editor.querySelector('[data-proposal-conflict-recovery]:not([hidden])')
-        ? 'Load your teammate’s latest saved work to compare it with your recovery copy. Image and attachment files must be selected again.'
-        : action.matches('[data-paper-discard], [data-proposal-load-latest]')
+    const message = action.matches('[data-paper-discard], [data-proposal-load-latest]')
         ? 'Your changes to this paper will be lost when the saved version is reloaded.'
         : 'Your changes to this paper will be lost when you leave this editor.';
 
@@ -4602,8 +4611,6 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             return;
         }
 
-        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.projectDetailsFingerprint(form);
 
         if (fingerprint === this.lastSavedProjectDetails) return;
@@ -4651,7 +4658,6 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             this.projectDetailsComplete = this.lastSavedProjectDetailsComplete;
             this.projectDetailsStatus('Saved just now.', 'saved');
         } catch (error) {
-            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved newer project details')) {
@@ -5916,8 +5922,6 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        if ((this.$root || this.$el)._proposalRecovery && (!await (this.$root || this.$el)._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.monitoringDraftFingerprint(form);
 
         if (fingerprint === this.lastSavedMonitoringDraft) return;
@@ -5951,7 +5955,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 
                 if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
-                    (this.$root || this.$el)._proposalRecovery?.conflict();
+                    (this.$root || this.$el).querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
                     this.monitoringDraftAutoSaveStatus('A newer draft is available. Reload the page before saving again.', 'error');
 
                     return;
@@ -5988,7 +5992,6 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             this.monitoringDraftAutoSaveStatus('Draft saved just now.', 'saved');
         } catch (error) {
             this.monitoringDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
-            (this.$root || this.$el)._proposalRecovery?.connectionFailed();
         } finally {
             this.autoSaveInFlight = false;
             if (this.autoSaveRevision !== savedRevision) this.scheduleMonitoringDraftAutoSave();
@@ -6286,8 +6289,6 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        if ((this.$root || this.$el)._proposalRecovery && (!await (this.$root || this.$el)._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.narrativeDraftFingerprint(form);
 
         if (fingerprint === this.lastSavedNarrativeDraft) return;
@@ -6324,7 +6325,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 
                 if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
-                    (this.$root || this.$el)._proposalRecovery?.conflict();
+                    (this.$root || this.$el).querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
                     this.narrativeDraftAutoSaveStatus('A newer draft is available. Reload the page before saving again.', 'error');
 
                     return;
@@ -6362,7 +6363,6 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
             this.narrativeDraftAutoSaveStatus('Draft saved just now.', 'saved');
         } catch (error) {
             this.narrativeDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
-            (this.$root || this.$el)._proposalRecovery?.connectionFailed();
         } finally {
             this.autoSaveInFlight = false;
             if (this.autoSaveRevision !== savedRevision) this.scheduleNarrativeDraftAutoSave();
@@ -7356,8 +7356,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.workPlanFingerprint(form);
 
         if (fingerprint === this.lastSavedWorkPlan) return;
@@ -7424,7 +7422,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
-            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -7988,8 +7985,6 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.lineItemBudgetFingerprint(form);
 
         if (fingerprint === this.lastSavedLineItemBudget) return;
@@ -8056,7 +8051,6 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
-            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -8549,8 +8543,6 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.expenseBreakdownFingerprint();
 
         if (fingerprint === this.lastSavedExpenseBreakdown) return;
@@ -8617,7 +8609,6 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
-            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -9158,8 +9149,6 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        if (this.$el._proposalRecovery && (!await this.$el._proposalRecovery.beforeSave() || this.autoSaveInFlight || this.autoSaveBlocked)) return;
-
         const fingerprint = this.curriculumVitaeFingerprint(form);
 
         if (fingerprint === this.lastSavedCurriculumVitae) return;
@@ -9226,7 +9215,6 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
                 'saved',
             );
         } catch (error) {
-            this.$el._proposalRecovery?.connectionFailed();
             this.$el.dataset.paperDirty = 'true';
 
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
@@ -9419,20 +9407,24 @@ document.addEventListener('submit', event => {
 }, true);
 
 registerPdfAnnotationWorkspace(Alpine);
-const initializeProposalRecovery = () => initializeProposalConflictRecovery({
-    resumeSave: (root) => {
-        const configuration = activeProposalPaperAutoSave(root.dataset);
-        const state = window.Alpine?.$data?.(root);
-        const saveMethod = configuration?.saveMethod || (root.dataset.monitoringToolAutosave === 'true' ? 'saveMonitoringDraft'
-            : root.dataset.narrativeProgressAutosave === 'true' ? 'saveNarrativeDraft' : null);
-        if (saveMethod && state && !state.autoSaveBlocked && !state.autoSaveInFlight) {
-            void state[saveMethod]?.();
-        }
-    },
+window.addEventListener('online', () => {
+    for (const root of document.querySelectorAll('[data-paper-editor], [data-monitoring-paper-workspace]')) {
+        const configuration = activeProposalPaperAutoSave(root.dataset) || activeBackgroundAutoSave(root.dataset);
+        if (!configuration || root.dataset.paperDirty !== 'true' || root.hasAttribute('x-ignore')) continue;
+        const state = Alpine.$data(root);
+        if (!state.autoSaveBlocked && !state.autoSaveInFlight) void state[configuration.saveMethod]?.();
+    }
 });
 
+for (const storageName of ['localStorage', 'sessionStorage']) {
+    try {
+        const storage = window[storageName];
+        Object.keys(storage).filter(key => key.startsWith('athena-proposal-recovery:') || key === 'athena-proposal-recovery-account')
+            .forEach(key => storage.removeItem(key));
+    } catch { /* Editing remains available when browser storage is disabled. */ }
+}
+
 document.addEventListener('athena:lazy-component-ready', () => {
-    requestAnimationFrame(initializeProposalRecovery);
     initializeRevisionWorkspace(showProposalConfirmation);
 });
 document.addEventListener('athena:workspace-switched', () => Alpine.store('researchAssistant').syncWorkspaceContext());
@@ -9454,7 +9446,6 @@ document.addEventListener('livewire:navigated', initializeProposalPdfPreparation
 document.addEventListener('livewire:navigated', initializeResearchManualChecks);
 document.addEventListener('livewire:navigated', synchronizePdfReadingAccount);
 document.addEventListener('livewire:navigated', initializeTopicLiveStatus);
-document.addEventListener('livewire:navigated', () => requestAnimationFrame(initializeProposalRecovery));
 document.addEventListener('livewire:navigated', () => initializeRevisionWorkspace(showProposalConfirmation));
 document.addEventListener('livewire:navigated', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeSemanticEditors);

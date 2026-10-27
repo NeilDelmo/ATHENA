@@ -103,6 +103,42 @@ async function cite(page, title, atStart = false, locator = '') {
     await expect(dialog).toBeHidden();
 }
 
+test('citation collections use the proposal workspace tab style and keyboard navigation', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [390, 1440]) for (const dark of [false, true]) {
+            const page = await openEditor(browser, width, dark);
+            await cite(page, 'Community Monitoring');
+            await page.locator('.semantic-rich-text-editor [data-proposal-citation]').click();
+            const dialog = page.getByRole('dialog', { name: 'Edit citation', exact: true });
+            const tabs = dialog.getByRole('tablist', { name: 'Source collections' });
+            await expect(tabs.getByRole('tab')).toHaveCount(4);
+            const proposal = tabs.getByRole('tab', { name: 'This proposal', exact: true });
+            await expect(proposal).toHaveAttribute('aria-selected', 'true');
+            assert.deepEqual(await proposal.evaluate(element => {
+                const style = getComputedStyle(element);
+                return [style.backgroundColor, style.color, style.borderRadius];
+            }), [dark ? 'rgb(255, 255, 255)' : 'rgb(3, 7, 18)', dark ? 'rgb(3, 7, 18)' : 'rgb(255, 255, 255)', '8px']);
+            await proposal.focus();
+            await page.keyboard.press('ArrowRight');
+            await expect(tabs.getByRole('tab', { name: 'Shared library', exact: true })).toBeFocused();
+            await expect(tabs.getByRole('tab', { name: 'Shared library', exact: true })).toHaveAttribute('aria-selected', 'true');
+            await page.keyboard.press('End');
+            await expect(tabs.getByRole('tab', { name: 'Add source', exact: true })).toBeFocused();
+            await page.keyboard.press('ArrowRight');
+            await expect(proposal).toBeFocused();
+            await page.keyboard.press('ArrowLeft');
+            await expect(tabs.getByRole('tab', { name: 'Add source', exact: true })).toBeFocused();
+            await page.keyboard.press('Home');
+            await expect(proposal).toBeFocused();
+            await expect(dialog.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', await proposal.getAttribute('id'));
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await dialog.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `citation-tabs-${width}-${dark ? 'dark' : 'light'}.png`) });
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});
+
 test('saved RRL text keeps literal characters and numbered citations remain linked when references renumber', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
@@ -175,6 +211,52 @@ test('toolbar citations share IEEE references, renumber in reading order, and fo
     } finally { await browser.close(); }
 });
 
+test('deleting prose and an inserted citation keeps the cursor at the deletion point', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await openEditor(browser);
+        const editor = page.getByRole('textbox', { name: 'Review of Related Literature', exact: true });
+        await cite(page, 'Community Monitoring', 10);
+        await expect(editor).toBeFocused();
+        await page.keyboard.press('Backspace');
+        await page.keyboard.press('Backspace');
+        await expect(editor.locator('[data-proposal-citation]')).toHaveCount(0);
+        await expect(editor).toBeFocused();
+        await page.keyboard.insertText('HERE');
+        await expect(editor).toHaveText('Community HEREparticipation supports monitoring.');
+        await page.keyboard.press('Backspace');
+        await page.keyboard.insertText('X');
+        await expect(editor).toHaveText('Community HERXparticipation supports monitoring.');
+        await expect(page.locator('#related-literature')).toHaveValue(/Community HERXparticipation/);
+        await page.close();
+    } finally { await browser.close(); }
+});
+
+test('deleting a focused citation returns the cursor to its position and supports undo', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const key of ['Backspace', 'Delete']) {
+            const page = await openEditor(browser);
+            await cite(page, 'Community Monitoring', 10);
+            const editor = page.getByRole('textbox', { name: 'Review of Related Literature', exact: true });
+            const marker = editor.locator('[data-proposal-citation]');
+            await marker.focus();
+            await page.keyboard.press(key);
+            await expect(marker).toHaveCount(0);
+            await expect(editor).toBeFocused();
+            await expect(page.getByRole('textbox', { name: 'References', exact: true })).toHaveText('');
+            await page.locator('[data-writing-command="undo"]').click();
+            await expect(marker).toHaveCount(1);
+            await expect(page.locator('#references')).toHaveValue(/Community Monitoring/);
+            await page.locator('[data-writing-command="redo"]').click();
+            await expect(marker).toHaveCount(0);
+            await page.keyboard.insertText('HERE');
+            await expect(editor).toHaveText(/Community HERE\s+participation supports monitoring\./);
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});
+
 test('citation picker saves and cites library, academic, and manual sources with one final action', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
@@ -210,7 +292,7 @@ test('citation picker saves and cites library, academic, and manual sources with
                 return page.getByRole('dialog', { name: 'Insert citation', exact: true });
             };
             let dialog = await openPicker();
-            await dialog.getByRole('button', { name: 'Shared library', exact: true }).click();
+            await dialog.getByRole('tab', { name: 'Shared library', exact: true }).click();
             await dialog.getByRole('button', { name: 'Choose source', exact: true }).click();
             await expect(dialog.getByRole('button', { name: 'Add to proposal', exact: true })).toBeHidden();
             await dialog.getByLabel('Page or section (optional)', { exact: true }).fill('p. 3');
@@ -219,14 +301,14 @@ test('citation picker saves and cites library, academic, and manual sources with
             await dialog.getByRole('button', { name: 'Insert citation', exact: true }).click();
             await expect(dialog).toBeHidden();
             dialog = await openPicker();
-            await dialog.getByRole('button', { name: 'Academic search', exact: true }).click();
+            await dialog.getByRole('tab', { name: 'Academic search', exact: true }).click();
             await dialog.getByRole('searchbox', { name: 'Search academic publications', exact: true }).fill('Academic publication');
             await dialog.getByRole('button', { name: 'Search', exact: true }).click();
             await dialog.getByRole('button', { name: 'Choose source', exact: true }).click();
             await dialog.getByRole('button', { name: 'Insert citation', exact: true }).click();
             await expect(dialog).toBeHidden();
             dialog = await openPicker();
-            await dialog.getByRole('button', { name: 'Add source', exact: true }).click();
+            await dialog.getByRole('tab', { name: 'Add source', exact: true }).click();
             await dialog.getByLabel('Add source using', { exact: true }).selectOption('manual');
             await dialog.getByLabel('Publication title', { exact: true }).fill('Manual publication');
             await dialog.getByLabel('Page or section (optional)', { exact: true }).fill('p. 9');

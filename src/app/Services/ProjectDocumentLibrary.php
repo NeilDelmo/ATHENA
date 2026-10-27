@@ -50,7 +50,7 @@ class ProjectDocumentLibrary
             'projectDocuments.uploadedBy',
             'progressReports' => fn (HasMany $reports): HasMany => $reports->select([
                 'id', 'topic_id', 'submitted_by', 'reporting_date', 'reporting_year', 'reporting_quarter',
-                'period_start', 'period_end', 'version_number', 'submission_status', 'review_stage',
+                'period_start', 'period_end', 'version_number', 'supersedes_report_id', 'submission_status', 'review_stage', 'review_status',
                 'work_plan', 'budget_utilization', 'official_pdf_path', 'official_pdf_filename',
                 'official_pdf_size', 'submitted_at', 'created_at',
             ]),
@@ -58,7 +58,7 @@ class ProjectDocumentLibrary
             'narrativeReports' => fn (HasMany $reports): HasMany => $reports->select([
                 'id', 'topic_id', 'submitted_by', 'reviewed_by', 'report_type', 'reporting_date',
                 'reporting_quarter', 'period_start', 'period_end', 'submission_date', 'submission_status',
-                'review_stage', 'accomplishments', 'photos', 'terminal_data', 'official_pdf_path',
+                'review_stage', 'review_status', 'accomplishments', 'photos', 'terminal_data', 'official_pdf_path',
                 'official_pdf_filename', 'official_pdf_size', 'submitted_at', 'created_at', 'updated_at',
             ]),
             'narrativeReports.submitter',
@@ -389,7 +389,8 @@ class ProjectDocumentLibrary
         Collection $documents,
         Collection $seenPaths,
     ): void {
-        $topic->progressReports->each(function ($report) use ($viewer, $documents, $seenPaths): void {
+        $supersededReportIds = $topic->progressReports->filter->isSubmitted()->pluck('supersedes_report_id')->filter();
+        $topic->progressReports->each(function ($report) use ($viewer, $documents, $seenPaths, $supersededReportIds): void {
             if ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $report->isAvailableToResearchHead()) {
                 return;
             }
@@ -406,6 +407,7 @@ class ProjectDocumentLibrary
             }
             $documents->push([
                 'key' => 'monitoring-report-'.$report->id,
+                'needs_attention' => $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && $report->review_status === 'pending' && ! $supersededReportIds->contains($report->id),
                 'category' => ProjectDocument::CATEGORY_MONITORING_REPORTS,
                 'title' => 'Monitoring Tool · '.$report->quarter_label.' '.$report->reporting_year,
                 'filename' => $report->official_pdf_filename ?: 'monitoring-tool-'.$report->id.'.pdf',
@@ -420,7 +422,10 @@ class ProjectDocumentLibrary
             ]);
         });
 
-        $topic->narrativeReports->each(function ($report) use ($viewer, $documents, $seenPaths): void {
+        $pendingNarrativeReportIds = $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+            ? $topic->narrativeReports()->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', ProjectNarrativeReport::STATUS_PENDING)->pluck('id')
+            : collect();
+        $topic->narrativeReports->each(function ($report) use ($viewer, $documents, $seenPaths, $pendingNarrativeReportIds): void {
             if (! $report->isSubmitted()
                 || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $report->isAvailableToResearchHead())
                 || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $report->report_type !== 'progress')) {
@@ -464,6 +469,7 @@ class ProjectDocumentLibrary
                 }
                 $documents->push([
                     'key' => 'narrative-report-'.$report->id,
+                    'needs_attention' => $pendingNarrativeReportIds->contains($report->id),
                     'category' => ProjectDocument::CATEGORY_MONITORING_REPORTS,
                     'title' => $report->report_label,
                     'filename' => $report->official_pdf_filename ?: 'project-report-'.$report->id.'.pdf',

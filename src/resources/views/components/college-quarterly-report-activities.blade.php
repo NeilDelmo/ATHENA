@@ -28,7 +28,7 @@
             <input type="hidden" :name="`{{ $section }}[${index}][id]`" :value="activity.id">
             <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-semibold text-gray-700 dark:text-slate-300" x-text="`Row ${index + 1}`"></p>
-                <button type="button" @click="{{ $section }}.splice(index, 1)" class="rounded text-sm font-semibold text-red-700 focus-visible:outline focus-visible:outline-2 dark:text-red-300" :aria-label="`Remove {{ $title }} row ${index + 1}`">Remove activity</button>
+                <button type="button" @click="{{ $section }}.splice(index, 1)" class="dashboard-action" :aria-label="`Remove {{ $title }} row ${index + 1}`">Remove activity</button>
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
                 @foreach ($fields as $field => $label)

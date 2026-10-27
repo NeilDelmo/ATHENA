@@ -34,10 +34,9 @@
     <div data-proposal-stale-warning hidden role="alert" class="border-l-4 border-red-600 bg-red-50 p-4 text-sm text-red-950 dark:bg-red-950/40 dark:text-red-100 sm:p-5">
         <p class="font-black">The saved version has changed</p>
         <p data-proposal-stale-message class="mt-1 leading-6">This {{ $label }} changed after you opened it.</p>
-        <p class="mt-1 text-xs leading-5">ATHENA protects the latest saved version. Check the recovery status below before loading the latest work. Image and attachment files must be selected again.</p>
+        <p class="mt-1 text-xs leading-5">Copy any unsaved text you want to keep before loading the latest saved work. Image and attachment files must be selected again.</p>
         <div class="mt-3 flex flex-wrap gap-2">
             <a data-proposal-load-latest href="{{ $reloadUrl }}" class="inline-flex rounded-lg bg-gray-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:bg-white dark:text-gray-950">Load latest saved work</a>
         </div>
     </div>
-    <div data-proposal-conflict-recovery hidden></div>
 </section>

@@ -6,6 +6,7 @@ export function projectDissemination(config) {
         scope: '',
         openOnly: true,
         conferenceResults: [],
+        conferenceWarnings: [],
         conferenceSearched: false,
         authorQuery: config.authorName || '',
         institution: '',
@@ -61,9 +62,11 @@ export function projectDissemination(config) {
         searchConferences() {
             return this.run('conferences', async () => {
                 this.conferenceResults = [];
+                this.conferenceWarnings = [];
                 this.conferenceSearched = false;
                 const data = await this.request('conferenceSearch', { query: this.query, scope: this.scope || null, open_only: this.openOnly });
                 this.conferenceResults = data.results;
+                this.conferenceWarnings = data.warnings || [];
                 this.conferenceSearched = true;
             });
         },

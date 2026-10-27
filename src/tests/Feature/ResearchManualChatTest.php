@@ -78,6 +78,62 @@ test('the existing chatbot sends relevant manual passages once and exposes page 
     });
 });
 
+test('a vague RRL request asks for the intended task without searching or generating', function (string $question) {
+    $response = $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [['role' => 'user', 'content' => $question]],
+    ])->assertSuccessful()->assertJsonPath('usage.prompt_tokens', 0)->assertJsonPath('usage.completion_tokens', 0);
+
+    expect($response->json('reply'))->toContain('requirements', 'saved RRL', 'finding studies')
+        ->and($response->json('sources'))->toBe([]);
+    $response->assertJsonMissingPath('literature')->assertJsonMissingPath('proposal_changes');
+    Http::assertNothingSent();
+})->with(['RRL part', 'Help me with the RRL', 'Show me my RRL section', 'Can you help with the review of related literature?', 'RRS section']);
+
+test('an RRL clarification followup retrieves the requested manual requirement', function () {
+    $index = json_decode(File::get($this->manualIndexPath), true, flags: JSON_THROW_ON_ERROR);
+    $index['chunks'][] = ['id' => 'rrl', 'section' => 'Review of Related Literature', 'source_kind' => 'appendix',
+        'page_start' => 92, 'page_end' => 92, 'content' => 'Review of Related Literature: minimum of ten literature studies reviewed.'];
+    File::put($this->manualIndexPath, json_encode($index, JSON_THROW_ON_ERROR));
+
+    $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [
+            ['role' => 'user', 'content' => 'RRL part'],
+            ['role' => 'assistant', 'content' => 'Do you mean requirements, reviewing your saved RRL, or finding studies?'],
+            ['role' => 'user', 'content' => 'Manual requirements'],
+        ],
+    ])->assertSuccessful()->assertJsonPath('sources.0.page_start', 92);
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request): bool => str_contains(collect($request['messages'])->pluck('content')->join("\n"), 'minimum of ten'));
+});
+
+test('asking to show RRL requirements uses manual guidance instead of an academic search', function () {
+    $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [['role' => 'user', 'content' => 'Show me the RRL requirements']],
+    ])->assertSuccessful()->assertJsonMissingPath('literature');
+
+    Http::assertSentCount(1);
+});
+
+test('an RRL count clarification preserves count intent when ranking manual passages', function (string $choice) {
+    $index = json_decode(File::get($this->manualIndexPath), true, flags: JSON_THROW_ON_ERROR);
+    $index['chunks'] = [
+        ['id' => 'overview', 'section' => 'RRL overview', 'source_kind' => 'policy', 'page_start' => 80, 'page_end' => 80,
+            'content' => str_repeat('Review of Related Literature describes RRL themes and research gaps. ', 20)],
+        ['id' => 'count', 'section' => 'Detailed proposal', 'source_kind' => 'appendix', 'page_start' => 92, 'page_end' => 92,
+            'content' => 'Review of Related Literature: minimum of ten studies reviewed.'],
+    ];
+    File::put($this->manualIndexPath, json_encode($index, JSON_THROW_ON_ERROR));
+
+    $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [
+            ['role' => 'user', 'content' => 'RRL part'],
+            ['role' => 'assistant', 'content' => 'Do you mean requirements, reviewing your saved RRL, or finding studies?'],
+            ['role' => 'user', 'content' => $choice],
+        ],
+    ])->assertSuccessful()->assertJsonPath('sources.0.page_start', 92);
+})->with(['How many?', 'Minimum']);
+
 test('chat citations reuse the shared searchable source PDF viewer', function () {
     $html = Blade::render('<x-research-assistant-source-preview />');
     expect($html)->toContain('data-assistant-source-preview', 'data-submitted-report-document', 'pdfAnnotationWorkspace', 'Search source', '$store.researchAssistant.sourcePreview.pdfUrl', '$store.researchAssistant.sourcePreview.page');

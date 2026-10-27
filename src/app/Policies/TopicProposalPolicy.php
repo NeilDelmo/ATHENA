@@ -93,8 +93,7 @@ class TopicProposalPolicy
     private function isResearchOfficeLrecProposal(User $user, TopicProposal $topicProposal): bool
     {
         return $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE)
-            && filled($user->college)
-            && $topicProposal->user?->college === $user->college
+            && $topicProposal->belongsToCollege($user->college)
             && $topicProposal->review_stage === 'lrec'
             && in_array($topicProposal->status, [
                 TopicProposal::STATUS_LREC_QUEUED,

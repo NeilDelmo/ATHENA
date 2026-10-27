@@ -37,17 +37,20 @@ test('PDFs prepare automatically once and report progress, readiness and retryab
         await page.addScriptTag({ type: 'module', content: "import init from '/proposal-pdf-preparation.js'; window.initPdfPreparation = init; init(); window.pdfLoaded = true;" });
         await page.waitForFunction(() => window.pdfLoaded);
         await expect.poll(() => posts).toBe(1);
+        await expect(page.locator('[data-proposal-pdf-preparation]')).toBeHidden();
         await expect(page.locator('[data-pdf-preparation-message]')).toContainText('automatically');
         phase = 'preparing';
         await expect(page.locator('[data-pdf-preparation-count]')).toHaveText('2 / 7 PDFs');
         phase = 'ready';
         await expect(page.locator('[data-pdf-preparation-message]')).toContainText('up to date');
+        await expect(page.locator('[data-proposal-pdf-preparation]')).toBeHidden();
         assert.equal(posts, 1);
         await page.evaluate(() => window.dispatchEvent(new CustomEvent('proposal-readiness-updated', { detail: {
             url: 'https://athena.test/review', data: { preparation: { status: 'failed', message: 'PDF preparation failed. Your saved content is safe.', prepared: 2, total: 7 } },
         } })));
-        await expect(page.getByRole('button', { name: 'Retry PDF preparation' })).toBeVisible();
-        await page.getByRole('button', { name: 'Retry PDF preparation' }).click();
+        await expect(page.locator('[data-proposal-pdf-preparation]')).toBeVisible();
+        await expect(page.locator('[data-pdf-preparation-message]')).toContainText('Your work is saved');
+        await page.getByRole('button', { name: 'Try again', exact: true }).click();
         await expect.poll(() => posts).toBe(2);
         assert.deepEqual(errors, []);
     } finally {
@@ -87,7 +90,7 @@ test('PDF status reconnects after a temporary outage and keeps polling stalled a
         await page.clock.fastForward(3000);
         await expect(page.locator('[data-pdf-preparation-message]')).toContainText('Reconnecting automatically');
         await expect(page.locator('[data-pdf-preparation-count]')).toHaveText('2 / 7 PDFs');
-        await expect(page.getByRole('button', { name: 'Retry PDF preparation' })).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeHidden();
         unavailable = false;
         await page.evaluate(() => window.dispatchEvent(new Event('online')));
         await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('stalled');
@@ -177,7 +180,7 @@ test('PDF status pauses in hidden tabs and resumes once while preparation and re
                 url: 'https://athena.test/review', data: { preparation: { status: 'failed', message: 'Retry required', prepared: 2, total: 7 } },
             } }));
         });
-        await page.getByRole('button', { name: 'Retry PDF preparation' }).click();
+        await page.getByRole('button', { name: 'Try again', exact: true }).click();
         await expect.poll(() => posts).toBe(2);
         await expect(page.locator('[data-pdf-preparation-message]')).toHaveText('Queued');
         await page.clock.fastForward(9000);

@@ -2184,17 +2184,18 @@ test('conference scraper query must be specific enough', function () {
 
     $response = $this->actingAs($faculty)
         ->postJson(route('research-support.conference-search'), [
-            'query' => 'ai',
+            'query' => 'a',
         ]);
 
     expect($response->getStatusCode())->toBe(422)
-        ->and($response->json('errors.query.0'))->toBe('The query field must be at least 3 characters.');
+        ->and($response->json('errors.query.0'))->toBe('The query field must be at least 2 characters.');
 
     Http::assertNothingSent();
 });
 
 test('faculty researchers can scrape conference listings for publication venues', function () {
     Http::fake([
+        'easychair.org/cfp/' => Http::response('', 503),
         'www.wikicfp.com/cfp/servlet/tool.search*' => Http::response(<<<'HTML'
             <html>
                 <body>
@@ -2251,11 +2252,12 @@ test('faculty researchers can scrape conference listings for publication venues'
 
     Http::assertSent(fn ($request) => str_starts_with($request->url(), 'http://www.wikicfp.com/cfp/servlet/tool.search')
         && str_contains(urldecode($request->url()), 'q=educational technology assessment')
-        && str_contains($request->url(), 'year=t'));
+        && str_contains($request->url(), 'year=f'));
 });
 
 test('conference scraper reports unavailable when the source fails', function () {
     Http::fake([
+        'easychair.org/cfp/' => Http::response('', 503),
         'www.wikicfp.com/cfp/servlet/tool.search*' => Http::response('', 503),
     ]);
 

@@ -15,9 +15,15 @@ export default function initializeProposalPdfPreparation() {
         const message = root.querySelector('[data-pdf-preparation-message]');
         const count = root.querySelector('[data-pdf-preparation-count]');
         const retry = root.querySelector('[data-pdf-preparation-retry]');
-        if (message) message.textContent = state.message;
+        root.hidden = state.status !== 'failed';
+        if (message) message.textContent = state.status === 'failed'
+            ? "We couldn't prepare your submission documents. Your work is saved."
+            : state.message;
         if (count) count.textContent = `${Number(state.prepared) || 0} / ${Number(state.total) || 7} PDFs`;
-        if (retry) retry.hidden = state.status !== 'failed';
+        if (retry) {
+            retry.hidden = state.status !== 'failed';
+            retry.textContent = 'Try again';
+        }
         root.dataset.pdfState = JSON.stringify(state);
     }
 

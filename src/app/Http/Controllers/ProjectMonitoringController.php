@@ -183,7 +183,7 @@ class ProjectMonitoringController extends Controller
                 'progressReports' => fn (Builder $query): Builder => $query->visibleToResearchHead(),
                 'progressReports as pending_reports_count' => fn (Builder $query): Builder => $query->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', 'pending'),
                 'narrativeReports' => fn (Builder $query): Builder => $query->visibleToResearchHead(),
-                'narrativeReports as pending_narrative_reports_count' => fn (Builder $query): Builder => $query->visibleToResearchHead()->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
+                'narrativeReports as pending_narrative_reports_count' => fn (Builder $query): Builder => $query->visibleToResearchHead()->latestSubmittedVersion()->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
             ])
             ->when($completedOnly, fn (Builder $query): Builder => $query->where('project_status', TopicProposal::PROJECT_STATUS_COMPLETED));
 
@@ -273,7 +273,8 @@ class ProjectMonitoringController extends Controller
                 fn (array $assignment): bool => $assignedProjects->has($assignment['project_id']),
             ));
         }
-        $workspaceProjects = $fileProjects->map(function (TopicProposal $project) use ($posterUrls): array {
+        $unreadProjectIds = app(SidebarAttentionService::class)->unreadTopicIdsFor($request->user(), ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING);
+        $workspaceProjects = $fileProjects->map(function (TopicProposal $project) use ($posterUrls, $unreadProjectIds): array {
             $progress = $project->latestProgressReportForResearchHead?->progress_percentage;
             $date = $project->notice_to_proceed_issued_at ?? $project->created_at;
             $secretary = $project->researchSecretary?->name;
@@ -297,6 +298,8 @@ class ProjectMonitoringController extends Controller
                     ->map(fn (string $part): string => mb_substr($part, 0, 1))->take(2)->implode(''),
                 'reports' => $project->progress_reports_count + $project->narrative_reports_count,
                 'pending' => $project->pending_reports_count + $project->pending_narrative_reports_count,
+                'needs_attention' => $project->pending_reports_count + $project->pending_narrative_reports_count > 0 || in_array($project->id, $unreadProjectIds, true),
+                'has_new_activity' => in_array($project->id, $unreadProjectIds, true),
                 'url' => route('topics.show', $project).($completed ? '' : '#project-monitoring'),
                 'documents_url' => route('research_head.projects.workspace.documents', $project),
                 'poster_url' => $posterUrls->get($project->id),

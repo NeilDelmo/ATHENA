@@ -273,6 +273,17 @@ export function proposalSourceWorkspace(config = {}) {
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         },
 
+        navigateSourceWorkspaceTabs(event) {
+            const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]:not(:disabled)')];
+            const current = tabs.indexOf(event.target);
+            if (current === -1) return;
+            const next = { ArrowRight: (current + 1) % tabs.length, ArrowLeft: (current + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+            if (next === undefined) return;
+            event.preventDefault();
+            tabs[next].focus();
+            tabs[next].click();
+        },
+
         async setSourceWorkspaceTab(tab) {
             if (this.sourceWorkspaceSaving || this.sourceWorkspaceAiLoading) return;
             this.sourceWorkspaceVersion++;

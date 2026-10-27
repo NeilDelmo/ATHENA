@@ -27,7 +27,8 @@ class ResearchOutcomePolicy
         }
 
         if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE)) {
-            return filled($user->college) && $outcome->projectLeader()->college === $user->college;
+            return $outcome->topic_id ? $outcome->topic->belongsToCollege($user->college)
+                : filled($user->college) && $outcome->projectLeader()->college === $user->college;
         }
 
         return $outcome->topic_id

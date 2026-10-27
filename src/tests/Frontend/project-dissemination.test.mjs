@@ -20,6 +20,16 @@ test('a conference search reports an HTML login response without breaking the re
     assert.equal(state.busy, '');
 });
 
+test('conference discovery keeps partial results and explains unavailable sources', async context => {
+    const results = [{ title: 'Coastal Science Forum', source: 'EasyChair' }];
+    const state = fixture(context, async () => ({ ok: true, json: async () => ({ results, warnings: ['WikiCFP is unavailable.'] }) }));
+    await state.searchConferences();
+    assert.deepEqual(state.conferenceResults, results);
+    assert.deepEqual(state.conferenceWarnings, ['WikiCFP is unavailable.']);
+    assert.equal(state.conferenceSearched, true);
+    assert.equal(state.error, '');
+});
+
 test('a login redirect cannot report a saved profile or erase the linked profile', async context => {
     const state = fixture(context, async () => ({ ok: true, json: async () => { throw new SyntaxError('Unexpected HTML'); } }));
     state.profile = { author_id: 'A42', scholar_url: 'https://scholar.google.com/citations?user=test' };

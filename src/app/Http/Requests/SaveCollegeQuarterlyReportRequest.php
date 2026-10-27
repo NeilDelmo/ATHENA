@@ -7,7 +7,6 @@ use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
 use App\Support\ProposalRichText;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -147,7 +146,7 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
             $period = app(MonitoringQuarterService::class)->forYearAndQuarter($this->integer('reporting_year'), $this->integer('reporting_quarter'));
             $projectIds = collect(['presentations', 'publications', 'seminars'])->flatMap(fn (string $section): array => $this->input($section, []) ?? [])->pluck('project_id')->filter()->unique();
             $projects = TopicProposal::query()->whereIn('status', [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'])
-                ->whereHas('user', fn (Builder $query): Builder => $query->where('college', $this->user()->college))->whereKey($projectIds)->get()->keyBy('id');
+                ->forCollege($this->user()->college)->whereKey($projectIds)->get()->keyBy('id');
             foreach (['presentations', 'publications', 'seminars', 'ip_assets'] as $section) {
                 $rows = $this->input($section, []) ?? [];
                 foreach ($rows as $index => $row) {

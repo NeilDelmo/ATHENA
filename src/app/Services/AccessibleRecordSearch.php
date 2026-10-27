@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -75,12 +76,23 @@ class AccessibleRecordSearch
         // shortcut: database substring search; add a dedicated index when measured search latency warrants it.
         $results = DB::query()->fromSub($union, 'matches')->orderByDesc('updated_at')->orderBy('kind')->orderByDesc('id')->paginate(20);
         $records = [];
+        $needsCollege = $user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY]);
         foreach ($results->getCollection()->groupBy('kind') as $kind => $matches) {
             if ($kind === 'legacy_manual') {
                 continue;
             }
             [$model, , $relations] = self::SOURCES[$kind];
+            $topicRelation = match ($kind) {
+                'version_file' => 'version.topic',
+                'version', 'document', 'monitoring', 'narrative' => 'topic',
+                default => null,
+            };
             $records[$kind] = $model::query()->with($relations)->whereKey($matches->pluck('id'))
+                ->when($needsCollege && $kind === 'topic', fn (Builder $query): Builder => $query->select(explode(',', self::TOPIC_COLUMNS))->withProjectCollege())
+                ->when($needsCollege && $topicRelation !== null, fn (Builder $query): Builder => $query->with([
+                    ...($kind === 'version_file' ? ['version:'.self::VERSION_COLUMNS] : []),
+                    $topicRelation => fn (BelongsTo $topic): BelongsTo => $topic->select(explode(',', self::TOPIC_COLUMNS))->withProjectCollege(),
+                ]))
                 ->get(match ($kind) {
                     'topic' => explode(',', self::TOPIC_COLUMNS),
                     'draft' => explode(',', self::DRAFT_COLUMNS),
@@ -210,7 +222,7 @@ class AccessibleRecordSearch
                 $visible->orWhere(fn (Builder $reports): Builder => $reports->withIssuedNotice()->forImplementationReportReview($user));
             }
             if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE) && filled($user->college)) {
-                $visible->orWhere(fn (Builder $lrec): Builder => $lrec->whereHas('user', fn (Builder $owner): Builder => $owner->where('college', $user->college))
+                $visible->orWhere(fn (Builder $lrec): Builder => $lrec->forCollege($user->college)
                     ->where('review_stage', 'lrec')->whereIn('status', [TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, 'revision_requested', 'resubmitted', 'pending', 'expert_review', 'for_final_decision']));
             }
         });

@@ -138,6 +138,19 @@ test('chat distinguishes literature search commands from guidance and examples',
     expect(app(ResearchAssistantLiteratureService::class)->isLiteratureRequest($question))->toBeFalse();
 })->with(['How do I find papers?', 'Give an example RRL paragraph', 'Explain how to search for sources', 'Do not suggest literature yet']);
 
+test('choosing studies after RRL clarification searches the selected proposal objectives', function () {
+    mock(LiteratureSearchService::class)->shouldReceive('search')->once()->andReturn(literatureSearchPayload([$this->source]));
+    $payload = literatureChatPayload($this->draft, 'Finding studies');
+    $payload['messages'] = [
+        ['role' => 'user', 'content' => 'RRL part'],
+        ['role' => 'assistant', 'content' => 'Do you mean requirements, reviewing your saved RRL, or finding studies?'],
+        ...$payload['messages'],
+    ];
+
+    $this->postJson(route('research-support.chat'), $payload)->assertSuccessful()->assertJsonPath('literature.kind', 'results');
+    Http::assertNothingSent();
+});
+
 test('chat searches when a direct literature request also asks for an explanation', function () {
     mock(LiteratureSearchService::class)->shouldReceive('search')->once()->andReturn(literatureSearchPayload([$this->source]));
     $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Find recent studies and explain why they fit'))->assertOk()->assertJsonPath('literature.kind', 'results');

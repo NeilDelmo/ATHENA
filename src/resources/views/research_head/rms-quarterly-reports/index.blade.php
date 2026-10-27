@@ -17,7 +17,7 @@
     <x-slot name="header">
         <x-page-header :title="'RMS quarterly report · Q'.$quarter.' '.$year" subtitle="Review submitted college outputs, complete the report details, and generate the campus Excel workbook.">
             <x-slot name="actions">
-                <a href="{{ route('research_head.rms-quarterly-reports.index') }}" class="{{ $actionClass }} text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"><x-report-library-icon name="back" class="h-5 w-5" />All RMS reports</a>
+                <a href="{{ route('research_head.rms-quarterly-reports.index') }}" class="{{ $actionClass }} border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"><x-report-library-icon name="back" class="h-5 w-5" />All RMS reports</a>
                 <a href="{{ route('research_head.quarterly-reports.index', ['year' => $year]) }}" class="{{ $actionClass }} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><x-report-library-icon name="college" class="h-5 w-5" />College reports</a>
             </x-slot>
         </x-page-header>
@@ -28,7 +28,7 @@
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-base text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
         @if (session('report_download_url'))
-            <p class="text-sm text-slate-600 dark:text-slate-300">Your download should start automatically. <a href="{{ session('report_download_url') }}" x-init="window.location.assign($el.href)" class="font-semibold text-brand underline dark:text-brand-soft">Download Excel again</a></p>
+            <div class="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300"><p>Your download should start automatically.</p><a href="{{ session('report_download_url') }}" x-init="window.location.assign($el.href)" class="dashboard-action">Download Excel again</a></div>
         @endif
         @if ($errors->any())
             <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-base text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">

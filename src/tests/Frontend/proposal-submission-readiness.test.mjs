@@ -70,11 +70,37 @@ test('readiness automatically reveals exact fields, saves before guidance, and n
         assert.deepEqual(work.errors, []);
         await work.page.close();
 
-        const detailed = await fixture(`<main x-data="{ focusProposalRequirement(field) { document.querySelector('[contenteditable]').focus(); } }" data-proposal-paper="detailed-proposal" data-proposal-readiness-url="/ready">${panel}<div contenteditable="true" role="textbox" tabindex="0" aria-label="Specific methods"></div></main>`, { value: state([blocker('methodology.specific_methods', { paper: 'detailed-proposal', message: 'Describe the specific methods.' })]) }, '?proposal_requirement=methodology.specific_methods');
+        const detailed = await fixture(`<main x-data="{ focusProposalRequirement(field) { document.querySelector('[contenteditable]').focus(); } }" data-proposal-paper="detailed-proposal" data-proposal-readiness-url="/ready">${panel}<div class="proposal-semantic-field"><div contenteditable="true" role="textbox" tabindex="0" aria-label="Specific methods"></div></div></main>`, { value: state([blocker('methodology.specific_methods', { paper: 'detailed-proposal', message: 'Describe the specific methods.' })]) }, '?proposal_requirement=methodology.specific_methods');
         await expect(detailed.page.getByRole('textbox')).toBeFocused();
         await expect(detailed.page.getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
+        await expect(detailed.page.locator('.proposal-semantic-field [data-proposal-readiness-cue]')).toHaveCount(0);
+        assert.equal(await detailed.page.locator('[data-proposal-readiness-cue]').evaluate(cue => cue.previousElementSibling.className), 'proposal-semantic-field');
         assert.deepEqual(detailed.errors, []);
         await detailed.page.close();
+
+        for (const query of ['', '?proposal_requirement=sdgs']) {
+            const goalsState = state([blocker('sdgs', { paper: 'detailed-proposal', message: 'Select at least one Sustainable Development Goal.' })]);
+            const goals = await fixture(`<main x-data="{}" data-proposal-paper="detailed-proposal" data-proposal-readiness-url="/ready">${panel}<input type="hidden" name="sdgs"><fieldset data-detailed-proposal-validation-group="sdgs" tabindex="-1" aria-describedby="sdgs-help"><legend>Sustainable Development Goals</legend><div><label><input type="checkbox" name="sdgs[]" value="1"><span>SDG1: No Poverty</span></label><label><input type="checkbox" name="sdgs[]" value="2"><span>SDG2: Zero Hunger</span></label></div></fieldset><p id="sdgs-help">Check all applicable SDGs.</p></main>`, { value: goalsState }, query);
+            if (!query) {
+                await goals.page.evaluate(data => window.dispatchEvent(new CustomEvent('proposal-readiness-updated', { detail: { data, url: 'https://athena.test/ready', source: 'pdf' } })), goalsState);
+            }
+            const group = goals.page.getByRole('group');
+            const cue = goals.page.locator('[data-proposal-readiness-cue]');
+            await expect(cue).toHaveText('Select at least one Sustainable Development Goal.');
+            await expect(group).toHaveAttribute('aria-invalid', 'true');
+            assert.equal(await cue.evaluate(element => element.previousElementSibling.tagName), 'FIELDSET');
+            await expect(goals.page.locator('label [data-proposal-readiness-cue]')).toHaveCount(0);
+            const description = await group.getAttribute('aria-describedby');
+            assert.match(description, /sdgs-help/);
+            assert.ok(description.includes(await cue.getAttribute('id')));
+            if (query) await expect(group).toBeFocused();
+            await goals.page.evaluate(data => window.dispatchEvent(new CustomEvent('proposal-readiness-updated', { detail: { data, url: 'https://athena.test/ready', source: 'pdf' } })), state());
+            await expect(cue).toHaveCount(0);
+            await expect(group).not.toHaveAttribute('aria-invalid');
+            await expect(group).toHaveAttribute('aria-describedby', 'sdgs-help');
+            assert.deepEqual(goals.errors, []);
+            await goals.page.close();
+        }
 
         const dates = await fixture(`<main x-data="{}" data-proposal-paper="details" data-proposal-readiness-url="/ready">${panel}<input name="project_title" value="Existing title"><input type="hidden" name="planned_start"><input id="planned_start" role="combobox" aria-label="Planned start"></main>`, { value: state([blocker('planned_start', { paper: 'details' })]) }, '?proposal_requirement=planned_start');
         await expect(dates.page.getByRole('combobox')).toBeFocused();

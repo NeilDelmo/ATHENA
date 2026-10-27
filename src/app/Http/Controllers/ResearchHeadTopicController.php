@@ -367,10 +367,11 @@ class ResearchHeadTopicController extends Controller
         ));
 
         if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE) {
+            $colleges = TopicProposal::collegeAliases($topic->projectCollege());
             $staff = User::query()
-                ->where(function ($query) use ($topic): void {
-                    if (filled($topic->user?->college)) {
-                        $query->where('college', $topic->user->college)
+                ->where(function ($query) use ($topic, $colleges): void {
+                    if ($colleges !== []) {
+                        $query->whereIn('college', $colleges)
                             ->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['research_coordinator', 'research_secretary']));
                     } else {
                         $query->whereRaw('1 = 0');

@@ -25,7 +25,7 @@ export function disseminationSearchRequest(action, project) {
     const journal = action.type === 'search_journals';
     const url = project.dissemination[journal ? 'journal_search_url' : 'conference_search_url'];
     if (!url) return null;
-    const query = String(action.query || project.label).trim().slice(0, journal ? 500 : 140);
+    const query = String(action.query || (!journal && project.dissemination.conference_query) || project.label).trim().slice(0, journal ? 500 : 140);
     return { type: action.type, project, url, body: journal ? { query, indexing: 'prefer_scopus' } : { query, open_only: true } };
 }
 
@@ -40,7 +40,7 @@ export function disseminationSearchReply(payload, search) {
             description: journal ? (result.reasons || []).join(' ') : String(result.description || ''),
             detail: journal
                 ? `${result.fit_score ?? '—'}/100 topic fit · ${result.scopus?.label || 'Indexing unverified'}`
-                : `${result.location || 'Location unlisted'} · Deadline: ${result.submission_deadline || 'Verify on CFP'} · ${result.deadline_status || 'unknown'}`,
+                : `${result.location || 'Location unlisted'} · Deadline: ${result.submission_deadline || 'Verify on CFP'} · ${result.deadline_status || 'unknown'}${result.source ? ` · ${result.source}` : ''}${result.match_reasons?.length ? ` · ${result.match_reasons.join('; ')}` : ''}`,
             fields: journal ? {
                 journal_name: title, issn: result.issn || null,
                 journal_url: venueUrl(result.homepage_url) || null, status: 'shortlisted',
@@ -55,7 +55,7 @@ export function disseminationSearchReply(payload, search) {
         reply: [
             results.length
                 ? `I found ${results.length} ${journal ? 'journal matches' : 'conference opportunities'} for “${search.body.query}”. Review a result, then confirm before adding it to “${search.project.label}”.`
-                : `No ${journal ? 'journals' : 'open conference opportunities'} matched “${search.body.query}”. Try more specific subject terms.`,
+                : `No ${journal ? 'journals' : 'conference opportunities'} matched “${search.body.query}”. Try more specific subject terms.`,
             ...results.map((result, index) => `${index + 1}. ${result.title} — ${result.detail}`),
             ...(payload.warnings || []),
             'Check the official venue website for current scope, fees, indexing, and deadlines. Adding a shortlist entry does not submit your manuscript.',

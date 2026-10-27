@@ -155,6 +155,19 @@ test('the supplied manual corpus retrieves authoritative passages within the top
         ->and($falsePositives)->toBe([], $summary);
 });
 
+test('the supplied manual corpus ranks the explicit RRL minimum first for count questions', function (string $question) {
+    $sources = app(ResearchManualRetriever::class)->retrieve($question);
+
+    expect($sources)->not->toBeEmpty()
+        ->and($sources[0]['page_start'])->toBe(92)
+        ->and($sources[0]['content'])->toContain('minimum of ten');
+})->with([
+    'How many RRL do I need for my research to be approved?',
+    'What is the minimum for my RRL part?',
+    'How many references belong in the related literature section?',
+    'Do I need 10 RRL?',
+]);
+
 test('the optional manual file cache benchmark reports cold and repeated lookup latency', function () {
     if (getenv('ATHENA_MANUAL_CORPUS_FILE_BENCHMARK') !== '1') {
         $this->markTestSkipped('Set ATHENA_MANUAL_CORPUS_FILE_BENCHMARK=1 to measure the file cache.');

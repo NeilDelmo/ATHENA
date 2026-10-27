@@ -1,7 +1,12 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Post-implementation" :subtitle="$outcome->projectTitle()">
-            <x-slot name="actions"><x-back-link href="{{ route('research-outcomes.index') }}">Back to projects</x-back-link></x-slot>
+            <x-slot name="actions">
+                @if ($outcome->topic_id)
+                    <a wire:navigate href="{{ route('topics.show', $outcome->topic_id) }}#project-monitoring" class="dashboard-action">Project archive</a>
+                @endif
+                <x-back-link href="{{ route('research-outcomes.index') }}">Back to projects</x-back-link>
+            </x-slot>
         </x-page-header>
     </x-slot>
     <div class="mx-auto max-w-3xl space-y-5">
@@ -10,7 +15,7 @@
             <h2 class="text-lg font-semibold text-slate-900 dark:text-white">{{ $outcome->projectTitle() }}</h2>
             <dl class="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div><dt class="text-slate-500 dark:text-slate-400">Team leader</dt><dd class="mt-1 font-medium text-slate-900 dark:text-slate-100">{{ $outcome->projectLeader()->name }}</dd></div>
-                <div><dt class="text-slate-500 dark:text-slate-400">College</dt><dd class="mt-1 text-slate-900 dark:text-slate-100">{{ $outcome->projectLeader()->college ?: 'Not set' }}</dd></div>
+                <div><dt class="text-slate-500 dark:text-slate-400">College</dt><dd class="mt-1 text-slate-900 dark:text-slate-100">{{ $outcome->projectCollege() ?: 'Not set' }}</dd></div>
                 <div><dt class="text-slate-500 dark:text-slate-400">Funding</dt><dd class="mt-1 text-slate-900 dark:text-slate-100">{{ App\Models\ResearchOutcome::FUNDING_SOURCES[$outcome->funding_source] }}</dd></div>
                 <div><dt class="text-slate-500 dark:text-slate-400">Last update</dt><dd class="mt-1 text-slate-900 dark:text-slate-100">{{ $outcome->updated_at?->timezone(config('app.timezone'))->format('M j, Y g:i A') ?? 'Not updated' }}</dd></div>
             </dl>

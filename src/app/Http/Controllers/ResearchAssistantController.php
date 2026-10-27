@@ -116,11 +116,13 @@ class ResearchAssistantController extends Controller
             'messages.*.document_reading.format' => ['nullable', 'string', 'in:PDF,DOCX,SAVED,pdf,docx,saved'],
             'messages.*.document_reading.basis' => ['required_with:messages.*.document_reading', 'in:saved_draft_projection,submitted_snapshot,uploaded_file'],
             'messages.*.document_reading.version' => ['nullable', 'integer', 'min:0'],
-            'messages.*.document_reading.coverage' => ['nullable', 'array:selected_passages,total_passages,omitted_passages,truncated,limitations'],
+            'messages.*.document_reading.coverage' => ['nullable', 'array:selected_passages,total_passages,omitted_passages,truncated,limitations,visual_pages'],
             'messages.*.document_reading.coverage.selected_passages' => ['nullable', 'integer', 'min:0', 'max:20'],
             'messages.*.document_reading.coverage.total_passages' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'messages.*.document_reading.coverage.omitted_passages' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'messages.*.document_reading.coverage.truncated' => ['nullable', 'boolean'],
+            'messages.*.document_reading.coverage.visual_pages' => ['nullable', 'array', 'max:2'],
+            'messages.*.document_reading.coverage.visual_pages.*' => ['integer', 'min:1', 'max:200'],
             'messages.*.document_reading.coverage.limitations' => ['nullable', 'array', 'max:8'],
             'messages.*.document_reading.coverage.limitations.*' => ['string', 'max:500'],
             'messages.*.literature' => ['nullable', 'array:kind,proposal_draft_id,proposal_title,query,context_basis,year_from,year_to,results,drafts,sources,editor_url,notice,confirmed,applied'],
@@ -276,6 +278,18 @@ class ResearchAssistantController extends Controller
         }
 
         $literatureAction = $validated['action']['type'] ?? null;
+        if ($literatureAction === null) {
+            $question = $this->literature->resolveQuestion($messages->last()['content'], $messages->slice(0, -1)->all());
+            if ($clarification = $this->literature->clarificationReply($question)) {
+                return response()->json([
+                    'reply' => $clarification,
+                    'model' => 'athena-clarification',
+                    'sources' => [],
+                    'usage' => ['prompt_tokens' => 0, 'completion_tokens' => 0],
+                ]);
+            }
+            $messages->put($messages->count() - 1, ['role' => 'user', 'content' => $question]);
+        }
         $reviewFocus = $this->proposalReview->focus(
             $validated['action'] ?? [],
             $validated['context'] ?? [],
@@ -499,6 +513,15 @@ class ResearchAssistantController extends Controller
 
         array_push($aiMessages, ...$messages->all());
 
+        $documentImages = $documentEvidence['images'] ?? [];
+        if ($documentImages !== []) {
+            $lastMessage = array_key_last($aiMessages);
+            $aiMessages[$lastMessage]['content'] = [
+                ['type' => 'text', 'text' => $messages->last()['content']],
+                ...$documentImages,
+            ];
+        }
+
         try {
             for ($attempt = 1; $attempt <= ($reviewEvidence ? 2 : 1); $attempt++) {
                 $payload = [
@@ -509,7 +532,7 @@ class ResearchAssistantController extends Controller
                     ...($reviewEvidence ? $this->proposalReview->completionOptions($reviewEvidence, $attempt) : []),
                     ...($helpEvidence ? ['reasoning_effort' => 'low', 'max_completion_tokens' => 4096] : []),
                 ];
-                $response = $this->ai->complete(payload: $payload, usesVision: false, connectTimeout: 10, timeout: 45);
+                $response = $this->ai->complete(payload: $payload, usesVision: $documentImages !== [], connectTimeout: 10, timeout: 45);
                 if (! $reviewEvidence || ! $response->successful()
                     || $this->proposalReview->isCompleteResponse((string) $response->json('choices.0.message.content'), $response->json('choices.0.finish_reason'))) {
                     break;
@@ -880,6 +903,9 @@ PROMPT;
                 'total_passages' => max(0, min(1000000, (int) ($coverage['total_passages'] ?? 0))),
                 'omitted_passages' => max(0, min(1000000, (int) ($coverage['omitted_passages'] ?? 0))),
                 'truncated' => (bool) ($coverage['truncated'] ?? false),
+                ...(isset($coverage['visual_pages']) ? ['visual_pages' => collect($coverage['visual_pages'])
+                    ->filter(fn (mixed $page): bool => is_int($page) && $page >= 1 && $page <= 200)
+                    ->unique()->take(2)->values()->all()] : []),
                 'limitations' => collect($coverage['limitations'] ?? [])->filter(fn (mixed $limit): bool => is_string($limit))
                     ->take(8)->map(fn (string $limit): string => Str::limit(strip_tags($limit), 500, ''))->values()->all(),
             ],

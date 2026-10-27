@@ -17,6 +17,9 @@ function fieldTarget(root, field) {
     const fields = [...root.querySelectorAll('input:not([type="hidden"]), textarea, select')];
     const control = fields.find(element => element.name === name)
         || fields.find(element => element.name.startsWith(`${name}[`));
+    if (control?.type === 'checkbox' && control.name === `${name}[]`) {
+        return control.closest('fieldset') || control;
+    }
     if (control) return control._semanticEditor || control;
     const identified = document.getElementById(field);
     if (identified && root.contains(identified) && identified.type !== 'hidden') return identified;
@@ -104,7 +107,7 @@ export default function initProposalSubmissionReadiness({
             const describedBy = target.getAttribute('aria-describedby');
             target.setAttribute('aria-invalid', 'true');
             target.setAttribute('aria-describedby', [describedBy, cue.id].filter(Boolean).join(' '));
-            target.insertAdjacentElement('afterend', cue);
+            (target.closest('.proposal-semantic-field') || target).insertAdjacentElement('afterend', cue);
             rendered.push({ target, cue, invalid, describedBy });
         }
         cues.set(root, rendered);

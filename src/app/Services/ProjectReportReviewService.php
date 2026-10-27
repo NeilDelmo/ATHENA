@@ -87,10 +87,10 @@ class ProjectReportReviewService
 
     public function officeSecretaries(TopicProposal $topic): Collection
     {
-        $college = $topic->user?->college;
+        $college = $topic->projectCollege();
 
         return filled($college)
-            ? User::role(User::WORKSPACE_RESEARCH_SECRETARY)->where('college', $college)->get()
+            ? User::role(User::WORKSPACE_RESEARCH_SECRETARY)->whereIn('college', TopicProposal::collegeAliases($college))->get()
             : new Collection;
     }
 

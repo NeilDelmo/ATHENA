@@ -102,6 +102,12 @@
     height: calc(var(--workspace-icon-height, 64px) * .75);
     @apply absolute bottom-1 right-1 rounded-sm border border-amber-700/40 bg-white object-contain shadow-sm;
 }
+.workspace-activity-badge {
+    @apply absolute right-0 top-0 h-3.5 w-3.5 rounded-full bg-red-600 ring-2 ring-white dark:bg-red-400 dark:ring-slate-900;
+}
+.workspace-new-label {
+    @apply inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold leading-4 text-red-700 dark:bg-red-950/60 dark:text-red-200;
+}
 .workspace-file-graphic {
     width: var(--workspace-icon-width, 80px);
     height: var(--workspace-icon-height, 64px);

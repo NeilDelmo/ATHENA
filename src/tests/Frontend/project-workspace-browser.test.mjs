@@ -24,7 +24,7 @@ test('the rendered project views preserve monitoring, poster covers, file select
     const posterImage = readFileSync(resolve('public/images/sample-maintenance-poster.png'));
     const documents = [
         { key: 'proposal-pdf', category: 'proposal', title: 'Approved proposal', filename: 'Coastal research proposal.pdf', note: '', source: 'Approved submission', uploaded_by: 'Elena Santos', uploaded_at: '2025-06-01T00:00:00Z', file_size: 24576, view_url: 'http://localhost/files/proposal/view', download_url: 'http://localhost/files/proposal/download', generated_comment_response: true, official: true },
-        { key: 'report-docx', category: 'monitoring', title: 'Final report', filename: 'Coastal final report.docx', note: '', source: 'Completed project', uploaded_by: 'Elena Santos', uploaded_at: '2026-10-01T00:00:00Z', file_size: 8192, view_url: 'http://localhost/files/report/view', download_url: 'http://localhost/files/report/download', official: true },
+        { key: 'report-docx', category: 'monitoring', title: 'Final report', filename: 'Coastal final report.docx', note: '', source: 'Completed project', uploaded_by: 'Elena Santos', uploaded_at: '2026-10-01T00:00:00Z', file_size: 8192, view_url: 'http://localhost/files/report/view', download_url: 'http://localhost/files/report/download', official: true, needs_attention: true },
         { key: 'terminal-poster', category: 'monitoring', title: 'Terminal report poster', filename: 'SAMPLE-predictive-maintenance-poster.png', note: 'SAMPLE POSTER — illustrative UI demonstration, not actual research findings.', source: 'Terminal report', uploaded_by: 'Elena Santos', uploaded_at: '2026-09-30T00:00:00Z', file_size: 1655231, view_url: 'http://localhost/files/poster/view', thumbnail_url: 'http://localhost/files/poster/view', download_url: 'http://localhost/files/poster/download', preview_kind: 'image', official: true },
     ];
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -213,6 +213,10 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 await expect(projects).toHaveCount(0);
                 assert.equal(documentRequests, 0);
                 await readableName(item('year', '2025'));
+                await expect(item('year', '2025').locator('[data-workspace-new-label]')).toBeHidden();
+                await workspace.evaluate(element => { Alpine.$data(element).projects.find(project => project.title === 'Coastal communities research').has_new_activity = true; });
+                await expect(item('year', '2025').locator('[data-workspace-new-label]')).toBeVisible();
+                await expect(item('year', '2024').locator('[data-workspace-new-label]')).toBeHidden();
                 await screenshot('root');
                 const projectSearch = page.getByLabel('Search this location');
                 await projectSearch.fill('  sAnToS  ');
@@ -236,6 +240,9 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 await expect(action('Move to…')).toBeHidden();
                 assert.equal(persisted.grouping, 'year');
                 await item('year', '2025').click();
+                await expect(item('year', '2025').locator('[data-workspace-activity-badge]')).toBeVisible();
+                await expect(item('year', '2025')).toHaveAccessibleDescription('New activity');
+                await expect(item('year', '2024').locator('[data-workspace-activity-badge]')).toBeHidden();
                 assert.equal(await location(), 'all');
                 await expect(item('year', '2025')).toHaveAttribute('aria-pressed', 'true');
                 await expect(action('Open')).toBeVisible();
@@ -246,6 +253,9 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 if (width < 1024) await expect(page.getByLabel('Go to folder')).toHaveValue('year:2025');
                 assert.equal(documentRequests, 0);
                 const coastal = page.getByRole('button', { name: 'Select project Coastal communities research', exact: true });
+                await expect(coastal.locator('[data-workspace-activity-badge]')).toBeVisible();
+                await expect(coastal).toHaveAccessibleDescription('New activity');
+                await expect(coastal.locator('[data-workspace-new-label]')).toHaveText('New');
                 await readableName(coastal);
                 const projectCover = coastal.locator('[data-workspace-project-cover] img');
                 await expect(projectCover).toHaveAttribute('src', documents[2].view_url);
@@ -255,6 +265,10 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 assert.equal(await projectCover.evaluate(image => image.naturalHeight), 1536);
                 assert.equal(await page.getByRole('button', { name: 'Select project Community study 1', exact: true }).locator('[data-workspace-project-cover] img').count(), 0);
                 await screenshot('year');
+                await workspace.evaluate(element => { Alpine.$data(element).projects.find(project => project.title === 'Coastal communities research').has_new_activity = false; });
+                await expect(coastal.locator('[data-workspace-new-label]')).toBeHidden();
+                await expect(coastal.locator('[data-workspace-activity-badge]')).toBeVisible();
+                await expect(coastal).toHaveAccessibleDescription('Review needed');
                 await workspace.evaluate(element => { Alpine.$data(element).projects.find(project => project.title === 'Community study 3').progress = null; });
                 await page.getByRole('button', { name: 'Select project Community study 3', exact: true }).click();
                 await expect(workspace.getByText('No progress report yet', { exact: true })).toBeVisible();
@@ -284,6 +298,10 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 const pdf = item('document', 'proposal-pdf');
                 const docx = item('document', 'report-docx');
                 const poster = item('document', 'terminal-poster');
+                await expect(docx.locator('[data-workspace-activity-badge]')).toBeVisible();
+                await expect(docx.locator('[data-workspace-activity-badge]')).toHaveCSS('border-radius', '9999px');
+                await expect(docx).toHaveAccessibleDescription('New activity or review needed');
+                await expect(pdf.locator('[data-workspace-activity-badge]')).toBeHidden();
                 const projectSummary = workspace.locator('[data-project-summary]');
                 await expect(projectSummary).toBeVisible();
                 await expect(projectSummary).toContainText('Coastal communities research');
@@ -530,7 +548,9 @@ test('the rendered project views preserve monitoring, poster covers, file select
                 assert.equal((await state()).assignments.filter(assignment => assignment.folder_id === clipboardFolder.id).length, 2);
                 await firstStudy.click();
                 const clipboardBeforeTextSelection = await workspace.evaluate(element => JSON.stringify(Alpine.$data(element).clipboard));
-                const selectedText = await workspace.locator('[aria-label="Item details"] p').first().evaluate(element => {
+                const selectedDetails = workspace.locator('[aria-label="Item details"] p:visible').first();
+                await expect(selectedDetails).toHaveText('Community study 1');
+                const selectedText = await selectedDetails.evaluate(element => {
                     const range = document.createRange();
                     range.selectNodeContents(element);
                     window.getSelection().removeAllRanges();

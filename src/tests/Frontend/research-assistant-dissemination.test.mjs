@@ -42,6 +42,14 @@ test('an incomplete search response cannot be presented as no matches', () => {
     assert.throws(() => integration.disseminationSearchReply({}, search), /incomplete/);
 });
 
+test('AI conference discovery uses the project finders canonical query while preserving explicit subjects', () => {
+    const context = { ...project, dissemination: { ...project.dissemination, conference_query: 'coastal monitoring' } };
+    assert.deepEqual(integration.disseminationSearchRequest({ type: 'search_conferences' }, context).body,
+        { query: 'coastal monitoring', open_only: true });
+    assert.equal(integration.disseminationSearchRequest({ type: 'search_conferences', query: 'marine ecology' }, context).body.query, 'marine ecology');
+    assert.equal(integration.disseminationSearchRequest({ type: 'search_journals' }, context).body.query, 'Coastal monitoring study');
+});
+
 test('a confirmed in-flight save cannot add a response to a replacement conversation', async () => {
     let resolveSave;
     const store = { ...integration.researchAssistantDissemination(), isLoading: false, retryAfter: 0, messages: [], nextMessageId: 2, scrollToLatest() {}, saveConversation: async () => {} };

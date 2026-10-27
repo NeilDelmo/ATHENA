@@ -41,6 +41,7 @@ class ResearchAssistantContexts
                     'journal_search_url' => route('research.dissemination.journals.search', $topic),
                     'journal_save_url' => route('research.dissemination.journal-submissions.store', $topic),
                     'conference_search_url' => route('research.dissemination.conferences.search', $topic),
+                    'conference_query' => app(ConferenceScraperService::class)->suggestedQuery($topic->title),
                     'conference_save_url' => route('research.dissemination.conferences.store', $topic),
                     'journal_project_url' => route('research-support.index', ['topic' => $topic->id]).'#journal-submissions',
                     'conference_project_url' => route('research.dissemination.show', $topic).'#conferences',

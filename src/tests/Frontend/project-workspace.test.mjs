@@ -2,6 +2,38 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectWorkspace } from '../../resources/js/project-workspace.js';
 
+test('activity follows projects into year folders and nested personal folders without being cleared by opening', t => {
+    const { state } = fixture(t);
+    assert.equal(state.hasAttention(state.projects[0]), false);
+    assert.equal(state.hasAttention(state.projects[1]), true);
+    assert.equal(state.years.find(year => year.year === '2025').needs_attention, false);
+    assert.equal(state.years.find(year => year.year === '2026').needs_attention, true);
+    assert.equal(state.folderNeedsAttention(archiveId), true);
+    assert.equal(state.folderNeedsAttention(childId), true);
+    assert.equal(state.folderNeedsAttention(otherId), false);
+    state.openLocation(archiveId);
+    assert.equal(state.folderNeedsAttention(archiveId), true);
+    state.projects[1].pending = 0;
+    assert.equal(state.folderNeedsAttention(archiveId), false);
+    state.projects[0].needs_attention = true;
+    assert.equal(state.folderNeedsAttention(archiveId), true);
+    assert.equal(state.years.find(year => year.year === '2025').needs_attention, true);
+});
+
+test('New labels follow unread activity rather than unfinished reviews', t => {
+    const { state } = fixture(t);
+    assert.equal(state.projects[1].pending, 1);
+    assert.equal(state.years.find(year => year.year === '2026').has_new_activity, false);
+    assert.equal(state.folderHasNewActivity(archiveId), false);
+    state.projects[1].has_new_activity = true;
+    assert.equal(state.years.find(year => year.year === '2026').has_new_activity, true);
+    assert.equal(state.folderHasNewActivity(archiveId), true);
+    assert.equal(state.folderHasNewActivity(childId), true);
+    state.projects[1].has_new_activity = false;
+    assert.equal(state.folderHasNewActivity(archiveId), false);
+    assert.equal(state.folderNeedsAttention(archiveId), true);
+});
+
 test('opening a folder search result clears the previous location query and reveals its contents', t => {
     const { state } = fixture(t);
     state.query = 'Archive';
@@ -175,7 +207,7 @@ test('Explorer view gestures preserve selection and save only layout preferences
 
 test('automatic year and personal folder locations include every project beyond a server page', (t) => {
     const { state } = fixture(t, { count: 31 });
-    assert.deepEqual(state.years, [{ year: '2026', count: 30 }, { year: '2025', count: 1 }]);
+    assert.deepEqual(state.years, [{ year: '2026', count: 30, needs_attention: true, has_new_activity: false }, { year: '2025', count: 1, needs_attention: false, has_new_activity: false }]);
     assert.equal(state.filteredProjects.length, 31);
     assert.equal(state.pageCount, 2);
     assert.equal(state.projectGroups.flatMap((group) => group.projects).length, 24);

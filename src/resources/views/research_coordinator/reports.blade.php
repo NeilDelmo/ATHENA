@@ -33,7 +33,7 @@
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
         @if (session('report_download_url'))
-            <p class="text-sm text-slate-600 dark:text-slate-300">Your download should start automatically. <a href="{{ session('report_download_url') }}" x-init="window.location.assign($el.href)" class="font-semibold text-brand underline dark:text-brand-soft">Download Word again</a></p>
+            <div class="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300"><p>Your download should start automatically.</p><a href="{{ session('report_download_url') }}" x-init="window.location.assign($el.href)" class="dashboard-action">Download Word again</a></div>
         @endif
 
         @if ($returned)
@@ -191,7 +191,7 @@
                         @if ($isImage)
                             <a href="{{ $evidence['download_url'] ?? $evidenceUrl }}" target="_blank" rel="noopener" class="inline-block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img src="{{ $previewUrl }}" alt="{{ $evidenceLabel }}" class="max-h-64 rounded-lg object-contain" loading="lazy" decoding="async"></a>
                         @else
-                            <a href="{{ $evidenceUrl }}" class="inline-block break-words rounded font-semibold text-brand underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">{{ $evidence['original_filename'] }}</a>
+                            <a href="{{ $evidenceUrl }}" class="dashboard-action !justify-start break-all !text-left">{{ $evidence['original_filename'] }}</a>
                         @endif
                         <figcaption class="text-sm text-gray-600 dark:text-slate-400">{{ $evidenceLabel }}</figcaption>
                         @if (filled($evidence['folder'] ?? null))

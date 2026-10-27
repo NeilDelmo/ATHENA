@@ -9,7 +9,7 @@
             </details>
             <form @submit.prevent="searchConferences" class="mt-5 grid gap-3 sm:grid-cols-2">
                 <label class="text-sm font-medium sm:col-span-2">Topic or keywords
-                    <input type="search" x-model="query" required minlength="3" maxlength="140" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900">
+                    <input type="search" x-model="query" required minlength="2" maxlength="140" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900">
                 </label>
                 <label class="text-sm font-medium">Location preference
                     <select x-model="scope" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900">
@@ -19,13 +19,17 @@
                 <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="openOnly" class="rounded border-gray-300 text-red-700">Hide passed submission deadlines</label>
                 <button :disabled="!!busy" class="rounded-lg bg-red-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2" x-text="busy === 'conferences' ? 'Finding conferences…' : 'Find conferences'"></button>
             </form>
-            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Listings come from WikiCFP and are cached for 30 minutes. Topic-word matches help narrow the list; they are not a quality rating. Unknown deadlines remain visible. Fees and publication arrangements require confirmation.</p>
+            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Search combines EasyChair calls with WikiCFP search and related category pages, including future years. Results are ranked by title and listed topics, with acronym matching and duplicates removed. Matches are not a quality rating. Unknown deadlines remain visible; confirm fees and publication arrangements on the official call.</p>
+            <template x-for="warning in conferenceWarnings" :key="warning">
+                <p role="status" class="mt-3 text-sm text-amber-800 dark:text-amber-200" x-text="warning"></p>
+            </template>
             <p x-show="conferenceSearched && !conferenceResults.length" x-cloak class="mt-4 text-sm">No listings matched these filters. Try broader keywords or add a conference from its official website below.</p>
             <div class="mt-4 grid gap-4 lg:grid-cols-2">
                 <template x-for="item in conferenceResults" :key="item.url">
                     <article class="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700">
                         <h4 class="font-bold" x-text="item.title"></h4>
-                        <p class="text-xs text-gray-600 dark:text-slate-300" x-text="'Topic words matched: ' + (item.matched_keywords.join(', ') || 'No specific matches')"></p>
+                        <p class="text-xs text-gray-600 dark:text-slate-300" x-text="(item.match_reasons || []).join(' · ') || 'Topic words matched: ' + item.matched_keywords.join(', ')"></p>
+                        <p class="text-xs text-gray-500 dark:text-slate-400" x-text="item.source + ' · ' + item.relevance_label"></p>
                         <dl class="grid grid-cols-2 gap-3 text-sm">
                             <div><dt class="text-xs text-gray-500">Submission deadline</dt><dd x-text="item.deadline || 'Not confirmed'"></dd><dd class="text-xs font-bold" x-text="item.deadline_status === 'closed' ? 'Deadline passed' : item.deadline_status === 'unknown' ? 'Date not confirmed' : 'Check official call'"></dd></div>
                             <div><dt class="text-xs text-gray-500">Event date</dt><dd x-text="item.event_date || 'Not confirmed'"></dd></div>
