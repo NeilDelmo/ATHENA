@@ -189,7 +189,7 @@ class ResearchAssistantController extends Controller
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'conversation_id' => ['nullable', 'integer'],
             'action' => ['nullable', 'array:type,document_token,query,source_tokens,drafts,review_focus,evidence_basis'],
-            'action.evidence_basis' => ['nullable', 'string', 'in:full_text,abstract'],
+            'action.evidence_basis' => ['nullable', 'string', 'in:full_text'],
             'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_literature,confirm_literature,review_proposal,suggest_proposal_changes,suggest_report_changes,review_report'],
             'action.review_focus' => ['required_if:action.type,review_proposal', 'string', 'in:consistency,revision_response'],
             'action.document_token' => ['required_if:action.type,analyze_document', 'string', 'max:4096'],

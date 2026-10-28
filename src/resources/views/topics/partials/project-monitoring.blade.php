@@ -5,7 +5,7 @@
         $latestProgressPercentage = $projectHealth ? $projectHealth['progress'] : $topic->progressReports->first()?->progress_percentage;
         $monitoringIssues = $projectHealth['issues'] ?? collect();
         if (Auth::user()->isUsingWorkspace('research_secretary')) {
-            $monitoringIssues = $monitoringIssues->whereNotIn('type', ['terminal', 'terminal_review', 'completion']);
+            $monitoringIssues = $monitoringIssues->whereNotIn('type', ['completion']);
         }
         if ($monitoringIssues->whereIn('type', ['quarterly', 'progress_quarterly', 'report_review', 'narrative_review', 'terminal', 'terminal_review'])->isNotEmpty()) {
             $monitoringIssues = $monitoringIssues->reject(fn ($issue) => $issue['type'] === 'completion');
@@ -20,6 +20,10 @@
         $terminalDate = $schedule->terminalOpensAt($topic);
         $terminalOpen = $schedule->canSubmitTerminal($topic);
         $latestTerminalReport = $topic->narrativeReports->where('report_type', 'terminal')->sortByDesc('id')->first();
+        $terminalWithOffice = Auth::user()->isUsingWorkspace('research_head') && $latestTerminalReport && ! $latestTerminalReport->isAvailableToResearchHead();
+        if ($terminalWithOffice) {
+            $latestTerminalReport = null;
+        }
         $nextPeriod = $monitoringQuarterRows->first(function ($row) use ($progressQuarterRows) {
             $progressReport = $progressQuarterRows->firstWhere('quarter', $row['quarter'])['report'] ?? null;
 
@@ -39,6 +43,7 @@
             $nextPeriod && ! $nextPeriodHasMissingReport => $nextPeriod['label'].' · Corrections needed',
             $nextPeriod && $nextPeriod['end']->isPast() => $nextPeriod['label'].' · Overdue',
             $nextPeriod !== null => $nextPeriod['label'].' · '.($nextPeriod['reporting_date'] ? 'Open now' : 'Opens '.$nextPeriod['opens_at']->format('M j, Y')),
+            $terminalWithOffice => 'Terminal · Office review',
             $latestTerminalReport?->review_status === 'revision_requested' => 'Terminal · Corrections needed',
             $latestTerminalReport !== null => 'No submissions pending',
             default => $terminalOpen ? 'Terminal Report' : 'Terminal · Opens '.$terminalDate->format('M j, Y'),
@@ -194,7 +199,7 @@
                         </summary>
                         <ul class="divide-y divide-red-100 border-t border-red-100 dark:divide-red-900 dark:border-red-900">
                             @foreach ($issues as $issue)
-                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? '#progress-reports' : $issue['url'] }}" class="flex min-h-11 flex-col justify-center gap-1 rounded-md py-2 text-base hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
+                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? ($issue['type'] === 'terminal_review' ? '#terminal-reports' : '#progress-reports') : $issue['url'] }}" class="flex min-h-11 flex-col justify-center gap-1 rounded-md py-2 text-base hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
                             @endforeach
                         </ul>
                     </details>
@@ -207,7 +212,6 @@
 
     <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :progress-quarter-rows="$progressQuarterRows" :topic="$topic" :can-report="$canReport" />
 
-    @if (! Auth::user()->isUsingWorkspace('research_secretary'))
     <section id="terminal-reports" aria-labelledby="terminal-reports-heading" class="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
         @if ($latestTerminalReport)
             <x-narrative-report-summary :report="$latestTerminalReport" heading-id="terminal-reports-heading" class="!border-0" />
@@ -216,9 +220,9 @@
             <div class="max-w-2xl">
                 <h3 id="terminal-reports-heading" class="text-lg font-bold text-slate-950 dark:text-white">Terminal Report</h3>
                 @if ($isReportReviewer)
-                    <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">No Terminal Report submitted.</p>
+                    <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $terminalWithOffice ? 'Awaiting Research Office Secretary review.' : 'No Terminal Report submitted.' }}</p>
                 @else
-                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Final report and signed document.' : 'Project completion requires 100% progress, accepted quarterly reports, Research Head review of the Terminal Report, and its fully signed PDF.' }}</p>
+                <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Final report and signed document.' : 'The Research Office Secretary checks the Terminal Report before forwarding it to the Research Head for acceptance.' }}</p>
                 @if (! $topic->isCompletedProject())
                     <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $terminalOpen ? 'Submission is open after all quarterly reports are complete.' : 'Submission opens '.$terminalDate->format('M j, Y').'. You can draft now.' }}</p>
                 @endif
@@ -235,7 +239,6 @@
             </div>
         @endif
     </section>
-    @endif
 
     @unless ($isReportReviewer)
     <details data-monitoring-budget-section class="monitoring-disclosure border-t border-slate-200 dark:border-slate-700" @if ($errors->has('research_secretary_id') || $hasBudgetTasks) open @endif>

@@ -8,7 +8,7 @@ export function literatureInsertionHandoff(storage, accountId, now = () => Date.
             if (!Number(accountId) || !Number(packet?.proposal_draft_id) || packet?.kind !== 'insertion') return false;
             const sources = (Array.isArray(packet.sources) ? packet.sources : [])
                 .filter((source) => Number(source?.id) > 0 && source.rrl_draft_status === 'confirmed'
-                    && ['abstract', 'full_text'].includes(source.rrl_evidence_basis)
+                    && source.rrl_evidence_basis === 'full_text'
                     && String(source.rrl_note || '').trim())
                 .slice(0, 3);
             if (!sources.length) return false;
@@ -65,7 +65,7 @@ export function currentReviewedLiteratureSources(packet, savedSources) {
     let changed = false;
     const sources = (Array.isArray(packet?.sources) ? packet.sources : []).slice(0, 3).map((reviewed) => {
         const saved = savedSources.find((source) => Number(source.id) === Number(reviewed.id));
-        if (!saved || saved.rrl_draft_status !== 'confirmed'
+        if (!saved || saved.rrl_draft_status !== 'confirmed' || saved.rrl_evidence_basis !== 'full_text'
             || String(saved.rrl_note || '').trim() !== String(reviewed.rrl_note || '').trim()
             || saved.rrl_evidence_basis !== reviewed.rrl_evidence_basis) {
             changed = true;

@@ -17,7 +17,7 @@ class ReviewImplementationReportRequest extends FormRequest
     {
         $report = $this->route('report');
 
-        return ($report instanceof ProjectProgressReport || $report instanceof ProjectNarrativeReport && $report->report_type === 'progress')
+        return ($report instanceof ProjectProgressReport || $report instanceof ProjectNarrativeReport)
             && $report->isSubmitted()
             && $report->topic->canReviewImplementationReports($this->user());
     }

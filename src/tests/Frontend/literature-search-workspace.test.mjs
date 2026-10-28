@@ -211,7 +211,7 @@ test('RRL preparation saves and links once, then requires reviewed confirmation 
         const body = JSON.parse(options.body);
         calls.push({ url, body });
         const payload = url === '/library' ? { source: { id: 8, ...source } }
-            : url === '/synthesis' ? { synthesis: paragraph, basis: 'abstract' }
+            : url === '/synthesis' ? { synthesis: paragraph, basis: 'full_text' }
                 : { source: { ...linked, ...(body.rrl_note ? { rrl_note: body.rrl_note, rrl_draft_status: body.rrl_draft_status, rrl_evidence_basis: body.rrl_evidence_basis } : {}) } };
         return new Response(JSON.stringify(payload), { status: 200 });
     });
@@ -232,28 +232,44 @@ test('RRL preparation saves and links once, then requires reviewed confirmation 
     assert.equal(destination.hash, '#related-literature');
 });
 
-test('paper retrieval failure leaves an explicit abstract fallback and never confirms a draft', async () => {
+test('paper retrieval failure blocks abstract requests and never confirms a draft', async () => {
     const calls = [];
     const source = { id: 8, ...results[0], description: 'Indexed abstract about community monitoring and participants, with enough detail for explicitly preliminary research notes.' };
     const linked = { ...source, id: 12, literature_source_id: 8 };
     const { state, navigations } = finderStore(async (url, options) => {
         const body = JSON.parse(options.body);
         calls.push({ url, body });
-        if (url === '/synthesis' && body.evidence_basis === 'full_text') return new Response(JSON.stringify({ message: 'Attach a readable PDF or choose the abstract instead.' }), { status: 422 });
+        if (url === '/synthesis' && body.evidence_basis === 'full_text') return new Response(JSON.stringify({ message: 'Attach a complete readable PDF in Sources.' }), { status: 422 });
         return new Response(JSON.stringify(url === '/synthesis'
             ? { synthesis: 'An explicitly abstract-based preliminary paragraph for review before it is inserted in the paper.', basis: 'abstract' }
             : { source: { ...linked, ...body } }), { status: 200 });
     });
     await state.prepareSynthesis(source, true);
-    assert.match(state.synthesisError, /Attach a readable PDF/);
+    assert.match(state.synthesisError, /Attach a complete readable PDF/);
     assert.equal(state.synthesisDraft, '');
     assert.deepEqual(navigations, []);
     assert.equal(calls.some((call) => call.body.rrl_draft_status), false);
     await state.generateSynthesis('abstract');
-    assert.equal(state.synthesisBasis, 'abstract');
-    assert.equal(calls.filter((call) => call.url === '/synthesis').at(-1).body.evidence_basis, 'abstract');
-    assert.equal(calls.at(-1).body.rrl_draft_status, 'draft');
+    assert.equal(state.synthesisBasis, 'full_text');
+    assert.equal(calls.filter((call) => call.url === '/synthesis').length, 1);
+    assert.equal(calls.some((call) => call.body.rrl_draft_status), false);
     assert.deepEqual(navigations, []);
+});
+
+test('a saved abstract paragraph remains intact but cannot be confirmed or relabelled as paper text', async () => {
+    const calls = [];
+    const legacy = { id: 12, literature_source_id: 8, ...results[0], rrl_note: 'This previously saved abstract paragraph must remain available for review without being presented as a paper-based draft.', rrl_evidence_basis: 'abstract' };
+    const { state, navigations } = finderStore(async (url, options) => {
+        calls.push({ url, body: JSON.parse(options.body) });
+        return new Response(JSON.stringify({ source: legacy }), { status: 200 });
+    });
+    await state.prepareSynthesis({ ...legacy, id: 8 }, true);
+    assert.equal(state.synthesisDraft, legacy.rrl_note);
+    assert.equal(state.synthesisBasis, 'abstract');
+    await state.confirmSynthesis();
+    assert.equal(calls.some(call => call.body.rrl_draft_status), false);
+    assert.deepEqual(navigations, []);
+    assert.match(state.synthesisError, /complete source paper/);
 });
 
 test('reviewed paper insertion confirms the scoped source and always attaches a safe managed citation', async () => {

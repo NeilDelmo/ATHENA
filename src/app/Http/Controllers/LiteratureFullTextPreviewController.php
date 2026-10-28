@@ -19,7 +19,7 @@ class LiteratureFullTextPreviewController extends Controller
             return response()->json([
                 'message' => $exception->getMessage(),
                 'failure_reason' => $exception->getMessage(),
-                'evidence_basis' => 'abstract',
+                'evidence_basis' => 'unavailable',
             ], $exception->status);
         }
     }

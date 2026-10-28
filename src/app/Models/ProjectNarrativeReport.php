@@ -127,9 +127,18 @@ class ProjectNarrativeReport extends Model
     public function scopeVisibleToResearchHead(Builder $query): Builder
     {
         $stage = $query->qualifyColumn('review_stage');
-        $type = $query->qualifyColumn('report_type');
 
-        return $query->where(fn (Builder $query): Builder => $query->where($type, 'terminal')->orWhereNull($stage)->orWhere($stage, 'head'));
+        return $query->where(fn (Builder $query): Builder => $query->where($stage, 'head')
+            ->orWhere(fn (Builder $legacy): Builder => $legacy->whereNull($stage)
+                ->where(fn (Builder $report): Builder => $report->where($query->qualifyColumn('report_type'), '!=', 'terminal')
+                    ->orWhere($query->qualifyColumn('review_status'), self::STATUS_REVIEWED))));
+    }
+
+    public function scopeAwaitingSecretaryReview(Builder $query): Builder
+    {
+        return $query->submitted()->where('review_status', self::STATUS_PENDING)
+            ->where(fn (Builder $stage): Builder => $stage->where('review_stage', 'secretary')
+                ->orWhere(fn (Builder $legacy): Builder => $legacy->where('report_type', 'terminal')->whereNull('review_stage')));
     }
 
     /** @param array{quarter: int, start: CarbonImmutable, end: CarbonImmutable} $period */
@@ -163,7 +172,8 @@ class ProjectNarrativeReport extends Model
                 ->whereColumn('newer_report.report_type', 'project_narrative_reports.report_type')
                 ->whereColumn('newer_report.id', '>', 'project_narrative_reports.id')
                 ->where(function (QueryBuilder $period): void {
-                    $period->whereColumn('newer_report.reporting_quarter', 'project_narrative_reports.reporting_quarter')
+                    $period->where('project_narrative_reports.report_type', 'terminal')
+                        ->orWhereColumn('newer_report.reporting_quarter', 'project_narrative_reports.reporting_quarter')
                         ->orWhere(function (QueryBuilder $legacy): void {
                             $legacy->whereNull('project_narrative_reports.reporting_quarter')
                                 ->where(function (QueryBuilder $dates): void {
@@ -192,12 +202,14 @@ class ProjectNarrativeReport extends Model
 
     public function isAvailableToResearchHead(): bool
     {
-        return $this->report_type === 'terminal' || $this->review_stage === null || $this->review_stage === 'head';
+        return $this->review_stage === 'head'
+            || $this->review_stage === null && ($this->report_type !== 'terminal' || $this->review_status === self::STATUS_REVIEWED);
     }
 
     public function isAwaitingSecretaryReview(): bool
     {
-        return $this->report_type === 'progress' && $this->isSubmitted() && $this->review_stage === 'secretary' && $this->review_status === self::STATUS_PENDING;
+        return $this->isSubmitted() && $this->review_status === self::STATUS_PENDING
+            && ($this->review_stage === 'secretary' || $this->report_type === 'terminal' && $this->review_stage === null);
     }
 
     public function isPrepared(): bool
@@ -239,13 +251,13 @@ class ProjectNarrativeReport extends Model
 
     public function getReviewStatusLabelAttribute(): string
     {
-        if ($this->report_type === 'progress' && $this->review_stage === 'secretary') {
+        if ($this->review_stage === 'secretary' || $this->isAwaitingSecretaryReview()) {
             return $this->review_status === self::STATUS_REVISION_REQUESTED
                 ? 'Corrections requested by Research Office Secretary'
                 : 'Awaiting Research Office Secretary review';
         }
 
-        if ($this->report_type === 'progress' && $this->review_stage === 'head') {
+        if ($this->review_stage === 'head') {
             return $this->review_status === self::STATUS_REVIEWED ? 'Accepted by Research Head' : 'Awaiting Research Head review';
         }
 

@@ -12,21 +12,21 @@
                     $previewUrl = route($monitoring ? 'project-progress.monitoring-tool.view' : 'project-narrative-reports.view', $report);
                     $reportUrl = route('topics.show', $report->topic).'#'.($monitoring ? 'monitoring-tool-' : 'narrative-report-').$report->id;
                 @endphp
-                <article class="secretary-report-row" data-secretary-report-kind="{{ $monitoring ? 'monitoring' : 'progress' }}">
+                <article class="secretary-report-row" data-secretary-report-kind="{{ $monitoring ? 'monitoring' : $report->report_type }}">
                     <span class="secretary-file-mark" aria-hidden="true"><x-report-library-icon name="{{ $monitoring ? 'list' : 'publication' }}" class="h-5 w-5" /></span>
                     <div class="min-w-0 flex-1">
-                        <div class="secretary-row-meta"><span>{{ $monitoring ? 'Monitoring Tool' : 'Progress Report' }}</span><span>{{ $report->reporting_period_label ?: $report->reporting_date?->format('M j, Y') }}</span></div>
+                        <div class="secretary-row-meta"><span>{{ $monitoring ? 'Monitoring Tool' : ucfirst($report->report_label) }}</span><span>{{ $report->reporting_period_label ?: ($report->reporting_date ?? $report->submitted_at)?->format('M j, Y') }}</span></div>
                         <h3>{{ $report->topic->title }}</h3>
                         <p class="secretary-muted">{{ $report->submitter->name }} <span aria-hidden="true">·</span> Version {{ $report->version_number }}</p>
                         @if ($report->research_head_remarks)<p class="secretary-concern">Returned by Research Head · resolve concerns before forwarding</p>@endif
                     </div>
                     <div class="secretary-row-actions">
-                        @unless ($compact)<button type="button" data-preview-url="{{ $previewUrl }}" data-preview-label="{{ $monitoring ? 'Monitoring Tool' : 'Progress Report' }}" @click="openAssessmentPreview({ label: $el.dataset.previewLabel, previewUrl: $el.dataset.previewUrl })" aria-haspopup="dialog" aria-controls="secretary-report-preview-panel" class="secretary-button-secondary">Preview PDF</button>@endunless
+                        @unless ($compact)<button type="button" data-preview-url="{{ $previewUrl }}" data-preview-label="{{ $monitoring ? 'Monitoring Tool' : ucfirst($report->report_label) }}" @click="openAssessmentPreview({ label: $el.dataset.previewLabel, previewUrl: $el.dataset.previewUrl })" aria-haspopup="dialog" aria-controls="secretary-report-preview-panel" class="secretary-button-secondary">Preview PDF</button>@endunless
                         <a href="{{ $reportUrl }}" class="secretary-button-primary">Review report <span aria-hidden="true">→</span></a>
                     </div>
                 </article>
             @empty
-                <div class="secretary-empty"><span class="secretary-empty-icon" aria-hidden="true">✓</span><h3>No reports awaiting review.</h3><p>Submitted Monitoring Tools and Progress Reports appear here when they need your review.</p></div>
+                <div class="secretary-empty"><span class="secretary-empty-icon" aria-hidden="true">✓</span><h3>No reports awaiting review.</h3><p>Submitted reports appear here when they need your review.</p></div>
             @endforelse
         </div>
     </div>

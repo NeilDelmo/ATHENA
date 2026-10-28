@@ -177,7 +177,7 @@ class ProjectMonitoringHealth
 
     private function reportReviewIssue(TopicProposal $topic, ProjectProgressReport|ProjectNarrativeReport $report, string $type, string $label): array
     {
-        $stage = $report->review_stage ?? 'head';
+        $stage = $report->review_stage ?? ($report->isAwaitingSecretaryReview() ? 'secretary' : 'head');
         $corrections = $report->review_status === 'revision_requested';
         $status = $corrections ? 'Corrections needed' : ($stage === 'secretary' ? 'Office review' : 'Head review');
         $since = match (true) {

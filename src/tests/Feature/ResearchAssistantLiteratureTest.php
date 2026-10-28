@@ -4,6 +4,7 @@ use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Services\LiteratureFullTextPreviewService;
 use App\Services\LiteratureSearchService;
 use App\Services\LiteratureSynthesisService;
 use App\Services\ResearchAssistantLiteratureService;
@@ -33,9 +34,15 @@ beforeEach(function () {
         'title' => 'Community Participation in Mangrove Monitoring',
         'description' => 'This study surveyed coastal communities and assessed participation in mangrove monitoring. It describes monitoring continuity, community involvement, and the importance of local coastal stewardship.',
         'authors' => 'Maria Santos, Luis Cruz', 'year' => 2024, 'doi' => '10.1234/mangrove.2024', 'url' => 'https://doi.org/10.1234/mangrove.2024', 'source' => 'OpenAlex',
+        'full_text_token' => 'fixture-paper',
         'relevance_score' => 83, 'relevance_label' => 'Strong match', 'match_reason' => 'Matched community and mangrove in title and abstract.', 'matched_terms' => ['community', 'mangrove'],
     ];
-    $this->paragraph = 'This abstract-based summary describes a survey of coastal communities examining participation in mangrove monitoring. The study discusses continuity of monitoring and involvement in coastal stewardship. These themes are relevant to investigating local monitoring practices, although its detailed methods and limitations require checking the full paper.';
+    $this->paragraph = 'The paper describes a survey of coastal communities examining participation in mangrove monitoring. Its methods compare field observations and regular reporting logs, and its findings discuss continuity of monitoring and involvement in coastal stewardship. These themes are relevant to investigating local monitoring practices, with self-reported participation identified as a limitation.';
+    mock(LiteratureFullTextPreviewService::class)->shouldReceive('preview')->with('fixture-paper')->andReturn([
+        'preview_text' => str_repeat('METHODS: Community surveys and field observation logs. RESULTS: Monitoring continuity varied with participation. LIMITATIONS: Participation was self-reported. ', 10),
+        'coverage' => ['total_pages' => 1, 'extracted_pages' => 1, 'complete' => true, 'limited' => false,
+            'partial_or_unknown' => false, 'truncated' => false, 'unreadable_pages' => []],
+    ]);
     $this->synthesisMock = mock(LiteratureSynthesisService::class);
     $this->actingAs($this->faculty);
 });
@@ -43,7 +50,7 @@ beforeEach(function () {
 function literatureChatPayload(ProposalDraft $draft, string $question = 'Find studies for my objectives', array $action = []): array
 {
     if (($action['type'] ?? null) === 'draft_literature' && ! array_key_exists('evidence_basis', $action)) {
-        $action['evidence_basis'] = 'abstract';
+        $action['evidence_basis'] = 'full_text';
     }
 
     return ['messages' => [['role' => 'user', 'content' => $question]], 'context' => ['proposal_draft_id' => $draft->id, 'paper_slug' => 'detailed-proposal'], ...($action !== [] ? ['action' => $action] : [])];
@@ -63,7 +70,7 @@ function findAssistantLiterature(ProposalDraft $draft, array $source): array
 
 function draftAssistantLiterature(ProposalDraft $draft, string $sourceToken, string $paragraph): array
 {
-    test()->synthesisMock->shouldReceive('synthesize')->once()->andReturn(['synthesis' => $paragraph, 'basis' => 'abstract', 'notice' => 'Drafted only from the indexed abstract.', 'word_count' => 49, 'relationship' => 'related', 'transition' => '']);
+    test()->synthesisMock->shouldReceive('synthesize')->once()->andReturn(['synthesis' => $paragraph, 'basis' => 'full_text', 'notice' => 'Drafted from the source paper.', 'word_count' => 49, 'relationship' => 'related', 'transition' => '']);
 
     return test()->postJson(route('research-support.chat'), literatureChatPayload($draft, 'Draft the selected RRL', ['type' => 'draft_literature', 'source_tokens' => [$sourceToken]]))->assertOk()->json('literature');
 }
@@ -166,7 +173,7 @@ test('chat honors an ordinal objective across a browser snapshot and the synthes
     ]];
     $results = $this->postJson(route('research-support.chat'), $payload)->assertOk()->assertJsonPath('literature.context_basis', 'Current browser specific objective 2 (may be unsaved)')->json('literature');
     $this->synthesisMock->shouldReceive('synthesize')->once()->withArgs(fn (array $paper): bool => $paper['proposal_objectives'] === 'Measure coastal biodiversity using satellites.')
-        ->andReturn(['synthesis' => $this->paragraph, 'basis' => 'abstract', 'notice' => 'Abstract only', 'relationship' => 'related']);
+        ->andReturn(['synthesis' => $this->paragraph, 'basis' => 'full_text', 'notice' => 'Paper text', 'relationship' => 'related']);
     $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Draft selected study', ['type' => 'draft_literature', 'source_tokens' => [$results['results'][0]['source_token']]]))->assertOk();
 });
 
@@ -192,7 +199,7 @@ test('batch drafting uses the end of a long RRL and retains the preceding genera
     $this->synthesisMock->shouldReceive('synthesize')->twice()->andReturnUsing(function (array $paper) use (&$calls): array {
         $calls[] = $paper;
 
-        return ['synthesis' => $this->paragraph, 'basis' => 'abstract', 'notice' => 'Abstract only', 'relationship' => 'related'];
+        return ['synthesis' => $this->paragraph, 'basis' => 'full_text', 'notice' => 'Paper text', 'relationship' => 'related'];
     });
     $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Draft selected studies', ['type' => 'draft_literature', 'source_tokens' => array_column($results, 'source_token')]))->assertOk()->assertJsonCount(2, 'literature.drafts');
     expect($calls[0]['preceding_rrl_context'])->toContain('The final RRL paragraph discusses coastal biodiversity.')
@@ -234,7 +241,7 @@ test('chat restricts paper literature actions to editable accessible proposals',
 test('chat drafts from server-held evidence and performs no save before confirmation', function () {
     $results = findAssistantLiterature($this->draft, $this->source);
     $this->synthesisMock->shouldReceive('synthesize')->once()->withArgs(fn (array $paper): bool => $paper['abstract'] === $this->source['description'] && $paper['title'] === $this->source['title'] && $paper['preceding_rrl_context'] === 'Previous work discusses local monitoring programs.')
-        ->andReturn(['synthesis' => $this->paragraph, 'basis' => 'abstract', 'notice' => 'Abstract only', 'word_count' => 49, 'relationship' => 'related', 'transition' => '']);
+        ->andReturn(['synthesis' => $this->paragraph, 'basis' => 'full_text', 'notice' => 'Paper text', 'word_count' => 49, 'relationship' => 'related', 'transition' => '']);
     $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Draft RRL', ['type' => 'draft_literature', 'source_tokens' => [$results['results'][0]['source_token']]]))->assertOk()->assertJsonPath('literature.drafts.0.paragraph', $this->paragraph);
     expect(LiteratureSource::count())->toBe(0)->and($this->draft->literatureSources()->count())->toBe(0)->and($this->paper->fresh()->source_data['related_literature'])->toBe('Previous work discusses local monitoring programs.');
 });
@@ -259,7 +266,7 @@ test('chat refuses a source token moved to a different proposal', function () {
 });
 
 test('chat marks metadata-only studies and refuses to synthesize them', function () {
-    $results = findAssistantLiterature($this->draft, [...$this->source, 'description' => 'No description available from source.']);
+    $results = findAssistantLiterature($this->draft, [...$this->source, 'description' => 'No description available from source.', 'full_text_token' => null]);
     expect($results['results'][0]['can_synthesize'])->toBeFalse()->and($results['results'][0]['evidence_basis'])->toBe('metadata_only');
     $this->synthesisMock->shouldNotReceive('synthesize');
     $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Draft RRL', ['type' => 'draft_literature', 'source_tokens' => [$results['results'][0]['source_token']]]))->assertUnprocessable();
@@ -271,7 +278,7 @@ test('chat confirms reviewed paragraphs with references and leaves the paper edi
     $request = literatureChatPayload($this->draft, 'Add the reviewed RRL to my paper', ['type' => 'confirm_literature', 'drafts' => [['draft_token' => $drafted['drafts'][0]['draft_token'], 'paragraph' => $this->paragraph]]]);
     $response = $this->postJson(route('research-support.chat'), $request)->assertOk()->assertJsonPath('literature.kind', 'insertion')
         ->assertJsonPath('literature.sources.0.rrl_note', $this->paragraph)->assertJsonPath('literature.sources.0.rrl_draft_status', 'confirmed')
-        ->assertJsonPath('literature.sources.0.rrl_evidence_basis', 'abstract')->assertJsonPath('literature.editor_url', route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft));
+        ->assertJsonPath('literature.sources.0.rrl_evidence_basis', 'full_text')->assertJsonPath('literature.editor_url', route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft));
     expect($response->json('literature.sources.0.reference'))->toContain('2024', '10.1234/mangrove.2024');
     $this->postJson(route('research-support.chat'), $request)->assertOk();
     expect(LiteratureSource::count())->toBe(1)->and($this->draft->literatureSources()->count())->toBe(1)->and($this->paper->fresh()->source_data['related_literature'])->toBe('Previous work discusses local monitoring programs.');
@@ -298,7 +305,7 @@ test('chat preserves literature cards and editable drafts in saved conversation 
 test('confirmation retries retain their reviewed paragraph after another draft replaces the linked note', function () {
     $results = findAssistantLiterature($this->draft, $this->source);
     $synthesis = $this->synthesisMock;
-    $synthesis->shouldReceive('synthesize')->twice()->andReturn(['synthesis' => $this->paragraph, 'basis' => 'abstract', 'notice' => 'Abstract only', 'relationship' => 'related']);
+    $synthesis->shouldReceive('synthesize')->twice()->andReturn(['synthesis' => $this->paragraph, 'basis' => 'full_text', 'notice' => 'Paper text', 'relationship' => 'related']);
     $action = ['type' => 'draft_literature', 'source_tokens' => [$results['results'][0]['source_token']]];
     $first = $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Draft RRL', $action))->assertOk()->json('literature.drafts.0.draft_token');
     $second = $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Draft RRL', $action))->assertOk()->json('literature.drafts.0.draft_token');

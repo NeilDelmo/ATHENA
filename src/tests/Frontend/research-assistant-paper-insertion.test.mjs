@@ -13,7 +13,7 @@ function storage() {
 }
 
 const source = {
-    id: 51, title: 'Community monitoring', rrl_draft_status: 'confirmed', rrl_evidence_basis: 'abstract',
+    id: 51, title: 'Community monitoring', rrl_draft_status: 'confirmed', rrl_evidence_basis: 'full_text',
     rrl_note: 'Community participation supports sustained monitoring when local researchers receive appropriate training.',
 };
 const packet = { kind: 'insertion', proposal_draft_id: 12, sources: [source] };
@@ -36,6 +36,9 @@ test('expired or malformed handoffs do not modify a paper', () => {
     store.setItem('athena:reviewed-rrl:7:12', '{invalid');
     assert.equal(literatureInsertionHandoff(store, 7).read(12), null);
     assert.equal(literatureInsertionHandoff(store, 7).stage({ ...packet, sources: [{ ...source, rrl_draft_status: 'draft' }] }), false);
+    const abstract = { ...source, rrl_evidence_basis: 'abstract' };
+    assert.equal(literatureInsertionHandoff(store, 7).stage({ ...packet, sources: [abstract] }), false);
+    assert.deepEqual(currentReviewedLiteratureSources({ ...packet, sources: [abstract] }, [abstract]), { sources: [], changed: true });
 });
 
 test('blocked browser storage leaves the saved source available without throwing', () => {

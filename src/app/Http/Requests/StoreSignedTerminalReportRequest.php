@@ -17,6 +17,7 @@ class StoreSignedTerminalReportRequest extends FormRequest
             || ! $report->topic->isMonitoringAvailable()
             || $report->report_type !== 'terminal'
             || ! $report->isSubmitted()
+            || ! $report->isAvailableToResearchHead()
             || $report->review_status !== ProjectNarrativeReport::STATUS_REVIEWED) {
             return false;
         }

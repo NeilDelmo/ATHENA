@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\LiteratureFullTextPreviewService;
 use App\Services\LiteratureSearchService;
 use App\Support\LiteratureFullTextToken;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 
@@ -68,16 +69,42 @@ test('unreadable full-paper requests never silently fall back to an available ab
     $this->postJson(route('research-support.literature-synthesis'), ['proposal_draft_id' => $this->draft->id, 'source_link_id' => $linked->id])
         ->assertUnprocessable()->assertJsonValidationErrors('evidence_basis')
         ->assertJson(fn ($json) => $json->where('errors.evidence_basis.0', fn (string $message): bool => str_contains($message, 'The whole source paper could not be read.')
-            && str_contains($message, 'No abstract fallback was applied.'))->etc());
+            && ! str_contains($message, 'Use abstracts instead'))->etc());
     Http::assertNothingSent();
 });
 
-test('abstract generation remains available only when explicitly selected', function () {
+test('abstract generation is rejected even when explicitly selected', function () {
     $linked = ($this->attachSource)(text: 'Unreadable scan.');
     $this->postJson(route('research-support.literature-synthesis'), ['proposal_draft_id' => $this->draft->id, 'source_link_id' => $linked->id, 'evidence_basis' => 'abstract'])
-        ->assertSuccessful()->assertJsonPath('basis', 'abstract')->assertJsonPath('coverage', null);
-    Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], $this->abstract)
-        && ! str_contains($request['messages'][1]['content'], 'longitudinal matched-village design'));
+        ->assertUnprocessable()->assertJsonValidationErrors('evidence_basis');
+    $this->postJson(route('research-support.chat'), ['messages' => [['role' => 'user', 'content' => 'Draft RRL.']],
+        'context' => ['proposal_draft_id' => $this->draft->id],
+        'action' => ['type' => 'draft_literature', 'source_tokens' => [str_repeat('a', 64)], 'evidence_basis' => 'abstract']])
+        ->assertUnprocessable()->assertJsonValidationErrors('action.evidence_basis');
+    Http::assertNothingSent();
+});
+
+test('abstract paragraphs cannot be saved or confirmed through legacy requests', function () {
+    $linked = ($this->attachSource)();
+    $this->putJson(route('faculty.proposal-drafts.literature-drafts.update', [$this->draft, $linked]), [
+        'rrl_note' => $this->paragraph, 'rrl_evidence_basis' => 'abstract', 'rrl_draft_status' => 'confirmed',
+    ])->assertUnprocessable()->assertJsonValidationErrors('rrl_evidence_basis');
+    expect($linked->fresh()->rrl_note)->toBeNull();
+    Http::assertNothingSent();
+});
+
+test('cached abstract drafts from older sessions cannot be confirmed', function () {
+    $token = str_repeat('a', 64);
+    Cache::put('assistant-literature:draft:'.hash('sha256', $token), [
+        'user_id' => $this->faculty->id, 'proposal_draft_id' => $this->draft->id,
+        'source' => $this->source, 'basis' => 'abstract',
+    ], now()->addMinutes(30));
+    $this->postJson(route('research-support.chat'), ['messages' => [['role' => 'user', 'content' => 'Confirm this paragraph.']],
+        'context' => ['proposal_draft_id' => $this->draft->id],
+        'action' => ['type' => 'confirm_literature', 'drafts' => [['draft_token' => $token, 'paragraph' => $this->paragraph]]]])
+        ->assertUnprocessable()->assertJsonValidationErrors('action.drafts');
+    expect($this->draft->literatureSources()->count())->toBe(0);
+    Http::assertNothingSent();
 });
 
 test('full-paper generation rejects browser text and incomplete scoped identifiers', function (array $input, string $error) {

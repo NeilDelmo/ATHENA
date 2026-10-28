@@ -9,7 +9,7 @@
     $reportId = 'narrative-report-'.$report->id;
     $figureNumber = 1;
     $isDemo = str_starts_with($report->accomplishment_summary ?? '', 'UI DEMONSTRATION');
-    $hasSecretaryReview = ! $isTerminalReport && ($report->secretary_remarks || $canSecretaryReview || $errors->has('review'));
+    $hasSecretaryReview = ($report->secretary_remarks || $canSecretaryReview || $errors->has('review'));
 @endphp
 
 <article id="{{ $reportId }}" {{ $attributes->class(['report-reader scroll-mt-36 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900']) }} data-narrative-report-card data-live-report-key="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-scope="{{ \App\Services\TopicLiveStatus::reportScope($report->topic, $report) }}">
@@ -122,37 +122,11 @@
         @if ($canReview || $report->research_head_remarks)
             <section id="{{ $reportId }}-review" class="scroll-mt-36 border-t border-slate-100 px-5 py-7 dark:border-slate-800 sm:px-8" aria-label="Research Head review">
                 <div class="space-y-5">
-                    @if ($canReview && ! $isTerminalReport)
+                    @if ($canReview)
                         <x-implementation-report-head-review :topic="$report->topic" :report="$report" />
                     @else
-                    <h3 class="text-base font-semibold text-slate-950 dark:text-white">{{ $canReview ? 'Research Head review' : ($report->review_stage === 'secretary' && $report->review_status === 'pending' ? 'Research Head concerns · Research Office Secretary to resolve' : 'Research Head remarks') }}</h3>
-                    @if ($canReview)
-                        <form method="POST" action="{{ route('research_head.narrative-progress-reports.review', $report) }}" class="space-y-5" data-narrative-report-review>
-                            @csrf
-                            @method('PATCH')
-                            <fieldset class="flex flex-wrap gap-x-6 gap-y-2">
-                                <legend class="mb-2 text-sm font-semibold text-gray-700 dark:text-slate-200">Decision</legend>
-                                @foreach (['reviewed' => $isTerminalReport ? 'Mark reviewed' : 'Accept report', 'revision_requested' => ! $isTerminalReport ? 'Send concerns to Research Office Secretary' : 'Request corrections'] as $value => $label)
-                                    @continue($isTerminalReport && $report->review_status === 'reviewed' && $value === 'reviewed')
-                                    <label class="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                                        <input type="radio" name="review_status" value="{{ $value }}" required @checked($report->review_status === $value || ($report->review_status === 'pending' && $value === 'reviewed') || ($isTerminalReport && $report->review_status === 'reviewed' && $value === 'revision_requested')) class="h-4 w-4 shrink-0 border-red-300 text-brand focus:ring-brand dark:border-red-800 dark:bg-slate-950">
-                                        <span>{{ $label }}</span>
-                                    </label>
-                                @endforeach
-                            </fieldset>
-                            @if ($isTerminalReport && $signedCopy)
-                                <p class="text-sm text-slate-600 dark:text-slate-300">Requesting corrections removes the signed copy. Upload a new fully signed PDF after the corrected report is reviewed.</p>
-                            @endif
-                            <div class="space-y-2">
-                                <label for="narrative-review-notes-{{ $report->id }}" class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Feedback</label>
-                                <textarea id="narrative-review-notes-{{ $report->id }}" name="research_head_remarks" rows="4" maxlength="5000" placeholder="Write the feedback or corrections needed." class="block w-full rounded-lg border-slate-200 bg-white text-base leading-7 text-slate-900 placeholder:text-slate-400 focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-900 dark:text-white">{{ old('research_head_remarks', $report->research_head_remarks) }}</textarea>
-                                @error('research_head_remarks')<p class="text-sm font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-                            </div>
-                            <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-soft focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Save review</button>
-                        </form>
-                    @else
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">{{ $report->review_stage === 'secretary' && $report->review_status === 'pending' ? 'Research Head concerns · Research Office Secretary to resolve' : 'Research Head remarks' }}</h3>
                         <p class="whitespace-pre-line break-words text-base leading-7 text-gray-900 dark:text-slate-100">{{ $report->research_head_remarks }}</p>
-                    @endif
                     @endif
                 </div>
             </section>
@@ -172,6 +146,18 @@
                 <button type="submit" class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">{{ $signedCopy ? 'Replace signed PDF' : 'Record signed PDF' }}</button>
             </div>
             @error('signed_report')<p class="text-sm font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+        </form>
+    @endif
+    @if ($canRecordSignedCopy && $signedCopy)
+        <form method="POST" action="{{ route('research_head.projects.update-status', $report->topic) }}" x-data="projectStatusManager('completed')" @submit.prevent="submitStatus($event)" class="space-y-3 border-t border-slate-100 px-5 py-5 dark:border-slate-800 sm:px-8" data-terminal-project-completion>
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="project_status" value="completed">
+            <input type="hidden" name="completion_confirmed" value="0">
+            <p class="text-sm leading-6 text-slate-600 dark:text-slate-300">Close project monitoring. Publications and presentations remain available under Post-implementation.</p>
+            <button type="submit" :disabled="submitting" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-soft disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Mark project completed</button>
+            @error('project_status')<p role="alert" class="text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+            @error('completion_confirmed')<p role="alert" class="text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
         </form>
     @endif
         </div>

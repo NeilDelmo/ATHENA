@@ -26,36 +26,35 @@ class LibreOfficeDocumentPdfConverter implements BatchDocumentPdfConverter
 
     public function convertDocuments(array $documents): array
     {
-        $groups = [];
+        $formats = [];
 
-        foreach ($documents as $key => $document) {
+        foreach ($documents as $document) {
             if (! in_array($document['format'], ['docx', 'xlsx'], true)) {
                 throw new RuntimeException('The generated paper format cannot be converted to PDF.');
             }
 
-            $groups[$document['format']][$key] = $document['contents'];
+            $formats[$document['format']] = true;
         }
 
-        $converted = [];
-
-        foreach ($groups as $format => $contents) {
-            $filter = $format === 'xlsx' ? 'pdf:calc_pdf_Export' : 'pdf:writer_pdf_Export';
-            $converted = [...$converted, ...$this->convertBatch($contents, $format, $filter)];
+        if ($documents === []) {
+            return [];
         }
 
-        return $converted;
+        $filter = count($formats) > 1 ? 'pdf' : (isset($formats['xlsx']) ? 'pdf:calc_pdf_Export' : 'pdf:writer_pdf_Export');
+
+        return $this->convertBatch($documents, $filter);
     }
 
     private function convert(string $contents, string $extension, string $filter): string
     {
-        return $this->convertBatch(['source' => $contents], $extension, $filter)['source'];
+        return $this->convertBatch(['source' => ['contents' => $contents, 'format' => $extension]], $filter)['source'];
     }
 
     /**
-     * @param  array<string, string>  $documents
+     * @param  array<string, array{contents: string, format: 'docx'|'xlsx'}>  $documents
      * @return array<string, string>
      */
-    private function convertBatch(array $documents, string $extension, string $filter): array
+    private function convertBatch(array $documents, string $filter): array
     {
         $temporaryDirectory = $this->makeTemporaryDirectory();
         $profilePath = $temporaryDirectory.DIRECTORY_SEPARATOR.'libreoffice-profile';
@@ -64,11 +63,11 @@ class LibreOfficeDocumentPdfConverter implements BatchDocumentPdfConverter
             $sourcePaths = [];
             $pdfPaths = [];
 
-            foreach ($documents as $key => $contents) {
+            foreach ($documents as $key => $document) {
                 $basename = count($documents) === 1 ? 'source' : 'source-'.count($sourcePaths);
-                $sourcePath = $temporaryDirectory.DIRECTORY_SEPARATOR.$basename.'.'.$extension;
+                $sourcePath = $temporaryDirectory.DIRECTORY_SEPARATOR.$basename.'.'.$document['format'];
 
-                if (File::put($sourcePath, $contents) === false) {
+                if (File::put($sourcePath, $document['contents']) === false) {
                     throw new RuntimeException('A temporary document could not be created for PDF conversion.');
                 }
 

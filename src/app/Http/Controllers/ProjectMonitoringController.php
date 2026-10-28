@@ -605,8 +605,8 @@ class ProjectMonitoringController extends Controller
 
             if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
                 && ($topic->progressReports()->latestSubmittedVersion()->where('review_stage', 'secretary')->exists()
-                    || $topic->narrativeReports()->where('report_type', 'progress')->latestSubmittedVersion()->where('review_stage', 'secretary')->exists())) {
-                throw ValidationException::withMessages(['project_status' => 'Wait for the Research Office Secretary to resolve and forward all current Monitoring Tools and Progress Reports before completing the project.']);
+                    || $topic->narrativeReports()->latestSubmittedVersion()->where('review_stage', 'secretary')->exists())) {
+                throw ValidationException::withMessages(['project_status' => 'Wait for the Research Office Secretary to resolve and forward all current reports before completing the project.']);
             }
 
             if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
@@ -624,6 +624,8 @@ class ProjectMonitoringController extends Controller
             if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
                 && (! app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
                     || ! $terminalReport instanceof ProjectNarrativeReport
+                    || ! $terminalReport->isSubmitted()
+                    || ! $terminalReport->isAvailableToResearchHead()
                     || $terminalReport->review_status !== ProjectNarrativeReport::STATUS_REVIEWED)) {
                 throw ValidationException::withMessages(['project_status' => 'Complete the project after its end date and after the terminal report has been submitted and reviewed.']);
             }

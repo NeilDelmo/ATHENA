@@ -189,7 +189,7 @@ test('report metadata respects secretary forwarding college and terminal visibil
     expect(app(AccessibleRecordSearch::class)->search($secretary, 'SEARCH-', 'reports'))->toHaveCount(2);
     expect(app(AccessibleRecordSearch::class)->search($otherSecretary, 'SEARCH-', 'reports')->total())->toBe(0);
     $narrative->update(['report_type' => 'terminal']);
-    expect(app(AccessibleRecordSearch::class)->search($secretary, 'SEARCH-NARRATIVE', 'reports')->total())->toBe(0);
+    expect(app(AccessibleRecordSearch::class)->search($secretary, 'SEARCH-NARRATIVE', 'reports')->total())->toBe(1);
 });
 
 test('office search observes college and review routing even for users with faculty roles', function () {

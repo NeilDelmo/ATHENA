@@ -40,7 +40,7 @@ beforeEach(function () {
     };
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
-    foreach (['faculty_researcher', 'research_head'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -341,12 +341,15 @@ test('accepted collaborators can prepare a shared Terminal Report but only the p
         ->assertSessionHasNoErrors();
     $report = ProjectNarrativeReport::where('report_type', 'terminal')->sole();
     $this->get(route('project-narrative-reports.create', [$this->topic, 'report_type' => 'terminal']))
-        ->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
+        ->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Office Secretary');
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertForbidden();
     expect($report->fresh()->isPrepared())->toBeTrue();
     $this->actingAs($this->researcher)->get(route('project-narrative-reports.view', $report))->assertOk();
+    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))
+        ->assertOk()->assertSee('Submit to Research Office Secretary')->assertDontSee('Submit to Research Head');
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
-    expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id);
+    expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id)
+        ->and($report->fresh()->review_stage)->toBe('secretary');
 });
 
 test('a researcher can preview a terminal report before project completion while official preparation stays locked', function () {

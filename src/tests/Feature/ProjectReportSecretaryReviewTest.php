@@ -10,6 +10,7 @@ use App\Services\MonitoringQuarterService;
 use App\Services\ProjectDocumentLibrary;
 use App\Services\ResearchHeadReportQueue;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -41,6 +42,13 @@ beforeEach(function () {
         'notice_to_proceed_issued_by' => $this->head->id, 'notice_to_proceed_issued_at' => '2026-01-01',
     ]);
     $this->makeReport = function (string $type, array $overrides = []): ProjectProgressReport|ProjectNarrativeReport {
+        if ($type === 'terminal') {
+            $this->topic->update(['estimated_duration_months' => 3]);
+            if (! $this->topic->progressReports()->exists()) {
+                ($this->makeReport)('monitoring', ['review_stage' => 'head', 'review_status' => 'reviewed', 'progress_percentage' => 100]);
+                ($this->makeReport)('progress', ['review_stage' => 'head', 'review_status' => 'reviewed']);
+            }
+        }
         $pdf = "%PDF-1.7\nImmutable prepared report";
         $path = 'secretary-review/'.$type.'/'.fake()->uuid().'.pdf';
         Storage::disk('local')->put($path, $pdf);
@@ -60,7 +68,7 @@ beforeEach(function () {
                 'accomplishments' => 'Activities scheduled.', 'work_plan' => [], 'budget_utilization' => [],
             ], $overrides))
             : ProjectNarrativeReport::create(array_replace([
-                ...$common, 'report_type' => 'progress', 'submission_date' => '2026-04-15',
+                ...$common, 'report_type' => $type, 'submission_date' => '2026-04-15',
                 'researchers' => $this->author->name, 'implementation_start' => '2026-01-01',
                 'implementation_end' => '2026-12-31', 'budget' => 50000, 'funding_agency' => 'University',
                 'accomplishment_summary' => 'Activities scheduled.', 'accomplishments' => [],
@@ -72,10 +80,10 @@ beforeEach(function () {
         ? ['submit' => 'project-progress.submit-prepared', 'secretary' => 'research_secretary.monitoring-reports.review',
             'head' => 'research_head.progress-reports.review', 'pdf' => 'project-progress.monitoring-tool.view', 'queue_type' => 'quarterly']
         : ['submit' => 'project-narrative-reports.submit-prepared', 'secretary' => 'research_secretary.narrative-reports.review',
-            'head' => 'research_head.narrative-progress-reports.review', 'pdf' => 'project-narrative-reports.view', 'queue_type' => 'progress'];
+            'head' => 'research_head.narrative-progress-reports.review', 'pdf' => 'project-narrative-reports.view', 'queue_type' => $type];
 });
 
-dataset('secretary reviewed report types', ['Monitoring Tool' => 'monitoring', 'Progress Report' => 'progress']);
+dataset('secretary reviewed report types', ['Monitoring Tool' => 'monitoring', 'Progress Report' => 'progress', 'Terminal Report' => 'terminal']);
 
 test('a changed prepared PDF cannot be submitted as the original report', function (string $type, string $change) {
     $report = ($this->makeReport)($type, ['submission_status' => 'prepared', 'prepared_at' => now(), 'submitted_at' => null]);
@@ -104,9 +112,6 @@ test('a changed submitted PDF cannot be forwarded to the Research Head', functio
 
 test('the Research Head cannot accept a changed report PDF', function (string $type, string $change) {
     $report = ($this->makeReport)($type, ['review_stage' => 'head', 'forwarded_at' => now()]);
-    if ($type === 'terminal') {
-        $report->update(['report_type' => 'terminal', 'review_stage' => null]);
-    }
     Storage::disk('local')->put($report->official_pdf_path, $change === 'empty' ? '' : '%PDF-1.4 replaced report');
     $routes = ($this->reportRoutes)($type);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
@@ -140,6 +145,33 @@ test('submitted implementation reports reach only the college Research Office Se
         ->not->toContain(route($routes['pdf'], $report));
     $this->get(route('topics.show', $this->topic))->assertOk()->assertDontSee(route($routes['pdf'], $report), false);
 })->with('secretary reviewed report types');
+
+test('terminal acceptance and signatures precede explicit Head completion with post implementation still available', function () {
+    $report = ($this->makeReport)('terminal');
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.projects.update-status', $this->topic), ['project_status' => 'completed', 'completion_confirmed' => true])
+        ->assertSessionHasErrors('project_status');
+
+    $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->patch(route('research_secretary.narrative-reports.review', $report), ['decision' => 'forward'])->assertSessionHasNoErrors();
+    $this->patch(route('research_head.projects.update-status', $this->topic), ['project_status' => 'completed', 'completion_confirmed' => true])->assertForbidden();
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.narrative-progress-reports.review', $report), ['review_status' => 'reviewed'])->assertSessionHasNoErrors();
+    expect($this->topic->fresh()->project_status)->toBe('ongoing');
+    $this->get(route('project-narrative-reports.show', $report))->assertOk()->assertDontSee('data-terminal-project-completion', false);
+    $this->patch(route('research_head.projects.update-status', $this->topic), ['project_status' => 'completed', 'completion_confirmed' => true])->assertSessionHasErrors('project_status');
+    $this->post(route('research_head.narrative-progress-reports.signed-copy.store', $report), [
+        'signed_report' => UploadedFile::fake()->createWithContent('signed-terminal.pdf', '%PDF-1.7 signed terminal report'),
+    ])->assertSessionHasNoErrors();
+    $this->get(route('project-narrative-reports.show', $report))->assertOk()->assertSee('data-terminal-project-completion', false)->assertSee('Mark project completed');
+    expect($this->topic->fresh()->project_status)->toBe('ongoing');
+    $this->patch(route('research_head.projects.update-status', $this->topic), ['project_status' => 'completed', 'completion_confirmed' => true])->assertSessionHasNoErrors();
+    expect($this->topic->fresh()->project_status)->toBe('completed');
+    $this->get(route('project-narrative-reports.show', $report))->assertOk()->assertDontSee('data-terminal-project-completion', false);
+    $this->actingAs($this->author)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('research-outcomes.projects.show', $this->topic))->assertOk();
+    $this->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee('Journal Finder');
+});
 
 test('the office forwards the same report PDF before the Head can accept it', function (string $type) {
     $report = ($this->makeReport)($type);
@@ -184,7 +216,7 @@ test('Head concerns return to the office before author corrections can begin', f
     if ($type === 'monitoring') {
         $this->actingAs($this->author)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
             ->get(route('project-progress.create', ['topic' => $this->topic, 'revise_monitoring_report' => $report->id]))->assertNotFound();
-    } else {
+    } elseif ($type === 'progress') {
         expect(app(MonitoringQuarterService::class)->narrativeProgressPeriods($this->topic)->first()['drafting_date'])->toBeNull();
     }
 
@@ -201,7 +233,7 @@ test('Head concerns return to the office before author corrections can begin', f
     if ($type === 'monitoring') {
         $this->actingAs($this->author)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
             ->get(route('project-progress.create', ['topic' => $this->topic, 'revise_monitoring_report' => $report->id]))->assertOk();
-    } else {
+    } elseif ($type === 'progress') {
         expect(app(MonitoringQuarterService::class)->narrativeProgressPeriods($this->topic)->first()['drafting_date'])->not->toBeNull();
     }
 
@@ -286,4 +318,27 @@ test('legacy submitted reports remain accessible to the Head without a new revie
         ->get(route($routes['pdf'], $report))->assertOk();
     $this->patch(route($routes['head'], $report), ['review_status' => 'reviewed'])->assertRedirect()->assertSessionHasNoErrors();
     expect($report->fresh()->review_status)->toBe('reviewed');
-})->with('secretary reviewed report types');
+})->with(['monitoring', 'progress']);
+
+test('unreviewed legacy terminal reports enter the secretary queue before Head access', function () {
+    $report = ($this->makeReport)('terminal', ['review_stage' => null]);
+    expect($report->isAvailableToResearchHead())->toBeFalse()
+        ->and($report->isAwaitingSecretaryReview())->toBeTrue()
+        ->and(app(ResearchHeadReportQueue::class)->query(type: 'terminal')->count())->toBe(0);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('project-narrative-reports.view', $report))->assertForbidden();
+    $this->patch(route('research_head.narrative-progress-reports.review', $report), ['review_status' => 'reviewed'])->assertForbidden();
+    $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('research_secretary.reports.index', ['type' => 'terminal']))->assertOk()
+        ->assertViewHas('reportReviewTasks', fn ($reports) => $reports->contains('id', $report->id));
+    $this->patch(route('research_secretary.narrative-reports.review', $report), ['decision' => 'forward'])->assertSessionHasNoErrors();
+    expect($report->fresh()->isAvailableToResearchHead())->toBeTrue();
+});
+
+test('a newer terminal draft prevents review of an older submission across reporting dates', function () {
+    $report = ($this->makeReport)('terminal', ['review_stage' => 'head', 'reporting_quarter' => null, 'reporting_date' => null, 'period_start' => null, 'period_end' => null]);
+    ($this->makeReport)('terminal', ['submission_status' => 'prepared', 'submission_date' => '2026-04-16', 'reporting_quarter' => null, 'reporting_date' => null, 'period_start' => null, 'period_end' => null]);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.narrative-progress-reports.review', $report), ['review_status' => 'reviewed'])->assertSessionHasErrors('review');
+    expect($report->fresh()->review_status)->toBe('pending');
+});

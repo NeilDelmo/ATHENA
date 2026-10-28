@@ -17,13 +17,8 @@ class LiteratureSynthesisEvidenceResolver
     public function resolve(array $source, string $basis, ?ProposalDraftLiteratureSource $linkedSource = null): array
     {
         $abstract = trim((string) ($source['description'] ?? $source['abstract'] ?? ''));
-        if ($basis === 'abstract') {
-            if (Str::length($abstract) < 80 || $abstract === 'No description available from source.') {
-                throw ValidationException::withMessages(['abstract' => 'This source does not have a usable indexed abstract. Attach a readable PDF in Sources to draft from its paper.']);
-            }
-
-            return ['evidence_basis' => 'abstract', 'abstract' => Str::limit($abstract, 6000, ''), 'evidence_text' => null,
-                'coverage' => null, 'notice' => 'Drafted only from the indexed abstract. No restricted or paywalled full text was accessed.'];
+        if ($basis !== 'full_text') {
+            throw ValidationException::withMessages(['evidence_basis' => 'Drafting requires the complete source paper. Abstract-only drafting is disabled.']);
         }
 
         $document = $linkedSource?->evidence_document;
@@ -98,6 +93,6 @@ class LiteratureSynthesisEvidenceResolver
 
     private function unavailable(?string $reason = null): never
     {
-        throw ValidationException::withMessages(['evidence_basis' => ($reason ? $reason.' ' : '').'The whole source paper could not be read. Attach a complete readable PDF in Sources or choose “Use abstracts instead”. No abstract fallback was applied.']);
+        throw ValidationException::withMessages(['evidence_basis' => ($reason ? $reason.' ' : '').'The whole source paper could not be read. Attach a complete readable PDF in Sources, then try again.']);
     }
 }

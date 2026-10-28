@@ -35,8 +35,8 @@ class PrepareProposalDraftPdfs implements ShouldQueue
 
     public function handle(ProposalPdfPreparation $preparation): void
     {
-        if ($this->job && $preparation->quietSeconds($this->draftId) < 5) {
-            $this->release(5);
+        if ($this->job && $preparation->quietSeconds($this->draftId) < ProposalPdfPreparation::QUIET_SECONDS) {
+            $this->release(ProposalPdfPreparation::QUIET_SECONDS);
 
             return;
         }

@@ -19,9 +19,13 @@ class LiteratureSynthesisService
      */
     public function synthesize(array $paper): array
     {
+        if (($paper['evidence_basis'] ?? null) !== 'full_text' || Str::length(trim((string) ($paper['evidence_text'] ?? ''))) < 500) {
+            throw new LiteratureSynthesisException('Drafting requires readable source-paper text. Abstract-only drafting is disabled.', 422);
+        }
+
         if (! $this->ai->isConfigured()) {
             throw new LiteratureSynthesisException(
-                'Automatic synthesis is not configured. You can still review the abstract and write the paragraph manually.',
+                'Automatic synthesis is not configured. You can still read the source paper and write the paragraph manually.',
             );
         }
 
@@ -43,9 +47,7 @@ class LiteratureSynthesisService
                     'word_count' => $wordCount,
                     'relationship' => $relationship,
                     'transition' => $this->transition($generated['transition'], $relationship),
-                    'notice' => $paper['evidence_basis'] === 'full_text'
-                        ? 'Drafted from extracted source-paper text. Check extraction coverage and the original paper before accepting.'
-                        : 'Drafted only from the indexed abstract. No restricted or paywalled full text was accessed.',
+                    'notice' => 'Drafted from extracted source-paper text. Check extraction coverage and the original paper before accepting.',
                 ];
             }
 
@@ -131,7 +133,7 @@ class LiteratureSynthesisService
     private function messages(array $paper, int $attempt): array
     {
         $basis = $paper['evidence_basis'];
-        $evidence = $basis === 'full_text' ? $paper['evidence_text'] : $paper['abstract'];
+        $evidence = $paper['evidence_text'];
         $sourceData = json_encode([
             'title' => Str::squish($paper['title']),
             'authors' => Str::squish((string) ($paper['authors'] ?? 'Authors not listed')),
@@ -159,8 +161,7 @@ Strict requirements:
 - Paper text may be partial or contain extraction errors. Use its methods, findings, and limitations only when they are actually present; never claim the entire paper was read or verified.
 - Paraphrase; do not copy full sentences or present quotations.
 - Do not add an author-year or numbered citation; the application appends the synchronized IEEE citation when the researcher inserts the paragraph.
-- Write 40 to 180 words in a readable paragraph. Use fewer words when the evidence is limited; do not expand a short abstract to meet a writing target.
-- If the evidence is abstract-only, identify the notes as an abstract-based summary and explain that methods and limitations require checking the full paper.
+- Write 40 to 180 words in a readable paragraph using the supplied source-paper text.
 - Cover the study's purpose, method, findings, and relevance when the supplied evidence supports each element. Omit unsupported elements instead of inventing them.
 - Use cautious wording when the supplied evidence does not establish causation.
 - Do not include metadata identifiers, DOI, URL, or claims that the paper has been independently verified.

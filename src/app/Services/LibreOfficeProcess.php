@@ -24,6 +24,10 @@ class LibreOfficeProcess
         string $profilePath,
         string $filter,
     ): ProcessResult {
+        $native = app(LibreOfficePdfWorker::class)->convert($sourcePaths, $outputDirectory, $filter);
+        if ($native !== null) {
+            return $native;
+        }
         $binary = $this->binary();
         $process = Process::timeout((int) config('document_pdf.timeout_seconds'));
 

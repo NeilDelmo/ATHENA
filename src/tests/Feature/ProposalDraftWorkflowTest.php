@@ -24,6 +24,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\CommentResponseFeedback;
 use App\Services\LibreOfficeDocumentPdfConverter;
+use App\Services\LibreOfficePdfWorker;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPdfPreparation;
@@ -1315,7 +1316,7 @@ test('PDF recovery keeps durable queued and expired reserved jobs and resumes th
     $preparation = app(ProposalPdfPreparation::class);
     $preparation->request($draft->id);
     $runId = $draft->fresh()->pdf_preparation_state['run_id'];
-    $this->travel(6)->seconds();
+    $this->travel(1)->seconds();
     $job = Queue::connection('proposal-pdfs')->pop('proposal-pdfs');
     expect($job)->not->toBeNull();
     $this->travel(11)->minutes();
@@ -1437,7 +1438,7 @@ test('PDF generation lock contention releases the job without spending a convers
     $preparation = app(ProposalPdfPreparation::class);
     $preparation->request($draft->id);
     $runId = $draft->fresh()->pdf_preparation_state['run_id'];
-    $this->travel(6)->seconds();
+    $this->travel(1)->seconds();
     $lock = Cache::lock('proposal-pdf-generation:'.$draft->id, 600);
     expect($lock->get())->toBeTrue();
     try {
@@ -2584,7 +2585,7 @@ test('a PDF conversion failure keeps the complete draft available for another pr
     expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
 });
 
-test('the project leader prepares all seven PDFs with three converter startups', function () {
+test('the project leader prepares all seven PDFs with two converter startups', function () {
     $draft = ($this->completeDraft)(($this->createDraft)());
     app()->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
     Process::preventStrayProcesses();
@@ -2607,8 +2608,36 @@ test('the project leader prepares all seven PDFs with three converter startups',
         ->and(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft))->toBeTrue()
         ->and($draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->source_data['document_checklist'])
         ->toBe(['complete_documents' => true, 'initial_screening_form' => true]);
-    Process::assertRanTimes(fn (PendingProcess $process): bool => true, 3);
+    Process::assertRanTimes(fn (PendingProcess $process): bool => true, 2);
 });
+
+test('native PDF preparation benchmarks a complete populated proposal including its idle wait', function () {
+    if (getenv('ATHENA_PROPOSAL_PDF_BENCHMARK') !== '1') {
+        $this->markTestSkipped('Set ATHENA_PROPOSAL_PDF_BENCHMARK=1 to time a real populated proposal.');
+    }
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->update(['file_path' => null]);
+    config(['document_pdf.temporary_directory' => storage_path('framework/testing/lo-'.Str::random(8))]);
+    app()->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
+    $worker = app(LibreOfficePdfWorker::class);
+    expect($worker->start())->toBeTrue();
+    try {
+        $started = hrtime(true);
+        app(ProposalPdfPreparation::class)->request($draft->id);
+        usleep(1000000);
+        $this->travel(1)->seconds();
+        (new PrepareProposalDraftPdfs($draft->id))->handle(app(ProposalPdfPreparation::class));
+        $seconds = (hrtime(true) - $started) / 1e9;
+        expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
+        expect(app(ProposalPdfPreparation::class)->status($draft->fresh())['status'])->toBe('ready');
+        foreach ($draft->fresh()->documents as $document) {
+            expect(Storage::disk('local')->get($document->file_path))->toStartWith('%PDF-');
+        }
+        fwrite(STDERR, sprintf("\nPopulated proposal preparation including idle wait: %.2fs.\n", $seconds));
+    } finally {
+        $worker->stop();
+    }
+})->group('pdf-performance');
 
 test('batch preparation discards new PDFs if a teammate changes the draft during conversion', function (bool $changeProjectDetails) {
     $draft = ($this->completeDraft)(($this->createDraft)());

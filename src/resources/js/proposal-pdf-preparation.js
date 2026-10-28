@@ -27,7 +27,7 @@ export default function initializeProposalPdfPreparation() {
         root.dataset.pdfState = JSON.stringify(state);
     }
 
-    function later(root, callback, delay = 3000) {
+    function later(root, callback, delay = 1000) {
         const url = safeProposalReadinessUrl(root.dataset.stateUrl);
         clearTimeout(timers.get(url));
         timers.set(url, setTimeout(() => { timers.delete(url); void callback(); }, delay));

@@ -199,7 +199,7 @@ test('paper drafts request server-owned full text and require explicit reviewed 
     assert.equal(await state.insertReviewedSourceWorkspaceDraft(), false);
 });
 
-test('unavailable paper text shows the server error and offers only an explicit abstract fallback', async () => {
+test('unavailable paper text stops drafting without allowing an abstract fallback', async () => {
     const calls = [];
     const state = workspace(async (url, options) => {
         const body = JSON.parse(options.body);
@@ -213,14 +213,12 @@ test('unavailable paper text shows the server error and offers only an explicit 
     assert.match(state.sourceWorkspaceError, /no readable body text/);
     assert.equal(state.sourceWorkspaceDraft.can_insert, false);
     assert.equal(calls.length, 1, 'A failed extraction must not silently use the abstract');
-    assert.equal(state.sourceWorkspaceCanDraftAbstract(), true);
-    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), true);
-    assert.deepEqual(calls.map((body) => body.evidence_basis), ['full_text', 'abstract']);
-    assert.equal(state.sourceWorkspaceDraft.basis, 'abstract');
-    assert.match(state.sourceWorkspaceNotice, /Abstract only/);
+    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), false);
+    assert.deepEqual(calls.map((body) => body.evidence_basis), ['full_text']);
+    assert.equal(state.sourceWorkspaceDraft.can_insert, false);
 });
 
-test('abstract-only linked sources can attempt paper extraction and explicitly choose the abstract fallback', async () => {
+test('abstract metadata never qualifies a source for abstract-based generation', async () => {
     const calls = [];
     const state = workspace(async (url, options) => {
         const body = JSON.parse(options.body);
@@ -234,10 +232,8 @@ test('abstract-only linked sources can attempt paper extraction and explicitly c
     assert.equal(state.sourceWorkspaceCanDraftPaper(), true);
     assert.equal(await state.prepareSourceWorkspacePaperDraft(), false);
     assert.equal(calls.length, 1);
-    assert.equal(state.sourceWorkspaceCanDraftAbstract(), true);
-    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), true);
-    assert.deepEqual(calls.map((body) => body.evidence_basis), ['full_text', 'abstract']);
-    assert.equal(state.sourceWorkspaceDraft.basis, 'abstract');
+    assert.equal(await state.prepareSourceWorkspacePaperDraft('abstract'), false);
+    assert.deepEqual(calls.map((body) => body.evidence_basis), ['full_text']);
     assert.equal(state.sourceWorkspaceDraftInserted, false);
 });
 
@@ -521,6 +517,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                     document.addEventListener('alpine:init', () => Alpine.data('sourcesFixture', () => ({
                         ...proposalSourceWorkspace({ csrfToken: 'test', proposalDraftId: 42, synthesisUrl: '/synthesis', evidenceBase: '/proposal/links', assistanceUrl: '/assistance', libraryUrl: '/library', request: async (url, options) => {
                             window.sourceRequests.push({url, body: options.body ? JSON.parse(options.body) : null});
+                            if (url === '/synthesis' && window.paperExtractionFails) return {ok:false,status:422,json:async()=>({message:'The whole source paper could not be read. Attach a complete readable PDF in Sources, then try again.'})};
                             return {ok:true, json:async () => url.startsWith('/library') ? { sources: ${JSON.stringify([{ ...linkedSource, id: 3 }, librarySource])} } : url === '/synthesis' ? {synthesis:'The paper describes community participation and its relationship to the measured learning outcomes.',basis:'full_text',notice:'Only part of the body text was extracted.',coverage:{limited:true}} : url === '/assistance' ? {mode:'synthesize',supported:true,draft:{paragraph:'This reviewed synthesis relates community participation to the research objectives and learning outcomes.',can_insert:true,evidence:[{source_link_id:12,passage_id:'${firstId}',page:2,quote:${JSON.stringify(quote)},title:'Community learning outcomes',kind:'quote',origin:'pdf'}]}} : ${JSON.stringify(evidence)} };
                         } }),
                         literatureSources: [${JSON.stringify(linkedSource)}], sourceWorkspaceCanCite: () => true,
@@ -576,6 +573,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).sourceWorkspaceSourceForm.publisher), 'Research Press');
                 await page.getByRole('tab', { name: 'This proposal', exact: true }).click();
                 await page.getByRole('button', { name: 'View details', exact: true }).click();
+                await expect(page.getByRole('button', { name: /draft from abstract|use abstracts? instead/i })).toHaveCount(0);
                 const summary = page.getByRole('region', { name: 'Abstract or description', exact: true });
                 await expect(summary.getByText(linkedSource.description, { exact: true })).toBeVisible();
                 const summaryBox = await summary.boundingBox();
@@ -584,6 +582,13 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 const publication = page.getByRole('link', { name: 'Open publication website', exact: true });
                 await expect(publication).toHaveAttribute('href', linkedSource.url);
                 await expect(publication).toHaveAttribute('rel', 'noopener noreferrer');
+                await page.evaluate(() => { window.paperExtractionFails = true; });
+                await page.getByRole('button', { name: 'Draft from paper', exact: true }).click();
+                await expect(page.getByText('The whole source paper could not be read. Attach a complete readable PDF in Sources, then try again.', { exact: true })).toBeVisible();
+                await expect(page.getByRole('button', { name: /draft from abstract|use abstracts? instead/i })).toHaveCount(0);
+                assert.equal(await page.evaluate(() => window.paperDraftInsertions), 0);
+                if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY && width === 1440 && !dark) await panel.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, 'source-paper-required.png') });
+                await page.evaluate(() => { window.paperExtractionFails = false; Alpine.$data(document.querySelector('main')).sourceWorkspaceError = ''; });
                 if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `source-details-${width}-${dark ? 'dark' : 'light'}.png`) });
                 await expect(page.locator('[data-source-page-text]')).toHaveText(quote);
                 const readerBox = await assertCenteredPanel();

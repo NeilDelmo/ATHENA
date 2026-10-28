@@ -7,6 +7,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftLiteratureSource;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class LinkLiteratureSourceToProposal
 {
@@ -19,6 +20,10 @@ class LinkLiteratureSourceToProposal
         ?string $evidenceBasis = null,
         array $researchContext = [],
     ): array {
+        if (filled($rrlNote) && $evidenceBasis !== 'full_text') {
+            throw ValidationException::withMessages(['rrl_evidence_basis' => 'A saved RRL paragraph must use source-paper text. Abstract-only paragraphs cannot be saved.']);
+        }
+
         $link = $proposalDraft->literatureSources()->firstOrNew([
             'fingerprint' => $source->fingerprint,
         ]);
@@ -51,7 +56,7 @@ class LinkLiteratureSourceToProposal
         if (filled($rrlNote)) {
             $link->rrl_note = trim($rrlNote);
             $link->rrl_draft_status = ProposalDraftLiteratureSource::DRAFT_SAVED;
-            $link->rrl_evidence_basis = $evidenceBasis ?: 'abstract';
+            $link->rrl_evidence_basis = $evidenceBasis;
             $link->rrl_word_count = Str::wordCount($rrlNote);
             $link->rrl_generated_at = now();
         }

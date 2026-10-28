@@ -50,28 +50,42 @@ class ProjectReportReviewService
     public function reviewByHead(ProjectProgressReport|ProjectNarrativeReport $report, User $user, string $status, ?string $remarks): void
     {
         abort_unless($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
-        $report = DB::transaction(function () use ($report, $user, $status, $remarks): ProjectProgressReport|ProjectNarrativeReport {
+        $signedCopyPath = null;
+        $report = DB::transaction(function () use ($report, $user, $status, $remarks, &$signedCopyPath): ProjectProgressReport|ProjectNarrativeReport {
             $topic = TopicProposal::query()->whereKey($report->topic_id)->lockForUpdate()->firstOrFail();
             $report = $report->newQuery()->whereKey($report->id)->lockForUpdate()->firstOrFail();
             $report->setRelation('topic', $topic);
             $this->ensureReviewable($report);
             abort_unless($report->isAvailableToResearchHead(), 403);
-            if ($report->review_status !== 'pending') {
+            $reopeningTerminal = $report instanceof ProjectNarrativeReport && $report->report_type === 'terminal'
+                && $report->review_status === 'reviewed' && $status === 'revision_requested';
+            if ($report->review_status !== 'pending' && ! $reopeningTerminal) {
                 throw ValidationException::withMessages(['review' => 'This report has already been reviewed. Reload the project.']);
             }
             if ($status === 'reviewed' && filled($report->official_pdf_path) && ! $this->hasAvailablePdf($report)) {
                 throw ValidationException::withMessages(['review' => 'The submitted report PDF is unavailable or changed. Request a corrected submission before accepting it.']);
             }
-            $report->update([
+            $reviewAttributes = [
                 'review_stage' => $status === 'reviewed' ? 'head' : 'secretary',
                 'review_status' => $status === 'reviewed' ? 'reviewed' : 'pending',
                 'research_head_remarks' => $remarks,
                 'reviewed_by' => $user->id,
                 'reviewed_at' => now(),
-            ]);
+            ];
+            if ($status === 'revision_requested' && $report instanceof ProjectNarrativeReport && $report->hasSignedCopy()) {
+                $terminalData = $report->terminal_data;
+                $signedCopyPath = $report->signedCopy()['path'];
+                unset($terminalData['signed_copy']);
+                $reviewAttributes['terminal_data'] = $terminalData;
+            }
+            $report->update($reviewAttributes);
 
             return $report;
         });
+
+        if (filled($signedCopyPath)) {
+            Storage::disk('local')->delete($signedCopyPath);
+        }
 
         if ($status === 'revision_requested') {
             $this->notify($this->officeSecretaries($report->topic), $report, 'Research Head returned report concerns', 'The Research Head returned concerns to the Research Office Secretary for review.', User::WORKSPACE_RESEARCH_SECRETARY, 'warning');
@@ -96,7 +110,6 @@ class ProjectReportReviewService
 
     private function ensureReviewable(ProjectProgressReport|ProjectNarrativeReport $report): void
     {
-        abort_unless($report instanceof ProjectProgressReport || $report->report_type === 'progress', 404);
         abort_unless($report->topic->isMonitoringAvailable() && $report->topic()->withIssuedNotice()->exists() && $report->isSubmitted(), 404);
         if (! $report->isLatestSubmittedVersion()) {
             throw ValidationException::withMessages(['review' => 'A newer version of this report is already in progress. Review the latest submission.']);

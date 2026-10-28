@@ -2,6 +2,7 @@
 
 return [
     'node_binary' => env('PDF_SECTION_NODE_BINARY', 'node'),
+    'libreoffice_python_binary' => env('LIBREOFFICE_PYTHON_BINARY'),
     'libreoffice_binary' => env(
         'LIBREOFFICE_BINARY',
         PHP_OS_FAMILY === 'Windows' ? 'soffice.com' : 'soffice',

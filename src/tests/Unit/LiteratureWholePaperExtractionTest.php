@@ -1,9 +1,11 @@
 <?php
 
+use App\Exceptions\LiteratureSynthesisException;
 use App\Models\ProposalDraftLiteratureSource;
 use App\Services\LiteratureDocumentTextExtractor;
 use App\Services\LiteratureFullTextPreviewService;
 use App\Services\LiteratureSynthesisEvidenceResolver;
+use App\Services\LiteratureSynthesisService;
 use App\Support\LiteratureFullTextToken;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Http;
@@ -30,6 +32,15 @@ function fakeWholePaperExtraction(?int $total, array $pages, int $exitCode = 0):
         exitCode: $exitCode,
     ));
 }
+
+test('abstract-only evidence is rejected by the resolver and synthesis service before any provider request', function () {
+    $abstract = str_repeat('Indexed abstract content. ', 30);
+    expect(fn () => app(LiteratureSynthesisEvidenceResolver::class)->resolve(['abstract' => $abstract], 'abstract'))
+        ->toThrow(ValidationException::class, 'Abstract-only drafting is disabled');
+    expect(fn () => app(LiteratureSynthesisService::class)->synthesize(['title' => 'Indexed source', 'abstract' => $abstract, 'evidence_basis' => 'abstract']))
+        ->toThrow(LiteratureSynthesisException::class, 'source-paper text');
+    Http::assertNothingSent();
+});
 
 test('the shared PDF extractor includes late conclusions beyond page forty without truncating paper text', function () {
     $pages = array_fill(0, 50, str_repeat('Methods and findings form part of the full paper. ', 15));

@@ -67,7 +67,7 @@ test('live report status hides unforwarded reports from the head and invalidates
     expect($this->getJson($this->url)->assertSuccessful()->json('reports.'.$key.'.actions'))->toBeEmpty();
 });
 
-test('office secretary live status and snapshots exclude terminal reports', function () {
+test('office secretary live status and snapshots include terminal reports', function () {
     $terminal = ProjectNarrativeReport::create([
         'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id, 'report_type' => 'terminal',
         'submission_date' => '2026-12-31', 'researchers' => $this->researcher->name,
@@ -83,11 +83,11 @@ test('office secretary live status and snapshots exclude terminal reports', func
     ]);
     $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     $reports = $this->getJson($this->url)->assertSuccessful()->json('reports');
-    expect($reports)->toHaveKey('monitoring:'.$this->report->id)->not->toHaveKey('terminal:'.$terminal->id);
+    expect($reports)->toHaveKey('monitoring:'.$this->report->id)->toHaveKey('terminal:'.$terminal->id);
     $page = $this->get(route('topics.show', $this->topic))->assertSuccessful();
     preg_match('/data-live-snapshot="([^"]+)"/', $page->getContent(), $match);
     $snapshot = json_decode(html_entity_decode($match[1], ENT_QUOTES), true, flags: JSON_THROW_ON_ERROR);
-    expect($snapshot['reports'])->not->toHaveKey('terminal:'.$terminal->id);
+    expect($snapshot['reports'])->toHaveKey('terminal:'.$terminal->id);
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
     expect($this->getJson($this->url)->assertSuccessful()->json('reports'))->toHaveKey('terminal:'.$terminal->id);

@@ -136,7 +136,6 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceSaving: false,
         sourceWorkspaceAiLoading: false,
         sourceWorkspaceAiController: null,
-        sourceWorkspacePaperFallbackSourceId: 0,
         sourceWorkspaceError: '',
         sourceWorkspaceNotice: '',
         sourceWorkspaceVersion: 0,
@@ -211,7 +210,6 @@ export function proposalSourceWorkspace(config = {}) {
 
         invalidateSourceWorkspaceDraft() {
             this.sourceWorkspaceDraftSignature = '';
-            this.sourceWorkspacePaperFallbackSourceId = 0;
             if (this.sourceWorkspaceDraft) this.sourceWorkspaceDraft.can_insert = false;
         },
 
@@ -424,16 +422,12 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceCanDraftPaper() {
             return Boolean(config.synthesisUrl && Number(config.proposalDraftId) > 0 && this.sourceWorkspaceActiveSource());
         },
-        sourceWorkspaceCanDraftAbstract() {
-            return this.sourceWorkspacePaperFallbackSourceId === Number(this.sourceWorkspaceActiveSourceId)
-                && Boolean(sourceText(this.sourceWorkspaceActiveSource()?.abstract || this.sourceWorkspaceActiveSource()?.description));
-        },
         sourceWorkspacePaperDraftSignature() {
             return JSON.stringify({ source: this.sourceWorkspaceActiveSource(), evidence: this.sourceWorkspaceEvidence() });
         },
         async prepareSourceWorkspacePaperDraft(basis = 'full_text') {
             if (this.sourceWorkspaceBusy() || !this.sourceWorkspaceCanDraftPaper()
-                || !['full_text', 'abstract'].includes(basis) || (basis === 'abstract' && !this.sourceWorkspaceCanDraftAbstract())) return false;
+                || basis !== 'full_text') return false;
             const sourceId = Number(this.sourceWorkspaceActiveSourceId);
             const version = ++this.sourceWorkspaceVersion;
             const signature = this.sourceWorkspacePaperDraftSignature();
@@ -463,7 +457,6 @@ export function proposalSourceWorkspace(config = {}) {
             } catch (error) {
                 if (version === this.sourceWorkspaceVersion && signature === this.sourceWorkspacePaperDraftSignature()) {
                     this.sourceWorkspaceError = error.message || 'The paper draft could not be prepared. Your paper is unchanged.';
-                    if (basis === 'full_text') this.sourceWorkspacePaperFallbackSourceId = sourceId;
                 }
                 return false;
             } finally {

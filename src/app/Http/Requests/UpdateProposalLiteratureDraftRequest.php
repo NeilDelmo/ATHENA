@@ -26,7 +26,7 @@ class UpdateProposalLiteratureDraftRequest extends FormRequest
     {
         return [
             'rrl_note' => ['required', 'string', 'min:40', 'max:5000'],
-            'rrl_evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
+            'rrl_evidence_basis' => ['required', Rule::in(['full_text'])],
             'rrl_draft_status' => ['required', Rule::in([
                 ProposalDraftLiteratureSource::DRAFT_SAVED,
                 ProposalDraftLiteratureSource::DRAFT_CONFIRMED,
@@ -38,7 +38,7 @@ class UpdateProposalLiteratureDraftRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'rrl_evidence_basis.in' => 'Choose the indexed abstract or loaded full text as the evidence for this paragraph.',
+            'rrl_evidence_basis.in' => 'This paragraph must use source-paper text. Regenerate abstract-only drafts from the complete paper.',
         ];
     }
 }

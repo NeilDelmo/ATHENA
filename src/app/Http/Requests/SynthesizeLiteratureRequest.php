@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
 
 class SynthesizeLiteratureRequest extends FormRequest
 {
@@ -44,7 +43,7 @@ class SynthesizeLiteratureRequest extends FormRequest
             'year' => ['nullable', 'integer', 'min:1500', 'max:'.now()->year],
             'abstract' => ['nullable', 'string', 'max:6000'],
             'is_open_access' => ['nullable', 'boolean'],
-            'evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
+            'evidence_basis' => ['required', Rule::in(['full_text'])],
             'evidence_text' => ['prohibited'],
             'full_text_token' => ['nullable', 'string', 'max:8192'],
             'proposal_title' => ['nullable', 'string', 'max:500'],
@@ -53,29 +52,11 @@ class SynthesizeLiteratureRequest extends FormRequest
         ];
     }
 
-    public function after(): array
-    {
-        return [
-            function (Validator $validator): void {
-                if ($validator->errors()->isNotEmpty()) {
-                    return;
-                }
-
-                $basis = $this->string('evidence_basis')->toString();
-                $abstract = trim((string) $this->input('abstract'));
-                if ($basis === 'abstract' && ! $this->filled('source_link_id') && mb_strlen($abstract) < 80) {
-                    $validator->errors()->add('abstract', 'The available abstract is too short for a responsible synthesis.');
-                }
-            },
-        ];
-    }
-
     /** @return array<string, string> */
     public function messages(): array
     {
         return [
-            'evidence_basis.required' => 'Choose whether the draft should use the indexed abstract or loaded open-access full text.',
-            'evidence_text.min' => 'The loaded full text is too short for a responsible synthesis.',
+            'evidence_basis.in' => 'Drafting requires the complete source paper. Abstract-only drafting is disabled.',
         ];
     }
 }

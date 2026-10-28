@@ -3744,24 +3744,8 @@ Alpine.store('literatureSearch', {
     },
 
     hasSynthesisEvidence(source = this.synthesisSource) {
-        if (this.synthesisBasis === 'full_text' && Number(source?.id) > 0 && Number(this.selectedProposalId) > 0) return true;
-        const evidence = this.synthesisBasis === 'full_text'
-            ? this.synthesisEvidenceText
-            : String(source?.description || '').trim();
-
-        return evidence.length >= (this.synthesisBasis === 'full_text' ? 500 : 80)
-            && evidence !== 'No description available from source.';
-    },
-
-    setSynthesisBasis(basis) {
-        if (basis === 'full_text' && (this.fullTextPreview.length < 500 || this.fullTextResultKey !== this.resultKey(this.synthesisSource))) return;
-        if (!['abstract', 'full_text'].includes(basis)) return;
-
-        this.synthesisBasis = basis;
-        this.synthesisEvidenceText = basis === 'full_text'
-            ? this.fullTextPreview
-            : String(this.synthesisSource?.description || '');
-        this.synthesisError = '';
+        return Boolean(Number(source?.id) > 0 && Number(this.selectedProposalId) > 0)
+            || this.synthesisEvidenceText.length >= 500;
     },
 
     resetFullTextPreview() {
@@ -3820,7 +3804,7 @@ Alpine.store('literatureSearch', {
             if (requestId !== this.fullTextRequestId) return;
 
             if (!response.ok) {
-                this.fullTextError = payload.message || payload.failure_reason || 'The public full text could not be extracted. Generation can still use the indexed abstract.';
+                this.fullTextError = payload.message || payload.failure_reason || 'The complete paper could not be read. Attach a complete readable PDF in Sources before drafting.';
                 return;
             }
 
@@ -3831,7 +3815,7 @@ Alpine.store('literatureSearch', {
             this.fullTextResultKey = this.resultKey(source);
         } catch (error) {
             if (requestId === this.fullTextRequestId) {
-                this.fullTextError = error.message || 'A network error interrupted full-text extraction. Generation can still use the indexed abstract.';
+                this.fullTextError = error.message || 'A network error interrupted paper extraction. Try again or attach a complete readable PDF in Sources.';
             }
         } finally {
             if (requestId === this.fullTextRequestId) this.isLoadingFullText = false;
@@ -3862,18 +3846,19 @@ Alpine.store('literatureSearch', {
         this.synthesisNotice = '';
         this.synthesisError = '';
         const hasCurrentFullText = this.fullTextPreview.length >= 500 && this.fullTextResultKey === this.resultKey(source);
-        this.synthesisBasis = this.synthesisDraft ? (linkedSource.rrl_evidence_basis || 'abstract') : 'full_text';
-        this.synthesisEvidenceText = this.synthesisBasis === 'full_text'
-            ? (hasCurrentFullText ? this.fullTextPreview : '')
-            : String(source.description || '');
+        this.synthesisBasis = this.synthesisDraft ? (linkedSource.rrl_evidence_basis || 'unavailable') : 'full_text';
+        this.synthesisEvidenceText = hasCurrentFullText ? this.fullTextPreview : '';
         this.synthesisWordCountFromServer = 0;
         this.synthesisReviewOpen = true;
         document.body.classList.add('overflow-y-hidden');
 
+        if (this.synthesisDraft && this.synthesisBasis !== 'full_text') {
+            this.synthesisError = 'This saved paragraph was based on an abstract or unverified evidence. Generate a new draft from the complete paper before inserting it.';
+            return;
+        }
+
         if (!this.hasSynthesisEvidence(linkedSource)) {
-            this.synthesisError = this.synthesisBasis === 'full_text'
-                ? 'This saved draft used transient full-text evidence that is no longer retained. Reload the available public full text before regenerating; you may still edit or confirm the saved draft.'
-                : 'This record has no usable abstract. Automatic wording is disabled so ATHENA does not invent findings. You may write a paragraph manually after reviewing the paper.';
+            this.synthesisError = 'Attach a complete readable PDF in Sources before generating a draft.';
             return;
         }
 
@@ -3897,11 +3882,7 @@ Alpine.store('literatureSearch', {
         const workspace = document.querySelector('[data-rrl-workspace]');
         const synthesisUrl = workspace?.dataset.literatureSynthesisUrl || '';
 
-        if (!source || !synthesisUrl || !['abstract', 'full_text'].includes(basis) || this.isSynthesizing) return;
-        if (basis === 'abstract' && String(source.description || '').trim().length < 80) {
-            this.synthesisError = 'This source has no usable abstract. Attach a readable PDF or use its available public paper text.';
-            return;
-        }
+        if (!source || !synthesisUrl || basis !== 'full_text' || this.isSynthesizing) return;
 
         this.synthesisError = '';
         this.synthesisNotice = '';
@@ -3932,16 +3913,16 @@ Alpine.store('literatureSearch', {
                     ? 'Refresh the page, then generate the synthesis again.'
                     : Object.values(payload.errors || {}).flat()[0]
                         || payload.message
-                        || 'The paper-based synthesis could not be prepared. Attach a readable PDF in Sources or explicitly use the abstract instead.';
+                        || 'The paper-based synthesis could not be prepared. Attach a complete readable PDF in Sources.';
                 return;
             }
 
+            if (payload.basis !== 'full_text') throw new Error('A draft based on the complete source paper is required.');
             this.synthesisDraft = String(payload.synthesis || '').trim();
-            this.synthesisBasis = String(payload.basis || 'abstract');
-            this.synthesisEvidenceText = this.synthesisBasis === 'abstract' ? String(source.description || '')
-                : this.fullTextResultKey === this.resultKey(source) ? this.fullTextPreview : '';
+            this.synthesisBasis = 'full_text';
+            this.synthesisEvidenceText = this.fullTextResultKey === this.resultKey(source) ? this.fullTextPreview : '';
             this.synthesisWordCountFromServer = Number(payload.word_count) || this.synthesisWordCount();
-            this.synthesisNotice = String(payload.notice || 'Drafted from the available abstract only.');
+            this.synthesisNotice = String(payload.notice || 'Drafted from source-paper text. Review it against the original paper.');
             await this.persistSynthesisDraft('draft');
 
             window.setTimeout(() => {
@@ -4163,6 +4144,10 @@ Alpine.store('literatureSearch', {
         const url = this.draftUrl('update');
 
         if (!draft || !url || this.isSavingDraft) return false;
+        if (this.synthesisBasis !== 'full_text') {
+            this.synthesisError = 'Regenerate this paragraph from the complete source paper before saving or inserting it.';
+            return false;
+        }
 
         this.isSavingDraft = true;
         this.synthesisError = '';
@@ -4178,7 +4163,7 @@ Alpine.store('literatureSearch', {
                 },
                 body: JSON.stringify({
                     rrl_note: draft,
-                    rrl_evidence_basis: this.synthesisBasis || 'abstract',
+                    rrl_evidence_basis: this.synthesisBasis,
                     rrl_draft_status: status,
                 }),
             });

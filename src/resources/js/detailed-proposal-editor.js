@@ -105,7 +105,7 @@ export default function registerDetailedProposalEditor(Alpine, {
         literatureReviewPreviousContext: '',
         literatureReviewRelationship: 'standalone',
         literatureReviewTransition: '',
-        literatureReviewBasis: 'abstract',
+        literatureReviewBasis: 'full_text',
         literatureReviewFullText: '',
         literatureReviewFullTextError: '',
         literatureReviewLoadingFullText: false,
@@ -825,7 +825,7 @@ export default function registerDetailedProposalEditor(Alpine, {
         async insertSourceWorkspacePaperDraft(draft) {
             const paragraph = String(draft?.paragraph || '').trim();
             const source = this.literatureSources.find((item) => Number(item.id) === Number(draft?.source_link_id));
-            if (!source || paragraph.length < 40 || paragraph.length > 5000 || !['full_text', 'abstract'].includes(draft?.basis)) {
+            if (!source || paragraph.length < 40 || paragraph.length > 5000 || draft?.basis !== 'full_text') {
                 throw new Error('Review a complete draft from a source linked to this proposal before inserting it.');
             }
             const normalized = this.plainText(paragraph).toLowerCase().replace(/\s+/g, ' ');
@@ -1372,12 +1372,11 @@ export default function registerDetailedProposalEditor(Alpine, {
             this.literatureReviewPreviousContext = this.literatureReviewContextFromRrl();
             this.literatureReviewRelationship = 'standalone';
             this.literatureReviewTransition = '';
-            this.literatureReviewBasis = 'abstract';
+            this.literatureReviewBasis = this.literatureReviewDraft ? (source.rrl_evidence_basis || 'unavailable') : 'full_text';
             this.literatureReviewFullText = '';
             this.literatureReviewFullTextError = '';
-            this.literatureReviewNotice = source.rrl_evidence_basis === 'full_text'
-                ? 'Your saved draft is available. Load the public full text again to regenerate or confirm it from full-paper evidence.'
-                : '';
+            this.literatureReviewNotice = this.literatureReviewDraft && this.literatureReviewBasis !== 'full_text'
+                ? 'This saved paragraph requires regeneration from the complete source paper before insertion.' : '';
             this.literatureReviewError = '';
             this.literatureReviewOpen = true;
             this.literatureWorkspaceOpen = true;
@@ -1392,25 +1391,17 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         literatureReviewEvidence() {
-            if (this.literatureReviewBasis === 'full_text' && this.literatureReviewFullText) {
-                return this.literatureReviewFullText;
-            }
-
-            return String(this.literatureReviewSource?.description || '');
+            return this.literatureReviewFullText;
         },
 
         hasLiteratureReviewEvidence() {
-            const minimumLength = this.literatureReviewBasis === 'full_text' ? 500 : 80;
-
-            return this.literatureReviewEvidence().trim().length >= minimumLength;
+            return Number(this.literatureReviewSource?.id) > 0 && Number(config.proposalDraftId) > 0;
         },
 
         literatureReviewEvidenceMessage() {
             if (this.hasLiteratureReviewEvidence()) return '';
 
-            return this.literatureReviewBasis === 'full_text'
-                ? 'Load the public full text before generating a draft from it.'
-                : 'This source has no usable abstract (at least 80 characters). Load its public full text, choose another source, or write the notes manually.';
+            return 'Attach a complete readable PDF in Sources before generating a draft.';
         },
 
         literatureReviewWordCount() {
@@ -1478,11 +1469,11 @@ export default function registerDetailedProposalEditor(Alpine, {
                 const payload = await response.json();
 
                 if (!response.ok || String(payload.preview_text || '').trim().length < 500) {
-                    throw new Error(payload.message || 'The public full text could not be loaded. The indexed abstract remains available.');
+                    throw new Error(payload.message || 'The public full text could not be loaded. Attach a complete readable PDF in Sources.');
                 }
 
                 this.literatureReviewFullText = String(payload.preview_text);
-                this.literatureReviewBasis = 'full_text';
+                if (!this.literatureReviewDraft) this.literatureReviewBasis = 'full_text';
                 this.literatureReviewNotice = payload.notice || 'Public full text loaded only for this review.';
             } catch (error) {
                 this.literatureReviewFullTextError = error.message || 'The public full text could not be loaded.';
@@ -1514,7 +1505,7 @@ export default function registerDetailedProposalEditor(Alpine, {
                         year: this.literatureReviewSource?.year,
                         abstract: String(this.literatureReviewSource?.description || '').slice(0, 6000),
                         is_open_access: this.literatureReviewBasis === 'full_text',
-                        evidence_basis: this.literatureReviewBasis,
+                        evidence_basis: 'full_text',
                         proposal_draft_id: Number(config.proposalDraftId),
                         source_link_id: Number(this.literatureReviewSource?.id),
                         proposal_title: this.proposalTitle,
@@ -1534,8 +1525,10 @@ export default function registerDetailedProposalEditor(Alpine, {
                 }
 
                 if (!String(payload.synthesis || '').trim()) throw new Error('No RRL paragraph was returned. Please generate the draft again.');
+                if (payload.basis !== 'full_text') throw new Error('A draft based on the complete source paper is required.');
 
                 this.literatureReviewDraft = String(payload.synthesis || '');
+                this.literatureReviewBasis = 'full_text';
                 this.literatureReviewRelationship = ['supports', 'extends', 'contrasts', 'gap', 'related'].includes(payload.relationship)
                     ? payload.relationship
                     : 'standalone';
@@ -1555,6 +1548,10 @@ export default function registerDetailedProposalEditor(Alpine, {
             const draft = this.literatureReviewDraft.trim();
 
             if (!source?.id || draft.length < 40 || this.literatureReviewSaving || this.literatureReviewGenerating || this.literatureReviewLoadingFullText) return;
+            if (this.literatureReviewBasis !== 'full_text') {
+                this.literatureReviewError = 'Regenerate this paragraph from the complete source paper before saving or inserting it.';
+                return;
+            }
 
             this.literatureReviewSaving = true;
             this.literatureReviewError = '';
@@ -2187,7 +2184,7 @@ export default function registerDetailedProposalEditor(Alpine, {
         addLiteratureSourceToRrl(source, quiet = false) {
             const note = String(source?.rrl_note || '').trim();
 
-            if (!note || source?.rrl_draft_status !== 'confirmed' || !['abstract', 'full_text'].includes(source?.rrl_evidence_basis)) {
+            if (!note || source?.rrl_draft_status !== 'confirmed' || source?.rrl_evidence_basis !== 'full_text') {
                 if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Review the source evidence and confirm a paragraph in the literature organizer before inserting it.';
                 return false;
             }

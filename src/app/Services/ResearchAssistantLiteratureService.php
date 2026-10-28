@@ -197,7 +197,7 @@ class ResearchAssistantLiteratureService
                     'matched_terms' => $result['matched_terms'] ?? [],
                 ],
                 'evidence_basis' => $hasAbstract ? 'abstract' : 'metadata_only',
-                'can_synthesize' => $hasAbstract || $canReadPaper,
+                'can_synthesize' => $canReadPaper,
                 'can_read_paper' => $canReadPaper,
             ];
         })->values()->all();
@@ -216,7 +216,7 @@ class ResearchAssistantLiteratureService
             'year_from' => $filters['year_from'] ?? null,
             'year_to' => $filters['year_to'] ?? null,
             'results' => $results,
-            'notice' => $notice ?: 'Drafting reads available source-paper text. Attach a readable PDF in Sources when needed, or explicitly choose “Use abstracts instead” for preliminary notes.',
+            'notice' => $notice ?: 'Drafting requires the complete source paper. Attach a readable PDF in Sources when needed.',
         ]);
     }
 
@@ -387,8 +387,7 @@ class ResearchAssistantLiteratureService
             'proposal_draft_id' => $draft->getKey(),
             'proposal_title' => $draft->project_title,
             'drafts' => $drafts,
-            'notice' => $basis === 'abstract' ? 'These are preliminary abstract-based notes. Read the full papers before relying on methods, limitations, or causal claims.'
-                : 'Each paragraph uses available source-paper text. Check its extraction coverage and compare the draft with the original paper before accepting.',
+            'notice' => 'Each paragraph uses source-paper text. Check its extraction coverage and compare the draft with the original paper before accepting.',
         ]);
     }
 
@@ -410,6 +409,11 @@ class ResearchAssistantLiteratureService
     private function confirmParagraphs(User $user, ProposalDraft $draft, array $paragraphs): array
     {
         $cachedDrafts = array_map(fn (array $paragraph): array => $this->resolveToken('draft', $paragraph['draft_token'], $user, $draft), $paragraphs);
+        foreach ($cachedDrafts as $cached) {
+            if (($cached['basis'] ?? null) !== 'full_text') {
+                throw ValidationException::withMessages(['action.drafts' => 'Regenerate this paragraph from the complete source paper. Abstract-only drafts cannot be confirmed.']);
+            }
+        }
         $sources = Cache::lock('assistant-literature:confirm:'.$user->getKey().':'.$draft->getKey(), 15)->block(3, function () use ($paragraphs, $cachedDrafts, $user, $draft): array {
             $confirmations = [];
             $sources = DB::transaction(function () use ($paragraphs, $cachedDrafts, $user, $draft, &$confirmations): array {

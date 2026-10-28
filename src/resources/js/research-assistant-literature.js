@@ -55,8 +55,7 @@ function normalizeLiteratureSource(source) {
         },
         evidence_basis: evidenceBasis,
         can_read_paper: source?.can_read_paper === true,
-        can_synthesize: source?.can_synthesize === true && (source?.can_read_paper === true
-            || (evidenceBasis !== 'metadata_only' && Boolean(description))),
+        can_synthesize: source?.can_synthesize === true && source?.can_read_paper === true,
     };
 }
 
@@ -212,7 +211,7 @@ export function researchAssistantLiterature({ savePaper } = {}) {
         literatureEvidenceLabel(source) {
             if (source?.evidence_basis === 'full_text') return 'Based on extracted paper text';
             if (source?.can_read_paper) return 'Paper text available to read';
-            if (source?.evidence_basis === 'abstract') return 'Based on abstract';
+            if (source?.evidence_basis === 'abstract') return 'Abstract available; paper required';
             return 'Metadata only';
         },
 
@@ -264,13 +263,11 @@ export function researchAssistantLiterature({ savePaper } = {}) {
 
             return packet?.kind === 'results' && packet.proposal_draft_id > 0
                 && count > 0 && count <= maximumLiteratureSelections && !this.literatureBusy(message)
-                && !this.draft?.trim()
-                && (basis !== 'abstract' || packet.results.filter((source) => this.literatureSourceSelected(message, source.source_token))
-                    .every((source) => source.description.length >= 80 && source.description !== 'No description available from source.'));
+                && !this.draft?.trim() && basis === 'full_text';
         },
 
         async draftSelectedLiterature(message, basis = 'full_text') {
-            if (!['full_text', 'abstract'].includes(basis) || !this.canDraftLiterature(message, basis)) return false;
+            if (!this.canDraftLiterature(message, basis)) return false;
 
             const packet = message.literature;
             const selectedTokens = this.literatureSelectedTokens(message);
@@ -280,7 +277,7 @@ export function researchAssistantLiterature({ savePaper } = {}) {
 
             try {
                 await this.sendPrompt(
-                    `Draft RRL paragraphs from ${basis === 'abstract' ? 'the abstracts of' : 'the readable paper content of'} the ${selectedTokens.length} selected ${selectedTokens.length === 1 ? 'study' : 'studies'} for my review.`,
+                    `Draft RRL paragraphs from the readable paper content of the ${selectedTokens.length} selected ${selectedTokens.length === 1 ? 'study' : 'studies'} for my review.`,
                     { type: 'draft_literature', source_tokens: selectedTokens, evidence_basis: basis },
                     { proposal_draft_id: packet.proposal_draft_id },
                 );
@@ -301,7 +298,7 @@ export function researchAssistantLiterature({ savePaper } = {}) {
                 && Array.isArray(packet.drafts) && packet.drafts.length > 0
                 && packet.drafts.length <= maximumLiteratureSelections
                 && packet.drafts.every((draft) => draft.draft_token && draft.source_token
-                    && draft.evidence_basis !== 'metadata_only'
+                    && draft.evidence_basis === 'full_text'
                     && literatureText(draft.paragraph).length >= minimumLiteratureParagraphLength
                     && literatureText(draft.paragraph).length <= maximumLiteratureParagraphLength)
                 && !this.literatureBusy(message) && !this.draft?.trim();

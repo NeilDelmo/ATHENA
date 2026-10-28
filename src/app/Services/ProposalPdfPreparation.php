@@ -22,6 +22,8 @@ use Throwable;
 
 class ProposalPdfPreparation
 {
+    public const QUIET_SECONDS = 1;
+
     private const MAX_ATTEMPTS = 3;
 
     private const STALLED_AFTER = 600;
@@ -68,7 +70,7 @@ class ProposalPdfPreparation
                 'updated_at' => now()->timestamp,
             ]);
             // The token makes an orphaned job harmless if a separate queue database commits first.
-            Queue::connection('proposal-pdfs')->later(5, (new PrepareProposalDraftPdfs($draftId, $runId))->beforeCommit(), 'proposal-pdfs');
+            Queue::connection('proposal-pdfs')->later(self::QUIET_SECONDS, (new PrepareProposalDraftPdfs($draftId, $runId))->beforeCommit(), 'proposal-pdfs');
         });
     }
 

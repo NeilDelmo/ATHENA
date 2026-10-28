@@ -427,8 +427,7 @@ class ProjectDocumentLibrary
             : collect();
         $topic->narrativeReports->each(function ($report) use ($viewer, $documents, $seenPaths, $pendingNarrativeReportIds): void {
             if (! $report->isSubmitted()
-                || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $report->isAvailableToResearchHead())
-                || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $report->report_type !== 'progress')) {
+                || ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && ! $report->isAvailableToResearchHead())) {
                 return;
             }
 

@@ -24,6 +24,7 @@ function study(sourceToken, overrides = {}) {
         doi: '10.1234/example',
         description: 'An indexed abstract describing the participants, study methods, research findings, and the educational setting.',
         evidence_basis: 'abstract',
+        can_read_paper: true,
         can_synthesize: true,
         relevance: { score: 85, label: 'Strong match', reason: 'Addresses the proposal’s second objective.', matched_terms: ['learning'] },
         ...overrides,
@@ -54,6 +55,7 @@ function draftMessage(overrides = {}) {
             proposal_title: 'Research proposal',
             drafts: [{
                 ...study('s1'),
+                evidence_basis: 'full_text',
                 draft_token: 'draft-1',
                 paragraph: 'The study examines learning outcomes and supports the proposed research method.',
                 relationship: 'Supports objective 2.',
@@ -93,9 +95,9 @@ test('study selection accepts at most three sources and permits deselection at t
 test('metadata-only and empty-evidence studies cannot be drafted even with a synthesis flag', () => {
     const message = resultsMessage({
         results: [
-            study('metadata', { evidence_basis: 'metadata_only' }),
-            study('blank', { description: '  ' }),
-            study('unknown', { evidence_basis: 'unknown' }),
+            study('metadata', { evidence_basis: 'metadata_only', can_read_paper: false }),
+            study('blank', { description: '  ', can_read_paper: false }),
+            study('unknown', { evidence_basis: 'unknown', can_read_paper: false }),
         ],
     });
     const store = assistant();
@@ -112,7 +114,7 @@ test('history normalization retains readable source metadata and only valid uniq
     const message = resultsMessage({
         is_working: true,
         error: 'Old error',
-        results: [study('s1', { authors: [{ name: 'A. Researcher' }, 'B. Researcher'] }), study('s1'), study('s2', { evidence_basis: 'metadata_only' }), study('s3')],
+        results: [study('s1', { authors: [{ name: 'A. Researcher' }, 'B. Researcher'] }), study('s1'), study('s2', { evidence_basis: 'metadata_only', can_read_paper: false }), study('s3')],
         ui_selected_source_tokens: ['s1', 's1', 's2', 'forged', 's3'],
     });
 
@@ -221,7 +223,7 @@ test('literature draft and confirmation actions preserve an unfinished chat mess
     assert.equal(store.canConfirmLiterature(draft), true);
 });
 
-test('abstract fallback is explicit and papers without abstracts remain eligible when paper text is available', async () => {
+test('abstract fallback is rejected while readable papers without abstracts remain eligible', async () => {
     const calls = [];
     const store = assistant({ sendPrompt: async (...args) => calls.push(args) });
     const message = resultsMessage({ results: [study('paper', { description: '', evidence_basis: 'metadata_only', can_read_paper: true })] });
@@ -232,8 +234,18 @@ test('abstract fallback is explicit and papers without abstracts remain eligible
     assert.equal(calls[0][1].evidence_basis, 'full_text');
     const fallback = resultsMessage();
     store.toggleLiteratureSource(fallback, 's1');
-    assert.equal(await store.draftSelectedLiterature(fallback, 'abstract'), true);
-    assert.equal(calls[1][1].evidence_basis, 'abstract');
+    assert.equal(await store.draftSelectedLiterature(fallback, 'abstract'), false);
+    assert.equal(calls.length, 1);
+});
+
+test('restored abstract drafts cannot be confirmed and abstract-only source metadata cannot be selected', async () => {
+    const store = assistant({ sendPrompt: async () => assert.fail('Abstract-only evidence cannot be submitted') });
+    const draft = draftMessage();
+    draft.literature.drafts[0].evidence_basis = 'abstract';
+    assert.equal(store.canConfirmLiterature(draft), false);
+    assert.equal(await store.confirmLiteratureDraft(draft), false);
+    const result = resultsMessage({ results: [study('abstract', { can_read_paper: false })] });
+    assert.equal(store.toggleLiteratureSource(result, 'abstract'), false);
 });
 
 test('draft actions reject empty selections, unavailable sources, and tampered oversized selections', async () => {
@@ -455,7 +467,7 @@ test('compiled literature cards support selection, edited confirmation, and both
         notice: 'Review how each source supports your proposal.',
         results: [
             ...['s1', 's2', 's3', 's4'].map((token) => study(token)),
-            study('metadata', { title: 'Metadata <img src=x onerror="window.untrustedMarkup=true">', url: 'javascript:alert(1)', evidence_basis: 'metadata_only', description: '' }),
+            study('metadata', { title: 'Metadata <img src=x onerror="window.untrustedMarkup=true">', url: 'javascript:alert(1)', evidence_basis: 'metadata_only', description: '', can_read_paper: false }),
         ],
     });
     const reviewedDraft = draftMessage();
@@ -510,7 +522,7 @@ test('compiled literature cards support selection, edited confirmation, and both
                 await page.evaluate((draft) => { Alpine.$data(document.querySelector('main')).message = draft; }, reviewedDraft);
                 const paragraph = page.getByRole('textbox', { name: 'RRL paragraph based on Study s1', exact: true });
                 await expect(paragraph).toBeVisible();
-                await expect(page.getByText('Based on abstract', { exact: true })).toBeVisible();
+                await expect(page.getByText('Based on extracted paper text', { exact: true })).toBeVisible();
                 await paragraph.fill('Too short');
                 await expect(page.getByRole('button', { name: 'Add reviewed text to paper', exact: true })).toBeDisabled();
                 await paragraph.fill(editedParagraph);

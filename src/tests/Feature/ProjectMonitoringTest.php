@@ -355,6 +355,7 @@ test('three quarterly report pairs preserve approved values and editable results
         ->and($terminal->accomplishments[0]['actual'])->toBe('Final verified coastal results.')
         ->and($terminal->introduction)->toContain('Final editable introduction.');
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $terminal]))->assertSessionHasNoErrors();
+    ($this->forwardReport)($terminal);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     $this->patch(route('research_head.narrative-progress-reports.review', $terminal), ['review_status' => 'reviewed'])->assertSessionHasNoErrors();
     $this->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminal), [
@@ -1229,8 +1230,7 @@ test('the project header highlights journal search without repeating the monitor
     $this->topic->update(['notice_to_proceed_issued_at' => null]);
 
     $this->get(route('research.show', $this->topic))
-        ->assertOk()
-        ->assertSee('Final signing');
+        ->assertForbidden();
 });
 
 test('the faculty project page opens the monitoring tool in a focused form page', function () {
@@ -2040,6 +2040,12 @@ test('a project requires the reviewed terminal reports signed PDF before complet
     expect($terminalReport->fresh()->hasSignedCopy())->toBeFalse();
     Storage::disk('local')->assertMissing($signedCopy['path']);
 
+    expect($terminalReport->fresh()->review_stage)->toBe('secretary');
+    $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
+        'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
+    ])->assertForbidden();
+    ($this->forwardReport)($terminalReport);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
         'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
     ])->assertSessionHasNoErrors();
@@ -2344,7 +2350,7 @@ test('older progress reports remain accessible in folders while terminal reports
         ->assertSee('Evidence reviewed.')->assertDontSee('data-narrative-report-review', false);
 
     $oldTerminal = $report->replicate();
-    $oldTerminal->fill(['report_type' => 'terminal', 'review_status' => 'pending'])->save();
+    $oldTerminal->fill(['report_type' => 'terminal', 'review_status' => 'pending', 'review_stage' => 'head'])->save();
     $terminal = $oldTerminal->replicate();
     $terminal->save();
     $this->get(route('project-narrative-reports.show', $oldTerminal))->assertSuccessful()->assertDontSee('data-narrative-report-review', false);
@@ -2393,8 +2399,8 @@ test('report review filters distinguish progress and latest terminal narratives 
         'objectives' => 'Assess coastal conditions.', 'methodology' => 'Field survey.', 'results_discussion' => 'Study findings.', 'photos' => [],
     ];
     $progress = ProjectNarrativeReport::create([...$data, 'report_type' => 'progress']);
-    ProjectNarrativeReport::create([...$data, 'report_type' => 'terminal']);
-    $terminal = ProjectNarrativeReport::create([...$data, 'report_type' => 'terminal']);
+    ProjectNarrativeReport::create([...$data, 'report_type' => 'terminal', 'review_stage' => 'head']);
+    $terminal = ProjectNarrativeReport::create([...$data, 'report_type' => 'terminal', 'review_stage' => 'head']);
     $this->actingAs($this->head)->get(route('research_head.report-reviews.index'))
         ->assertOk()->assertViewHas('reports', fn ($reports) => $reports->total() === 2)
         ->assertSee('2 reports awaiting review')
@@ -2432,7 +2438,7 @@ test('report reader shows the accomplishment table and seven figures within thei
         'results_discussion' => 'The sample inventory contains 48 assets across four laboratory areas. Twelve duplicate maintenance entries were consolidated and 18 incomplete service dates were flagged for confirmation. The resulting dataset supports equipment history and service-priority views.',
         'accomplishment_summary' => 'Prototype and pilot completed.',
         'accomplishments' => [['objective' => 'Validate the maintenance-history dataset', 'target' => 'Equipment inventory and validated maintenance records', 'actual' => 'Catalogued 48 fictional equipment assets, reviewed 240 maintenance entries, and prepared the initial dataset dictionary.']],
-        'photos' => $photos, 'review_status' => ProjectNarrativeReport::STATUS_PENDING,
+        'photos' => $photos, 'review_status' => ProjectNarrativeReport::STATUS_PENDING, 'review_stage' => 'head',
     ]);
     $response = $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('project-narrative-reports.show', $report))->assertSuccessful()->assertSee('Figure 7.')->assertSee('Research evidence 7')
@@ -2519,6 +2525,7 @@ test('reviewed progress remains visible beside a pending terminal report in both
         'report_type' => 'terminal',
         'reporting_quarter' => null,
         'reporting_date' => null,
+        'review_stage' => 'head',
         'review_status' => ProjectNarrativeReport::STATUS_PENDING,
         'research_head_remarks' => null,
     ])->save();
@@ -2529,7 +2536,7 @@ test('reviewed progress remains visible beside a pending terminal report in both
         ->get(route('topics.show', $this->topic))
         ->assertSuccessful()
         ->assertSee('Reviewed by Research Head')
-        ->assertSee('Pending Research Head review')
+        ->assertSee('Awaiting Research Head review')
         ->assertDontSee('No progress reports submitted yet.')
         ->assertDontSee('Signed copy required');
 
@@ -2543,7 +2550,7 @@ test('reviewed progress remains visible beside a pending terminal report in both
         ->and($xpath->query('.//form', $progressCard)->length)->toBe(0)
         ->and($xpath->query('//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-narrative-history-entry="'.$report->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('.//*[@data-narrative-report-status]', $terminalCard)->item(0)->textContent)->toContain('Awaiting review')->not->toContain('Signed terminal PDF needed')
+        ->and($xpath->query('.//*[@data-narrative-report-status]', $terminalCard)->item(0)->textContent)->toContain('Awaiting Research Head review')->not->toContain('Signed terminal PDF needed')
         ->and($xpath->query('.//*[@data-narrative-report-review]', $terminalCard)->length)->toBe(0);
     $detailResponse = $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful();
     expect(substr_count($detailResponse->getContent(), 'data-narrative-report-review'))->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0);

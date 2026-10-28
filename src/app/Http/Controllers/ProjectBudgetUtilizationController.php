@@ -25,7 +25,7 @@ class ProjectBudgetUtilizationController extends Controller
 {
     public function index(Request $request, ProjectMonitoringHealth $monitoringHealth): View
     {
-        $filters = $request->validate(['q' => ['nullable', 'string', 'max:200'], 'status' => ['nullable', 'string', 'max:40'], 'type' => ['nullable', 'in:monitoring,progress,returned']]);
+        $filters = $request->validate(['q' => ['nullable', 'string', 'max:200'], 'status' => ['nullable', 'string', 'max:40'], 'type' => ['nullable', 'in:monitoring,progress,terminal,returned']]);
         $signingProjects = TopicProposal::query()
             ->accessibleForDocumentRelease($request->user())
             ->awaitingDocumentRelease()
@@ -53,19 +53,16 @@ class ProjectBudgetUtilizationController extends Controller
                 'id', 'topic_id', 'submitted_by', 'reporting_date', 'reporting_year', 'reporting_quarter',
                 'period_start', 'period_end', 'version_number', 'research_head_remarks', 'submitted_at', 'created_at',
             ]);
-        $progressReports = ProjectNarrativeReport::query()
-            ->submitted()
+        $narrativeReports = ProjectNarrativeReport::query()
+            ->awaitingSecretaryReview()
             ->latestSubmittedVersion()
-            ->where('report_type', 'progress')
-            ->where('review_stage', 'secretary')
-            ->where('review_status', 'pending')
             ->whereHas('topic', $reviewableProject)
             ->with(['topic.user:id,name,college', 'submitter:id,name'])
             ->get([
-                'id', 'topic_id', 'submitted_by', 'reporting_date', 'reporting_quarter',
+                'id', 'topic_id', 'submitted_by', 'report_type', 'reporting_date', 'reporting_quarter',
                 'period_start', 'period_end', 'version_number', 'research_head_remarks', 'submitted_at', 'created_at',
             ]);
-        $reportReviewTasks = $monitoringReports->toBase()->concat($progressReports)
+        $reportReviewTasks = $monitoringReports->toBase()->concat($narrativeReports)
             ->sortBy(fn (ProjectProgressReport|ProjectNarrativeReport $report) => $report->submitted_at ?? $report->created_at)
             ->values();
 
@@ -83,7 +80,7 @@ class ProjectBudgetUtilizationController extends Controller
         if ($request->routeIs('research_secretary.reports.index') && filled($filters['type'] ?? null)) {
             $reportReviewTasks = $reportReviewTasks->filter(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => match ($filters['type']) {
                 'monitoring' => $report instanceof ProjectProgressReport,
-                'progress' => $report instanceof ProjectNarrativeReport,
+                'progress', 'terminal' => $report instanceof ProjectNarrativeReport && $report->report_type === $filters['type'],
                 'returned' => filled($report->research_head_remarks),
             })->values();
         }

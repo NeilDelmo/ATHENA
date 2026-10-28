@@ -148,9 +148,9 @@ test('report reviewers see submitted work without project team controls or dupli
 
     expect($xpath->query('//*[@data-monitoring-budget-section]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="narrative-report-history"]')->length)->toBe(0)
-        ->and($xpath->query('//*[@id="terminal-reports"]')->length)->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0)
+        ->and($xpath->query('//*[@id="terminal-reports"]')->length)->toBe(1)
         ->and($xpath->query('//*[@id="project-monitoring"]')->item(0)->textContent)->not->toContain('You can draft now')
-        ->and($xpath->query('//*[@id="project-monitoring"]//a[@href="#terminal-reports"]')->length)->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0)
+        ->and($xpath->query('//*[@id="project-monitoring"]//a[@href="#terminal-reports"]')->length)->toBe(1)
         ->and($xpath->query('//*[@aria-labelledby="project-team-heading"]')->item(0)->textContent)->not->toContain('Project Secretary')
         ->and($xpath->query('//*[@id="quarterly-reports"]')->item(0)->textContent)->not->toContain('Submit both documents')
         ->and($xpath->query('//*[@id="project-files-tab-button"]')->length)->toBe(1)
@@ -162,7 +162,7 @@ test('report reviewers see submitted work without project team controls or dupli
         ->assertSee('aria-label="Open terminal report"', false)->assertSeeText('Project Secretary');
 })->with([User::WORKSPACE_RESEARCH_HEAD, User::WORKSPACE_RESEARCH_SECRETARY]);
 
-test('Head concerns appear for office resolution while terminal review retains its existing decisions', function () {
+test('Head concerns and terminal reports use the same office review process', function () {
     $progress = ProjectNarrativeReport::create([...$this->progressData, 'review_stage' => 'head']);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('project-narrative-reports.show', $progress))->assertOk()
@@ -181,11 +181,17 @@ test('Head concerns appear for office resolution while terminal review retains i
         ->assertSee('Verify the supporting evidence.')->assertSee('The submitted report PDF is unavailable.')
         ->assertSee(route('research_secretary.narrative-reports.review', $progress), false);
 
-    $terminal = ProjectNarrativeReport::create([...$this->progressData, 'report_type' => 'terminal', 'review_stage' => null]);
+    $terminal = ProjectNarrativeReport::create([...$this->progressData, 'report_type' => 'terminal']);
+    $this->get(route('research_secretary.reports.index', ['type' => 'terminal']))->assertOk()
+        ->assertViewHas('reportReviewTasks', fn ($reports) => $reports->count() === 1 && $reports->first()->is($terminal))
+        ->assertSee('Terminal report')->assertSee('data-secretary-report-kind="terminal"', false);
+    $this->get(route('project-narrative-reports.show', $terminal))->assertOk()
+        ->assertSee('Forward to Research Head')->assertSee('Return for corrections')
+        ->assertSee(route('research_secretary.narrative-reports.review', $terminal), false);
+    $terminal->update(['review_stage' => 'head']);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('project-narrative-reports.show', $terminal))->assertOk()
-        ->assertSee('Mark reviewed')->assertSee('Request corrections')
-        ->assertDontSee('Send concerns to Research Office Secretary')
+        ->assertSee('Accept report')->assertSee('Send concerns to Research Office Secretary')
         ->assertDontSee(route('research_secretary.narrative-reports.review', $terminal), false);
 });
 

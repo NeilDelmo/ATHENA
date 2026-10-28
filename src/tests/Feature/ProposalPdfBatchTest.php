@@ -3,12 +3,14 @@
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalVersionFile;
 use App\Services\LibreOfficeDocumentPdfConverter;
+use App\Services\LibreOfficePdfWorker;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 test('attachment preparation batches conversions and leaves revision indexing for reviewers', function () {
     Storage::fake('local');
@@ -41,7 +43,7 @@ test('attachment preparation batches conversions and leaves revision indexing fo
             ->and(Storage::disk('local')->get($file['file_path']))->toBe("%PDF-1.7\n".$slug)
             ->and($file['checksum'])->toBe(hash('sha256', "%PDF-1.7\n".$slug));
     }
-    Process::assertRanTimes(fn (PendingProcess $process): bool => true, 2);
+    Process::assertRanTimes(fn (PendingProcess $process): bool => true, 1);
 });
 
 test('a batch storage failure removes files stored earlier in the batch', function () {
@@ -60,7 +62,7 @@ test('a batch storage failure removes files stored earlier in the batch', functi
     ], 'batch-failure', 'Batch Project'))->toThrow(RuntimeException::class, 'could not be stored');
 });
 
-test('batched official PDFs preserve section coordinates and benchmark the preparation work', function () {
+test('native worker preserves official PDF sections and benchmarks the preparation work', function () {
     if (getenv('ATHENA_PDF_BENCHMARK') !== '1') {
         $this->markTestSkipped('Set ATHENA_PDF_BENCHMARK=1 to run real LibreOffice conversion and timing checks.');
     }
@@ -74,32 +76,34 @@ test('batched official PDFs preserve section coordinates and benchmark the prepa
     }
     $converter = app(LibreOfficeDocumentPdfConverter::class);
     $sectionMap = app(ProposalRevisionSectionMap::class);
-    $startedAt = hrtime(true);
-    $originalRegions = [];
-    foreach ($documents as $type => $document) {
-        try {
-            $pdf = $document['format'] === 'xlsx'
-                ? $converter->convertXlsx($document['contents'])
-                : $converter->convertDocx($document['contents']);
-        } catch (RuntimeException $exception) {
-            throw new RuntimeException($type.': '.($exception->getPrevious()?->getMessage() ?? $exception->getMessage()), previous: $exception);
-        }
-        $originalRegions[$type] = $sectionMap->fromPdf($pdf, $type);
-    }
-    $sequentialSeconds = (hrtime(true) - $startedAt) / 1e9;
-
-    $startedAt = hrtime(true);
     $detailed = $documents[ProposalVersionFile::TYPE_DETAILED_PROPOSAL];
     unset($documents[ProposalVersionFile::TYPE_DETAILED_PROPOSAL]);
-    $pdfs = $converter->convertDocuments($documents);
-    $pdfs[ProposalVersionFile::TYPE_DETAILED_PROPOSAL] = $converter->convertDocx($detailed['contents']);
-    $batchSeconds = (hrtime(true) - $startedAt) / 1e9;
+    $startedAt = hrtime(true);
+    $originalPdfs = $converter->convertDocuments($documents);
+    $originalPdfs[ProposalVersionFile::TYPE_DETAILED_PROPOSAL] = $converter->convertDocx($detailed['contents']);
+    $baselineSeconds = (hrtime(true) - $startedAt) / 1e9;
 
-    expect($pdfs)->toHaveCount(7);
-    foreach ($pdfs as $type => $pdf) {
-        expect($pdf)->toStartWith('%PDF-')
-            ->and($sectionMap->fromPdf($pdf, $type))->toBe($originalRegions[$type]);
+    config(['document_pdf.temporary_directory' => storage_path('framework/testing/lo-'.Str::random(8))]);
+    $worker = app(LibreOfficePdfWorker::class);
+    expect($worker->start())->toBeTrue();
+    $startedAt = hrtime(true);
+    try {
+        $pdfs = $converter->convertDocuments($documents);
+        $pdfs[ProposalVersionFile::TYPE_DETAILED_PROPOSAL] = $converter->convertDocx($detailed['contents']);
+        $batchSeconds = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        $worker->stop();
     }
 
-    fwrite(STDERR, sprintf("\nPDF benchmark: sequential %.2fs; batched %.2fs; reduction %.1f%%.\n", $sequentialSeconds, $batchSeconds, 100 * (1 - $batchSeconds / $sequentialSeconds)));
+    expect($pdfs)->toHaveCount(7);
+    $directory = storage_path('framework/testing/pdf-benchmark');
+    File::ensureDirectoryExists($directory);
+    foreach ($pdfs as $type => $pdf) {
+        expect($pdf)->toStartWith('%PDF-')
+            ->and($sectionMap->fromPdf($pdf, $type))->toBe($sectionMap->fromPdf($originalPdfs[$type], $type));
+        File::put($directory.'/before-'.$type.'.pdf', $originalPdfs[$type]);
+        File::put($directory.'/after-'.$type.'.pdf', $pdf);
+    }
+
+    fwrite(STDERR, sprintf("\nPDF benchmark: CLI %.2fs; native worker %.2fs; reduction %.1f%%.\n", $baselineSeconds, $batchSeconds, 100 * (1 - $batchSeconds / $baselineSeconds)));
 })->group('pdf-performance');

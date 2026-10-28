@@ -176,9 +176,6 @@ class AccessibleRecordSearch
                 $reports->visibleToResearchHead();
             } elseif ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
                 $reports->whereIn('topic_id', TopicProposal::query()->forImplementationReportReview($user)->select('id'));
-                if ($kind === 'narrative') {
-                    $reports->where('report_type', 'progress');
-                }
             } else {
                 $reports->whereIn('topic_id', TopicProposal::query()->accessibleTo($user)->select('id'));
             }

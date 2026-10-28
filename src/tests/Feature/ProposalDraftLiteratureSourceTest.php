@@ -5,6 +5,7 @@ use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Services\LiteratureFullTextPreviewService;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 
@@ -47,6 +48,16 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+function mockReadableLiteraturePaper(string $introduction): void
+{
+    test()->mock(LiteratureFullTextPreviewService::class)->shouldReceive('preview')->once()->with('test-paper')->andReturn([
+        'preview_text' => $introduction.' METHODS AND RESULTS: '.str_repeat('Researchers surveyed coastal communities and compared regular monitoring logs, noting the limits of self-reported participation. ', 10),
+        'coverage' => ['total_pages' => 1, 'extracted_pages' => 1, 'complete' => true, 'limited' => false,
+            'partial_or_unknown' => false, 'truncated' => false, 'unreadable_pages' => []],
+        'notice' => 'All PDF pages were processed.',
+    ]);
+}
+
 test('manual publication details are preserved in the IEEE reference and proposal link', function () {
     $saved = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), [
@@ -72,7 +83,7 @@ test('manual publication details are preserved in the IEEE reference and proposa
         ->assertJsonPath('source.reference', $saved['reference']);
 });
 
-test('reviewed notes can be saved and confirmed from either abstracts or full text', function (string $basis) {
+test('reviewed notes can be saved and confirmed only from paper text', function (string $basis) {
     $saved = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
         ->assertCreated()->json('source.id');
@@ -80,10 +91,18 @@ test('reviewed notes can be saved and confirmed from either abstracts or full te
         ->assertCreated()->json('source.id');
     $route = route('faculty.proposal-drafts.literature-drafts.update', [$this->draft, $link]);
     $notes = [
-        'rrl_note' => 'This abstract describes community involvement in monitoring. Read the full paper to assess the methods and limitations.',
+        'rrl_note' => 'The paper describes community involvement in monitoring and discusses its methods, findings, and limitations.',
         'rrl_evidence_basis' => $basis,
         'rrl_draft_status' => 'draft',
     ];
+
+    if ($basis === 'abstract') {
+        $this->putJson($route, $notes)->assertUnprocessable()->assertJsonValidationErrors('rrl_evidence_basis');
+        $this->putJson($route, [...$notes, 'rrl_draft_status' => 'confirmed'])->assertUnprocessable()->assertJsonValidationErrors('rrl_evidence_basis');
+        expect($this->draft->literatureSources()->findOrFail($link)->rrl_note)->toBeNull();
+
+        return;
+    }
 
     $this->putJson($route, $notes)->assertOk();
     $this->putJson($route, [...$notes, 'rrl_draft_status' => 'confirmed'])
@@ -284,6 +303,7 @@ test('a reviewed rrl paragraph is stored only on its proposal link', function ()
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $source]), [
             'rrl_note' => $reviewedParagraph,
+            'rrl_evidence_basis' => 'full_text',
         ])
         ->assertCreated()
         ->assertJsonPath('source.rrl_note', $reviewedParagraph);
@@ -292,7 +312,7 @@ test('a reviewed rrl paragraph is stored only on its proposal link', function ()
         ->and($source->fresh()->rrlNoteDraft())->toBe('');
 });
 
-test('faculty can generate an abstract only rrl draft without retrieving full text', function () {
+test('faculty can generate an RRL draft from a complete source paper', function () {
     config([
         'services.gemini.key' => 'test-key',
         'services.gemini.model' => 'gemini-test-model',
@@ -322,6 +342,7 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
     ]);
 
     $abstract = 'This study examined how community participation influenced the continuity of mangrove monitoring activities. Results showed that sustained local involvement supported more consistent environmental observation and strengthened local stewardship.';
+    mockReadableLiteraturePaper($abstract);
     $precedingContext = 'Earlier monitoring studies emphasized regular sensor observations but did not examine how sustained local participation affected continuity.';
 
     $response = $this->actingAs($this->faculty)
@@ -330,22 +351,23 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
             'authors' => 'Maria Santos, Luis Cruz',
             'year' => 2024,
             'abstract' => $abstract,
-            'evidence_basis' => 'abstract',
+            'evidence_basis' => 'full_text',
+            'full_text_token' => 'test-paper',
             'is_open_access' => false,
             'proposal_title' => 'Community Mangrove Monitoring',
             'preceding_rrl_context' => $precedingContext,
             'connection_mode' => 'auto',
         ])
         ->assertOk()
-        ->assertJsonPath('basis', 'abstract')
+        ->assertJsonPath('basis', 'full_text')
         ->assertJsonPath('relationship', 'supports')
         ->assertJsonPath('transition', 'Similarly,')
-        ->assertJsonPath('notice', 'Drafted only from the indexed abstract. No restricted or paywalled full text was accessed.')
+        ->assertJsonPath('coverage.complete', true)
         ->assertJsonMissingPath('doi')
         ->assertJsonMissingPath('url')
         ->assertJson(fn ($json) => $json
             ->whereType('synthesis', 'string')
-            ->where('basis', 'abstract')
+            ->where('basis', 'full_text')
             ->etc());
 
     $synthesis = $response->json('synthesis');
@@ -361,7 +383,7 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
         ->assertCreated()->json('source.id');
     $this->putJson(route('faculty.proposal-drafts.literature-drafts.update', [$this->draft, $linkId]), [
         'rrl_note' => $synthesis,
-        'rrl_evidence_basis' => 'abstract',
+        'rrl_evidence_basis' => 'full_text',
         'rrl_draft_status' => 'confirmed',
     ])->assertOk()
         ->assertJsonPath('source.rrl_note', $synthesis)
@@ -409,6 +431,7 @@ test('rrl synthesis retries a token limited response with a larger completion bu
     ]);
 
     $abstract = 'This study examined how community participation influenced the continuity of mangrove monitoring activities. Results showed that sustained local involvement supported more consistent environmental observation and strengthened local stewardship.';
+    mockReadableLiteraturePaper($abstract);
 
     $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-synthesis'), [
@@ -416,12 +439,13 @@ test('rrl synthesis retries a token limited response with a larger completion bu
             'authors' => 'Maria Santos, Luis Cruz',
             'year' => 2024,
             'abstract' => $abstract,
-            'evidence_basis' => 'abstract',
+            'evidence_basis' => 'full_text',
+            'full_text_token' => 'test-paper',
             'is_open_access' => false,
         ])
         ->assertOk()
         ->assertJsonPath('synthesis', $completeParagraph)
-        ->assertJsonPath('basis', 'abstract');
+        ->assertJsonPath('basis', 'full_text');
 
     $requests = Http::recorded()->map(fn (array $recording) => $recording[0]);
 
@@ -433,7 +457,7 @@ test('rrl synthesis retries a token limited response with a larger completion bu
         ->and($requests[1]['messages'][1]['content'])->toContain('This is a retry. Return valid JSON and ensure the synthesis paragraph is complete');
 });
 
-test('rrl synthesis refuses records without a usable abstract', function () {
+test('rrl synthesis refuses abstract generation regardless of abstract length', function () {
     Http::fake();
 
     $response = $this->actingAs($this->faculty)
@@ -448,7 +472,7 @@ test('rrl synthesis refuses records without a usable abstract', function () {
 
     $response
         ->assertUnprocessable()
-        ->assertJsonValidationErrors('abstract');
+        ->assertJsonValidationErrors('evidence_basis');
 
     Http::assertNothingSent();
 });
@@ -521,9 +545,11 @@ test('the research support page exposes shared papers collections and optional p
         ->assertDontSee('for="literature-proposal-draft"', false)
         ->assertSee('Create collection')
         ->assertSee('Review your RRL draft')
-        ->assertSee('Indexed abstract only')
+        ->assertSee('Needs paper review')
         ->assertSee('Read paper and generate')
-        ->assertSee('Use abstract instead')
+        ->assertDontSee('Use abstract instead')
+        ->assertDontSee('Use abstracts instead')
+        ->assertDontSee('Draft from abstract only')
         ->assertSee('Editable research notes')
         ->assertSee('data-literature-synthesis-url', false)
         ->assertSee('Add to proposal')

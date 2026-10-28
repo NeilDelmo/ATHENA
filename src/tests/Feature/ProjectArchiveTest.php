@@ -147,7 +147,8 @@ test('project archive excludes prepared reports and follows report forwarding ac
     ($this->narrative)(['review_stage' => 'secretary', 'official_pdf_filename' => 'unforwarded-progress.pdf']);
     ($this->narrative)(['review_stage' => 'head', 'official_pdf_filename' => 'forwarded-progress.pdf']);
     ($this->narrative)(['submission_status' => 'prepared', 'official_pdf_filename' => 'prepared-progress.pdf']);
-    ($this->narrative)(['report_type' => 'terminal', 'official_pdf_filename' => 'terminal.pdf']);
+    ($this->narrative)(['report_type' => 'terminal', 'review_stage' => 'head', 'official_pdf_filename' => 'terminal.pdf']);
+    ($this->narrative)(['report_type' => 'terminal', 'review_stage' => 'secretary', 'official_pdf_filename' => 'unforwarded-terminal.pdf']);
     $viewer = $workspace === 'faculty' ? $this->owner : User::factory()->create(['college' => 'Science']);
     $viewer->assignRole($workspace);
     $this->topic->update(['research_secretary_id' => $workspace === 'research_secretary' ? $viewer->id : null]);
@@ -161,13 +162,10 @@ test('project archive excludes prepared reports and follows report forwarding ac
     if ($workspace === 'research_head') {
         expect($names)->not->toContain('unforwarded');
     }
-    if ($workspace === 'research_secretary') {
-        expect($names)->not->toContain('terminal.pdf');
-    }
 })->with([
-    ['faculty', ['unforwarded-monitoring.pdf', 'forwarded-monitoring.pdf', 'unforwarded-progress.pdf', 'forwarded-progress.pdf', 'terminal.pdf']],
+    ['faculty', ['unforwarded-monitoring.pdf', 'forwarded-monitoring.pdf', 'unforwarded-progress.pdf', 'forwarded-progress.pdf', 'terminal.pdf', 'unforwarded-terminal.pdf']],
     ['research_head', ['forwarded-monitoring.pdf', 'forwarded-progress.pdf', 'terminal.pdf']],
-    ['research_secretary', ['unforwarded-monitoring.pdf', 'forwarded-monitoring.pdf', 'unforwarded-progress.pdf', 'forwarded-progress.pdf']],
+    ['research_secretary', ['unforwarded-monitoring.pdf', 'forwarded-monitoring.pdf', 'unforwarded-progress.pdf', 'forwarded-progress.pdf', 'terminal.pdf', 'unforwarded-terminal.pdf']],
 ]);
 
 test('project archive keeps signed copies private until release and hides superseded copies', function () {

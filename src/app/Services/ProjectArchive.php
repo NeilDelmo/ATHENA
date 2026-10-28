@@ -169,8 +169,7 @@ class ProjectArchive
             return $report->isAvailableToResearchHead();
         }
         if ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
-            return $topic->canReviewImplementationReports($viewer)
-                && (! $report instanceof ProjectNarrativeReport || $report->report_type === 'progress');
+            return $topic->canReviewImplementationReports($viewer);
         }
 
         return $topic->isAccessibleTo($viewer);
