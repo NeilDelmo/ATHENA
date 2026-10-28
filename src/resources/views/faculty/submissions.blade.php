@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header class="[&_h1]:text-3xl [&_p]:text-base [&_p]:leading-6" title="Submitted proposals" subtitle="Follow each proposal through review, revision, and approval.">
+        <x-page-header class="[&_h1]:text-3xl [&_p]:text-base [&_p]:leading-6" title="Submitted proposals">
             <x-slot:actions><a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action text-base">New Proposal</a></x-slot:actions>
         </x-page-header>
     </x-slot>

@@ -90,8 +90,7 @@
                 <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:p-5">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-red-700">Project team</p>
-                            <h4 class="mt-1 text-sm font-black text-gray-900">Add from the project team</h4>
+                            <h4 class="text-sm font-black text-gray-900">Add from the project team</h4>
                             <p class="mt-1 text-xs leading-5 text-gray-500">Search the project leader and project staff. Members with an existing CV are hidden.</p>
                         </div>
                         <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200" x-text="`${availableWorkspacePeople().length} available`"></span>

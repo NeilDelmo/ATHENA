@@ -36,7 +36,7 @@ return [
         'maximum_characters' => (int) env('LITERATURE_FULL_TEXT_MAX_CHARACTERS', 30000),
         'connect_timeout' => (int) env('LITERATURE_FULL_TEXT_CONNECT_TIMEOUT', 5),
         'timeout' => (int) env('LITERATURE_FULL_TEXT_TIMEOUT', 18),
-        'maximum_redirects' => (int) env('LITERATURE_FULL_TEXT_MAX_REDIRECTS', 3),
+        'maximum_redirects' => (int) env('LITERATURE_FULL_TEXT_MAX_REDIRECTS', 5),
         'pdftotext_binary' => env('PDFTOTEXT_BINARY', 'pdftotext'),
         'temporary_directory' => env(
             'LITERATURE_FULL_TEXT_TEMP_PATH',

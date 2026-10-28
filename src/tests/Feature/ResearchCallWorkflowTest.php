@@ -268,9 +268,11 @@ test('faculty research calls prioritize open opportunities and archive only call
         ->assertSee('object-contain', false)
         ->assertDontSee('object-cover opacity-90', false)
         ->assertSee(route('faculty.proposal-drafts.create', ['research_call_id' => $this->call->id]), false)
-        ->assertSee('Coming soon')
+        ->assertSee('Upcoming calls')
         ->assertSee($upcomingCall->title)
-        ->assertSee('Your research-call archive')
+        ->assertSee('Previous research calls')
+        ->assertDontSee('Relevant history')
+        ->assertDontSee('Published in advance')
         ->assertSee($draftCall->title)
         ->assertSee('My Archived Mangosteen Draft')
         ->assertSee($collaborativeCall->title)
@@ -292,7 +294,7 @@ test('faculty research calls prioritize open opportunities and archive only call
     $this->actingAs($this->faculty)
         ->get(route('research-calls.index'))
         ->assertOk()
-        ->assertDontSee('Coming soon')
+        ->assertDontSee('Upcoming calls')
         ->assertDontSee('Upcoming calls');
 });
 

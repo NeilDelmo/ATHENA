@@ -162,6 +162,31 @@ test('redirect and successful preview response bodies are closed', function () {
     Http::assertSentCount(2);
 });
 
+test('public PDF previews follow five publisher redirects before extracting the whole paper', function () {
+    $extracted = str_repeat('The paper describes its methods and reports monitoring outcomes. ', 20);
+    $responses = Http::fakeSequence();
+    for ($redirect = 1; $redirect <= 5; $redirect++) {
+        $responses->push('', 302, ['Location' => '/paper-'.$redirect]);
+    }
+    $responses->push('%PDF-1.7 source bytes', 200, ['Content-Type' => 'application/pdf']);
+    Process::fake(fn (PendingProcess $process) => Process::result(output: Str::contains(implode(' ', $process->command), 'pdfinfo') ? "Pages: 1\n" : $extracted."\f"));
+
+    $preview = app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken);
+
+    expect($preview['source_url'])->toBe('https://93.184.216.34/paper-5')
+        ->and($preview['preview_text'])->toBe(Str::squish($extracted))
+        ->and($preview['coverage']['complete'])->toBeTrue();
+    Http::assertSentCount(6);
+});
+
+test('publisher redirect loops stop at the configured limit', function () {
+    Http::fake([$this->sourceUrl => Http::response('', 302, ['Location' => $this->sourceUrl])]);
+
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken))
+        ->toThrow(LiteratureFullTextPreviewException::class, 'redirected too many times');
+    Http::assertSentCount((int) config('literature.full_text.maximum_redirects') + 1);
+});
+
 test('remote previews accept a source exactly at the byte limit and close its stream', function () {
     config(['literature.full_text.maximum_bytes' => 1024]);
     $stream = Utils::streamFor(str_repeat('a', 1024));

@@ -4,7 +4,6 @@
     <div class="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300">
         <x-assistant-icon class="h-7 w-7" />
     </div>
-    <p class="mb-2 text-xs font-medium tracking-wide text-gray-500 dark:text-slate-400">Your research, a little clearer.</p>
     <h4 @class(['font-semibold tracking-tight text-gray-900 dark:text-white', 'text-[1.75rem] leading-tight' => $compact, 'text-3xl sm:text-4xl' => ! $compact]) x-text="$store.researchAssistant.starterPromptHeading()"></h4>
     <p class="mt-3 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
     <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak @class(['mt-8 grid w-full gap-2 text-left', 'sm:grid-cols-2' => ! $compact])>

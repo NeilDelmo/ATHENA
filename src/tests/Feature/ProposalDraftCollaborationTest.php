@@ -147,7 +147,7 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Project team')
-        ->assertSee("You're the project leader")
+        ->assertDontSee("You're the project leader")
         ->assertSee($this->collaborator->email)
         ->assertSee('linked-collaborator.jpg')
         ->assertSee('Add project staff')
@@ -229,7 +229,8 @@ test('an owner can tag an existing account and the collaborator can edit but not
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Project staff · Project leader: Workspace Owner')
+        ->assertSee('Workspace Owner')
+        ->assertDontSee('Project staff · Project leader:')
         ->assertDontSee('Shared with you by');
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.details.edit', $this->draft))
@@ -476,7 +477,8 @@ test('accepted team members and their project roles are restored when a revision
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $revisionDraft))
         ->assertOk()
-        ->assertSee('Project staff · Project leader: Workspace Owner');
+        ->assertSee('Workspace Owner')
+        ->assertDontSee('Project staff · Project leader:');
 });
 
 test('accepted collaborators survive stale revision team lists and retain access through project completion', function () {
@@ -612,7 +614,8 @@ test('an unregistered person remains external and is linked after verified Googl
     $this->actingAs($futureAccount)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Project staff · Project leader: Workspace Owner');
+        ->assertSee('Workspace Owner')
+        ->assertDontSee('Project staff · Project leader:');
 });
 
 test('an owner can resend a collaborator invitation email', function () {

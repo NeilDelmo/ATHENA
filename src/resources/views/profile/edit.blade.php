@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Account Profile" subtitle="Your institutional identity and reusable details for research proposals.">
+        <x-page-header title="Account Profile">
             <x-slot name="actions">
                 <x-back-link href="{{ route('dashboard') }}">Back to workspace</x-back-link>
             </x-slot>

@@ -89,8 +89,8 @@
 
     <div id="literature-find-workspace" x-show="workspaceMode === 'find'" class="border-b border-slate-200 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-950/20 sm:p-7" role="tabpanel" aria-labelledby="literature-find-tab">
         <div class="mb-6">
-            <h2 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Find literature for your research</h2>
-            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Search by topic, research question, or paper title. Read the evidence, then save what supports your study.</p>
+            <h2 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Literature search</h2>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Search by topic, research question, or paper title.</p>
         </div>
         <form @submit.prevent="$store.literatureSearch.search()" class="space-y-4">
             <div class="rounded-2xl border border-slate-300 bg-white p-2 shadow-sm transition-colors focus-within:border-[#7A0019] focus-within:ring-2 focus-within:ring-red-100 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-red-400 dark:focus-within:ring-red-950/40">

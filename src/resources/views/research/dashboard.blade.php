@@ -15,7 +15,7 @@
 
     <div class="space-y-7" data-dashboard-layout="research-overview" data-dashboard-palette="red-black-white">
         <section aria-labelledby="portfolio-summary-heading">
-            <h2 id="portfolio-summary-heading" class="sr-only">Portfolio summary</h2>
+            <h2 id="portfolio-summary-heading" class="sr-only">Project summary</h2>
             <dl data-project-summary class="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-stone-300 bg-stone-200 xl:grid-cols-4 dark:border-stone-700 dark:bg-stone-700">
                 @foreach ([
                     ['Active projects', $activeProjects->count(), 'active'],

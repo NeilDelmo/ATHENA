@@ -17,7 +17,6 @@
                 </div>
                 <div>
                     <p class="text-sm font-semibold text-gray-900 dark:text-white">Athena AI</p>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Research copilot</p>
                 </div>
             </div>
 

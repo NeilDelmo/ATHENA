@@ -26,8 +26,7 @@
     >
         <aside class="grid content-start gap-5">
             <section class="rounded-2xl border border-red-200 bg-red-50 p-5">
-                <p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">Proposal checklist</p>
-                <h3 class="mt-2 text-base font-black text-gray-900">Four guided steps</h3>
+                <h3 class="text-base font-black text-gray-900">Proposal checklist</h3>
                 <ol class="mt-4 grid gap-4 text-xs leading-5 text-gray-700">
                     @foreach ([
                         ['Project details', 'Choose the research call and enter the dates used on Attachment A.'],

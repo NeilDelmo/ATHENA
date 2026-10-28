@@ -319,7 +319,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Responsibility %')
         ->assertSee('Search project team')
         ->assertSee('No available project team member matches your search.')
-        ->assertSee('Project team')
+        ->assertSee('Add from the project team')
         ->assertSee('Members already on the project staff list are hidden.')
         ->assertSee('External project staff')
         ->assertSee('No project staff added yet.')

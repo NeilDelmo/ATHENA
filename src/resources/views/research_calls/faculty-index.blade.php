@@ -1,27 +1,18 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Research announcements" subtitle="Review funding opportunities, schedules, and calls connected to your work." />
+        <x-page-header title="Research calls">
+            <x-slot:actions>
+                @can('create', \App\Models\ProposalDraft::class)
+                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action">New proposal</a>
+                @endcan
+            </x-slot:actions>
+        </x-page-header>
     </x-slot>
 
     <div x-data="{ poster: null }" x-on:keydown.escape.window="poster = null" class="mx-auto max-w-7xl space-y-7" data-faculty-research-calls>
-        <section class="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="faculty-research-call-heading">
-            <div class="absolute inset-y-0 right-0 hidden w-2/5 bg-[radial-gradient(circle_at_center,rgba(185,28,28,0.10),transparent_70%)] sm:block" aria-hidden="true"></div>
-            <div class="relative grid gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div class="max-w-2xl">
-                    <h3 id="faculty-research-call-heading" class="text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">Research calls</h3>
-                    <p class="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">Open calls appear first. Each announcement includes its submission window, maximum budget, review schedule, and official poster when available.</p>
-                </div>
-                <div class="flex flex-col items-stretch gap-3 sm:flex-row lg:flex-col">
-                    @can('create', \App\Models\ProposalDraft::class)
-                        <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-sm shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
-                            Start a proposal
-                        </a>
-                    @endcan
-                    <p class="max-w-xs text-center text-[11px] leading-4 text-slate-500 dark:text-slate-400">You can prepare a proposal anytime. Select an open call when you are ready to submit.</p>
-                </div>
-            </div>
-            <dl class="relative grid border-t border-slate-200 bg-slate-50/75 dark:border-slate-800 dark:bg-slate-950/35 sm:grid-cols-3 sm:divide-x sm:divide-slate-200 dark:sm:divide-slate-800">
+        <p class="text-sm text-slate-600 dark:text-slate-300">Drafts can be prepared at any time. Select an open call when submitting a proposal.</p>
+        <section class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Research-call counts">
+            <dl class="grid sm:grid-cols-3 sm:divide-x sm:divide-slate-200 dark:sm:divide-slate-800">
                 @foreach (collect([
                     ['Open for submission', $openCalls->count(), 'Accepting new proposals'],
                     $upcomingCalls->isNotEmpty() ? ['Coming soon', $upcomingCalls->count(), 'Published future schedules'] : null,
@@ -39,10 +30,9 @@
         <section aria-labelledby="open-research-calls-heading">
             <div class="flex items-end justify-between gap-4">
                 <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Accepting proposals</p>
-                    <h3 id="open-research-calls-heading" class="mt-1 text-xl font-black text-slate-950 dark:text-white">Open for submission</h3>
+                    <h3 id="open-research-calls-heading" class="text-xl font-black text-slate-950 dark:text-white">Open for submission</h3>
                 </div>
-                <span class="text-xs font-bold text-slate-400">{{ $openCalls->count() }} {{ Str::plural('opportunity', $openCalls->count()) }}</span>
+                <span class="text-xs font-bold text-slate-400">{{ $openCalls->count() }} {{ Str::plural('call', $openCalls->count()) }}</span>
             </div>
 
             <div class="mt-4 grid gap-5 xl:grid-cols-2">
@@ -93,7 +83,7 @@
                 @empty
                     <div class="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center dark:border-slate-700 dark:bg-slate-900 xl:col-span-2">
                         <p class="text-sm font-black text-slate-700 dark:text-slate-200">No calls are accepting proposals today.</p>
-                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">You can still prepare a draft while waiting for the next published opportunity.</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">You can prepare a draft before the next call opens.</p>
                     </div>
                 @endforelse
             </div>
@@ -102,8 +92,7 @@
         @if ($upcomingCalls->isNotEmpty())
             <section aria-labelledby="upcoming-research-calls-heading">
                 <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Published in advance</p>
-                    <h3 id="upcoming-research-calls-heading" class="mt-1 text-xl font-black text-slate-950 dark:text-white">Coming soon</h3>
+                    <h3 id="upcoming-research-calls-heading" class="text-xl font-black text-slate-950 dark:text-white">Upcoming calls</h3>
                 </div>
                 <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     @foreach ($upcomingCalls as $call)
@@ -121,8 +110,7 @@
         @if ($archivedCalls->isNotEmpty())
             <section aria-labelledby="archived-research-calls-heading">
                 <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Relevant history</p>
-                    <h3 id="archived-research-calls-heading" class="mt-1 text-xl font-black text-slate-950 dark:text-white">Your research-call archive</h3>
+                    <h3 id="archived-research-calls-heading" class="text-xl font-black text-slate-950 dark:text-white">Previous research calls</h3>
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Only previous calls connected to a proposal you lead or participate in as project staff appear here.</p>
                 </div>
                 <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">

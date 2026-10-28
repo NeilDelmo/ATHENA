@@ -20,8 +20,7 @@
     {{ $attributes->merge(['class' => 'overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950']) }}
 >
     <header class="border-b border-gray-200 px-5 py-5 dark:border-slate-800 sm:px-7">
-        <p class="text-sm font-bold uppercase tracking-wider text-red-700 dark:text-red-300">Journal Finder</p>
-        <h3 id="journal-finder-heading" class="mt-2 text-xl font-black tracking-tight text-gray-950 dark:text-white">{{ $heading }}</h3>
+        <h3 id="journal-finder-heading" class="text-xl font-black tracking-tight text-gray-950 dark:text-white">{{ $heading }}</h3>
         <p class="mt-2 max-w-3xl text-sm leading-7 text-gray-600 dark:text-slate-300">{{ $description }}</p>
     </header>
 
@@ -109,7 +108,7 @@
 
         <div x-show="isLoading" x-cloak class="rounded-xl border border-red-100 bg-red-50 px-5 py-6 text-center dark:border-red-950 dark:bg-red-950/30" role="status" aria-live="polite">
             <p class="text-sm font-bold text-red-900 dark:text-red-100">Reviewing related scholarly articles</p>
-            <p class="mt-1 text-sm text-red-700 dark:text-red-300">Grouping their journals and calculating transparent topic-fit signals.</p>
+            <p class="mt-1 text-sm text-red-700 dark:text-red-300">Comparing journals from related articles.</p>
         </div>
 
         <div x-show="error" x-cloak class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-7 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert" x-text="error"></div>

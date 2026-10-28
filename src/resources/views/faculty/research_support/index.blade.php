@@ -2,7 +2,7 @@
     @php($canUseResearcherTools = Auth::user()->isUsingWorkspace('faculty_researcher'))
 
     <x-slot name="header">
-        <x-page-header class="athena-readable" title="Research Support" :subtitle="$canUseResearcherTools ? 'Find literature, review similarity, and discover suitable journals for your research.' : 'Find and save literature while preparing your research proposal.'" />
+        <x-page-header class="athena-readable" title="Research Support" />
     </x-slot>
 
     @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))

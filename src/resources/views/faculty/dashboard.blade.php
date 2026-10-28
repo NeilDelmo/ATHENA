@@ -20,11 +20,7 @@
     @endphp
 
     <x-slot name="header">
-        <x-page-header variant="hero"
-            eyebrow="Faculty workspace"
-            title="Dashboard"
-            subtitle="Your proposals and next actions."
-        >
+        <x-page-header data-workspace-header-banner title="Dashboard">
             <x-slot:actions>
                 <div class="flex w-full sm:w-auto">
                     <a href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action w-full sm:w-auto">
@@ -41,7 +37,6 @@
 
         <section aria-labelledby="proposal-overview-heading">
             <h2 id="proposal-overview-heading" class="sr-only">Proposal overview</h2>
-            <p class="sr-only">A quick view of your research pipeline.</p>
             <dl class="grid grid-cols-2 gap-4 xl:grid-cols-4">
                 @foreach ([
                     ['Needs revision', $revisionRequestedTopics->count(), 'Changes requested', route('faculty.submissions', ['category' => 'active', 'status' => 'revision_requested']), 'M12 9v4m0 3h.01M12 3 2 20h20L12 3Z'],

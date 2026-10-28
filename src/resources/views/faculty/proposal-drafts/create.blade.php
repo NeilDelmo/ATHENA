@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="New Proposal" subtitle="Start with a project title. Complete your papers and submit whenever you are ready.">
+        <x-page-header title="New Proposal">
             <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.index') }}">Back to proposal workspace</x-back-link>
             </x-slot>

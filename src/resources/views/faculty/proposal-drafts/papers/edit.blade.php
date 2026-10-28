@@ -62,8 +62,7 @@
                     <section aria-labelledby="uploaded-files-heading" class="rounded-2xl border border-green-200 bg-white p-5 shadow-sm sm:p-6">
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <p class="text-[10px] font-black uppercase tracking-wider text-green-700">Attached to this draft</p>
-                                <h3 id="uploaded-files-heading" class="mt-1 text-base font-black text-gray-900">PDF attachment</h3>
+                                <h3 id="uploaded-files-heading" class="text-base font-black text-gray-900">PDF attachment</h3>
                             </div>
                             <span class="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-800">Attached</span>
                         </div>
@@ -98,8 +97,7 @@
                 @endif
 
                 <section aria-labelledby="upload-paper-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-red-700">PDF upload</p>
-                    <h3 id="upload-paper-heading" class="mt-1 text-lg font-black text-gray-900">{{ $uploadHeading }}</h3>
+                    <h3 id="upload-paper-heading" class="text-lg font-black text-gray-900">{{ $uploadHeading }}</h3>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
                         @if ($isExpenseBreakdown)
                             Complete the official spreadsheet outside ATHENA, export or save it as a PDF, then attach that final PDF here. ATHENA will preserve it exactly as uploaded.

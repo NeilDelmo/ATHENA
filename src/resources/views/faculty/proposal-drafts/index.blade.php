@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Draft proposals" subtitle="Prepare your project, then follow its review in Submitted.">
+        <x-page-header title="Draft proposals">
             <x-slot:actions>
                 <a wire:navigate href="{{ route('faculty.proposal-drafts.trash') }}" class="inline-flex min-h-11 items-center px-4 text-base font-semibold text-slate-600 dark:text-slate-300">Trash</a>
                 <a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action text-base">New Proposal</a>

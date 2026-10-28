@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header :title="$paper['label']" subtitle="Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.">
+        <x-page-header :title="$paper['label']" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
                 <span data-detailed-proposal-completion-status class="rounded-full px-3 py-1 text-xs font-semibold {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
@@ -189,8 +189,7 @@
                     <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-950/80 dark:bg-red-950/20 sm:p-5">
                         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Project team</p>
-                                <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add from the project team</h4>
+                                <h4 class="text-sm font-black text-gray-900 dark:text-white">Add from the project team</h4>
                                 <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Search the project team and add staff to this proposal.</p>
                             </div>
                             <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" x-text="`${availableWorkspacePeople().length} available`"></span>
@@ -226,8 +225,7 @@
 
                     <div class="flex flex-col justify-between rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:p-5">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">External project staff</p>
-                            <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add someone manually</h4>
+                            <h4 class="text-sm font-black text-gray-900 dark:text-white">External project staff</h4>
                             <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Enter the external staff member&rsquo;s optional professional title, name, email, and 11-digit contact number manually.</p>
                         </div>
                         <button type="button" x-on:click="addStaff" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">

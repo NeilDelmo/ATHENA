@@ -39,7 +39,7 @@ test('faculty sidebar exposes the rrl finder without conference discovery', func
         ->assertSee('data-turnitin-resource', false)
         ->assertSee('Open Turnitin')
         ->assertDontSee('Request a similarity check')
-        ->assertSee('Read your report')
+        ->assertSee('View sign-in help')
         ->assertDontSee('id="journal-finder"', false);
 
     expect(file_get_contents(resource_path('js/app.js')))
