@@ -11,6 +11,7 @@ use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringToolDocumentService;
+use App\Services\ProjectMonitoringHealth;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,8 +23,9 @@ use Illuminate\View\View;
 
 class ProjectBudgetUtilizationController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, ProjectMonitoringHealth $monitoringHealth): View
     {
+        $filters = $request->validate(['q' => ['nullable', 'string', 'max:200'], 'status' => ['nullable', 'string', 'max:40'], 'type' => ['nullable', 'in:monitoring,progress,returned']]);
         $signingProjects = TopicProposal::query()
             ->accessibleForDocumentRelease($request->user())
             ->awaitingDocumentRelease()
@@ -31,12 +33,11 @@ class ProjectBudgetUtilizationController extends Controller
             ->orderByRaw('COALESCE(status_started_at, created_at)')
             ->orderBy('id')
             ->paginate(10, ['*'], 'signing_page');
-        $projects = TopicProposal::query()
-            ->whereBelongsTo($request->user(), 'researchSecretary')
-            ->with(['user', 'preparedProgressReports.submitter'])
-            ->withIssuedNotice()
-            ->latest('updated_at')
-            ->get();
+        $projectQuery = TopicProposal::query()->withIssuedNotice();
+        $projectCount = (clone $projectQuery)->count();
+        $projects = $request->routeIs('research_secretary.projects.index')
+            ? $projectQuery->with(['user', 'progressReports', 'narrativeReports', 'latestProgressReport', 'researchCall'])->latest('updated_at')->get()
+            : collect();
         $reviewableProject = fn (Builder $query): Builder => $query
             ->forImplementationReportReview($request->user())
             ->withIssuedNotice()
@@ -68,7 +69,44 @@ class ProjectBudgetUtilizationController extends Controller
             ->sortBy(fn (ProjectProgressReport|ProjectNarrativeReport $report) => $report->submitted_at ?? $report->created_at)
             ->values();
 
-        return view('research_secretary.projects.index', compact('projects', 'signingProjects', 'reportReviewTasks'));
+        $budgetMonitoring = $projects->mapWithKeys(fn (TopicProposal $project): array => [$project->id => $monitoringHealth->assess($project)]);
+        $view = match ($request->route()->getName()) {
+            'research_secretary.projects.index' => 'research_secretary.projects.index',
+            'research_secretary.reports.index' => 'research_secretary.reports',
+            'research_secretary.notices.index' => 'research_secretary.notices',
+            default => 'research_secretary.dashboard',
+        };
+        if ($request->routeIs('research_secretary.projects.index')) {
+            $projects = $projects->filter(fn (TopicProposal $project): bool => (! filled($filters['q'] ?? null) || Str::contains(Str::lower($project->title.' '.$project->user->name), Str::lower(trim($filters['q']))))
+                && (! filled($filters['status'] ?? null) || ($project->project_status ?? 'ongoing') === $filters['status']));
+        }
+        if ($request->routeIs('research_secretary.reports.index') && filled($filters['type'] ?? null)) {
+            $reportReviewTasks = $reportReviewTasks->filter(fn (ProjectProgressReport|ProjectNarrativeReport $report): bool => match ($filters['type']) {
+                'monitoring' => $report instanceof ProjectProgressReport,
+                'progress' => $report instanceof ProjectNarrativeReport,
+                'returned' => filled($report->research_head_remarks),
+            })->values();
+        }
+
+        return view($view, compact('projects', 'signingProjects', 'reportReviewTasks', 'budgetMonitoring', 'projectCount'));
+    }
+
+    public function budgets(Request $request, ProjectMonitoringHealth $monitoringHealth): View
+    {
+        $filters = $request->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $forResearchHead = $request->routeIs('research_head.budgets.index');
+        $workspace = $forResearchHead ? 'research_head' : 'research_secretary';
+        $latestReport = $forResearchHead ? 'latestProgressReportForResearchHead' : 'latestProgressReport';
+        $projects = TopicProposal::query()->withIssuedNotice()
+            ->with(['user', 'progressReports', 'narrativeReports', 'researchCall', $latestReport])
+            ->latest('updated_at')->get()
+            ->filter(fn (TopicProposal $project): bool => ! filled($filters['q'] ?? null)
+                || Str::contains(Str::lower($project->title.' '.$project->user->name), Str::lower(trim($filters['q']))));
+        $budgetMonitoring = $projects->mapWithKeys(fn (TopicProposal $project): array => [
+            $project->id => $monitoringHealth->assess($project, forResearchHead: $forResearchHead),
+        ]);
+
+        return view($workspace.'.budgets', compact('projects', 'budgetMonitoring'));
     }
 
     public function edit(Request $request, TopicProposal $topic, ProjectProgressReport $report): View

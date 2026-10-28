@@ -7,7 +7,7 @@
         >
             <x-slot name="actions">
                 <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <a wire:navigate href="{{ route('research_head.targets.index') }}" class="dashboard-action justify-center">
+                    <a href="#research-targets" class="dashboard-action justify-center">
                         <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></svg>
                         Research targets
                     </a>

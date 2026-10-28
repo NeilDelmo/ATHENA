@@ -1,4 +1,4 @@
-<section class="dashboard-panel min-w-0 overflow-hidden {{ $compact ? '' : 'research-target-board' }}" aria-labelledby="research-targets-heading" data-research-target-board @if ($compact) data-dashboard-target-summary @endif>
+<section id="research-targets" class="dashboard-panel min-w-0 scroll-mt-40 overflow-hidden {{ $compact ? '' : 'research-target-board' }}" aria-labelledby="research-targets-heading" data-research-target-board @if ($compact) data-dashboard-target-summary @endif>
     <div class="dashboard-panel-heading {{ $compact ? '' : '!gap-3 !p-4 lg:!flex-nowrap' }}">
         <div class="flex min-w-0 items-center gap-3">
             <span class="flex {{ $compact ? 'h-11 w-11' : 'h-10 w-10' }} shrink-0 items-center justify-center rounded-lg bg-rose-50 text-brand dark:bg-rose-950/40 dark:text-rose-300" aria-hidden="true"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></svg></span>

@@ -1,7 +1,7 @@
 import { proposalPaperPreviewWorkspace } from './proposal-paper-workspace';
 import { loadPdfJs } from './pdf-annotation-workspace';
 
-async function renderAssessmentPdf(contents) {
+export async function renderAssessmentPdf(contents) {
     const pdfJs = await loadPdfJs();
     const loadingTask = pdfJs.getDocument({ data: new Uint8Array(contents) });
     const pages = [];

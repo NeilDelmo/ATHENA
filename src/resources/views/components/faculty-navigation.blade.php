@@ -8,7 +8,6 @@
         'plus' => 'M12 4.5v15m7.5-7.5h-15',
         'document' => 'M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8m-8 4h5',
         'projects' => 'M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z',
-        'clock' => 'M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
         'check' => 'm8 12 3 3 5-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
         'search' => 'm21 21-5.2-5.2M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z',
         'shield' => 'M12 3 4 6v6c0 4.4 3.4 7.4 8 9 4.6-1.6 8-4.6 8-9V6l-8-3Zm-4 9 3 3 5-6',
@@ -21,12 +20,9 @@
         ],
         ...($isResearcher ? [
             'Monitoring' => [
-                ['My Projects', 'research.index', [], 'projects', 'my_projects'],
-                ['Active projects', 'research.index', ['status' => 'active'], 'projects', null],
-                ['Awaiting release', 'research.index', ['status' => 'waiting'], 'clock', null],
+                ['Projects', 'research.index', [], 'projects', 'my_projects'],
             ],
             'Completion' => [
-                ['Completed projects', 'research.index', ['status' => 'completed'], 'check', null],
                 ['Post-implementation', 'research-outcomes.index', [], 'projects', null],
             ],
         ] : [
@@ -80,21 +76,15 @@
                     @php
                         $resourceAnchor = $resourceAnchors[$label] ?? '';
                         $url = route($routeName, $parameters).$resourceAnchor;
-                        $isProjectLink = $routeName === 'research.index';
                     @endphp
                     <a wire:navigate href="{{ $url }}"
                        @if ($label === 'Journal Finder') :href="journalFinderUrl" @endif
-                       @if ($isProjectLink)
-                           :class="[
-                               $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
-                               $store.sidebar.currentPath === @js(parse_url(route('research.index'), PHP_URL_PATH)) && (new URLSearchParams(window.location.search).get('status') || 'all') === @js($parameters['status'] ?? 'all') ? @js($activeClasses) : '',
-                           ]"
-                       @elseif ($resourceAnchor)
+                       @if ($resourceAnchor)
                            :class="[
                                $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
                                $store.sidebar.currentPath === @js(parse_url(route('research-support.index'), PHP_URL_PATH)) && activeHash === @js($resourceAnchor) ? @js($activeClasses) : '',
                            ]"
-                       @elseif ($routeName === 'research-outcomes.index')
+                       @elseif (in_array($routeName, ['research.index', 'research-outcomes.index'], true))
                            wire:current="{{ $activeClasses }}"
                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
                        @else

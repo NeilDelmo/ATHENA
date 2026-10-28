@@ -185,7 +185,7 @@ test('trackpad and native gesture events zoom rendered paper without moving the 
             let factory;
             registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
             const library = {
-                getDocument: () => ({ promise: Promise.resolve({
+                getDocument: () => ({ destroy: async () => {}, promise: Promise.resolve({
                     numPages: 2,
                     getPage: async () => ({
                         getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale, userUnit: 1 }),
@@ -262,7 +262,7 @@ test('a continuing pinch visibly zooms a long PDF before every page is rendered 
             let factory;
             registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
             const library = {
-                getDocument: () => ({ promise: Promise.resolve({
+                getDocument: () => ({ destroy: async () => {}, promise: Promise.resolve({
                     numPages: 127,
                     getPage: async () => ({
                         getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale, userUnit: 1 }),
@@ -320,7 +320,7 @@ test('Edge trusted trackpad pinch zooms the PDF rather than the browser page', {
             let factory;
             registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
             const library = {
-                getDocument: () => ({ promise: Promise.resolve({
+                getDocument: () => ({ destroy: async () => {}, promise: Promise.resolve({
                     numPages: 2,
                     getPage: async () => ({
                         getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale, userUnit: 1 }),

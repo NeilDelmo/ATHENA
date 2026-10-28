@@ -117,6 +117,10 @@ test('search follows project collaborators and active workspace rather than the 
     expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove'))->toHaveCount(1);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
     expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(0);
+    $topic->update(['status' => 'approved']);
+    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove')->total())->toBe(0);
+    $topic->update(['notice_to_proceed_issued_at' => now()]);
+    expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove'))->toHaveCount(1);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     expect(app(AccessibleRecordSearch::class)->search($member, 'Mangrove'))->toHaveCount(2);
 });

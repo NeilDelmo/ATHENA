@@ -16,7 +16,7 @@ test('the rendered coordinator form submits native rows and files without losing
     const source = readFileSync(resolve('storage/framework/testing/college-quarterly-report.html'), 'utf8');
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
-    const modules = ['document-writing-toolbar', 'quarterly-report-form'].map(name => readFileSync(resolve(`resources/js/${name}.js`), 'utf8')
+    const modules = ['document-writing-toolbar', 'quarterly-report-form', 'proposal-preview-workspace', 'proposal-paper-workspace', 'proposal-assessment-preview', 'report-paper-preview'].map(name => readFileSync(resolve(`resources/js/${name}.js`), 'utf8')
         .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '')).join('\n');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
@@ -33,8 +33,8 @@ test('the rendered coordinator form submits native rows and files without losing
                     document.querySelectorAll('[data-assistant-report-editor]').forEach(editor => editor.remove());
                     return document.querySelector('[data-quarterly-reports]').outerHTML;
                 }, source);
-                await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles.css}\n[x-cloak]{display:none!important}</style></head><body><main class="p-4">${fragment}</main></body></html>`);
-                await page.addScriptTag({ content: `${modules}\ndocument.addEventListener('alpine:init', () => Alpine.data('quarterlyReportForm', quarterlyReportForm));` });
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles.css}\n${readFileSync(resolve('resources/css/proposal-paper-workspace.css'), 'utf8')}\n[x-cloak]{display:none!important}</style></head><body><main class="p-4">${fragment}</main></body></html>`);
+                await page.addScriptTag({ content: `${modules}\ndocument.addEventListener('alpine:init', () => { Alpine.data('quarterlyReportForm', quarterlyReportForm); Alpine.data('reportPaperPreview', reportPaperPreview); });` });
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
                 for (const name of ['Add presentation', 'Add publication', 'Add seminar or training', 'Add research project', 'Add IP asset']) {
                     await page.getByRole('button', { name, exact: true }).click();

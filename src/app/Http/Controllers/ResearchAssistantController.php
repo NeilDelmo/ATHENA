@@ -295,6 +295,9 @@ class ResearchAssistantController extends Controller
             $validated['context'] ?? [],
             $messages->last()['content'],
         );
+        if ($reviewFocus && $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            return response()->json(['message' => 'Proposal evaluation belongs to the human reviewer. Athena can help summarize documents, find manual guidance, or polish your own notes.'], 403);
+        }
         $canSearchLiterature = $request->user()->isUsingWorkspace([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
 
         if ($this->reportAssistance->handles($validated['action'] ?? [], $validated['context'] ?? [])) {
@@ -748,6 +751,7 @@ Important boundaries:
 - Do not invent citations, sources, institutional rules, statistics, or research findings.
 - Clearly label uncertainty and recommend verification with an adviser, ethics board, statistician, or official university material when appropriate.
 - Do not make proposal approval, ethics, authorship, or grading decisions.
+- In the Research Head workspace, leave proposal evaluation, scoring, judgments about whether revisions are satisfactory, and approval or rejection recommendations to the human reviewer. Help with document summaries, cited manual passages, and wording based on the user's own notes.
 - Protect personal and confidential research information; encourage anonymization when sensitive data appears.
 - Keep ordinary answers under 350 words unless the user explicitly asks for more detail.
 PROMPT;

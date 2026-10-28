@@ -23,7 +23,11 @@
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-5" data-rms-quarterly-reports>
+    <div data-rms-quarterly-reports data-proposal-paper-workspace x-data="reportPaperPreview(@js([
+        'previewUrl' => route('research_head.rms-quarterly-reports.preview-draft'), 'title' => 'RMS quarterly report', 'openOnLoad' => request()->boolean('preview'),
+    ]))" @input="markProposalPreviewStale()" @change="markProposalPreviewStale()" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }">
+        <div class="proposal-edit-pane space-y-5" :inert="previewFullscreen">
         @if (session('status'))
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-base text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
@@ -45,6 +49,7 @@
                 </div>
                 <div class="flex w-full flex-wrap gap-2 sm:w-auto" role="group" aria-label="Report actions">
                     <button type="submit" form="rms-report-form" name="intent" value="save" class="{{ $actionClass }} border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"><x-report-library-icon name="save" class="h-5 w-5" />Save draft</button>
+                    <button type="submit" form="rms-report-form" name="intent" value="preview" class="{{ $actionClass }} border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"><x-report-library-icon name="preview" class="h-5 w-5" />Save and preview</button>
                     <button type="submit" form="rms-report-form" name="intent" value="download" @disabled(! $reportStatus['ready']) aria-describedby="rms-export-readiness" class="{{ $actionClass }} bg-brand text-white hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50"><x-report-library-icon name="export" class="h-5 w-5" />Save &amp; download Excel</button>
                 </div>
             </div>
@@ -104,7 +109,7 @@
         </details>
 
         {{-- Server validation reopens the section containing an invalid field. --}}
-        <form method="POST" action="{{ route('research_head.rms-quarterly-reports.store') }}" novalidate class="space-y-5" id="rms-report-form" x-data="rmsQuarterlyReportForm" x-init="openSection(@js($errorSection ?? 'presentations'))" @formdata="serialize($event)"
+        <form data-report-preview-form method="POST" action="{{ route('research_head.rms-quarterly-reports.store') }}" novalidate class="space-y-5" id="rms-report-form" x-data="rmsQuarterlyReportForm" x-init="openSection(@js($errorSection ?? 'presentations'))" @formdata="serialize($event)"
             data-assistant-report-type="rms-quarterly" data-assistant-report-key="{{ $report ? 'rms-quarterly:'.$report->id : '' }}" data-assistant-report-save-mode="manual">
             @csrf
             <input type="hidden" name="reporting_year" value="{{ $year }}">
@@ -210,5 +215,9 @@
                 <p class="text-base text-slate-500 dark:text-slate-400">Review each section before sending the report.</p>
             </div>
         </form>
+        </div>
+        <x-proposal-paper-preview panel-id="rms-report-preview-panel" preview-label="RMS quarterly report preview" frame-title="RMS quarterly report preview" />
+        </div>
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" class="proposal-writing-preview-launcher" aria-controls="rms-report-preview-panel" :aria-expanded="previewPaneOpen">Preview paper</button>
     </div>
 </x-app-layout>

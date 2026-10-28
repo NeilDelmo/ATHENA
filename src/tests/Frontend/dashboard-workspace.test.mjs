@@ -52,7 +52,7 @@ test('rendered dashboards stay readable and expose usable actions in both themes
         assert.equal(JSON.parse(result).result, 'passed', 'Dashboard fixtures must come from passing feature tests');
     }
     const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
-        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8') + '\n' + readFileSync(resolve('resources/css/secretary-workspace.css'), 'utf8'), { from: undefined });
     const posterDirectory = resolve('storage/app/private/research-calls');
     const posterFiles = existsSync(posterDirectory) ? readdirSync(posterDirectory).filter(name => /\.(png|jpe?g)$/i.test(name)) : [];
     const posterFile = posterFiles.find(name => name === 'xfd6SjDKi4kkl3nSFiQaskb3uKmy56yNTnSGoNXK.png') || posterFiles[0];
@@ -62,7 +62,7 @@ test('rendered dashboards stay readable and expose usable actions in both themes
     };
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
-        for (const fixture of ['faculty', 'researcher', 'actions', 'unreported', 'empty', 'head', 'office', 'secretary']) {
+        for (const fixture of process.env.ATHENA_DASHBOARD_FIXTURES?.split(',') ?? ['faculty', 'researcher', 'actions', 'unreported', 'empty', 'head', 'office', 'secretary']) {
             const source = readFileSync(resolve(`storage/framework/testing/dashboard-${fixture}.html`), 'utf8');
             for (const width of [320, 390, 768, 1440]) {
                 for (const dark of [false, true]) {
@@ -109,12 +109,41 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         assert.equal(await rows.count(), 4);
                     }
                     if (fixture === 'researcher') {
-                        const link = page.getByRole('link', { name: /^Needs attention\s*:/ });
+                        const link = page.getByRole('link', { name: /^Active projects\s*:/ });
                         const card = await link.locator('..').locator('..').boundingBox();
                         const target = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('a')?.getAttribute('href'), { x: card.x + card.width / 2, y: card.y + card.height - 12 });
-                        assert.equal(target, '#needs-attention', 'The metric should be clickable across its card');
-                        await link.click();
-                        assert.equal(await page.evaluate(() => location.hash), '#needs-attention');
+                        assert.match(target, /research\?status=active$/, 'The metric should be clickable across its cell');
+                    }
+                    if (['researcher', 'actions', 'unreported', 'empty'].includes(fixture)) {
+                        assert.equal(await page.locator('[data-project-summary] > div').count(), 4);
+                        assert.equal(await page.getByRole('heading', { name: 'Project distribution' }).count(), 0);
+                        for (const card of await page.locator('[data-project-attention]:visible').all()) {
+                            const box = await card.boundingBox();
+                            const issues = card.locator('[data-project-issues]');
+                            assert.ok(await issues.isVisible(), 'Each project groups its report issues in a distinct surface');
+                            const surface = await card.evaluate(element => {
+                                const style = getComputedStyle(element);
+                                return { border: parseFloat(style.borderLeftWidth), background: style.backgroundColor };
+                            });
+                            assert.equal(surface.border, 1);
+                            assert.notEqual(surface.background, 'rgba(0, 0, 0, 0)');
+                            const action = card.locator('[data-project-action]');
+                            assert.ok((await action.boundingBox()).height >= 44);
+                            for (const issue of await issues.locator('li').all()) {
+                                const issueBox = await issue.boundingBox();
+                                assert.ok(issueBox.x >= box.x && issueBox.x + issueBox.width <= box.x + box.width, 'Issue rows must fit within their project');
+                            }
+                        }
+                        if (width === 1440) {
+                            assert.ok((await page.locator('[data-project-summary]').boundingBox()).height <= 130, 'Totals should stay compact');
+                            const cards = page.locator('[data-project-attention]:visible');
+                            if (await cards.count() >= 2) {
+                                const first = await cards.nth(0).boundingBox();
+                                const second = await cards.nth(1).boundingBox();
+                                assert.equal(first.y, second.y, 'Desktop projects should share a two-column row');
+                                assert.ok(second.x > first.x + first.width, 'Projects need a visible gutter');
+                            }
+                        }
                     }
                     if (fixture === 'faculty') {
                         assert.ok(await page.getByRole('link', { name: /^Submitted\s*:/ }).getAttribute('href').then(href => href.includes('category=all')));
@@ -238,16 +267,10 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         assert.deepEqual(lowContrast, [], `Faculty banner, metric, and detail text needs 4.5:1 contrast in ${dark ? 'dark' : 'light'} mode`);
                     }
                     if (fixture === 'secretary') {
-                        const portfolio = page.locator('#assigned-projects');
-                        assert.equal(await portfolio.getAttribute('open'), null);
-                        const disclosure = await portfolio.locator('summary svg').boundingBox();
-                        assert.ok(disclosure?.width >= 16 && disclosure?.height >= 16, 'Collapsed portfolio needs a visible disclosure cue');
-                        await portfolio.locator('summary').focus();
-                        await page.keyboard.press('Enter');
-                        assert.notEqual(await portfolio.getAttribute('open'), null, 'Keyboard users can open the portfolio');
-                        assert.ok(await page.getByRole('link', { name: 'Review budget' }).count() > 0);
-                        await portfolio.locator('summary').click();
-                        assert.equal(await portfolio.getAttribute('open'), null);
+                        assert.equal(await page.locator('#assigned-projects').count(), 0);
+                        const portfolio = page.locator('.secretary-portfolio-link');
+                        assert.match(await portfolio.getAttribute('href'), /research-secretary\/projects$/);
+                        assert.equal(await page.locator('[data-research-target-board]').count(), 0);
                     }
                     if (['office', 'secretary'].includes(fixture)) {
                         for (const action of await page.locator('.dashboard-action:visible').all()) {

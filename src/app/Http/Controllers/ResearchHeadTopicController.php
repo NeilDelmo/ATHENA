@@ -330,7 +330,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_LREC_REVIEW => ['LREC review started', 'The research office is recording the LREC outcome for “'.$topic->title.'”. Any revisions will be shared in one Comment-Response Form.', 'info'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
-                'The review of “'.$topic->title.'” is complete. Research office staff or the secretary will prepare the Notice to Proceed and upload the required signed documents.',
+                'The review of “'.$topic->title.'” is complete. The Research Secretary will prepare the Notice to Proceed and upload the required signed documents.',
                 'info',
             ],
             'revision_requested' => [
@@ -372,7 +372,7 @@ class ResearchHeadTopicController extends Controller
                 ->where(function ($query) use ($topic, $colleges): void {
                     if ($colleges !== []) {
                         $query->whereIn('college', $colleges)
-                            ->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['research_coordinator', 'research_secretary']));
+                            ->whereHas('roles', fn ($roles) => $roles->where('name', 'research_secretary'));
                     } else {
                         $query->whereRaw('1 = 0');
                     }
@@ -384,12 +384,12 @@ class ResearchHeadTopicController extends Controller
                 ->get();
 
             Notification::send($staff, new ProposalActivityNotification(
-                'Project ready for document release',
+                'Notice to Proceed ready to prepare',
                 'The Research Head cleared “'.$topic->title.'”. Prepare the Notice to Proceed and upload the signed documents for release.',
                 route('topics.show', $topic).'#notice-to-proceed',
                 'info',
                 $topic->id,
-                workspace: [User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY],
+                workspace: User::WORKSPACE_RESEARCH_SECRETARY,
             ));
         }
 
@@ -397,7 +397,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_GAD_REVIEW => 'Research Head review cleared. The proposal is now available for GAD Office assessment.',
             TopicProposal::STATUS_LREC_QUEUED => 'GAD assessment and co-evaluator review cleared. The proposal is queued for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'LREC review opened. Record committee comments or confirm clearance.',
-            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Research office staff or the secretary will prepare and release the signed documents and Notice to Proceed.',
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. The Research Secretary will prepare and release the signed documents and Notice to Proceed.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
                 : 'Revision request sent to the faculty member.',
@@ -410,13 +410,13 @@ class ResearchHeadTopicController extends Controller
 
         $destinationTab = match (true) {
             ($validated['redirect_to'] ?? null) !== 'topic' => null,
-            $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE => 'notice',
+            $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE => 'review',
             $validated['status'] === 'revision_requested' => 'review',
             default => null,
         };
 
         if ($destinationTab !== null) {
-            $redirectUrl .= $destinationTab === 'notice' ? '#notice-to-proceed' : '#proposal-review';
+            $redirectUrl .= '#proposal-review';
         }
 
         $response = redirect()->to($redirectUrl)->with('success', $message);
@@ -439,8 +439,8 @@ class ResearchHeadTopicController extends Controller
             throw ValidationException::withMessages(['status' => 'Upload every required signed paper before preparing the final release.']);
         }
 
-        return redirect()->to(route('topics.show', $topic).'#notice-to-proceed')
-            ->with('success', 'Signed papers are ready. Research office staff or the secretary will upload the signed Notice to Proceed and release the project to faculty.');
+        return redirect()->to(route('topics.show', $topic).'#proposal-review')
+            ->with('success', 'Signed papers are ready. The Research Secretary will upload the signed Notice to Proceed and release the project to faculty.');
     }
 
     /**

@@ -560,9 +560,9 @@ test('signing automatically requires five papers and exempts CV and expense brea
     Process::fake();
     Notification::fake();
     Storage::fake('local');
-    Role::firstOrCreate(['name' => 'research_coordinator']);
+    Role::firstOrCreate(['name' => 'research_secretary']);
     $staff = User::factory()->create(['college' => 'CICS']);
-    $staff->assignRole('research_coordinator');
+    $staff->assignRole('research_secretary');
     $this->faculty->update(['college' => 'CICS']);
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
@@ -595,9 +595,9 @@ test('signing automatically requires five papers and exempts CV and expense brea
     expect($required)->toHaveCount(5)
         ->and($required->pluck('document_type')->all())->not->toContain('curriculum_vitae', 'expense_breakdown')
         ->and($topic->reviews()->latest('id')->firstOrFail()->required_signature_file_ids)->toHaveCount(5);
-    Notification::assertSentTo($staff, ProposalActivityNotification::class, fn (ProposalActivityNotification $notification): bool => $notification->title === 'Project ready for document release');
+    Notification::assertSentTo($staff, ProposalActivityNotification::class, fn (ProposalActivityNotification $notification): bool => $notification->title === 'Notice to Proceed ready to prepare');
     $this->get(route('topics.show', $topic))->assertOk()->assertDontSee('data-signed-paper-input', false);
-    $signingResponse = $this->actingAs($staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])->get(route('topics.show', $topic))
+    $signingResponse = $this->actingAs($staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('Upload the required signed PDFs')
         ->assertSee('Awaiting signed copy')
@@ -620,7 +620,7 @@ test('signing automatically requires five papers and exempts CV and expense brea
     }
     foreach ($required as $index => $file) {
         $this->actingAs($this->researchHead)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->patch(route('research_head.topics.finalizeApproval', $topic))->assertSessionHasErrors('status');
-        $this->actingAs($staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
+        $this->actingAs($staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
         $this->post(route('topics.head-uploads.store', $topic), [
             'source_file_id' => $file->id, 'purpose' => 'signed',
             'review_file' => UploadedFile::fake()->create('signed-'.$index.'.pdf', 10, 'application/pdf'),
@@ -637,7 +637,7 @@ test('signing automatically requires five papers and exempts CV and expense brea
         ->assertDontSee('Prepare Notice to Proceed')
         ->assertDontSee('data-signing-continue', false);
     $this->actingAs($this->researchHead)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->patch(route('research_head.topics.finalizeApproval', $topic))
-        ->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
+        ->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $topic).'#proposal-review');
     expect($topic->fresh()->notice_to_proceed_issued_at)->toBeNull();
 
     $incompleteVersion = $version->fresh('files');

@@ -59,7 +59,7 @@ class SaveRmsQuarterlyReportRequest extends FormRequest
             'source_token' => ['required', 'string', 'size:64'],
             'draft_token' => ['required', 'string', 'size:64'],
             'form_complete' => ['required', Rule::in(['1'])],
-            'intent' => ['sometimes', Rule::in(['save', 'download'])],
+            'intent' => ['sometimes', Rule::in(['save', 'preview', 'download'])],
             'campus' => ['required', 'string', 'max:255'],
             'signatories' => ['nullable', 'array:prepared,reviewed,approved'],
             'signatories.*' => ['array:name,position,office'],

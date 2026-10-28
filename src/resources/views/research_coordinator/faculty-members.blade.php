@@ -1,60 +1,27 @@
 <x-app-layout>
-    <x-slot name="header">
-        <x-page-header title="Faculty Members" :subtitle="'Faculty members assigned to '.($coordinator->college ?: 'your college').'.'" />
-    </x-slot>
-
-    <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h3 class="text-base font-black text-gray-900 dark:text-white">Faculty Members</h3>
-                <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">{{ $coordinator->college ?: 'No college selected' }}</p>
+    <x-slot name="header"><x-page-header variant="hero" eyebrow="Research office / Directory" title="Faculty Members" :subtitle="'Faculty members assigned to '.($coordinator->college ?: 'your college').'.'"><x-slot name="actions"><x-back-link href="{{ route('research_coordinator.dashboard') }}">Back to dashboard</x-back-link></x-slot></x-page-header></x-slot>
+    <div class="secretary-workspace" data-coordinator-workspace="members">
+        <section class="secretary-directory-heading" aria-label="College directory summary"><div><p class="secretary-eyebrow">Your college community</p><h2>The people behind the research.</h2><p>Find faculty members and their university contact details.</p></div><div class="secretary-directory-total"><strong>{{ $memberCount }}</strong><span>college<br>{{ str('member')->plural($memberCount) }}</span></div></section>
+        <section class="secretary-panel" aria-label="Faculty directory">
+            <form method="GET" action="{{ route('research_coordinator.members.index') }}" class="secretary-directory-filters" role="search">
+                <div class="secretary-search"><label for="coordinator-member-search" class="sr-only">Search faculty members</label><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="coordinator-member-search" type="search" name="q" value="{{ request('q') }}" placeholder="Search by name or university email" maxlength="200"></div>
+                <button type="submit" class="secretary-button-primary">Find members</button>
+                @if (request()->filled('q'))<a href="{{ route('research_coordinator.members.index') }}" class="secretary-button-secondary">Clear search</a>@endif
+            </form>
+            @if (! $coordinator->college)<p role="status" class="border-b border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Set your college in your account profile to view your faculty members.</p>@endif
+            <div class="coordinator-member-list">
+                @forelse ($members as $member)
+                    <article class="coordinator-member-row">
+                        <x-user-avatar :user="$member" class="h-11 w-11 rounded-lg bg-brand text-sm" />
+                        <div class="min-w-0"><h3>{{ $member->name }}</h3><p class="secretary-muted">{{ $coordinator->college }}</p></div>
+                        <p class="coordinator-member-email">{{ $member->email }}</p>
+                    </article>
+                @empty
+                    <div class="secretary-empty"><span class="secretary-empty-icon" aria-hidden="true"><x-report-library-icon name="college" class="h-6 w-6" /></span><h3>{{ request()->filled('q') ? 'No members match your search.' : 'No faculty members found yet' }}</h3><p>{{ request()->filled('q') ? 'Try another name or university email.' : 'Your college currently has '.$memberCount.' registered '.Str::plural('member', $memberCount).'.' }}</p></div>
+                @endforelse
             </div>
-            <span class="text-xs font-bold text-gray-500 dark:text-slate-400">{{ $memberCount }} {{ Str::plural('member', $memberCount) }}</span>
-        </div>
-
-        @if (! $coordinator->college)
-            <div class="border-b border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-                Set your college in your account profile to view your faculty members.
-            </div>
-        @endif
-
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-100 dark:divide-slate-800">
-                <thead class="bg-gray-50 dark:bg-slate-950/50">
-                    <tr>
-                        <th scope="col" class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Member</th>
-                        <th scope="col" class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Email</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-slate-800">
-                    @forelse ($members as $member)
-                        <tr class="transition hover:bg-gray-50 dark:hover:bg-slate-800/60">
-                            <td class="whitespace-nowrap px-5 py-4">
-                                <div class="flex items-center gap-3">
-                                    @if ($member->avatar)
-                                        <img src="{{ $member->avatar }}" alt="" class="h-10 w-10 rounded-xl bg-gray-100 object-cover dark:bg-slate-800">
-                                    @else
-                                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-sm font-black uppercase text-red-700 dark:bg-red-950/50 dark:text-red-300">{{ Str::substr($member->name, 0, 1) }}</div>
-                                    @endif
-                                    <span class="text-sm font-bold text-gray-900 dark:text-white">{{ $member->name }}</span>
-                                </div>
-                            </td>
-                            <td class="whitespace-nowrap px-5 py-4 text-sm text-gray-600 dark:text-slate-300">{{ $member->email }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="2" class="px-5 py-12 text-center">
-                                <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No faculty members found yet</p>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Your college currently has {{ $memberCount }} registered {{ Str::plural('member', $memberCount) }}.</p>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        @if ($members->hasPages())
-            <div class="border-t border-gray-100 px-5 py-4 dark:border-slate-800">{{ $members->links() }}</div>
-        @endif
-    </section>
+            <footer class="secretary-directory-footer">{{ $members->total() }} {{ str('member')->plural($members->total()) }}{{ request()->filled('q') ? ' matching your search' : ' in your college' }}<span>{{ $coordinator->college ?: 'No college selected' }}</span></footer>
+            @if ($members->hasPages())<div class="border-t border-slate-100 p-5 dark:border-slate-800">{{ $members->links() }}</div>@endif
+        </section>
+    </div>
 </x-app-layout>

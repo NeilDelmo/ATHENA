@@ -201,7 +201,7 @@ test('revision checks compare reviewed and current fields and do not equate reso
         $topic->reviews()->create(['reviewer_id' => $head->id, 'decision' => 'head_upload', 'comment' => 'Uploaded supplemental file '.$upload]);
     }
 
-    $this->actingAs($head)->postJson(route('research-support.chat'), proposalReviewRequest(['topic_id' => $topic->id], 'revision_response'))
+    $this->actingAs($owner)->postJson(route('research-support.chat'), proposalReviewRequest(['topic_id' => $topic->id], 'revision_response'))
         ->assertOk()->assertJsonFragment(['reference' => 'Detailed Research Proposal']);
 
     Http::assertSent(function ($request) {
@@ -272,6 +272,34 @@ test('review followups and restored history keep their focus and disclose unavai
     $this->postJson(route('research-support.history.save'), ['messages' => $payload['messages'], 'context' => $payload['context']])
         ->assertOk()->assertJsonPath('conversation.context.review_focus', 'consistency');
 });
+
+test('research head workspace rejects AI proposal evaluations before contacting the provider', function (string $focus, bool $explicitAction) {
+    $head = User::factory()->create();
+    $head->assignRole(['research_head', 'faculty']);
+    $topic = proposalReviewTopic($head);
+    $payload = proposalReviewRequest(['topic_id' => $topic->id], $focus);
+    $payload['messages'][0]['content'] = $focus === 'consistency'
+        ? 'Check this proposal for consistency.'
+        : 'Check whether I addressed the comments.';
+    if (! $explicitAction) {
+        unset($payload['action']);
+    }
+
+    $this->actingAs($head)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->postJson(route('research-support.chat'), $payload)
+        ->assertForbidden()->assertJsonMissingPath('review');
+    Http::assertNothingSent();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->postJson(route('research-support.chat'), $payload)
+        ->assertOk()->assertJsonPath('review.record_basis', 'latest_submitted_version');
+})->with([
+    'proposal shortcut' => ['consistency', true],
+    'revision shortcut' => ['revision_response', true],
+    'typed proposal check' => ['consistency', false],
+    'typed revision check' => ['revision_response', false],
+]);
 
 test('typed review requests use evidence only with a selected target and preserve other actions', function () {
     $review = app(ResearchAssistantProposalReviewService::class);
@@ -586,7 +614,10 @@ test('dual role faculty assistants cannot read unrelated projects through chat d
     Http::assertNothingSent();
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
-        ->postJson(route('research-support.chat'), proposalReviewRequest(['topic_id' => $topic->id]))->assertOk();
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'Summarize the saved proposal.']],
+            'context' => ['topic_id' => $topic->id],
+        ])->assertOk()->assertJsonMissingPath('review');
 });
 
 test('accepted faculty collaborators can use project feedback while pending invitations cannot', function () {

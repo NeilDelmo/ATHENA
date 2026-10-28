@@ -52,15 +52,15 @@ class CollegeQuarterlyReport extends Model
 
         return collect($rows)->map(function (array $row) use ($section): array {
             if ($section === 'manual_research') {
-                return [$row['title'], $row['duration'], $row['personnel'], $row['status']];
+                return [$row['title'] ?? '', $row['duration'] ?? '', $row['personnel'] ?? '', $row['status'] ?? ''];
             }
-            $date = CarbonImmutable::parse($row['date'])->format('F j, Y');
+            $date = filled($row['date'] ?? null) ? CarbonImmutable::parse($row['date'])->format('F j, Y') : '';
 
             return match ($section) {
-                'ip_assets' => [$row['title'], $row['type'], $row['inventors'], $date, implode("\n", array_filter([$row['remarks'] ?? '', $row['evidence_url'] ?? ''], fn (?string $value): bool => filled($value)))],
-                'presentations' => [$row['event'], $row['research_title'], $date, $row['place'], $row['personnel']],
-                'publications' => [$row['event'], $row['research_title'], $date, $row['personnel']],
-                default => [$row['event'], $date, $row['place'], $row['personnel']],
+                'ip_assets' => [$row['title'] ?? '', $row['type'] ?? '', $row['inventors'] ?? '', $date, implode("\n", array_filter([$row['remarks'] ?? '', $row['evidence_url'] ?? ''], fn (?string $value): bool => filled($value)))],
+                'presentations' => [$row['event'] ?? '', $row['research_title'] ?? '', $date, $row['place'] ?? '', $row['personnel'] ?? ''],
+                'publications' => [$row['event'] ?? '', $row['research_title'] ?? '', $date, $row['personnel'] ?? ''],
+                default => [$row['event'] ?? '', $date, $row['place'] ?? '', $row['personnel'] ?? ''],
             };
         })->values()->all();
     }

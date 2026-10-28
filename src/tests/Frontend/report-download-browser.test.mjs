@@ -14,7 +14,7 @@ test('Word and Excel downloads refresh the actual editor token and allow another
     const sources = Object.fromEntries(['college', 'rms'].map(name => [name, Object.fromEntries(['before', 'after'].map(state => [state,
         readFileSync(resolve(`storage/framework/testing/${name}-download-${state}.html`), 'utf8'),
     ]))]));
-    const modules = ['document-writing-toolbar', 'quarterly-report-form', 'rms-quarterly-report-form'].map(name =>
+    const modules = ['document-writing-toolbar', 'quarterly-report-form', 'rms-quarterly-report-form', 'proposal-preview-workspace', 'proposal-paper-workspace', 'proposal-assessment-preview', 'report-paper-preview'].map(name =>
         readFileSync(resolve(`resources/js/${name}.js`), 'utf8').replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '')).join('\n');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     const parser = await browser.newPage();
@@ -31,6 +31,11 @@ test('Word and Excel downloads refresh the actual editor token and allow another
         if (request.url === '/alpine.js') {
             response.setHeader('Content-Type', 'text/javascript');
             response.end(readFileSync(resolve('node_modules/alpinejs/dist/cdn.min.js')));
+            return;
+        }
+        if (request.url.endsWith('/preview')) {
+            response.setHeader('Content-Type', 'text/html');
+            response.end('<html><body><main>Report preview</main></body></html>');
             return;
         }
         const name = request.url.startsWith('/research-coordinator/') ? 'college' : 'rms';
@@ -51,7 +56,7 @@ test('Word and Excel downloads refresh the actual editor token and allow another
         let html = fixtures[name][saves[name].length ? 'after' : 'before'].replaceAll('http://localhost', origin);
         if (saves[name].length > 1) html = html.replace('x-init="window.location.assign($el.href)"', '');
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
-        response.end(`<html><body>${html}<script>${modules}\ndocument.addEventListener('alpine:init', () => { Alpine.data('quarterlyReportForm', quarterlyReportForm); Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm); });</script><script src="/alpine.js"></script></body></html>`);
+        response.end(`<html><body>${html}<script>${modules}\ndocument.addEventListener('alpine:init', () => { Alpine.data('quarterlyReportForm', quarterlyReportForm); Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm); Alpine.data('reportPaperPreview', reportPaperPreview); });</script><script src="/alpine.js"></script></body></html>`);
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     try {

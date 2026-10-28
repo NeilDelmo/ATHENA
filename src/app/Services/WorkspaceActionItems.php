@@ -66,11 +66,11 @@ class WorkspaceActionItems
                 $label = match (true) {
                     Gate::forUser($user)->allows('startLrecReview', $topic) => 'Start the queued LREC review',
                     Gate::forUser($user)->allows('recordLrecFeedback', $topic) => 'Record LREC feedback or outcome',
-                    Gate::forUser($user)->allows('manageNoticeToProceed', $topic) => 'Prepare signed papers and document release',
+                    Gate::forUser($user)->allows('manageNoticeToProceed', $topic) => 'Prepare the Notice to Proceed and signed papers',
                     default => null,
                 };
                 if ($label !== null) {
-                    $items[] = $this->item('proposal:'.$topic->id, $label, $topic->title, route('topics.show', $topic).'#proposal-review');
+                    $items[] = $this->item('proposal:'.$topic->id, $label, $topic->title, route('topics.show', $topic).($workspace === User::WORKSPACE_RESEARCH_SECRETARY ? '#notice-to-proceed' : '#proposal-review'));
                 }
             }
         }

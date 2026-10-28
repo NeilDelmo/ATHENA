@@ -33,7 +33,7 @@
         $proposalPaperCount = $submittedFiles->reject(fn (\App\Models\ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm())->count();
         $assessmentFormCount = $submittedFiles->count() - $proposalPaperCount;
           $hasProjectAccess = $isResearchHead || $canViewSigningDocuments || $topic->isAccessibleTo(Auth::user());
-          $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || (($isResearchHead || $canViewSigningDocuments) && $topic->status === 'ready_for_signature'))
+          $canViewNoticeToProceed = ! $isResearchHead && ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || ($canViewSigningDocuments && $topic->status === 'ready_for_signature'))
               && $hasProjectAccess && (! $topic->hasIssuedNoticeToProceed() || $isResearchHead || $canViewSigningDocuments);
           $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
               && $hasProjectAccess && ! $isFacultyWorkspace;
@@ -441,7 +441,7 @@
                                         <span class="block truncate text-sm font-bold text-gray-900">{{ $collaborator->name }}</span>
                                         <span class="block truncate text-xs text-gray-500">{{ $collaborator->email }}</span>
                                         <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Confirmed' : 'Invitation pending' }}</span>
-                                        @if ($collaborator->isProjectSecretary() || $collaborator->user_id === $topic->research_secretary_id)
+                                        @if (! Auth::user()->isUsingWorkspace(['research_head', 'research_secretary']) && ($collaborator->isProjectSecretary() || $collaborator->user_id === $topic->research_secretary_id))
                                             <span class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">Project Secretary</span>
                                         @elseif ($collaborator->accepted_at)
                                             <span class="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gray-700">Project staff</span>
@@ -561,13 +561,13 @@
                         @if ($topic->status === 'revision_requested')
                             The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
                         @elseif ($topic->isAwaitingNoticeToProceed())
-                            Final signing is complete. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
+                            Final signing is complete. Wait for the Research Secretary to issue the Notice to Proceed before beginning the project or entering monitoring.
                         @elseif ($topic->isCompletedProject())
                             This project is complete and archived. Its approved papers, Notice to Proceed, and previous monitoring records remain available as read-only records.
                         @elseif ($topic->status === 'approved')
                             Your Notice to Proceed has been issued. The proposal is now an active research project and monitoring is open.
                         @elseif ($topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
-                            Reviews are complete. The research office is collecting signed papers and the signed Notice to Proceed. They will be released together.
+                            Reviews are complete. The Research Secretary is collecting signed papers and the signed Notice to Proceed. They will be released together.
                         @elseif ($topic->status === 'lrec_queued')
                             Initial review is complete. Await the LREC presentation schedule from the research office.
                         @elseif ($topic->status === 'lrec_review')
@@ -788,7 +788,7 @@
                 </section>
             @elseif (Auth::user()->isUsingWorkspace('research_head'))
                 @if ($canReturnToRevision || $topic->status === 'approved')
-                    <x-proposal-review-summary :topic="$topic" :version="$latestVersion" :workspace="$headUploadWorkspace" />
+                    <x-proposal-review-summary :topic="$topic" :version="$latestVersion" />
                 @elseif ($topic->status === 'revision_requested')
                     <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                         <p class="font-bold">Waiting for the faculty revision</p>
@@ -807,7 +807,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
-                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : ($canManageNoticeToProceed ? 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.' : 'Review is complete. Research office staff or the secretary will prepare the Notice to Proceed and upload the signed documents for release.') }}</p>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : ($canManageNoticeToProceed ? 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.' : 'Review is complete. The Research Secretary will prepare the Notice to Proceed and upload the signed documents for release.') }}</p>
                     </div>
                 </div>
                 @if (($isResearchHead || $canViewSigningDocuments) && $headUploadWorkspace)

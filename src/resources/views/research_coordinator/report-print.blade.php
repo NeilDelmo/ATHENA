@@ -81,11 +81,13 @@
         </style>
     </head>
     <body>
+        @unless ($embedded ?? request()->boolean('embedded'))
         <nav class="toolbar" aria-label="Report preview actions">
             <a href="{{ $backUrl ?? route('research_coordinator.reports.index', ['year' => $year, 'quarter' => $quarter]) }}">Back to report</a>
             <button type="button" onclick="window.print()">Print or save PDF</button>
             <span>{{ $report?->submitted_at ? 'Submitted report' : 'Draft preview · Save your draft to include recent changes' }}</span>
         </nav>
+        @endunless
         <main>
             <header>
                 <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University logo">

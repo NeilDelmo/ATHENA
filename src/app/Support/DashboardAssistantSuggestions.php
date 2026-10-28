@@ -33,15 +33,6 @@ class DashboardAssistantSuggestions
 
     /**
      * @param  Collection<int, TopicProposal>  $topics
-     * @return Collection<int, array<string, mixed>>
-     */
-    public function forResearchHead(Collection $topics): Collection
-    {
-        return $this->forTopics($topics)->take(3)->values();
-    }
-
-    /**
-     * @param  Collection<int, TopicProposal>  $topics
      * @return Collection<int, array{
      *     label: string, target_label: string, evidence: string, prompt: string,
      *     context: array{topic_id: int, workflow_scope: string},

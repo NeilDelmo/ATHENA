@@ -100,7 +100,7 @@ test('researcher dashboards load report summaries only for active projects and r
 
     $response->assertViewHas('averageProgress', 40)
         ->assertViewHas('activeProjects', fn ($projects): bool => $projects->modelKeys() === [$active->id])
-        ->assertViewHas('awaitingProjects', fn ($projects): bool => $projects->modelKeys() === [$waiting->id])
+        ->assertViewMissing('awaitingProjects')
         ->assertViewHas('completedProjects', fn ($projects): bool => $projects->modelKeys() === [$completed->id])
         ->assertSee('Missing Monitoring Tools: Q2')->assertSee('Missing Progress Reports: Q2')
         ->assertSee('Q1 Monitoring Tool · Corrections needed')->assertSee('Q1 Progress Report · Corrections needed')
@@ -124,12 +124,10 @@ test('researcher dashboards load report summaries only for active projects and r
     foreach ($project->progressReports as $report) {
         expect($report->getAttributes())->not->toHaveKeys(['accomplishments', 'issues', 'budget_utilization']);
     }
-    foreach (['awaitingProjects', 'completedProjects'] as $group) {
-        $project = $response->viewData($group)->sole();
-        expect($project->relationLoaded('progressReports'))->toBeFalse()
-            ->and($project->relationLoaded('narrativeReports'))->toBeFalse()
-            ->and($project->relationLoaded('latestProgressReport'))->toBeFalse();
-    }
+    $project = $response->viewData('completedProjects')->sole();
+    expect($project->relationLoaded('progressReports'))->toBeFalse()
+        ->and($project->relationLoaded('narrativeReports'))->toBeFalse()
+        ->and($project->relationLoaded('latestProgressReport'))->toBeFalse();
     expect($retrieved)->not->toBeEmpty();
     foreach ($retrieved as $attributes) {
         expect($attributes['topic_id'])->toBe($active->id);

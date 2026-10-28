@@ -102,31 +102,24 @@ test('faculty review checks cover all revisions and complete recent drafts witho
         ->and($items->pluck('context.proposal_draft_id')->filter()->values()->all())->toBe($drafts->pluck('id')->all());
 });
 
-test('research head dashboard caps focused review suggestions and follows the visible review filter', function () {
+test('research head dashboard does not offer AI proposal evaluations even after filtering', function () {
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $faculty = User::factory()->create();
-    $revision = TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Resubmitted coastal study', 'status' => 'resubmitted']);
+    TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Resubmitted coastal study', 'status' => 'resubmitted']);
     foreach (range(1, 4) as $number) {
         TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Pending study '.$number, 'status' => 'pending']);
     }
     TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Closed other study', 'status' => 'rejected']);
 
     $component = Livewire::actingAs($head)->test(ResearchHeadDashboard::class, ['overview' => true])
-        ->assertSee('Review with Athena');
-    $items = dashboardReviewSuggestions($component->html());
+        ->assertDontSee('Review with Athena')
+        ->assertDontSee('data-dashboard-assistant-suggestions', false);
+    expect(dashboardReviewSuggestions($component->html()))->toBeEmpty();
 
-    expect($items)->toHaveCount(3)
-        ->and($items[0]['target_label'])->toBe($revision->title)
-        ->and($items[0]['context'])->toBe(['topic_id' => $revision->id, 'workflow_scope' => 'review'])
-        ->and($items[0]['action'])->toBe(['type' => 'review_proposal', 'review_focus' => 'revision_response'])
-        ->and($items[0]['evidence'])->toBe('Resubmitted proposal awaiting review.');
-
-    $component->set('pipeline', 'awaiting_review')->set('search', 'Pending study 4');
-    $filtered = dashboardReviewSuggestions($component->html());
-    expect($filtered)->toHaveCount(1)
-        ->and($filtered[0]['target_label'])->toBe('Pending study 4')
-        ->and($filtered[0]['action']['review_focus'])->toBe('consistency');
+    $component->set('pipeline', 'awaiting_review')->set('search', 'Pending study 4')
+        ->assertDontSee('Review with Athena');
+    expect(dashboardReviewSuggestions($component->html()))->toBeEmpty();
 
     Http::assertNothingSent();
 });

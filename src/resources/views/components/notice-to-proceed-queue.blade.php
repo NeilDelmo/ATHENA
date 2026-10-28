@@ -23,7 +23,7 @@
                 <a href="{{ route('topics.show', $project) }}#notice-to-proceed" class="dashboard-action shrink-0">{{ $project->hasPreparedNoticeToProceed() ? 'Upload signed documents' : 'Prepare Notice to Proceed' }}</a>
             </article>
         @empty
-            <p class="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">No projects are awaiting document release.</p>
+            <p class="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">No projects are awaiting a Notice to Proceed.</p>
         @endforelse
     </div>
     @if ($projects->hasPages())

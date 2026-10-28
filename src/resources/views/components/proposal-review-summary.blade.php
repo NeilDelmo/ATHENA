@@ -1,10 +1,7 @@
-@props(['topic', 'version' => null, 'workspace' => null])
+@props(['topic', 'version' => null])
 
 @php
     $reviews = $topic->reviews->where('decision', '!=', 'head_upload')->sortBy([['created_at', 'desc'], ['id', 'desc']])->values();
-    $requiredFiles = $workspace['requiredSignatureFiles'] ?? collect();
-    $signedIds = $workspace['signedSourceFileIds'] ?? collect();
-    $signedCount = $requiredFiles->filter(fn ($file) => $signedIds->contains($file->id))->count();
     $released = $topic->hasIssuedNoticeToProceed();
 @endphp
 
@@ -16,7 +13,7 @@
             </span>
             <div class="min-w-0">
                 <h3 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{{ $released ? 'Proposal released' : 'Review complete' }}</h3>
-                <p class="mt-2 max-w-prose text-base leading-7 text-slate-600 dark:text-slate-400">{{ $released ? 'The signed project and Notice to Proceed have been released. The review record remains available below.' : 'LREC review is complete. The proposal is cleared for signing; collect the signed papers before releasing the proposal.' }}</p>
+                <p class="mt-2 max-w-prose text-base leading-7 text-slate-600 dark:text-slate-400">{{ $released ? 'The signed project and Notice to Proceed have been released. The review record remains available below.' : 'LREC review is complete. The Research Secretary will prepare the signed papers and Notice to Proceed.' }}</p>
             </div>
         </div>
         <dl class="grid grid-cols-1 gap-4 border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-base dark:border-slate-800 dark:bg-slate-900/50 sm:grid-cols-3 sm:px-6">
@@ -68,37 +65,17 @@
                 @endforelse
             </ol>
             <div class="border-t border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6">
-                <button type="button" @click="setTopicTab('history', 'version-history')" class="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-red-300">View full decisions and version history <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" /></svg></button>
+                <button type="button" @click="setTopicTab('history', 'version-history')" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-brand dark:border-slate-700 dark:bg-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-red-300">View full decisions and version history <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" /></svg></button>
             </div>
         </section>
 
         <aside class="min-w-0 space-y-5" aria-label="Proposal next steps">
-            <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-                <div class="border-t-4 border-brand px-5 pb-5 pt-4">
-                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ $released ? 'Released documents' : 'Signing & release' }}</h3>
-                    <p class="mt-2 text-base leading-7 text-slate-600 dark:text-slate-400">{{ $released ? 'Open the signed papers and the issued Notice to Proceed.' : 'Upload the signed proposal papers, then prepare the Notice to Proceed.' }}</p>
-                    @if ($requiredFiles->isNotEmpty())
-                        <div class="mt-5 flex items-center justify-between gap-3 text-sm"><span class="font-semibold text-slate-700 dark:text-slate-200">Signed papers</span><span data-review-signature-count class="font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ $signedCount }} of {{ $requiredFiles->count() }}</span></div>
-                        <ul class="mt-3 space-y-3" data-review-signature-checklist>
-                            @foreach ($requiredFiles as $file)
-                                <li class="flex items-start gap-2.5 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                    <span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full {{ $signedIds->contains($file->id) ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' : 'border border-slate-300 dark:border-slate-600' }}" aria-hidden="true">@if ($signedIds->contains($file->id))<svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>@endif</span>
-                                    <span>{{ $file->label() }}<span class="sr-only">: {{ $signedIds->contains($file->id) ? 'Signed copy uploaded' : 'Awaiting signed copy' }}</span></span>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @else
-                        <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">No required proposal papers are available in the latest submission.</p>
-                    @endif
-                    <button type="button" @click="setTopicTab('notice', 'notice-to-proceed')" class="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-base font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">{{ $released ? 'View released documents' : 'Continue to signing' }}</button>
-                </div>
-            </section>
             <section class="px-1">
                 <h3 class="text-base font-semibold text-slate-800 dark:text-slate-200">Latest project</h3>
                 @if ($version)
                     <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Version {{ $version->version_number }} submitted {{ $version->created_at->format('M j, Y') }} by {{ $version->submitter?->name ?? $topic->user->name }}.</p>
                 @endif
-                <button type="button" @click="$dispatch('open-project-documents')" class="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-red-300"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Z" /></svg>Open proposal files</button>
+                <button type="button" @click="$dispatch('open-project-documents')" class="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-brand dark:border-slate-700 dark:bg-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-red-300"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Z" /></svg>Open proposal files</button>
             </section>
         </aside>
     </div>

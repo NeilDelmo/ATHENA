@@ -90,7 +90,7 @@ test('researcher report corrections stop appearing once a newer version exists a
     $this->getJson(route('notifications.index'))->assertOk()->assertJsonCount(0, 'pending_actions');
 });
 
-test('research office actions respect college routing and resolve after LREC or document release', function () {
+test('research office actions respect college routing and leave notice issuance to the secretary', function () {
     $office = User::factory()->create(['college' => 'College A']);
     $office->assignRole('research_coordinator');
     $outsideOffice = User::factory()->create(['college' => 'College B']);
@@ -98,11 +98,17 @@ test('research office actions respect college routing and resolve after LREC or 
     $lrec = TopicProposal::create(['user_id' => $this->faculty->id, 'title' => 'LREC project', 'status' => 'lrec_queued', 'review_stage' => 'lrec']);
     $release = TopicProposal::create(['user_id' => $this->faculty->id, 'title' => 'Release project', 'status' => 'approved']);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_office'])->actingAs($office)
-        ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(2, 'pending_actions');
+        ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(1, 'pending_actions')->assertDontSee('Release project');
     $this->actingAs($outsideOffice)->getJson(route('notifications.index'))->assertOk()->assertJsonCount(0, 'pending_actions')->assertDontSee('LREC project')->assertDontSee('Release project');
+    $secretary = User::factory()->create(['college' => 'College A']);
+    $secretary->assignRole('research_secretary');
+    $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(1, 'pending_actions')
+        ->assertJsonPath('pending_actions.0.url', route('topics.show', $release).'#notice-to-proceed');
     $lrec->update(['status' => 'revision_requested']);
     $release->update(['notice_to_proceed_issued_at' => now()]);
-    $this->actingAs($office)->getJson(route('notifications.index'))->assertOk()->assertJsonCount(0, 'pending_actions');
+    $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(0, 'pending_actions');
 });
 
 test('head proposal tasks stop when revisions are requested and completed projects leave report tasks', function () {

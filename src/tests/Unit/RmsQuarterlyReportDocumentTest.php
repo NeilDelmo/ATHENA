@@ -136,6 +136,23 @@ test('RMS exports fill report metadata signatures and actual record totals witho
     expect(file_get_contents($template))->toBe($before);
 });
 
+test('RMS letterheads retain their rich multiline text without a whole cell hyperlink', function () {
+    $template = rmsXlsxParts(file_get_contents(resource_path('documents/RMS-Quarterly-Monitoring-Report.xlsx')));
+    $parts = rmsXlsxParts(app(RmsQuarterlyReportDocument::class)->generate([], rmsXlsxMetadata()));
+    expect($parts['xl/sharedStrings.xml'])->toBe($template['xl/sharedStrings.xml']);
+    $strings = rmsXlsxXPath($parts['xl/sharedStrings.xml']);
+
+    foreach ([1, 2, 3] as $sheet) {
+        $xpath = rmsXlsxXPath($parts['xl/worksheets/sheet'.$sheet.'.xml']);
+        $index = (int) $xpath->evaluate('string(//s:c[@r="A1"]/s:v)') + 1;
+        $header = $strings->query('/s:sst/s:si['.$index.']')->item(0);
+        expect($header->textContent)->toContain("Republic of the Philippines\nBATANGAS STATE UNIVERSITY\nThe National Engineering University\n")
+            ->and($xpath->query('/s:worksheet/s:hyperlinks/s:hyperlink[@ref="A1"]')->length)->toBe(0)
+            ->and($xpath->query('/s:worksheet/s:hyperlinks[not(s:hyperlink)]')->length)->toBe(0)
+            ->and($parts['xl/drawings/drawing'.$sheet.'.xml'])->toBe($template['xl/drawings/drawing'.$sheet.'.xml']);
+    }
+});
+
 test('RMS exports grow beyond ten records and move the total notes signatures and dropdowns', function () {
     $rows = array_map(fn (int $number) => ['values' => ['presentation_title' => 'Paper '.$number, 'article_title' => 'Article '.$number, 'title' => 'Asset '.$number]], range(1, 12));
     $parts = rmsXlsxParts(app(RmsQuarterlyReportDocument::class)->generate([

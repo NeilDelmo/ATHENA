@@ -68,10 +68,12 @@ export function loadPdfJs() {
     pdfJsPromise ??= Promise.all([
         import('pdfjs-dist'),
         import('pdfjs-dist/build/pdf.worker.mjs?url'),
-    ]).then(([pdfJs, workerModule]) => {
+    ]).then(async ([pdfJs, workerModule]) => {
         pdfJs.GlobalWorkerOptions.workerSrc = resolveApplicationAssetUrl(workerModule.default);
+        const worker = new pdfJs.PDFWorker();
+        await worker.promise;
 
-        return pdfJs;
+        return { ...pdfJs, getDocument: options => pdfJs.getDocument({ ...options, worker }) };
     }).catch((error) => {
         pdfJsPromise = undefined;
         throw error;
@@ -294,6 +296,7 @@ export function matchRevisionSection(sections, selection) {
 export default function registerPdfAnnotationWorkspace(Alpine) {
     Alpine.data('pdfAnnotationWorkspace', (configuration = null) => {
         let pdfDocument = null;
+        let pdfLoadingTask = null;
         let pageElements = new Map();
         let areaPointer = null;
         let renderToken = 0;
@@ -519,6 +522,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.rememberReadingPosition();
                 destroyed = true;
                 rendering = false;
+                pdfLoadingTask?.destroy().catch(() => {});
                 if (this.paperFocusOpen) document.body.style.overflow = bodyOverflowBeforePaperFocus;
                 resizeObserver?.disconnect();
                 visibilityObserver?.disconnect();
@@ -828,10 +832,11 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 try {
                     const pdfJs = await pdfJsLoader();
                     if (destroyed) return;
-                    pdfDocument = await pdfJs.getDocument({
+                    pdfLoadingTask = pdfJs.getDocument({
                         url: this.config.pdfUrl,
                         withCredentials: true,
-                    }).promise;
+                    });
+                    pdfDocument = await pdfLoadingTask.promise;
                     if (destroyed) return;
                     this.pageCount = pdfDocument.numPages || 0;
                     if (!this.config.firstPageOnly) {
@@ -940,25 +945,27 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     canvas.style.height = `${viewport.height}px`;
                     pageElement.append(canvas);
 
-                    const textLayerElement = document.createElement('div');
-                    textLayerElement.className = 'textLayer';
-                    pageElement.append(textLayerElement);
-                    const textLayer = new library.TextLayer({
-                        textContentSource: page.streamTextContent({
-                            includeMarkedContent: true,
-                            disableNormalization: true,
-                        }),
-                        container: textLayerElement,
+                    const canvasRender = page.render({
+                        canvasContext: canvas.getContext('2d'),
                         viewport,
-                    });
-                    await Promise.all([
-                        page.render({
-                            canvasContext: canvas.getContext('2d'),
+                        transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
+                    }).promise;
+                    if (this.config.firstPageOnly) {
+                        await canvasRender;
+                    } else {
+                        const textLayerElement = document.createElement('div');
+                        textLayerElement.className = 'textLayer';
+                        pageElement.append(textLayerElement);
+                        const textLayer = new library.TextLayer({
+                            textContentSource: page.streamTextContent({
+                                includeMarkedContent: true,
+                                disableNormalization: true,
+                            }),
+                            container: textLayerElement,
                             viewport,
-                            transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
-                        }).promise,
-                        textLayer.render(),
-                    ]);
+                        });
+                        await Promise.all([canvasRender, textLayer.render()]);
+                    }
                     if (activeRender !== renderToken) return;
 
                     const annotationLayer = document.createElement('div');

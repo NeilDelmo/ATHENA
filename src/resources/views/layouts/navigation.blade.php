@@ -174,18 +174,7 @@
 
 
         @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_SECRETARY))
-            <a
-                wire:navigate
-                wire:current="{{ $sidebarCurrentClasses }}"
-                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
-                href="{{ route('research_secretary.dashboard') }}"
-                aria-label="Research Office Secretary Dashboard"
-                title="Research Office Secretary Dashboard"
-                class="{{ $sidebarLinkClasses }}"
-            >
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
-                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Notices &amp; Budgets</span>
-            </a>
+            <x-research-secretary-navigation />
             <a wire:navigate wire:current="{{ $sidebarCurrentClasses }}" href="{{ route('signatories.index') }}" aria-label="Signatory defaults" title="Signatory defaults" class="{{ $sidebarLinkClasses }}">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h5M5 3h14v18H5V3m5 14h5" /></svg>
                 <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signatories</span>
@@ -194,67 +183,7 @@
 
         @role('research_coordinator')
             @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE))
-                <nav aria-label="Research Coordinator navigation" class="space-y-4" data-research-office-navigation>
-                    <section aria-label="Overview">
-                        <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            Overview<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
-                        </h2>
-                        <a
-                            wire:navigate
-                            wire:current.exact="{{ $sidebarCurrentClasses }}"
-                            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
-                            href="{{ route('research_coordinator.dashboard') }}"
-                            aria-label="Dashboard"
-                            title="Dashboard"
-                            class="{{ $sidebarLinkClasses }}"
-                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
-                        >
-                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-                            </svg>
-                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Dashboard</span>
-                        </a>
-                    </section>
-
-                    <section aria-label="Research">
-                        <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            Research<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
-                        </h2>
-                        <a
-                            wire:navigate
-                            wire:current="{{ $sidebarCurrentClasses }}"
-                            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
-                            href="{{ route('research_coordinator.members.index') }}"
-                            aria-label="Faculty Members"
-                            title="Faculty Members"
-                            class="{{ $sidebarLinkClasses }}"
-                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
-                        >
-                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.74-.48 3 3 0 0 0-4.68-2.72m.94 3.2v-.01c0-1.2-.34-2.32-.94-3.19m.94 3.2v.13A11.9 11.9 0 0 1 12 20.4c-2.17 0-4.2-.58-5.94-1.6v-.12a6 6 0 0 1 11-3.17M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-                            </svg>
-                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Members</span>
-                        </a>
-                        <a wire:navigate wire:current="{{ $sidebarCurrentClasses }}" href="{{ route('research-outcomes.index') }}" data-sidebar-attention-url="{{ route('sidebar-attention.open', 'research_outcomes') }}" aria-label="Post-implementation" title="Post-implementation" class="{{ $sidebarLinkClasses }}" :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'">
-                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Post-implementation</span>
-                            <x-sidebar-attention-badge :count="$sidebarAttentionCounts['research_outcomes'] ?? 0" />
-                        </a>
-                        <a
-                            wire:navigate
-                            wire:current="{{ $sidebarCurrentClasses }}"
-                            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
-                            href="{{ route('research_coordinator.reports.index') }}"
-                            aria-label="Quarterly Reports"
-                            title="Quarterly Reports"
-                            class="{{ $sidebarLinkClasses }}"
-                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
-                        >
-                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v15a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V5a2 2 0 0 0-2-2h-3M8 2h8v4H8V2Zm-1 9h10M7 15h10" /></svg>
-                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Quarterly Reports</span>
-                        </a>
-                    </section>
-                </nav>
+                <x-research-coordinator-navigation :attention-counts="$sidebarAttentionCounts ?? []" />
             @endif
         @endrole
 

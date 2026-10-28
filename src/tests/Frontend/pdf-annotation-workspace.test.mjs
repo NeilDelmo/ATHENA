@@ -268,6 +268,102 @@ function annotationWorkspace() {
     return state;
 }
 
+test('report previews reuse one real PDF worker and closing one keeps other previews readable', async () => {
+    const source = (await readFile(new URL('../../resources/js/pdf-annotation-workspace.js', import.meta.url), 'utf8'))
+        .replaceAll('export default ', '').replaceAll('export ', '')
+        .replace("import('pdfjs-dist')", "import('/pdf.mjs')")
+        .replace("import('pdfjs-dist/build/pdf.worker.mjs?url')", "Promise.resolve({ default: '/pdf.worker.mjs' })");
+    const pdfJs = await readFile(new URL('../../node_modules/pdfjs-dist/build/pdf.mjs', import.meta.url), 'utf8');
+    const worker = await readFile(new URL('../../node_modules/pdfjs-dist/build/pdf.worker.mjs', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent('<h1>Submitted report</h1>');
+        const pdf = await page.pdf();
+        await page.route('http://pdf-preview.test/**', route => {
+            const path = new URL(route.request().url()).pathname;
+            if (path === '/pdf.mjs' || path === '/pdf.worker.mjs') return route.fulfill({ contentType: 'text/javascript', body: path === '/pdf.mjs' ? pdfJs : worker });
+            if (path.endsWith('.pdf')) return route.fulfill({ contentType: 'application/pdf', body: pdf });
+            return route.fulfill({ contentType: 'text/html', body: '<main>Report previews</main>' });
+        });
+        await page.goto('http://pdf-preview.test/');
+        const workers = [];
+        page.on('worker', instance => workers.push(instance));
+        await page.addScriptTag({ content: source });
+        const result = await page.evaluate(async () => {
+            const library = await loadPdfJs();
+            const first = library.getDocument({ url: '/first.pdf' });
+            const second = library.getDocument({ url: '/second.pdf' });
+            await first.promise;
+            const secondPdf = await second.promise;
+            await first.destroy();
+            const text = await (await secondPdf.getPage(1)).getTextContent();
+            const third = library.getDocument({ url: '/first.pdf' });
+            const thirdPdf = await third.promise;
+            const pages = thirdPdf.numPages;
+            await Promise.all([second.destroy(), third.destroy()]);
+            return { pages, text: text.items.map(item => item.str).join(' ') };
+        });
+        assert.deepEqual(result, { pages: 1, text: 'Submitted report' });
+        assert.equal(workers.length, 1);
+    } finally {
+        await browser.close();
+    }
+});
+
+test('report thumbnails display the first page without waiting for a hidden text layer', async () => {
+    const source = await readFile(new URL('../../resources/js/pdf-annotation-workspace.js', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent('<div id="viewer" style="width:240px;height:340px"></div>');
+        await page.addScriptTag({ content: source.replaceAll('export default ', '').replaceAll('export ', '') });
+        await page.evaluate(() => {
+            let factory;
+            registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
+            const state = factory();
+            state.$refs = { viewer: document.querySelector('#viewer') };
+            state.$nextTick = () => Promise.resolve();
+            state.config = { pdfUrl: '/report.pdf', firstPageOnly: true };
+            window.textLayers = 0;
+            const pdf = {
+                numPages: 3,
+                getPage: async () => ({
+                    getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale, userUnit: 1 }),
+                    render: () => ({ promise: Promise.resolve() }),
+                    streamTextContent() { throw new Error('Thumbnails must not extract hidden text'); },
+                }),
+            };
+            window.thumbnail = state;
+            state.loadPdf(async () => ({
+                getDocument: () => ({ promise: Promise.resolve(pdf) }),
+                TextLayer: class { constructor() { window.textLayers++; } },
+            }));
+        });
+        await page.waitForFunction(() => !window.thumbnail.loading);
+        assert.equal(await page.evaluate(() => window.thumbnail.loadError), '');
+        assert.equal(await page.locator('#viewer canvas').count(), 1);
+        assert.equal(await page.locator('#viewer .textLayer').count(), 0);
+        assert.equal(await page.evaluate(() => window.textLayers), 0);
+    } finally {
+        await browser.close();
+    }
+});
+
+test('closing a PDF preview releases its document loading task', async t => {
+    const originalWindow = globalThis.window;
+    t.after(() => { globalThis.window = originalWindow; });
+    globalThis.window = { clearTimeout() {} };
+    const state = annotationWorkspace();
+    state.renderDocument = async () => {};
+    let releases = 0;
+    await state.loadPdf(async () => ({ getDocument: () => ({
+        promise: Promise.resolve({}), destroy: async () => { releases++; },
+    }) }));
+    state.destroy();
+    assert.equal(releases, 1);
+});
+
 test('inline papers wait until visible and release their visibility observer when removed', (t) => {
     const originalWindow = globalThis.window;
     const originalObserver = globalThis.IntersectionObserver;

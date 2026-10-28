@@ -1,9 +1,11 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\CollegeQuarterlyReport;
 use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\RmsQuarterlyReport;
 use App\Models\User;
+use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\RmsQuarterlyReportData;
 use App\Services\RmsQuarterlyReportDocument;
 use App\Services\RmsQuarterlyReportStatus;
@@ -75,6 +77,98 @@ test('research head can open the quarterly monitoring workspace with missing col
         ->assertUnprocessable()->assertJsonValidationErrors(['year', 'quarter']);
 });
 
+test('RMS previews show saved report content while colleges are still pending', function () {
+    $source = CollegeQuarterlyReport::factory()->create([
+        'college' => User::COLLEGES['CICS'], 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now(),
+    ]);
+    CollegeQuarterlyReportSubmission::factory()->for($source, 'report')->create(['snapshot' => [
+        'college' => $source->college,
+        'manual_presentations' => [['id' => 'preview-row', 'event' => 'Research Forum', 'research_title' => '<script>alert(1)</script>', 'date' => '2026-09-03', 'place' => 'Nasugbu', 'personnel' => 'Ana Researcher']],
+    ]]);
+    $row = app(RmsQuarterlyReportData::class)->build(2026, 3)['presentations'][0];
+    $this->post(route('research_head.rms-quarterly-reports.store'), [...($this->draftInput)(),
+        'intent' => 'preview', 'campus' => 'Preview campus',
+        'signatories' => ['prepared' => ['name' => 'Preview reviewer']],
+        'row_details' => [$row['key'] => ['authors' => 'Saved authors']],
+    ])->assertSessionHasNoErrors()->assertRedirect(route('research_head.rms-quarterly-reports.index', [...$this->period, 'preview' => 1]));
+
+    $this->get(route('research_head.rms-quarterly-reports.index', [...$this->period, 'preview' => 1]))
+        ->assertOk()->assertViewIs('research_head.rms-quarterly-reports.index')
+        ->assertSee('Preview campus')
+        ->assertSeeText('Save & download Excel')->assertDontSeeText('Print or save PDF')
+        ->assertSee('rms-report-preview-panel')
+        ->assertSee('reportPaperPreview(', false);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertXlsx')->once()->andReturnUsing(function (string $contents): string {
+        $path = tempnam(sys_get_temp_dir(), 'rms-preview-test-');
+        file_put_contents($path, $contents);
+        $archive = new ZipArchive;
+        $template = new ZipArchive;
+        try {
+            expect($archive->open($path))->toBeTrue();
+            expect($template->open(resource_path('documents/RMS-Quarterly-Monitoring-Report.xlsx')))->toBeTrue();
+            expect($archive->getFromName('xl/worksheets/sheet1.xml'))->toContain('Saved authors', 'Preview reviewer', '&lt;script&gt;alert(1)&lt;/script&gt;');
+            foreach (['xl/media/image1.png', 'xl/sharedStrings.xml', 'xl/drawings/drawing1.xml'] as $part) {
+                expect($archive->getFromName($part))->toBe($template->getFromName($part));
+            }
+        } finally {
+            $archive->close();
+            $template->close();
+            unlink($path);
+        }
+        if (getenv('ATHENA_EXPORT_RMS_PREVIEW') === '1') {
+            File::ensureDirectoryExists(storage_path('framework/testing/rms-preview'));
+            File::put(storage_path('framework/testing/rms-preview/report.xlsx'), $contents);
+            $converter = app(LibreOfficeDocumentPdfConverter::class);
+            $pdf = $converter->convertXlsx($contents);
+            File::put(storage_path('framework/testing/rms-preview/report.pdf'), $pdf);
+            File::put(storage_path('framework/testing/rms-preview/template.pdf'), $converter->convertXlsx(file_get_contents(resource_path('documents/RMS-Quarterly-Monitoring-Report.xlsx'))));
+
+            return $pdf;
+        }
+
+        return '%PDF-1.7 template preview';
+    });
+    $this->get(route('research_head.rms-quarterly-reports.preview', $this->period))
+        ->assertOk()->assertHeader('Content-Type', 'application/pdf')
+        ->assertHeader('Content-Disposition', 'inline; filename="RMS-Quarterly-Monitoring-Report-2026-Q3.pdf"')
+        ->assertHeader('Cache-Control', 'no-store, private');
+    expect(RmsQuarterlyReport::sole()->downloaded_at)->toBeNull();
+});
+
+test('an empty RMS report can be previewed without saving a draft', function () {
+    $this->get(route('research_head.rms-quarterly-reports.index', [...$this->period, 'preview' => 1]))
+        ->assertOk()->assertViewIs('research_head.rms-quarterly-reports.index')
+        ->assertSee('rms-report-preview-panel')->assertSee('reportPaperPreview(', false);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertXlsx')->once()->andReturn('%PDF-1.7 empty template');
+    $this->get(route('research_head.rms-quarterly-reports.preview', $this->period))->assertOk()->assertSee('%PDF-1.7 empty template');
+    expect(RmsQuarterlyReport::count())->toBe(0);
+});
+
+test('the RMS side preview renders current edits without saving or marking a download', function () {
+    $report = RmsQuarterlyReport::factory()->create(['reporting_year' => 2026, 'reporting_quarter' => 3, 'campus' => 'Saved campus']);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertXlsx')->once()->andReturnUsing(function (string $contents): string {
+        $path = tempnam(sys_get_temp_dir(), 'rms-live-preview-');
+        file_put_contents($path, $contents);
+        $archive = new ZipArchive;
+        try {
+            expect($archive->open($path))->toBeTrue();
+            expect($archive->getFromName('xl/worksheets/sheet1.xml'))->toContain('Unsaved campus', 'Unsaved signatory');
+        } finally {
+            $archive->close();
+            unlink($path);
+        }
+
+        return '%PDF-1.7 unsaved preview';
+    });
+    $this->post(route('research_head.rms-quarterly-reports.preview-draft', $this->period), [...($this->draftInput)(),
+        'campus' => 'Unsaved campus', 'signatories' => ['prepared' => ['name' => 'Unsaved signatory']],
+    ])->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertSee('%PDF-1.7 unsaved preview');
+    expect($report->fresh()->campus)->toBe('Saved campus')->and($report->fresh()->downloaded_at)->toBeNull();
+    $this->get(route('research_head.rms-quarterly-reports.index', $this->period))->assertOk()
+        ->assertSee('reportPaperPreview(', false)->assertSee('proposal-writing-columns', false)
+        ->assertSee('rms-report-preview-panel')->assertSee('Fit page')->assertSee('Fit width');
+});
+
 test('a stale RMS editor cannot replace a newer saved draft', function (string $intent) {
     $html = $this->get(route('research_head.rms-quarterly-reports.index', $this->period))->assertOk()->getContent();
     preg_match('/name="draft_token" value="([^"]*)"/', $html, $matches);
@@ -85,7 +179,7 @@ test('a stale RMS editor cannot replace a newer saved draft', function (string $
         ->assertUnprocessable()->assertJsonValidationErrors('draft_token');
 
     expect(RmsQuarterlyReport::sole()->campus)->toBe('Newer campus details');
-})->with(['save', 'download']);
+})->with(['save', 'preview', 'download']);
 
 test('the RMS conflict page preserves the stale token until the latest draft is reloaded', function () {
     $url = route('research_head.rms-quarterly-reports.index', $this->period);
@@ -136,7 +230,7 @@ test('RMS editor exposes labeled save actions and category buttons with presenta
     $form = $xpath->query('//form[@id="rms-report-form"]')->item(0);
     expect($form->getAttribute('x-data'))->toBe('rmsQuarterlyReportForm')
         ->and($form->getAttribute('x-init'))->toContain('presentations');
-    foreach (['save' => 'Save draft', 'download' => 'Save & download Excel'] as $intent => $label) {
+    foreach (['save' => 'Save draft', 'preview' => 'Save and preview', 'download' => 'Save & download Excel'] as $intent => $label) {
         $button = $xpath->query('//button[@type="submit" and @form="rms-report-form" and @name="intent" and @value="'.$intent.'"]')->item(0);
         expect($button)->not->toBeNull();
         expect(trim($button->textContent))->toBe($label)
@@ -156,6 +250,8 @@ test('only the research head workspace can read save or download monitoring repo
     $user->assignRole($role);
     $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
     $this->getJson(route('research_head.rms-quarterly-reports.index'))->assertForbidden();
+    $this->getJson(route('research_head.rms-quarterly-reports.index', [...$this->period, 'preview' => 1]))->assertForbidden();
+    $this->getJson(route('research_head.rms-quarterly-reports.preview', $this->period))->assertForbidden();
     $this->getJson(route('research_head.rms-quarterly-reports.download'))->assertForbidden();
     $this->postJson(route('research_head.rms-quarterly-reports.store'), [])->assertForbidden();
 })->with([
@@ -287,6 +383,13 @@ test('publication and IP dates must fall inside the selected monitoring quarter 
 test('research head can download the original Excel report format with a partial draft', function () {
     ($this->submitMissingColleges)();
     RmsQuarterlyReport::factory()->create(['reporting_year' => 2026, 'reporting_quarter' => 3, 'campus' => 'Nasugbu']);
+    $preview = $this->get(route('research_head.rms-quarterly-reports.index', [...$this->period, 'preview' => 1]))
+        ->assertOk()->assertSeeText('Save & download Excel')->assertDontSeeText('Print or save PDF');
+    $document = new DOMDocument;
+    @$document->loadHTML($preview->getContent());
+    $download = (new DOMXPath($document))->query('//button[@name="intent" and @value="download" and not(@disabled)]')->item(0);
+    expect($download)->not->toBeNull();
+    $this->mock(DocumentPdfConverter::class)->shouldNotReceive('convertXlsx');
     $response = $this->get(route('research_head.rms-quarterly-reports.download', $this->period))
         ->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         ->assertHeader('Content-Disposition', 'attachment; filename="RMS-Quarterly-Monitoring-Report-2026-Q3.xlsx"');

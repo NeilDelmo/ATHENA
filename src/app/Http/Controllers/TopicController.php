@@ -1350,7 +1350,7 @@ class TopicController extends Controller
         }
 
         return redirect()
-            ->to(route('topics.show', $topic).(in_array($topic->status, ['ready_for_signature', 'approved'], true) ? '#notice-to-proceed' : '#proposal-review'))
+            ->to(route('topics.show', $topic).($request->user()->can('manageNoticeToProceed', $topic) ? '#notice-to-proceed' : '#proposal-review'))
             ->with('success', $isSupplemental
                 ? 'Supplemental paper uploaded by the Research Head.'
                 : ($replacedSignedCopy
@@ -1501,6 +1501,7 @@ class TopicController extends Controller
     {
         $projects = TopicProposal::query()
             ->accessibleTo($user)
+            ->visibleInResearcherWorkspace()
             ->with(['researchCall:id,academic_year', 'latestProgressReport:project_progress_reports.id,project_progress_reports.topic_id,progress_percentage'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
@@ -1510,12 +1511,10 @@ class TopicController extends Controller
             });
 
         $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
-        $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();
         $completedProjects = (clone $projects)->completedProject()->latest('updated_at')->get();
 
         return view('research.index', compact(
             'activeProjects',
-            'awaitingProjects',
             'completedProjects',
             'search',
         ));
@@ -1524,7 +1523,8 @@ class TopicController extends Controller
     private function researchDashboard(User $user): View
     {
         $projects = TopicProposal::query()
-            ->accessibleTo($user);
+            ->accessibleTo($user)
+            ->visibleInResearcherWorkspace();
 
         $activeProjects = (clone $projects)->activeProject()
             ->with([
@@ -1532,7 +1532,6 @@ class TopicController extends Controller
                 'progressReports:id,topic_id,reporting_date,reporting_year,reporting_quarter,period_start,period_end,version_number,supersedes_report_id,submission_status,review_status,review_stage,work_plan,created_at,submitted_at,reviewed_at,secretary_reviewed_at,forwarded_at',
                 'narrativeReports:id,topic_id,report_type,reporting_date,reporting_quarter,period_start,period_end,version_number,submission_status,review_status,review_stage,created_at,submitted_at,reviewed_at,secretary_reviewed_at,forwarded_at',
             ])->latest('updated_at')->get();
-        $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();
         $completedProjects = (clone $projects)->completedProject()->latest('updated_at')->get();
 
         $reportedProjects = $activeProjects->filter(fn (TopicProposal $topic): bool => $topic->latestProgressReport?->progress_percentage !== null);
@@ -1555,7 +1554,6 @@ class TopicController extends Controller
 
         return view('research.dashboard', compact(
             'activeProjects',
-            'awaitingProjects',
             'completedProjects',
             'attentionProjects',
             'averageProgress',

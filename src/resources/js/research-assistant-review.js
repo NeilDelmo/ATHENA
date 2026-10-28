@@ -57,6 +57,8 @@ export function researchAssistantReview() {
         },
 
         reviewStarterPrompts() {
+            if (document.body.dataset.activeWorkspace === 'research_head') return [];
+
             const context = this.reviewContext || reviewContext({
                 ...(this.contextEnabled && this.selectedContextId
                     ? { topic_id: this.selectedContextId }
@@ -92,7 +94,7 @@ export function researchAssistantReview() {
         },
 
         proposalHelpOptions() {
-            if (!this.reviewContext) return [];
+            if (!this.reviewContext || document.body.dataset.activeWorkspace === 'research_head') return [];
             const revision = this.reviewContext.review_focus === 'revision_response';
             return revision ? [
                 { key: 'revision_plan', label: 'Plan my revisions', description: 'Turn the recorded feedback into a short list of next steps.',

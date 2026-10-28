@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\DocumentPdfConverter;
+use App\Http\Requests\PreviewRmsQuarterlyReportRequest;
 use App\Http\Requests\SaveRmsQuarterlyReportRequest;
 use App\Models\CollegeQuarterlyReport;
 use App\Models\RmsQuarterlyReport;
@@ -23,7 +25,7 @@ class ResearchHeadRmsReportController extends Controller
     public function index(Request $request, RmsQuarterlyReportData $data, MonitoringQuarterService $quarters, RmsQuarterlyReportStatus $status): View
     {
         [$year, $quarter] = $this->reportingPeriod($request);
-        if (! $request->filled('quarter')) {
+        if (! $request->filled('quarter') && ! $request->boolean('preview')) {
             $submittedReports = CollegeQuarterlyReport::query()->whereNotNull('submitted_at')
                 ->whereDoesntHave('latestSubmission', fn (Builder $query) => $query->whereNotNull('returned_at'));
             $years = (clone $submittedReports)->distinct()->pluck('reporting_year')
@@ -78,6 +80,9 @@ class ResearchHeadRmsReportController extends Controller
         }
 
         $period = ['year' => $year, 'quarter' => $quarter];
+        if (($validated['intent'] ?? 'save') === 'preview') {
+            $period['preview'] = 1;
+        }
         $response = redirect()->route('research_head.rms-quarterly-reports.index', $period)
             ->with('status', 'RMS quarterly report draft saved.');
         if (($validated['intent'] ?? 'save') === 'download') {
@@ -85,6 +90,34 @@ class ResearchHeadRmsReportController extends Controller
         }
 
         return $response;
+    }
+
+    public function preview(Request $request, RmsQuarterlyReportData $data, RmsQuarterlyReportDocument $document, DocumentPdfConverter $converter): Response
+    {
+        [$year, $quarter] = $this->reportingPeriod($request);
+        $report = RmsQuarterlyReport::where('reporting_year', $year)->where('reporting_quarter', $quarter)->first();
+        $workbook = $document->generate($data->build($year, $quarter, $report?->row_details ?? []), [
+            'year' => $year, 'quarter' => $quarter, 'campus' => $report?->campus ?? 'ARASOF-Nasugbu', 'signatories' => $report?->signatories ?? [],
+        ]);
+
+        return response($converter->convertXlsx($workbook), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="RMS-Quarterly-Monitoring-Report-'.$year.'-Q'.$quarter.'.pdf"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function previewDraft(PreviewRmsQuarterlyReportRequest $request, RmsQuarterlyReportData $data, RmsQuarterlyReportDocument $document, DocumentPdfConverter $converter): Response
+    {
+        $validated = $request->validated();
+        $year = (int) $validated['reporting_year'];
+        $quarter = (int) $validated['reporting_quarter'];
+        $workbook = $document->generate($data->build($year, $quarter, $validated['row_details'] ?? []), [
+            'year' => $year, 'quarter' => $quarter, 'campus' => $validated['campus'] ?? '', 'signatories' => $validated['signatories'] ?? [],
+        ]);
+
+        return response($converter->convertXlsx($workbook), 200, ['Content-Type' => 'application/pdf', 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     public function download(Request $request, RmsQuarterlyReportData $data, RmsQuarterlyReportDocument $document, RmsQuarterlyReportStatus $status): Response|RedirectResponse

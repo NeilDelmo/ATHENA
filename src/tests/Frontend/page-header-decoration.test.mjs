@@ -10,7 +10,8 @@ import loadConfig from 'tailwindcss/loadConfig.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const tailwindConfig = loadConfig(fileURLToPath(new URL('../../tailwind.config.js', import.meta.url)));
-const source = await readFile(new URL('../../resources/css/app.css', import.meta.url), 'utf8');
+const source = await readFile(new URL('../../resources/css/app.css', import.meta.url), 'utf8')
+    + '\n' + await readFile(new URL('../../resources/css/secretary-workspace.css', import.meta.url), 'utf8');
 const { css } = await postcss([tailwindcss(tailwindConfig)]).process(source, { from: undefined });
 
 const headings = [['simple', `<x-page-header title="Research Calls" subtitle="Manage published schedules and review upcoming submission deadlines.">

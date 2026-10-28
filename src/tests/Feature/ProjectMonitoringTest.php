@@ -63,7 +63,7 @@ beforeEach(function () {
         'email' => 'marina.secretary@g.batstate-u.edu.ph',
         'avatar' => 'https://example.com/marina-secretary.jpg',
     ]);
-    $this->secretary->assignRole('research_secretary');
+    $this->secretary->assignRole('faculty_researcher');
     $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
     $this->officeSecretary->assignRole('research_secretary');
     $this->forwardReport = function (ProjectProgressReport|ProjectNarrativeReport $report): void {
@@ -89,6 +89,9 @@ beforeEach(function () {
         'notice_to_proceed_issued_by' => $this->head->id,
         'notice_to_proceed_issued_at' => now()->subMonths(3),
     ]);
+
+    $this->topic->collaborators()->create(['user_id' => $this->secretary->id, 'name' => $this->secretary->name,
+        'email' => $this->secretary->email, 'accepted_at' => now(), 'project_role' => 'secretary']);
 
     $this->monitoringPayload = fn (array $overrides = []): array => array_replace([
         'reporting_date' => now()->subDay()->toDateString(),
@@ -477,17 +480,16 @@ test('the project secretary has budget priority while other project members may 
         ->get(route('research_secretary.projects.budget.edit', [$this->topic, $report]))
         ->assertNotFound();
 
-    $this->actingAs($this->secretary)
+    $this->actingAs($this->officeSecretary)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('research_secretary.dashboard'))
         ->assertOk()
         ->assertSee('data-workspace-header-banner', false)
-        ->assertSee($this->topic->title)
-        ->assertSee('Complete budget');
+        ->assertDontSee('Complete budget');
 
     $budgetResponse = $this->actingAs($this->secretary)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
-        ->get(route('research_secretary.projects.budget.edit', [$this->topic, $report]))
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('project-budget.edit', [$this->topic, $report]))
         ->assertOk()
         ->assertSee('data-budget-utilization-writing-toolbar', false)
         ->assertSee('data-writing-toolbar-close', false)
@@ -545,8 +547,8 @@ test('project secretary budget confirmation keeps the approved project cap', fun
     $report = ProjectProgressReport::query()->sole();
 
     $this->actingAs($this->secretary)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
-        ->put(route('research_secretary.projects.budget.update', [$this->topic, $report]), [
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->put(route('project-budget.update', [$this->topic, $report]), [
             'budget_token' => $report->budgetToken(),
             'budget_utilization' => [
                 ['type' => 'Purchase Request', 'details' => 'Over budget', 'amount_requested' => 51000, 'actual_amount' => 51000, 'remarks' => ''],
@@ -800,7 +802,7 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         ->and($xpath->query('//*[@id="notice-to-proceed-tab-button" or @id="notice-to-proceed-tab"]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="terminal-reports"]//ol')->length)->toBe(0)
         ->and($xpath->query('//*[@id="terminal-reports"]//a')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$olderProgress->id.'"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$olderProgress->id.'"]')->length)->toBe($workspace === 'research_head' ? 0 : 1)
         ->and($olderProgress->fresh()->reporting_quarter)->toBeNull()
         ->and($xpath->query('//*[@id="monitoring-tool-'.$tool->id.'"]')->length)->toBe(1)
         ->and($xpath->query('//*[@id="narrative-report-'.$progress->id.'"]')->length)->toBe(1)
@@ -810,7 +812,7 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         ->and($xpath->query('//*[@data-monitoring-budget-section]')->length)->toBe($workspace === 'research_head' ? 0 : 1)
         ->and($xpath->query('//*[@data-monitoring-notice-link]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="project-files-tab-button"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]')->item(0)->getAttribute('class'))->toContain('monitoring-disclosure')
+        ->and($xpath->query('//*[@id="narrative-report-history" and contains(@class, "monitoring-disclosure")]')->length)->toBe($workspace === 'research_head' ? 0 : 1)
         ->and($xpath->query('//*[@id="project-monitoring"]//a[contains(@href, "/create")]')->length)->toBe(0);
     $response->assertDontSee('Earlier Progress Reports without a recorded quarter')
         ->assertDontSee('Report submitted')
@@ -852,10 +854,11 @@ test('monitoring prioritizes paired quarterly reports and terminal closeout in c
         file_put_contents(storage_path('framework/testing/monitoring-completed-'.$workspace.'.html'), $response->getContent());
     }
 
-    $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+    $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('topics.show', $this->topic))->assertSuccessful()
-        ->assertDontSee('data-progress-report-detail', false)->assertDontSee('Validated maintenance records.');
-    $this->get(route('project-narrative-reports.show', $progress))->assertForbidden();
+        ->assertSee('data-progress-report-detail', false)->assertDontSee('Validated maintenance records.')
+        ->assertDontSee('Complete budget');
+    $this->get(route('project-narrative-reports.show', $progress))->assertOk();
 })->with(['faculty_researcher', 'research_head']);
 
 test('historical progress stays inside its matching report including zero and missing values', function (string $workspace) {
@@ -991,9 +994,9 @@ test('prepared monitoring tools keep budget actions with their reporting quarter
         ->and($xpath->query('//*[@data-monitoring-budget-section]')->item(0)->textContent)->toContain('The project secretary or confirmed project staff completes and confirms budget utilization before submission.')
         ->and($xpath->query('//*[@data-monitoring-budget-task="'.$report->id.'"]')->item(0)->getAttribute('href'))
         ->toBe(route('project-budget.edit', [$this->topic, $report]));
-    $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+    $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
         ->get(route('topics.show', $this->topic))->assertSuccessful()
-        ->assertSee(route('research_secretary.projects.budget.edit', [$this->topic, $report]), false)
+        ->assertSee(route('project-budget.edit', [$this->topic, $report]), false)
         ->assertDontSee('data-project-secretary-picker', false);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('topics.show', $this->topic))->assertSuccessful()
@@ -2307,7 +2310,7 @@ test('monitoring PDF preview supports legacy reports without a stored PDF', func
         ->and($this->pdfConverter->conversionCount)->toBe(1);
 });
 
-test('older progress reports remain accessible in history while terminal reports follow their signing workflow', function () {
+test('older progress reports remain accessible in folders while terminal reports follow their signing workflow', function () {
     $report = ProjectNarrativeReport::create([
         'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
         'report_type' => 'progress', 'submission_date' => now(), 'researchers' => $this->researcher->name,
@@ -2322,14 +2325,14 @@ test('older progress reports remain accessible in history while terminal reports
     ]);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     $response = $this->get(route('topics.show', $this->topic))->assertSuccessful()
-        ->assertSee('Open report')->assertSee(route('project-narrative-reports.show', $report), false)
         ->assertDontSee('data-narrative-report-content', false)->assertDontSee('data-narrative-pdf-preview-modal', false);
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="utf-8" ?>'.$response->getContent());
     $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="progress-reports"]//form')->length)->toBe(0);
+    expect($xpath->query('//*[@id="narrative-report-history"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="progress-reports"]//form')->length)->toBe(0)
+        ->and($response->viewData('projectDocumentLibrary')['documents']->pluck('key')->all())->toContain('narrative-report-'.$report->id);
     $this->get(route('project-narrative-reports.show', $report))->assertSuccessful()
         ->assertSee('Explain the participant shortfall.')->assertSee('Pilot coordination.')
         ->assertSee('data-narrative-report-review', false)->assertSee('Preview PDF');
@@ -2350,7 +2353,7 @@ test('older progress reports remain accessible in history while terminal reports
     $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful()
         ->assertSee('Signed terminal report')->assertSee('data-narrative-report-review', false);
     $terminal->update(['terminal_data' => ['signed_copy' => ['path' => 'signed.pdf', 'original_filename' => 'signed.pdf']]]);
-    $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertSee('Report history')->assertSee('Signed terminal PDF uploaded');
+    $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertDontSee('Report history')->assertSee('Signed terminal PDF uploaded');
     $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
     $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertSee('id="progress-reports"', false)
         ->assertSee('id="terminal-reports"', false);

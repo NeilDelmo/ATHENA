@@ -24,7 +24,7 @@
         </a>
     </section>
 
-    <livewire:research-target-board :compact="true" />
+    <livewire:research-target-board />
 
     <section aria-label="Overview filters" class="border-b border-slate-200 pb-5 dark:border-slate-800">
         <form wire:submit="applyFilters" class="flex flex-wrap items-start justify-between gap-3">
@@ -129,8 +129,6 @@
     @if ($reportItems->hasPages())<div class="border-t border-slate-100 px-5 py-4 dark:border-slate-800">{{ $reportItems->links('livewire::simple-tailwind', ['scrollTo' => '#dashboard-report-reviews']) }}</div>@endif
 </section>
     </div>
-    <x-dashboard-assistant-suggestions :items="$assistantReviewSuggestions" />
-
     <aside class="grid min-w-0 items-start gap-5 lg:grid-cols-2" aria-label="Research priorities">
 <section id="needs-attention" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="attention-heading">
                 <div class="rh-panel-heading !gap-2"><h2 id="attention-heading" class="text-base font-bold">Needs attention</h2><span class="rounded-md bg-red-50 px-2 py-1 text-sm font-semibold text-brand dark:bg-red-950/40 dark:text-rose-200">{{ $attentionItems->total() }} {{ str('issue')->plural($attentionItems->total()) }}</span></div>

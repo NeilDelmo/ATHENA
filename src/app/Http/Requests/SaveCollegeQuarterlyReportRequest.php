@@ -150,7 +150,7 @@ class SaveCollegeQuarterlyReportRequest extends FormRequest
             foreach (['presentations', 'publications', 'seminars', 'ip_assets'] as $section) {
                 $rows = $this->input($section, []) ?? [];
                 foreach ($rows as $index => $row) {
-                    if ($row['date'] < $period['start']->toDateString() || $row['date'] > $period['end']->toDateString()) {
+                    if (filled($row['date'] ?? null) && ($row['date'] < $period['start']->toDateString() || $row['date'] > $period['end']->toDateString())) {
                         $validator->errors()->add($section.'.'.$index.'.date', 'The activity date must fall within the selected calendar quarter.');
                     }
                     if ($section !== 'ip_assets' && filled($row['project_id'] ?? null) && (! $projects->has($row['project_id']) || ! $this->user()->can('view', $projects[$row['project_id']]))) {

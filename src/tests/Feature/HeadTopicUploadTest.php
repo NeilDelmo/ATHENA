@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -32,9 +32,9 @@ beforeEach(function () {
     $this->faculty = User::factory()->create(['name' => 'Lead Faculty', 'college' => User::COLLEGES['CICS']]);
     $this->faculty->assignRole('faculty');
     $this->signingStaff = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $this->signingStaff->assignRole('research_coordinator');
+    $this->signingStaff->assignRole('research_secretary');
     $this->asSigningStaff = fn () => $this->actingAs($this->signingStaff)->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY,
     ]);
     app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
     {
@@ -1433,6 +1433,10 @@ test('Research Head can return a signing-stage paper to revision and supersede i
 });
 
 test('a cleared proposal moves to final signing without a manual approval step', function () {
+    $coordinator = User::factory()->create(['college' => $this->faculty->college]);
+    $coordinator->assignRole('research_coordinator');
+    $outsideSecretary = User::factory()->create(['college' => 'CTE']);
+    $outsideSecretary->assignRole('research_secretary');
     $this->topic->update([
         'status' => TopicProposal::STATUS_LREC_REVIEW,
         'review_stage' => 'lrec',
@@ -1495,9 +1499,13 @@ test('a cleared proposal moves to final signing without a manual approval step',
             'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
-        ->assertSessionHas('topic_tab', 'notice')
-        ->assertSessionHas('success', 'LREC cleared. Research office staff or the secretary will prepare and release the signed documents and Notice to Proceed.');
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertSessionHas('topic_tab', 'review')
+        ->assertSessionHas('success', 'LREC cleared. The Research Secretary will prepare and release the signed documents and Notice to Proceed.');
+
+    expect($this->signingStaff->notifications()->sole()->data['title'])->toBe('Notice to Proceed ready to prepare')
+        ->and($coordinator->notifications()->count())->toBe(0)
+        ->and($outsideSecretary->notifications()->count())->toBe(0);
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
@@ -1506,9 +1514,10 @@ test('a cleared proposal moves to final signing without a manual approval step',
     $signingPage = $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('data-signed-count="0"', false)
-        ->assertSee('Signed papers awaiting release')
-        ->assertSee('Signing &amp; release', false)
+        ->assertSee('data-proposal-review-summary', false)
+        ->assertDontSee('id="notice-to-proceed-tab-button"', false)
+        ->assertDontSee('id="notice-to-proceed-tab"', false)
+        ->assertDontSee('Signing &amp; release', false)
         ->assertDontSee('Need to change a submitted proposal paper?')
         ->assertDontSee('Request paper revision')
         ->assertDontSee('Papers that must be corrected')
@@ -1710,8 +1719,8 @@ test('final release stays locked until every required signed PDF is uploaded', f
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
     ])->actingAs($this->head)
         ->patch(route('research_head.topics.finalizeApproval', $this->topic))
-        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
-        ->assertSessionHas('success', 'Signed papers are ready. Research office staff or the secretary will upload the signed Notice to Proceed and release the project to faculty.');
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertSessionHas('success', 'Signed papers are ready. The Research Secretary will upload the signed Notice to Proceed and release the project to faculty.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
@@ -1958,7 +1967,8 @@ test('the shared document list records Research Head uploads', function () {
 
     $response->assertSee('signed-work-plan.pdf')
         ->assertSee('Work Plan (signed official copy)')
-        ->assertSee('Signed copy saved')
+        ->assertDontSee('Signed copy saved')
+        ->assertDontSee('id="notice-to-proceed-tab"', false)
         ->assertSee('Preview')
         ->assertDontSee('data-signed-copy-preview', false)
         ->assertSee(route('topics.versions.files.view', [$this->topic, $this->version, $signedWorkPlan]));
@@ -1966,9 +1976,9 @@ test('the shared document list records Research Head uploads', function () {
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@data-signing-document and @data-upload-state="uploaded"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@data-signing-document and @data-upload-state="awaiting"]')->length)->toBe(2)
-        ->and($xpath->query('//*[@data-upload-state="uploaded"]//*[@data-uploaded-badge]')->item(0)->textContent)->toContain('Uploaded');
+    expect($xpath->query('//*[@data-signing-document]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-uploaded-badge]')->length)->toBe(0);
+    $response->assertViewHas('projectDocumentLibrary', fn ($library): bool => $library['documents']->contains('key', 'proposal-version-file-'.$signedWorkPlan->id));
 });
 
 test('automatic signed uploads return saved files without redirecting and preserve all papers', function () {

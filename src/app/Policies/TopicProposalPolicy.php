@@ -79,7 +79,8 @@ class TopicProposalPolicy
 
     public function manageNoticeToProceed(User $user, TopicProposal $topicProposal): bool
     {
-        return $this->viewSigningDocuments($user, $topicProposal)
+        return $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
+            && $this->viewSigningDocuments($user, $topicProposal)
             && ! $topicProposal->hasIssuedNoticeToProceed()
             && ! $topicProposal->isCompletedProject();
     }

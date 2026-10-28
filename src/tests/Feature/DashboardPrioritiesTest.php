@@ -42,10 +42,14 @@ test('office and secretary dashboards show accessible notices oldest first with 
     TopicProposal::create(['user_id' => $outsideOwner->id, 'title' => 'Private other college project', 'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
 
     $response = $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
-        ->get(route($route))->assertOk()
-        ->assertSeeInOrder(['Awaiting release', 'Notices to Proceed', $older->title, 'Upload signed documents', 'Newer cleared project', 'Prepare Notice to Proceed'])
-        ->assertSee('5 days waiting')->assertDontSee('Private other college project')
-        ->assertSee('href="#notice-release-queue"', false);
+        ->get(route($route))->assertOk();
+    if ($role === 'research_coordinator') {
+        $response->assertDontSee('Prepare Notice to Proceed')->assertDontSee($older->title);
+    } else {
+        $response->assertSeeInOrder(['Awaiting release', 'Notices to Proceed', $older->title, 'Upload signed documents', 'Newer cleared project', 'Prepare Notice to Proceed'])
+            ->assertSee('5 days waiting')->assertDontSee('Private other college project')
+            ->assertSee(route('research_secretary.notices.index'), false);
+    }
 
     if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
@@ -68,10 +72,10 @@ test('office review queue distinguishes actionable LREC reviews from proposals w
     $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
         ->get(route('research_coordinator.dashboard'))->assertOk()
         ->assertSeeInOrder(['LREC proposals', 'Committee comments required', '4 days in this stage', 'Record comments', 'Faculty correction pending', 'View review status'])
-        ->assertSee('href="#office-lrec-proposals"', false);
+        ->assertSee(route('research_coordinator.proposals.index'), false);
 });
 
-test('secretary budget queue shows incomplete budgets before the assigned portfolio and excludes confirmed reports', function () {
+test('office secretary dashboard links to budget monitoring without assigning budget entry tasks', function () {
     Role::firstOrCreate(['name' => 'research_secretary']);
     $operator = User::factory()->create(['college' => 'CICS']);
     $operator->assignRole('research_secretary');
@@ -87,15 +91,13 @@ test('secretary budget queue shows incomplete budgets before the assigned portfo
 
     $response = $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('research_secretary.dashboard'))->assertOk()
-        ->assertSeeInOrder(['Awaiting budget', 'Budgets to complete', $project->title, '3 days waiting', 'Complete budget', 'Assigned projects']);
+        ->assertSee('Projects monitored')->assertSee('Budget monitoring');
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
-    $budgetQueue = $xpath->query('//*[@id="budget-worklist"]')->item(0);
-    expect($budgetQueue)->not->toBeNull()
-        ->and($xpath->query('.//a', $budgetQueue))->toHaveCount(1)
-        ->and($xpath->query('.//a', $budgetQueue)->item(0)->getAttribute('href'))->toBe(route('project-budget.edit', [$project, $pending]))
-        ->and($xpath->query('//details[@id="assigned-projects" and not(@open)]'))->toHaveCount(1);
+    expect($xpath->query('//*[@id="budget-worklist"]')->length)->toBe(0)
+        ->and($xpath->query('//a[@href="'.route('research_secretary.budgets.index').'"]')->length)->toBeGreaterThan(0);
+    $response->assertDontSee('Complete budget')->assertDontSee('Budgets to complete')->assertSee('Budget monitoring');
 
     if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
         File::put(storage_path('framework/testing/dashboard-secretary.html'), $response->getContent());

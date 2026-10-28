@@ -29,10 +29,12 @@ import { reportLibrary } from './report-library';
 import { collegeReportLibrary } from './college-report-library';
 import { researchManualReader } from './research-manual-reader';
 import { proposalAssessmentPreview } from './proposal-assessment-preview';
+import { reportPaperPreview } from './report-paper-preview';
 import { curriculumVitaePaperWorkspace } from './curriculum-vitae-workspace';
 import { commentResponsePaperPreview } from './comment-response-paper-preview';
 import '../css/proposal-paper-workspace.css';
 import '../css/project-workspace.css';
+import '../css/secretary-workspace.css';
 import '../css/report-library.css';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import { projectDocumentDrawer } from './project-document-drawer';
@@ -6906,6 +6908,7 @@ Alpine.data('workPlanWizard', (config = {}) => ({
 }));
 
 Alpine.data('proposalAssessmentPreview', proposalAssessmentPreview);
+Alpine.data('reportPaperPreview', reportPaperPreview);
 Alpine.data('commentResponsePaperPreview', commentResponsePaperPreview);
 
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({

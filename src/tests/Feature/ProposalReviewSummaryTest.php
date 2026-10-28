@@ -65,7 +65,7 @@ beforeEach(function () {
     }
 });
 
-test('completed reviews expose a dated timeline and accurate signing checklist', function () {
+test('completed reviews expose a dated timeline without a Research Head release workspace', function () {
     $source = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
     Storage::disk('local')->put('signed/work-plan.pdf', '%PDF-1.4 signed');
     $this->version->files()->create([
@@ -89,20 +89,24 @@ test('completed reviews expose a dated timeline and accurate signing checklist',
         ->and($xpath->query('.//*[@data-review-timeline]/li[1]', $summary)->item(0)->textContent)->toContain('Cleared for signing')
         ->and($xpath->query('.//*[@data-review-timeline]//h4[contains(@class, "text-base")]', $summary)->length)->toBe(3)
         ->and($xpath->query('.//*[@data-review-timeline]//time[contains(@class, "text-sm")]', $summary)->length)->toBe(3)
-        ->and($xpath->query('.//*[@data-review-signature-count]', $summary)->item(0)->textContent)->toContain('1 of 5')
-        ->and($xpath->query('.//*[@data-review-signature-checklist]/li', $summary)->length)->toBe(5)
-        ->and($xpath->query('.//*[@data-review-signature-checklist]/li[contains(., "Signed copy uploaded")]', $summary)->length)->toBe(1);
-    $response->assertSee("setTopicTab('notice', 'notice-to-proceed')", false)
+        ->and($xpath->query('.//*[@data-review-signature-checklist]', $summary)->length)->toBe(0);
+    $response->assertDontSee('id="notice-to-proceed-tab-button"', false)
+        ->assertDontSee('id="notice-to-proceed-tab"', false)
+        ->assertDontSee("setTopicTab('notice', 'notice-to-proceed')", false)
+        ->assertDontSee('Signing &amp; release', false)
+        ->assertDontSee('Continue to signing')
         ->assertSee("setTopicTab('history', 'version-history')", false);
 });
 
-test('released proposals retain review history and link to released documents', function () {
+test('released proposals retain review history and project files without a release tab', function () {
     $this->topic->update(['status' => 'approved', 'notice_to_proceed_issued_at' => now()]);
     $this->actingAs($this->head)->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('data-proposal-review-summary', false)
         ->assertSee('Proposal released')
-        ->assertSee('View released documents');
+        ->assertSee('id="project-files-tab-button"', false)
+        ->assertDontSee('id="notice-to-proceed-tab-button"', false)
+        ->assertDontSee('View released documents');
 });
 
 test('faculty views do not inherit the Research Head signing summary', function () {
@@ -140,12 +144,12 @@ test('accepted assessments appear as signed papers while final signing requests 
         File::ensureDirectoryExists(storage_path('framework/testing'));
         file_put_contents(storage_path('framework/testing/signed-upload-layout.html'), $response->getContent());
     }
-    Role::firstOrCreate(['name' => 'research_coordinator']);
+    Role::firstOrCreate(['name' => 'research_secretary']);
     $this->faculty->update(['college' => User::COLLEGES['CICS']]);
     $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $office->assignRole('research_coordinator');
+    $office->assignRole('research_secretary');
     $signingResponse = $this->actingAs($office)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('topics.show', $this->topic))->assertOk();
     $dom = new DOMDocument;
     @$dom->loadHTML($signingResponse->getContent());

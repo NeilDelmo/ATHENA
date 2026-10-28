@@ -1,8 +1,12 @@
 <section id="project-monitoring" class="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
     @php
+        $isReportReviewer = Auth::user()->isUsingWorkspace(['research_head', 'research_secretary']);
         $storedProjectStatus = $topic->project_status ?: 'ongoing';
         $latestProgressPercentage = $projectHealth ? $projectHealth['progress'] : $topic->progressReports->first()?->progress_percentage;
         $monitoringIssues = $projectHealth['issues'] ?? collect();
+        if (Auth::user()->isUsingWorkspace('research_secretary')) {
+            $monitoringIssues = $monitoringIssues->whereNotIn('type', ['terminal', 'terminal_review', 'completion']);
+        }
         if ($monitoringIssues->whereIn('type', ['quarterly', 'progress_quarterly', 'report_review', 'narrative_review', 'terminal', 'terminal_review'])->isNotEmpty()) {
             $monitoringIssues = $monitoringIssues->reject(fn ($issue) => $issue['type'] === 'completion');
         }
@@ -73,7 +77,7 @@
             ->merge($narrativeReportHistory->map(fn ($report) => '#narrative-report-'.$report->id))->values();
     @endphp
 
-    <header data-monitoring-overview class="rounded-t-xl border-t-4 border-t-brand bg-brand-wash px-5 py-5 dark:border-t-brand-soft dark:bg-slate-800 sm:px-6">
+    <header data-monitoring-overview class="rounded-t-xl bg-brand-wash px-5 py-5 dark:bg-slate-800 sm:px-6">
         <div data-project-monitoring-heading data-monitoring-actions class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h3 class="text-2xl font-bold tracking-tight text-brand dark:text-white">{{ $topic->isCompletedProject() ? 'Project archive' : 'Project monitoring' }}</h3>
@@ -203,6 +207,7 @@
 
     <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :progress-quarter-rows="$progressQuarterRows" :topic="$topic" :can-report="$canReport" />
 
+    @if (! Auth::user()->isUsingWorkspace('research_secretary'))
     <section id="terminal-reports" aria-labelledby="terminal-reports-heading" class="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
         @if ($latestTerminalReport)
             <x-narrative-report-summary :report="$latestTerminalReport" heading-id="terminal-reports-heading" class="!border-0" />
@@ -210,9 +215,13 @@
         <header class="flex flex-wrap items-start justify-between gap-3 px-5 py-5 sm:px-6">
             <div class="max-w-2xl">
                 <h3 id="terminal-reports-heading" class="text-lg font-bold text-slate-950 dark:text-white">Terminal Report</h3>
+                @if ($isReportReviewer)
+                    <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">No Terminal Report submitted.</p>
+                @else
                 <p class="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $topic->isCompletedProject() ? 'Final report and signed document.' : 'Project completion requires 100% progress, accepted quarterly reports, Research Head review of the Terminal Report, and its fully signed PDF.' }}</p>
                 @if (! $topic->isCompletedProject())
                     <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $terminalOpen ? 'Submission is open after all quarterly reports are complete.' : 'Submission opens '.$terminalDate->format('M j, Y').'. You can draft now.' }}</p>
+                @endif
                 @endif
             </div>
             @if ($canReport)
@@ -226,8 +235,9 @@
             </div>
         @endif
     </section>
+    @endif
 
-    @if (! Auth::user()->isUsingWorkspace('research_head'))
+    @unless ($isReportReviewer)
     <details data-monitoring-budget-section class="monitoring-disclosure border-t border-slate-200 dark:border-slate-700" @if ($errors->has('research_secretary_id') || $hasBudgetTasks) open @endif>
         <summary class="bg-slate-100/80 px-5 py-3 dark:bg-slate-800/60 sm:px-6">
             <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span id="project-secretary-heading">Monitoring budget</span><span class="text-sm font-normal text-slate-600 dark:text-slate-400">{{ $topic->researchSecretary?->name ?? 'No secretary assigned' }}</span></span>
@@ -290,7 +300,7 @@
         @if ($hasBudgetTasks)
             <div data-monitoring-budget-tasks class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 @foreach ($topic->preparedProgressReports->sortBy('reporting_date') as $budgetReport)
-                    <a data-monitoring-budget-task="{{ $budgetReport->id }}" href="{{ route(Auth::user()->isUsingWorkspace('research_secretary') ? 'research_secretary.projects.budget.edit' : 'project-budget.edit', [$topic, $budgetReport]) }}" class="monitoring-secondary-action">
+                    <a data-monitoring-budget-task="{{ $budgetReport->id }}" href="{{ route('project-budget.edit', [$topic, $budgetReport]) }}" class="monitoring-secondary-action">
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" d="M12 6v12m3-10h-4a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9" /></svg>
                         {{ $budgetReport->quarter_label }} · {{ $budgetReport->hasPreparedBudget() ? 'Review budget' : 'Complete budget' }}
                     </a>
@@ -299,9 +309,9 @@
         @endif
         </div>
     </details>
-    @endif
+    @endunless
 
-    @if ($reportHistoryHashes->isNotEmpty())
+    @if (! $isReportReviewer && $reportHistoryHashes->isNotEmpty())
         <details id="narrative-report-history" class="monitoring-disclosure group border-t border-slate-200 dark:border-slate-700" x-data="{ historyOpen: @js($reportHistoryHashes).includes(window.location.hash) }" x-bind:open="historyOpen" x-on:toggle="historyOpen = $el.open" x-on:hashchange.window="if (@js($reportHistoryHashes).includes(window.location.hash)) { historyOpen = true }">
             <summary class="bg-slate-100/80 px-5 py-3 dark:bg-slate-800/60 sm:px-6">
                 <span>Report history <span class="ml-2 font-normal text-slate-600 dark:text-slate-400">{{ $reportHistoryHashes->count() }} previous {{ Str::plural('submission', $reportHistoryHashes->count()) }}</span></span>

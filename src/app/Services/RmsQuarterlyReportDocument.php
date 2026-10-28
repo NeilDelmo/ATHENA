@@ -41,6 +41,14 @@ class RmsQuarterlyReportDocument
 
             foreach (['presentations' => [1, 13], 'publications' => [2, 13], 'ip_assets' => [3, 12]] as $section => [$sheet, $firstRow]) {
                 [$document, $xpath] = $this->xml($this->part($archive, 'xl/worksheets/sheet'.$sheet.'.xml'));
+                // LibreOffice flattens the rich multiline letterhead when its whole cell is a hyperlink.
+                foreach ($xpath->query('/s:worksheet/s:hyperlinks/s:hyperlink[@ref="A1"]') as $hyperlink) {
+                    $links = $hyperlink->parentNode;
+                    $links->removeChild($hyperlink);
+                    if ($xpath->query('./s:hyperlink', $links)->length === 0) {
+                        $links->parentNode->removeChild($links);
+                    }
+                }
                 $rows = $reportData[$section] ?? [];
                 $extraRows = max(0, count($rows) - 10);
                 $this->expandRows($xpath, $firstRow, $extraRows);

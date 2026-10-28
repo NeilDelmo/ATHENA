@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\NotifyRmsQuarterlyReportStatus;
 use App\Actions\StoreProjectDocuments;
+use App\Http\Requests\PreviewCollegeQuarterlyReportRequest;
 use App\Http\Requests\SaveCollegeQuarterlyReportRequest;
 use App\Models\CollegeQuarterlyReport;
 use App\Models\CollegeQuarterlyReportSubmission;
@@ -20,6 +21,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -41,6 +43,36 @@ class ResearchCoordinatorReportController extends Controller
     public function print(Request $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters): View
     {
         return view('research_coordinator.report-print', $this->viewData($request, $data, $quarters));
+    }
+
+    public function preview(PreviewCollegeQuarterlyReportRequest $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters): View
+    {
+        $validated = $request->validated();
+        $request->merge(['year' => $validated['reporting_year'], 'quarter' => $validated['reporting_quarter']]);
+        $view = $this->viewData($request, $data, $quarters);
+        $report = $view['report'] !== null ? clone $view['report'] : new CollegeQuarterlyReport(['college' => $request->user()->college]);
+        if ($report->submitted_at !== null) {
+            return view('research_coordinator.report-print', [...$view, 'embedded' => true]);
+        }
+        $report->fill(Arr::only($validated, ['presentations', 'publications', 'seminars', 'manual_research', 'ip_assets', 'other_accomplishments', 'reviewed_by', 'reviewed_by_title']));
+        $evidence = collect($view['reportEvidence'])->reject(fn (array $image): bool => in_array(hash('sha256', $image['path']), $validated['remove_evidence'] ?? [], true)
+            || (isset($image['section']) && ! collect($report->{$image['section']} ?? [])->contains('id', $image['row_id'] ?? null)))
+            ->map(fn (array $image): array => [...$image, 'caption' => $validated['saved_evidence_captions'][hash('sha256', $image['path'])] ?? $image['caption'] ?? ''])->values()->all();
+        foreach ($request->file('evidence_images', []) as $index => $image) {
+            $evidence[] = ['url' => 'data:'.$image->getMimeType().';base64,'.base64_encode($image->getContent()), 'mime_type' => $image->getMimeType(), 'caption' => $validated['evidence_captions'][$index] ?? ''];
+        }
+        foreach ($request->file('row_evidence', []) as $section => $rows) {
+            foreach ($rows as $rowId => $images) {
+                foreach ($images as $image) {
+                    $evidence[] = ['url' => 'data:'.$image->getMimeType().';base64,'.base64_encode($image->getContent()), 'mime_type' => $image->getMimeType(), 'section' => $section, 'row_id' => $rowId];
+                }
+            }
+        }
+
+        return view('research_coordinator.report-print', [...$view, 'report' => $report, 'embedded' => true, 'reportEvidence' => $evidence,
+            'reportData' => [...$view['reportData'], 'presentations' => $report->activityRows('presentations'), 'publications' => $report->activityRows('publications'),
+                'research' => [...$view['automaticResearch'], ...$report->activityRows('manual_research')]],
+        ]);
     }
 
     public function template(Request $request): BinaryFileResponse
@@ -202,8 +234,10 @@ class ResearchCoordinatorReportController extends Controller
         }
 
         $period = ['year' => $validated['reporting_year'], 'quarter' => $validated['reporting_quarter']];
-        $destination = $validated['intent'] === 'preview' ? 'research_coordinator.reports.print' : 'research_coordinator.reports.index';
-        $response = redirect()->route($destination, $period)
+        if ($validated['intent'] === 'preview') {
+            $period['preview'] = 1;
+        }
+        $response = redirect()->route('research_coordinator.reports.index', $period)
             ->with('status', $submitting ? 'Quarterly accomplishment report submitted.' : 'Quarterly accomplishment report draft saved.');
         if ($validated['intent'] === 'download') {
             $response->with('report_download_url', route('research_coordinator.reports.download', $period));

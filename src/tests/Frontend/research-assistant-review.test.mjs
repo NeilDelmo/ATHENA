@@ -63,7 +63,7 @@ function reviewItem(context = { topic_id: 12, workflow_scope: 'review' }, focus 
 }
 
 globalThis.HTMLElement = class {};
-globalThis.document = { activeElement: null };
+globalThis.document = { activeElement: null, body: { dataset: { activeWorkspace: 'faculty' } } };
 
 test('suggested prompts preserve an unfinished composer message', async () => {
     const store = assistant(async () => assert.fail('An unfinished message must not be sent by another action'));
@@ -422,6 +422,22 @@ test('review starters require a proposal and use the selected project ahead of a
     assert.equal(store.reviewStarterPrompts()[0].context.proposal_draft_id, 99);
     store.proposalDraftId = 0;
     assert.deepEqual(store.reviewStarterPrompts(), []);
+});
+
+test('research head assistant offers no proposal evaluation shortcuts after workspace changes or restoring a review', () => {
+    const store = assistant();
+    try {
+        document.body.dataset.activeWorkspace = 'research_head';
+        assert.deepEqual(store.reviewStarterPrompts(), []);
+        store.restoreReviewContext({ topic_id: 12, workflow_scope: 'review', review_focus: 'revision_response' });
+        assert.deepEqual(store.reviewStarterPrompts(), []);
+        assert.deepEqual(store.proposalHelpOptions(), []);
+        document.body.dataset.activeWorkspace = 'faculty';
+        assert.equal(store.reviewStarterPrompts().length, 2);
+        assert.ok(store.proposalHelpOptions().length > 0);
+    } finally {
+        document.body.dataset.activeWorkspace = 'faculty';
+    }
 });
 
 test('review targets retain safe display titles and have visible fallbacks outside project options', async () => {

@@ -12,7 +12,6 @@ use App\Services\DashboardCalendar;
 use App\Services\ResearchDashboardAnalytics;
 use App\Services\ResearchHeadAnalytics;
 use App\Services\ResearchHeadReportQueue;
-use App\Support\DashboardAssistantSuggestions;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -296,7 +295,7 @@ class ResearchHeadDashboard extends Component
         }
     }
 
-    public function render(ResearchHeadAnalytics $analytics, DashboardCalendar $calendar, ResearchHeadReportQueue $reportQueue, DashboardAssistantSuggestions $suggestions): View
+    public function render(ResearchHeadAnalytics $analytics, DashboardCalendar $calendar, ResearchHeadReportQueue $reportQueue): View
     {
         abort_unless(auth()->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
         $callId = null;
@@ -358,7 +357,6 @@ class ResearchHeadDashboard extends Component
 
         return view($this->overview ? 'livewire.research-head-overview' : 'livewire.research-head-dashboard', [
             'topics' => $topics, 'deadlines' => $deadlines,
-            'assistantReviewSuggestions' => $this->overview ? $suggestions->forResearchHead($topics->getCollection()) : collect(),
             'reportItems' => $reportItems,
             'analytics' => $data, 'stageLabels' => ResearchDashboardAnalytics::STAGES,
             'attentionItems' => $this->paginateRows($attentionRows, 'attentionPage', $this->overview ? 4 : 5),

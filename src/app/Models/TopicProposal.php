@@ -318,22 +318,12 @@ class TopicProposal extends Model
     public function scopeVisibleInResearcherWorkspace(Builder $query): Builder
     {
         return $query
-            ->approved()
-            ->where(function (Builder $query): void {
-                $query->where(function (Builder $query): void {
-                    $query->whereNull('notice_to_proceed_issued_at')
-                        ->where(function (Builder $query): void {
-                            $query->whereNull('project_status')
-                                ->orWhere('project_status', '!=', self::PROJECT_STATUS_COMPLETED);
-                        });
-                })->orWhere(function (Builder $query): void {
-                    $query->whereNotNull('notice_to_proceed_issued_at')
-                        ->whereIn('project_status', [
-                            self::PROJECT_STATUS_ONGOING,
-                            self::PROJECT_STATUS_DELAYED,
-                        ]);
-                })->orWhere('project_status', self::PROJECT_STATUS_COMPLETED);
-            });
+            ->withIssuedNotice()
+            ->whereIn('project_status', [
+                self::PROJECT_STATUS_ONGOING,
+                self::PROJECT_STATUS_DELAYED,
+                self::PROJECT_STATUS_COMPLETED,
+            ]);
     }
 
     /** @param Builder<TopicProposal> $query */
@@ -482,7 +472,8 @@ class TopicProposal extends Model
 
     public function canPrepareMonitoringBudget(User $user): bool
     {
-        return $this->isMonitoringAvailable()
+        return ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
+            && $this->isMonitoringAvailable()
             && ($this->research_secretary_id === $user->getKey() || $this->isAccessibleTo($user));
     }
 
@@ -557,9 +548,8 @@ class TopicProposal extends Model
 
     public function isVisibleInResearcherWorkspace(): bool
     {
-        return $this->isAwaitingNoticeToProceed()
-            || $this->isMonitoringAvailable()
-            || $this->isCompletedProject();
+        return $this->hasIssuedNoticeToProceed()
+            && ($this->isMonitoringAvailable() || $this->isCompletedProject());
     }
 
     public function user(): BelongsTo

@@ -164,6 +164,41 @@ test('research targets default to the current period before a later scheduled ye
     Livewire::test(ResearchTargetBoard::class)->assertSet('year', '2026-2027');
 });
 
+test('research heads can view and manage research targets directly on the dashboard', function (bool $hasTarget) {
+    ($this->editor)();
+    if ($hasTarget) {
+        ResearchAnnualTarget::factory()->create([
+            'academic_year' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31',
+            'publications_target' => 6,
+            'indicators' => [
+                'publications' => ['allocations' => ['CAS' => 2, 'CICS' => 4]],
+                'faculty_engaged' => ['total' => 75.5],
+            ],
+        ]);
+    }
+
+    $response = $this->get(route('research_head.dashboard'))->assertOk()
+        ->assertSeeLivewire(ResearchTargetBoard::class)
+        ->assertSee('href="#research-targets"', false)
+        ->assertSee($hasTarget ? 'Edit targets' : 'Set targets')
+        ->assertSee('Add year');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $boards = $xpath->query('//*[@id="research-targets"][@data-research-target-board]');
+    expect($boards->length)->toBe(1);
+    $board = $boards->item(0);
+    expect($xpath->query('.//button[@*[name()="wire:click"]="editTargets"]', $board)->length)->toBeGreaterThan(0)
+        ->and($xpath->query('.//button[@*[name()="wire:click"]="editTargets(true)"]', $board)->length)->toBe(1);
+
+    if ($hasTarget) {
+        expect(trim($xpath->query('.//*[@data-target-indicator="publications"]//*[@data-target-overall]', $board)->item(0)->textContent))->toBe('6')
+            ->and(trim($xpath->query('.//*[@data-target-indicator="faculty_engaged"]//*[@data-target-overall]', $board)->item(0)->textContent))->toBe('75.5%');
+    } else {
+        $response->assertSee('No research targets have been set for 2026.');
+    }
+})->with(['saved targets' => [true], 'no targets yet' => [false]]);
+
 test('the dashboard target summary shows saved goals including zero and percentage targets across years', function () {
     ($this->editor)();
     ResearchAnnualTarget::factory()->create([
@@ -402,6 +437,6 @@ test('research workspaces provide the shared target board at their designated en
         ->get(route($routeName))->assertSuccessful()->assertSee('Research targets')->assertSeeLivewire(ResearchTargetBoard::class);
 })->with([
     'head' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, 'research_head.targets.index'],
-    'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.dashboard'],
-    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard'],
+    'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.targets.index'],
+    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.targets.index'],
 ]);

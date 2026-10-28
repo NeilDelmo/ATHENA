@@ -4,6 +4,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -49,6 +50,34 @@ beforeEach(function () {
     ];
 });
 
+test('secretary report decisions use explicit choices and compact correction instructions', function () {
+    ProjectProgressReport::create([
+        ...$this->reportData, 'progress_percentage' => 25, 'accomplishments' => 'Quarter completed.',
+        'work_plan' => [], 'budget_utilization' => [],
+    ]);
+    ProjectNarrativeReport::create($this->progressData);
+    $response = $this->actingAs($this->secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('topics.show', $this->topic))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-secretary-report-review]//select')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-secretary-report-review]//input[@type="radio" and @name="decision"]')->length)->toBe(4)
+        ->and($xpath->query('//*[@data-secretary-report-review]//input[@value="forward" and @checked]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-secretary-report-review]//textarea[@name="secretary_remarks" and @rows="2"]')->length)->toBe(2);
+    if (getenv('ATHENA_EXPORT_SECRETARY_REVIEW') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/secretary-report-decisions.html'), $response->getContent());
+    }
+
+    $restored = $this->withSession(['_old_input' => ['decision' => 'revision_requested', 'secretary_remarks' => 'Correct the sample totals.']])
+        ->get(route('topics.show', $this->topic))->assertOk()->assertSeeText('Correct the sample totals.');
+    @$document->loadHTML($restored->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-secretary-report-review]//input[@value="revision_requested" and @checked]')->length)->toBe(2);
+});
+
 test('the college office dashboard and review forms stay separate from project team secretary duties', function () {
     $largeText = str_repeat('Full report details are not needed in the secretary queue. ', 900);
     $monitoring = ProjectProgressReport::create([
@@ -72,9 +101,9 @@ test('the college office dashboard and review forms stay separate from project t
     ]);
 
     $response = $this->actingAs($this->secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
-        ->get(route('research_secretary.dashboard'))->assertOk()
+        ->get(route('research_secretary.reports.index'))->assertOk()
         ->assertViewHas('reportReviewTasks', fn ($reports): bool => $reports->count() === 2)
-        ->assertSee('Implementation reports to review')->assertSee($this->topic->title)
+        ->assertSee('Submitted reports')->assertSee($this->topic->title)
         ->assertSee('Jan 1, 2026 – Mar 31, 2026')->assertSee('Version 1')->assertSee($this->owner->name)
         ->assertDontSee($outside->title)
         ->assertSee(route('project-progress.monitoring-tool.view', $monitoring), false)
@@ -88,7 +117,7 @@ test('the college office dashboard and review forms stay separate from project t
     $this->get(route('topics.show', $this->topic))->assertOk()
         ->assertSee(route('research_secretary.monitoring-reports.review', $monitoring), false)
         ->assertSee(route('research_secretary.narrative-reports.review', $progress), false)
-        ->assertSee('Forward to Research Head')->assertSee('Return to project leader for corrections');
+        ->assertSee('Forward to Research Head')->assertSee('Return for corrections');
     $this->get(route('project-narrative-reports.show', $progress))->assertOk()
         ->assertSee(route('research_secretary.narrative-reports.review', $progress), false);
 
@@ -97,6 +126,41 @@ test('the college office dashboard and review forms stay separate from project t
         ->assertDontSee(route('research_secretary.monitoring-reports.review', $monitoring), false)
         ->assertDontSee(route('research_secretary.narrative-reports.review', $progress), false);
 });
+
+test('report reviewers see submitted work without project team controls or duplicate history', function (string $workspace) {
+    $this->topic->update(['estimated_duration_months' => 3]);
+    $stage = $workspace === User::WORKSPACE_RESEARCH_HEAD ? 'head' : 'secretary';
+    $previous = ProjectProgressReport::create([
+        ...$this->reportData, 'review_stage' => $stage, 'progress_percentage' => 25,
+        'accomplishments' => 'Previous submitted snapshot.', 'work_plan' => [], 'budget_utilization' => [],
+    ]);
+    ProjectProgressReport::create([
+        ...$this->reportData, 'review_stage' => $stage, 'version_number' => 2,
+        'supersedes_report_id' => $previous->id, 'progress_percentage' => 40,
+        'accomplishments' => 'Current submitted snapshot.', 'work_plan' => [], 'budget_utilization' => [],
+    ]);
+    $viewer = $workspace === User::WORKSPACE_RESEARCH_HEAD ? $this->head : $this->secretary;
+    $response = $this->actingAs($viewer)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
+        ->get(route('topics.show', $this->topic))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//*[@data-monitoring-budget-section]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="narrative-report-history"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="terminal-reports"]')->length)->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0)
+        ->and($xpath->query('//*[@id="project-monitoring"]')->item(0)->textContent)->not->toContain('You can draft now')
+        ->and($xpath->query('//*[@id="project-monitoring"]//a[@href="#terminal-reports"]')->length)->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0)
+        ->and($xpath->query('//*[@aria-labelledby="project-team-heading"]')->item(0)->textContent)->not->toContain('Project Secretary')
+        ->and($xpath->query('//*[@id="quarterly-reports"]')->item(0)->textContent)->not->toContain('Submit both documents')
+        ->and($xpath->query('//*[@id="project-files-tab-button"]')->length)->toBe(1)
+        ->and($response->viewData('projectDocumentLibrary')['documents']->pluck('key')->all())->toContain('monitoring-report-'.$previous->id);
+
+    $this->actingAs($this->owner)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('topics.show', $this->topic))->assertOk()
+        ->assertSee('data-monitoring-budget-section', false)->assertSee('Report history')
+        ->assertSee('aria-label="Open terminal report"', false)->assertSeeText('Project Secretary');
+})->with([User::WORKSPACE_RESEARCH_HEAD, User::WORKSPACE_RESEARCH_SECRETARY]);
 
 test('Head concerns appear for office resolution while terminal review retains its existing decisions', function () {
     $progress = ProjectNarrativeReport::create([...$this->progressData, 'review_stage' => 'head']);

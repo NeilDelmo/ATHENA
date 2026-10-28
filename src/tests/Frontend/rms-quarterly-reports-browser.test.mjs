@@ -29,7 +29,7 @@ test('rendered RMS reports keep quarter downloads, editable categories and valid
     }));
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(read('resources/css/app.css'), { from: undefined });
-    const modules = ['research-assistant-markdown', 'proposal-paper-autosave', 'research-assistant-report-changes', 'assistant-report-editor', 'rms-quarterly-report-form']
+    const modules = ['research-assistant-markdown', 'proposal-paper-autosave', 'research-assistant-report-changes', 'assistant-report-editor', 'rms-quarterly-report-form', 'proposal-preview-workspace', 'proposal-paper-workspace', 'proposal-assessment-preview', 'report-paper-preview']
         .map(name => read(`resources/js/${name}.js`).replace(/^import .+;\r?\n/gm, '').replace(/^export /gm, '')).join('\n');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     mkdirSync(resolve('storage/framework/testing'), { recursive: true });
@@ -52,17 +52,18 @@ test('rendered RMS reports keep quarter downloads, editable categories and valid
                     return [name, `${header.outerHTML}<main class="${rendered.querySelector('main').className}"><div class="athena-page-content w-full">${workspace.outerHTML}</div></main>`];
                 })), fixtures);
                 await page.route('**/*', route => {
+                    if (new URL(route.request().url()).pathname.endsWith('/rms-quarterly-reports/preview')) return route.fulfill({ contentType: 'text/html', body: '<html><body><main>RMS report preview</main></body></html>' });
                     if (route.request().method() !== 'GET') {
                         mutations++;
                         return route.abort();
                     }
                     const name = new URL(route.request().url()).pathname.match(/^\/rms-(overview|editor|editor-errors|editor-pending)-test$/)?.[1];
                     if (!name) return route.abort();
-                    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html class="${dark ? 'dark' : ''}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${styles.css}\n[x-cloak]{display:none!important}</style></head><body class="bg-slate-50 font-sans dark:bg-slate-950"><div class="flex min-h-screen min-w-0 flex-col pl-[76px] sm:pl-[280px]">${fragments[name]}</div></body></html>` });
+                    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html class="${dark ? 'dark' : ''}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${styles.css}\n${read('resources/css/proposal-paper-workspace.css')}\n[x-cloak]{display:none!important}</style></head><body class="bg-slate-50 font-sans dark:bg-slate-950"><div class="flex min-h-screen min-w-0 flex-col pl-[76px] sm:pl-[280px]">${fragments[name]}</div></body></html>` });
                 });
                 const open = async name => {
                     await page.goto(`http://localhost/rms-${name}-test`);
-                    await page.addScriptTag({ content: `${modules}\ndocument.addEventListener('alpine:init', () => { Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm); Alpine.data('assistantReportEditor', assistantReportEditor); }); document.addEventListener('submit', event => { event.preventDefault(); window.submittedRmsData = Object.fromEntries(new FormData(event.target, event.submitter)); });` });
+                    await page.addScriptTag({ content: `${modules}\ndocument.addEventListener('alpine:init', () => { Alpine.data('rmsQuarterlyReportForm', rmsQuarterlyReportForm); Alpine.data('assistantReportEditor', assistantReportEditor); Alpine.data('reportPaperPreview', reportPaperPreview); }); document.addEventListener('submit', event => { event.preventDefault(); window.submittedRmsData = Object.fromEntries(new FormData(event.target, event.submitter)); });` });
                     await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
                 };
                 const fits = async () => {

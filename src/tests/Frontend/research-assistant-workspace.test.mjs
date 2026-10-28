@@ -516,6 +516,14 @@ test('proposal help survives the actual workspace collapse and expand controls',
                 if (width === 320 && dark) {
                     await page.screenshot({ path: resolve('storage/framework/testing/assistant-proposal-help-mobile-dark.png') });
                 }
+                await page.evaluate(() => {
+                    document.body.dataset.activeWorkspace = 'research_head';
+                    Alpine.store('researchAssistant').restoreReviewContext({
+                        topic_id: 24, workflow_scope: 'review', review_focus: 'revision_response',
+                    });
+                });
+                await expect(fullWorkspace.getByRole('button', { name: 'Help options', exact: true })).toBeHidden();
+                await expect(fullWorkspace.getByRole('button', { name: 'Compare saved changes', exact: false })).toHaveCount(0);
                 assert.deepEqual(errors, []);
                 await page.close();
             }

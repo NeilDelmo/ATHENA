@@ -6,7 +6,7 @@ import test from 'node:test';
 import { chromium } from '@playwright/test';
 
 const read = (path) => readFileSync(resolve(path), 'utf8');
-const script = (path) => read(path).replace(/^import .*;\r?\n/gm, '').replaceAll('export function ', 'function ');
+const script = (path) => read(path).replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
 const hub = read('resources/views/faculty/proposal-drafts/show.blade.php');
 const assessmentSection = hub.slice(hub.indexOf('<section data-automatic-assessment-forms'), hub.indexOf('</section>', hub.indexOf('<section data-automatic-assessment-forms')) + 10);
 const paperSection = hub.slice(hub.indexOf('<div data-editable-proposal-papers'), hub.indexOf('<section data-automatic-assessment-forms'));

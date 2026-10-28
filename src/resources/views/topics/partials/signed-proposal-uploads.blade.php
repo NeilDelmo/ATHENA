@@ -28,7 +28,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4 px-5 py-6 sm:px-6">
         <div>
             <h3 id="signature-progress-heading" class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{{ $canUploadSignedPapers ? 'Upload the required signed PDFs' : ($isSigningStage ? 'Signed papers awaiting release' : 'Released signed copies') }}</h3>
-            <p class="mt-2 text-base text-slate-500 dark:text-slate-400">{{ $canUploadSignedPapers ? 'Drop a signed PDF onto its paper below. Files save automatically.' : 'View or download the signed proposal papers. Research office staff or the secretary handle uploads.' }}</p>
+            <p class="mt-2 text-base text-slate-500 dark:text-slate-400">{{ $canUploadSignedPapers ? 'Drop a signed PDF onto its paper below. Files save automatically.' : 'View or download the signed proposal papers. The Research Secretary handles uploads.' }}</p>
         </div>
         <span data-signed-count="{{ $signedFileCount }}" :data-signed-count="count" class="text-base font-semibold tabular-nums text-slate-600 dark:text-slate-300" aria-live="polite"><span x-text="count">{{ $signedFileCount }}</span>/{{ $finalSigningFiles->count() }} saved</span>
     </div>

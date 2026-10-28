@@ -17,7 +17,7 @@
                 @elseif ($noticePreparedForSigning && $canManageNoticeToProceed)
                     <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Review the saved details below, then download the unsigned PDF for signatures and upload the signed copy at the bottom.</p>
                 @else
-                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Research office staff or the secretary prepare the unsigned PDF, obtain signatures, and upload the signed copy.</p>
+                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">The Research Secretary prepares the unsigned PDF, obtains signatures, and uploads the signed copy.</p>
                 @endif
             </div>
 
@@ -272,7 +272,7 @@
         </div>
     @elseif (! $topic->hasIssuedNoticeToProceed())
         <div class="px-5 py-5 text-base text-gray-600 sm:px-7">
-            Research office staff or the secretary will prepare the Notice to Proceed, obtain signatures, and upload the signed copy for release.
+            The Research Secretary will prepare the Notice to Proceed, obtain signatures, and upload the signed copy for release.
         </div>
     @endif
 </section>

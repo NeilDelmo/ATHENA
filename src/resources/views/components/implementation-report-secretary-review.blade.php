@@ -23,22 +23,22 @@
     <form method="POST" action="{{ route($isMonitoringTool ? 'research_secretary.monitoring-reports.review' : 'research_secretary.narrative-reports.review', $report) }}" class="space-y-4 border-t border-slate-200 pt-4 dark:border-slate-700" x-data="{ decision: @js(old('decision', 'forward')) }" data-secretary-report-review>
         @csrf
         @method('PATCH')
-        <div>
-            <h4 class="text-base font-semibold text-slate-950 dark:text-white">Research Office Secretary review</h4>
-            <p class="mt-1 text-base leading-6 text-slate-600 dark:text-slate-300">Check the submitted paper and its supporting evidence. Forward a satisfactory report to the Research Head, or return it to the project leader with correction instructions.</p>
-        </div>
-        <label for="{{ $reviewId }}-decision" class="block text-base font-semibold text-slate-700 dark:text-slate-200">Decision
-            <select id="{{ $reviewId }}-decision" name="decision" x-model="decision" required class="mt-2 block min-h-11 w-full rounded-lg border-slate-300 bg-white text-base text-slate-900 focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-900 dark:text-white">
-                <option value="forward">Forward to Research Head</option>
-                <option value="revision_requested">Return to project leader for corrections</option>
-            </select>
-        </label>
+        <h4 class="text-base font-semibold text-slate-950 dark:text-white">Research Office Secretary review</h4>
+        <fieldset class="flex flex-wrap gap-3">
+            <legend class="sr-only">Review decision</legend>
+            @foreach (['forward' => 'Forward to Research Head', 'revision_requested' => 'Return for corrections'] as $value => $label)
+                <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+                    <input type="radio" name="decision" value="{{ $value }}" x-model="decision" required @checked(old('decision', 'forward') === $value) class="h-4 w-4 border-slate-300 text-brand focus:ring-brand dark:border-slate-600">
+                    <span>{{ $label }}</span>
+                </label>
+            @endforeach
+        </fieldset>
         @error('decision')<p class="text-base font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-        <label for="{{ $reviewId }}-remarks" class="block text-base font-semibold text-slate-700 dark:text-slate-200">Review notes or correction instructions
-            <textarea id="{{ $reviewId }}-remarks" name="secretary_remarks" rows="4" maxlength="5000" x-bind:required="decision === 'revision_requested'" placeholder="Explain any corrections needed before this report can be forwarded." class="mt-2 block w-full rounded-lg border-slate-300 bg-white text-base leading-7 text-slate-900 focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-900 dark:text-white">{{ old('secretary_remarks', $report->secretary_remarks) }}</textarea>
-        </label>
-        @error('secretary_remarks')<p class="text-base font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-        <p class="text-base text-slate-500 dark:text-slate-400">Correction instructions are required when returning a report.</p>
-        <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-4 py-2 text-base font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">Save secretary review</button>
+        <div x-cloak x-show="decision === 'revision_requested'" class="max-w-2xl">
+            <label for="{{ $reviewId }}-remarks" class="block text-base font-semibold text-slate-700 dark:text-slate-200">Correction instructions</label>
+            <textarea id="{{ $reviewId }}-remarks" name="secretary_remarks" rows="2" maxlength="5000" x-bind:required="decision === 'revision_requested'" x-bind:disabled="decision !== 'revision_requested'" placeholder="Describe what the project leader needs to correct." class="mt-2 block w-full resize-y rounded-lg border-slate-300 bg-white text-base font-normal leading-6 text-slate-900 focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-900 dark:text-white">{{ old('secretary_remarks', $report->secretary_remarks) }}</textarea>
+            @error('secretary_remarks')<p class="mt-2 text-base font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+        </div>
+        <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-4 py-2 text-base font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" x-text="decision === 'revision_requested' ? 'Return for corrections' : 'Forward to Research Head'">{{ old('decision', 'forward') === 'revision_requested' ? 'Return for corrections' : 'Forward to Research Head' }}</button>
     </form>
 @endif

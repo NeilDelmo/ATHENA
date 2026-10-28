@@ -661,9 +661,9 @@ test('a research head can confirm completed signing while Notice to Proceed rele
 
     $faculty = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $faculty->assignRole('faculty');
-    Role::firstOrCreate(['name' => 'research_coordinator']);
+    Role::firstOrCreate(['name' => 'research_secretary']);
     $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $office->assignRole('research_coordinator');
+    $office->assignRole('research_secretary');
     $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
         'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
     ]);
@@ -695,7 +695,7 @@ test('a research head can confirm completed signing while Notice to Proceed rele
     $response->assertRedirect(route('research_head.dashboard'))->assertSessionHasNoErrors();
 
     foreach ($version->files()->get() as $signatureFile) {
-        $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
             ->post(route('topics.head-uploads.store', $topic), [
                 'source_file_id' => $signatureFile->id,
                 'review_file' => UploadedFile::fake()->create('signed-proposal.pdf', 100, 'application/pdf'),
@@ -1680,9 +1680,9 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $faculty = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $faculty->assignRole('faculty');
-    Role::firstOrCreate(['name' => 'research_coordinator']);
+    Role::firstOrCreate(['name' => 'research_secretary']);
     $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $office->assignRole('research_coordinator');
+    $office->assignRole('research_secretary');
     $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
         'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
     ]);
@@ -1889,7 +1889,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     ] as $documentType) {
         $sourceFile = $latestVersion->files->firstWhere('document_type', $documentType);
 
-        $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
             ->post(route('topics.head-uploads.store', $topic), [
                 'source_file_id' => $sourceFile->id,
                 'review_file' => UploadedFile::fake()->create("signed-{$documentType}.pdf", 100, 'application/pdf'),
@@ -1900,7 +1900,7 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $this->actingAs($head)
         ->patch(route('research_head.topics.finalizeApproval', $topic))
-        ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
+        ->assertRedirect(route('topics.show', $topic).'#proposal-review');
 
     expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($topic->fresh()->project_status)->toBeNull()

@@ -75,7 +75,7 @@ test('shared PDF reopen restores page position and zoom while citations and thum
             let factory;
             registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
             const library = {
-                getDocument: () => ({ promise: Promise.resolve({ numPages: 4, fingerprints: ['manual-1'], getPage: async () => ({
+                getDocument: () => ({ destroy: async () => {}, promise: Promise.resolve({ numPages: 4, fingerprints: ['manual-1'], getPage: async () => ({
                     getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale, userUnit: 1 }),
                     streamTextContent: () => ({}), render: () => ({ promise: Promise.resolve() }),
                 }) }) }),

@@ -239,8 +239,8 @@ test('faculty sidebars group accessible shortcuts by workspace', function (strin
         'Resources' => ['Saved literature', 'Literature search', 'Turnitin'],
     ] : [
         'Overview' => ['Dashboard', 'Calendar'],
-        'Monitoring' => ['My Projects', 'Active projects', 'Awaiting release'],
-        'Completion' => ['Completed projects', 'Post-implementation'],
+        'Monitoring' => ['Projects'],
+        'Completion' => ['Post-implementation'],
         'Resources' => ['Saved literature', 'Literature search', 'Turnitin', 'Journal Finder'],
     ];
     foreach ($expectedGroups as $group => $labels) {
@@ -267,9 +267,9 @@ test('faculty sidebars group accessible shortcuts by workspace', function (strin
             ->not->toContain('aria-label="Submission"')
             ->not->toContain('aria-label="Review"')
             ->toContain('href="'.route('research.index').'"')
-            ->toContain('href="'.route('research.index', ['status' => 'active']).'"')
-            ->toContain('href="'.route('research.index', ['status' => 'waiting']).'"')
-            ->toContain('href="'.route('research.index', ['status' => 'completed']).'"')
+            ->not->toContain('My Projects', 'Active projects', 'Awaiting release', 'Completed projects')
+            ->and($xpath->query($navigation.'//a[@href="'.route('research.index').'"]')->length)->toBe(1)
+            ->and($sidebar)
             ->not->toContain('href="'.route('faculty.proposal-drafts.create').'"')
             ->not->toContain('href="'.route('research-calls.index').'"');
     }
@@ -283,7 +283,7 @@ test('project shortcuts initialize the selected status and reject unknown filter
         ->assertOk()->assertSee('filter: '.Js::from($expected)->toHtml(), false);
 })->with([
     ['active', 'active'],
-    ['waiting', 'waiting'],
+    ['waiting', 'all'],
     ['completed', 'completed'],
     ['unknown', 'all'],
 ]);

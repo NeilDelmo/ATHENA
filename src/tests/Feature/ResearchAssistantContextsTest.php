@@ -14,7 +14,7 @@ beforeEach(function () {
     }
     $this->makeTopic = fn (User $owner, array $attributes = []): TopicProposal => TopicProposal::create([
         'user_id' => $owner->id, 'title' => 'Context for '.$owner->id,
-        'status' => 'approved', 'project_status' => 'completed', ...$attributes,
+        'status' => 'approved', 'project_status' => 'completed', 'notice_to_proceed_issued_at' => now(), ...$attributes,
     ]);
 });
 
@@ -73,6 +73,7 @@ test('assistant context lists preserve ownership collaboration visibility and co
     $pending = ($this->makeTopic)($other, ['title' => 'Unaccepted invitation']);
     $pending->collaborators()->create(['user_id' => $user->id, 'name' => $user->name, 'email' => $user->email]);
     $proposal = ($this->makeTopic)($user, ['title' => 'Proposal before implementation', 'status' => 'pending', 'project_status' => null]);
+    $awaiting = ($this->makeTopic)($user, ['title' => 'Approved before NTP release', 'notice_to_proceed_issued_at' => null]);
     $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
 
     $response = $this->getJson('/research-support/contexts')->assertSuccessful()
@@ -88,6 +89,7 @@ test('assistant context lists preserve ownership collaboration visibility and co
         expect($ids)->not->toContain($private->id, $pending->id);
     }
     expect($ids->contains($proposal->id))->toBe($workspace !== User::WORKSPACE_FACULTY_RESEARCHER);
+    expect($ids->contains($awaiting->id))->toBe($workspace !== User::WORKSPACE_FACULTY_RESEARCHER);
     $first = $owned->first();
     $this->getJson('/research-support/contexts?active_topic_id='.$first->id)->assertSuccessful()->assertJsonPath('contexts.0.id', $first->id);
 })->with(['faculty', 'faculty_researcher', 'research_head']);

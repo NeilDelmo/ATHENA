@@ -323,8 +323,8 @@ test('coordinator and secretary workspaces stay separate for an account with bot
     $this->post(route('workspace.store'), ['workspace' => 'research_secretary'])
         ->assertRedirect(route('research_secretary.dashboard'));
     $this->get(route('research_secretary.dashboard'))->assertOk()
-        ->assertSee('Research Office Secretary Dashboard')
-        ->assertSee('Review Monitoring Tools and Progress Reports, handle corrections')
+        ->assertSee('Secretary dashboard')
+        ->assertSeeText('need attention')
         ->assertDontSee('Research Office / Secretary');
     $this->get(route('profile.edit'))->assertOk()
         ->assertSee('Research Office Secretary')

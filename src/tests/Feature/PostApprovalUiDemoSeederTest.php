@@ -206,7 +206,9 @@ test('post approval UI demos provide accessible reports and completion stages wi
     @$document->loadHTML('<?xml encoding="utf-8" ?>'.$response->getContent());
     $entries = (new DOMXPath($document))->query('//*[@data-narrative-history-entry]');
     expect(collect(iterator_to_array($entries))->map(fn ($entry) => $entry->getAttribute('data-narrative-history-entry'))->all())
-        ->toContain((string) $interim->id, (string) $final->id);
+        ->toContain((string) $final->id)->not->toContain((string) $interim->id)
+        ->and($response->viewData('projectDocumentLibrary')['documents']->pluck('key')->all())
+        ->toContain('narrative-report-'.$interim->id, 'narrative-report-'.$final->id);
 
     $delayed = $topics['delayed']->fresh();
     $reports = $delayed->progressReports()->reorder('reporting_date')->get();

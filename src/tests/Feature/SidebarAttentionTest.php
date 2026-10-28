@@ -145,7 +145,7 @@ test('faculty navigation preserves the selected workspace even when researcher a
         ->and($proposalNotification->fresh()->read_at)->not->toBeNull();
 });
 
-test('My Projects opens after explicitly selecting the faculty researcher workspace', function () {
+test('Projects opens after explicitly selecting the faculty researcher workspace', function () {
     $faculty = User::factory()->create();
     $faculty->assignRole(['faculty', 'faculty_researcher']);
     $faculty->notify(new ProposalActivityNotification(

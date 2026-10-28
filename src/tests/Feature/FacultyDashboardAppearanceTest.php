@@ -122,7 +122,11 @@ test('faculty dashboards show workspace-specific data in the shared restrained l
             ->assertDontSee('Project distribution');
     } else {
         $response->assertSee('data-dashboard-layout="research-overview"', false)
-            ->assertSee('Project distribution')
+            ->assertSee('data-project-summary', false)
+            ->assertSee('Completed projects')
+            ->assertDontSee('Project distribution')
+            ->assertDontSee('Your projects and reports.')
+            ->assertSee('data-project-issues', false)
             ->assertViewHas('activeProjects', fn ($projects): bool => $projects->count() === 2)
             ->assertViewHas('averageProgress', 64)
             ->assertSee('64%')

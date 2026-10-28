@@ -46,15 +46,17 @@ test('research coordinators still see their dashboard when their college has no 
         ->get(route('research_coordinator.dashboard'))
         ->assertOk()
         ->assertSee('data-workspace-header-banner', false)
-        ->assertSee('Research Coordinator Dashboard')
-        ->assertSee('Record LREC feedback and prepare Notices to Proceed for projects from '.User::COLLEGES['CICS'].'.')
+        ->assertSee('Coordinator dashboard')
+        ->assertSee('Your college at a glance')->assertSee(User::COLLEGES['CICS'])
         ->assertSee('College members')
         ->assertSee('Quarterly Reports')
         ->assertSee('data-dashboard-layout="office-overview"', false)
-        ->assertSee('Awaiting release')
+        ->assertSee('Ready for comments')
+        ->assertDontSee('Prepare Notice to Proceed')
         ->assertSee('LREC proposals')
         ->assertSee('Dashboard')
-        ->assertSee('M15.75 6.75a3.75 3.75 0 1 1-7.5 0', false)
+        ->assertSee(route('research_coordinator.proposals.index'), false)
+        ->assertSee(route('research_coordinator.targets.index'), false)
         ->assertDontSee('No faculty members found yet');
 });
 

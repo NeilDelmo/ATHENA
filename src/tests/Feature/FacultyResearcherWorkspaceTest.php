@@ -86,7 +86,8 @@ test('faculty researcher workspace cannot access faculty proposal or research ca
         ->assertSee('Awaiting LREC presentation');
 });
 
-test('faculty researcher workspace separates active awaiting NTP and completed projects', function () {
+test('faculty researcher projects include only issued active and completed projects', function () {
+    $this->withoutVite();
     $createProject = fn (string $title, string $status, ?string $projectStatus = null, bool $hasNotice = false): TopicProposal => TopicProposal::create([
         'user_id' => $this->researcher->id,
         'research_call_id' => $this->call->id,
@@ -103,6 +104,7 @@ test('faculty researcher workspace separates active awaiting NTP and completed p
     $delayed = $createProject('Delayed NTP project', 'approved', TopicProposal::PROJECT_STATUS_DELAYED, true);
     $completed = $createProject('Completed archive project', 'approved', TopicProposal::PROJECT_STATUS_COMPLETED, true);
     $pending = $createProject('Hidden pending proposal', 'pending');
+    $unreleasedCompleted = $createProject('Completed without an issued NTP', 'approved', TopicProposal::PROJECT_STATUS_COMPLETED);
     $approvedWithNoticeWithoutExecutionStatus = $createProject('Hidden inactive NTP project', 'approved', null, true);
     ProjectProgressReport::create([
         'topic_id' => $active->id,
@@ -118,14 +120,16 @@ test('faculty researcher workspace separates active awaiting NTP and completed p
 
     $response->assertOk()
         ->assertSee('data-dashboard-layout="project-list"', false)
-        ->assertSee('Approved Research Projects')
-        ->assertSee('All projects')
-        ->assertSee('Waiting')
+        ->assertSee('Projects')
+        ->assertSee('<span>All</span>', false)
+        ->assertDontSee('<span>Waiting</span>', false)
+        ->assertDontSee('My Projects')
+        ->assertDontSee('Awaiting release')
         ->assertSee('Active')
         ->assertSee('Completed')
         ->assertSee($active->title)
         ->assertSee($delayed->title)
-        ->assertSee($awaiting->title)
+        ->assertDontSee($awaiting->title)
         ->assertSee($completed->title)
         ->assertDontSee('64% monitored')
         ->assertSeeHtml('mx-auto max-w-6xl')
@@ -141,14 +145,31 @@ test('faculty researcher workspace separates active awaiting NTP and completed p
         ->assertSeeHtml('data-project-action class="flex shrink-0 items-center justify-center')
         ->assertSeeHtml('border-[#7A0019] bg-[#7A0019] px-4 py-2.5 text-sm font-bold text-white')
         ->assertSee('View milestones')
-        ->assertSee('View status')
         ->assertSee('View archive')
+        ->assertViewMissing('awaitingProjects')
+        ->assertViewHas('completedProjects', fn ($projects): bool => $projects->modelKeys() === [$completed->id])
+        ->assertDontSee($unreleasedCompleted->title)
         ->assertDontSee($pending->title)
         ->assertDontSee($approvedWithNoticeWithoutExecutionStatus->title);
 
+    expect(TopicProposal::query()->accessibleTo($this->researcher)->visibleInResearcherWorkspace()->pluck('id')->all())
+        ->toEqualCanonicalizing([$active->id, $delayed->id, $completed->id]);
+    foreach ([$awaiting, $pending, $unreleasedCompleted, $approvedWithNoticeWithoutExecutionStatus] as $hidden) {
+        expect($hidden->isVisibleInResearcherWorkspace())->toBeFalse();
+    }
+    foreach ([$active, $delayed, $completed] as $visible) {
+        expect($visible->isVisibleInResearcherWorkspace())->toBeTrue();
+    }
+
+    $this->get(route('faculty.dashboard'))->assertOk()->assertViewMissing('awaitingProjects')
+        ->assertDontSee('My projects')->assertDontSee('Awaiting release');
+    $this->get(route('topics.show', $awaiting))->assertForbidden();
+    $this->get(route('research.show', $unreleasedCompleted))->assertForbidden();
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
-    ])->actingAs($this->researcher)->get(route('research.show', $awaiting))->assertOk();
+    ])->actingAs($this->researcher)->get(route('research.show', $awaiting))->assertForbidden();
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->get(route('topics.show', $awaiting))->assertOk();
 });
 
 test('monitoring is blocked before NTP and after project completion', function () {

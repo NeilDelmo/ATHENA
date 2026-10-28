@@ -23,6 +23,7 @@
         ],
         'Projects' => [
             ['Research projects', 'research_head.projects.index', 'chart', 'project_monitoring'],
+            ['Budget monitoring', 'research_head.budgets.index', 'chart', null],
             ['Completed projects', 'research_head.completed-projects.index', 'document', null],
             ['Post-implementation', 'research-outcomes.index', 'chart', null],
         ],

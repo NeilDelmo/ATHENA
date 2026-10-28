@@ -199,6 +199,7 @@ test('the quarterly report has editable manual fields and readable automatic tab
     foreach (['save' => 'Save draft', 'preview' => 'Save and preview', 'download' => 'Save and download Word', 'submit' => 'Submit quarterly report'] as $intent => $label) {
         expect($xpath->query('//button[@type="submit" and @form="quarterly-report-form" and @name="intent" and @value="'.$intent.'" and normalize-space(.)="'.$label.'"]')->length)->toBe(1);
     }
+    $response->assertSeeText('Preview saved report')->assertSee(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3, 'preview' => 1]));
     foreach (['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList', 'undo', 'redo', 'removeFormat'] as $command) {
         expect($xpath->query('//button[@type="button" and @data-document-writing-command="'.$command.'"]')->length)->toBe(1);
     }
@@ -218,6 +219,26 @@ test('the report defaults to the current calendar quarter and validates period s
     $this->get(route('research_coordinator.reports.index'))->assertOk()->assertViewHas('year', 2026)->assertViewHas('quarter', 4);
     $this->getJson(route('research_coordinator.reports.index', ['year' => 1999, 'quarter' => 5]))
         ->assertUnprocessable()->assertJsonValidationErrors(['year', 'quarter']);
+});
+
+test('the coordinator paper preview shows unfinished edits without saving the draft', function () {
+    Storage::fake('local');
+    $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => 'Saved narrative'])->assertSessionHasNoErrors();
+    $report = CollegeQuarterlyReport::sole();
+    $this->post(route('research_coordinator.reports.preview', ['year' => 2026, 'quarter' => 3]), [...($this->reportInput)(),
+        'intent' => 'preview', 'other_accomplishments' => '<p>Unsaved narrative</p><script>alert(1)</script>',
+        'presentations' => [['event' => 'Unfinished forum']], 'reviewed_by' => 'Unsaved reviewer',
+        'evidence_images' => [UploadedFile::fake()->image('preview-only.png')],
+        'evidence_captions' => ['Unsaved evidence'],
+    ])->assertOk()->assertSeeText('Unsaved narrative')->assertSeeText('Unfinished forum')->assertSeeText('Unsaved reviewer')
+        ->assertSeeText('Unsaved evidence')->assertSee('data:image/png;base64,', false)
+        ->assertDontSee('<script>', false)->assertDontSee('Report preview actions');
+    expect($report->fresh()->other_accomplishments)->toBe('Saved narrative')
+        ->and($report->fresh()->presentations)->toBe([])
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
+    $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]))->assertOk()
+        ->assertSee('reportPaperPreview(', false)->assertSee('proposal-writing-columns', false)
+        ->assertSee('quarterly-report-preview-panel')->assertSee('Fit page')->assertSee('Fit width');
 });
 
 test('the report uses the four calendar quarters and shows their month ranges', function () {
@@ -332,7 +353,7 @@ test('preview and download save the current draft and evidence before opening th
         'intent' => $intent, 'seminars' => [$seminar], 'other_accomplishments' => 'Current accomplishment',
         'reviewed_by' => 'Current Dean', 'reviewed_by_title' => 'Dean',
         'evidence_images' => [UploadedFile::fake()->image('current.png')], 'evidence_captions' => ['Current evidence'],
-    ])->assertSessionHasNoErrors()->assertRedirect(route($destination, ['year' => 2026, 'quarter' => 3]));
+    ])->assertSessionHasNoErrors()->assertRedirect(route($destination, ['year' => 2026, 'quarter' => 3, ...($intent === 'preview' ? ['preview' => 1] : [])]));
 
     $report = CollegeQuarterlyReport::sole();
     expect(collect($report->seminars)->map(fn (array $row): array => Arr::except($row, 'id'))->all())->toEqual([$seminar])
@@ -344,7 +365,7 @@ test('preview and download save the current draft and evidence before opening th
         ->and($report->submitted_at)->toBeNull()
         ->and($report->snapshot)->toEqual(['presentations' => [], 'publications' => [], 'research' => [], 'undated_publications' => 0]);
     Storage::disk('local')->assertExists($report->evidence[0]['path']);
-})->with(['preview' => ['preview', 'research_coordinator.reports.print'], 'download' => ['download', 'research_coordinator.reports.index']]);
+})->with(['preview' => ['preview', 'research_coordinator.reports.index'], 'download' => ['download', 'research_coordinator.reports.index']]);
 
 test('saving and downloading Word refreshes the editor before another save', function (bool $upload) {
     Storage::fake('local');

@@ -168,7 +168,7 @@ test('coordinator activity links are validated against the proposal college rath
 test('LREC queues and access use the same submitted college as implementation reports', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_LREC_QUEUED, 'review_stage' => 'lrec', 'notice_to_proceed_issued_at' => null]);
     $this->actingAs($this->proposalCoordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
-    $this->get(route('research_coordinator.dashboard'))->assertOk()->assertSee($this->topic->title);
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee($this->topic->title);
     expect($this->proposalCoordinator->can('view', $this->topic))->toBeTrue();
     $this->actingAs($this->profileCoordinator);
     $this->get(route('research_coordinator.dashboard'))->assertOk()->assertDontSee($this->topic->title);

@@ -23,12 +23,18 @@
         <x-page-header variant="hero" eyebrow="Research Coordinator" title="Quarterly Accomplishment Reports"
             :subtitle="($coordinator->college ?: 'Your college').' · One general report each calendar quarter.'">
             <x-slot name="actions">
+                <a href="{{ route('research_coordinator.reports.index', ['year' => $year, 'quarter' => $quarter, 'preview' => 1]) }}" class="dashboard-action">Preview saved report</a>
                 <a href="{{ route('research_coordinator.reports.template') }}" class="dashboard-action">Download blank template</a>
             </x-slot>
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-6" data-quarterly-reports>
+    <div data-quarterly-reports data-proposal-paper-workspace x-data="reportPaperPreview(@js([
+        'previewUrl' => $submitted ? route('research_coordinator.reports.print', ['year' => $year, 'quarter' => $quarter, 'embedded' => 1]) : route('research_coordinator.reports.preview'),
+        'title' => 'Quarterly accomplishment report', 'readOnly' => $submitted, 'openOnLoad' => request()->boolean('preview'),
+    ]))" @input="markProposalPreviewStale()" @change="markProposalPreviewStale()" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
+        <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }">
+        <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen">
         @if (session('status'))
             <p role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</p>
         @endif
@@ -90,7 +96,7 @@
             </div>
             @if ($submitted)
             <div class="flex flex-wrap gap-2">
-                <a href="{{ route('research_coordinator.reports.print', ['year' => $year, 'quarter' => $quarter]) }}" target="_blank" rel="noopener" class="dashboard-action">Print preview</a>
+                <button type="button" @click="showProposalPreview(); expandProposalPaperPreview()" aria-controls="quarterly-report-preview-panel" class="dashboard-action">Print preview</button>
                 <a href="{{ route('research_coordinator.reports.download', ['year' => $year, 'quarter' => $quarter]) }}" class="dashboard-action">Download Word</a>
             </div>
             @endif
@@ -103,7 +109,7 @@
             </div>
         @endif
 
-        <form id="quarterly-report-form" method="POST" action="{{ route('research_coordinator.reports.store') }}" enctype="multipart/form-data" class="space-y-6"
+        <form id="quarterly-report-form" data-report-preview-form method="POST" action="{{ route('research_coordinator.reports.store') }}" enctype="multipart/form-data" class="space-y-6"
             data-proposal-paper-workspace data-document-writing-workspace
             data-assistant-report-type="college-quarterly" data-assistant-report-key="{{ $report ? 'college-quarterly:'.$report->id : '' }}" data-assistant-report-save-mode="manual"
             x-data="quarterlyReportForm({{ Illuminate\Support\Js::from([...$activities, 'rowProofs' => $rowProofs, 'removedProofs' => old('remove_evidence', [])]) }})"
@@ -245,5 +251,9 @@
                 </ul>
             </section>
         @endif
+        </div>
+        <x-proposal-paper-preview panel-id="quarterly-report-preview-panel" preview-label="Quarterly accomplishment report preview" frame-title="Quarterly accomplishment report preview" />
+        </div>
+        <button type="button" x-show="!previewPaneOpen" x-cloak @click="showProposalPreview()" class="proposal-writing-preview-launcher" aria-controls="quarterly-report-preview-panel" :aria-expanded="previewPaneOpen">Preview paper</button>
     </div>
 </x-app-layout>

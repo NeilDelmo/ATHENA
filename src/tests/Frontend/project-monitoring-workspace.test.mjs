@@ -118,6 +118,11 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Latest reported progress/);
                     await expect(page.locator('#quarterly-reporting-schedule-heading')).toHaveCSS('font-size', '20px');
                     await expect(page.locator('[data-monitoring-overview]')).toHaveCSS('background-color', dark ? 'rgb(30, 41, 59)' : 'rgb(254, 242, 244)');
+                    await expect(page.locator('[data-monitoring-overview]')).toHaveCSS('border-top-width', '0px');
+                    for (const report of await page.locator('.quarter-report-document').all()) {
+                        await expect(report).toHaveCSS('border-left-width', '1px');
+                        await expect(report).toHaveCSS('border-left-color', dark ? 'rgb(51, 65, 85)' : 'rgb(226, 232, 240)');
+                    }
                     assert.equal(await page.getByRole('tab').first().getAttribute('id'), 'project-monitoring-tab-button');
                     assert.equal(await page.locator('[data-reporting-quarter]').count(), fixture === 'summary-head' ? 2 : (['history', 'delayed-head', 'head-review'].includes(fixture) ? 4 : 3));
                     assert.equal(await page.locator('#terminal-reports').isVisible(), true);
@@ -413,12 +418,15 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                         assert.equal(await page.locator(`[id="${id}"]`).count(), 1);
                         await page.locator('#narrative-report-history summary').click();
                     }
-                    if (fixture.startsWith('completed')) {
+                    if (fixture === 'completed-faculty_researcher') {
                         const historicalProgress = page.locator('#narrative-report-history [data-narrative-report-summary]').first();
                         assert.equal(await historicalProgress.isVisible(), false);
                         await page.evaluate(hash => { location.hash = hash; }, `#${await historicalProgress.getAttribute('id')}`);
                         await historicalProgress.waitFor({ state: 'visible' });
                         await page.locator('#narrative-report-history summary').click();
+                    }
+                    if (['completed-research_head', 'delayed-head', 'head-review', 'summary-head'].includes(fixture)) {
+                        assert.equal(await page.locator('#narrative-report-history').count(), 0);
                     }
 
                     for (const summary of await page.locator('.monitoring-disclosure > summary').all()) {
@@ -473,8 +481,8 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     if (process.env.MONITORING_SCREENSHOT_DIRECTORY && [390, 1440].includes(width)) {
                         await recordOptions.screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `project-options-${width}-${dark ? 'dark' : 'light'}.png`) });
                     }
-                    await page.keyboard.press('Escape');
-                    assert.equal(await recordMenu.getAttribute('open'), null);
+                    await recordTrigger.press('Escape');
+                    await expect(recordMenu).not.toHaveAttribute('open');
                     await recordMenu.locator('summary').click();
                     await page.getByRole('tab', { name: 'Proposal', exact: true }).click();
                     await monitoring.waitFor({ state: 'hidden' });
@@ -607,7 +615,7 @@ test('submitted report previews render real PDFs and resize their pages with the
                         const previewPage = await paper.locator('.pdf-annotation-page').boundingBox();
                         const paperFrame = await paper.locator('.proposal-preview-paper').boundingBox();
                         assert.ok(paperFrame.height - previewPage.height <= 32);
-                        assert.ok((await paper.locator('.textLayer').allTextContents()).join(' ').length > 50);
+                        assert.equal(await paper.locator('.textLayer').count(), 0);
                         assert.equal(await paper.getByRole('group', { name: 'Document zoom controls' }).count(), 0);
                         assert.equal(await dialog.getByRole('progressbar').getAttribute('aria-valuenow'), '25');
                         if (process.env.MONITORING_SCREENSHOT_DIRECTORY) {
