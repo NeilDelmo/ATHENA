@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 import { proposalCitationField } from '../../resources/js/proposal-semantic-editor.js';
 import { proposalSourceWorkspace } from '../../resources/js/proposal-source-workspace.js';
@@ -883,6 +883,13 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 assert.equal(await page.locator('#'+feedbackId).isVisible(), true);
                 await page.getByRole('button', { name: 'Check requirements' }).click();
                 await checklist.waitFor({ state: 'visible' });
+                await expect(checklist).toHaveCSS('border-left-width', '1px');
+                await expect(checklist).toHaveCSS('border-left-color', dark ? 'rgb(51, 65, 85)' : 'rgb(226, 232, 240)');
+                await page.getByRole('button', { name: 'Check requirements' }).click();
+                await expect(checklist).toBeHidden();
+                await expect(page.getByRole('button', { name: 'Check requirements' })).toHaveAttribute('aria-expanded', 'false');
+                await page.getByRole('button', { name: 'Check requirements' }).click();
+                await expect(checklist).toBeVisible();
                 assert.match(await page.locator('[data-proposal-requirements-result]').innerText(), /requirements need attention/);
                 if (process.env.ATHENA_DESIGN_SNAPSHOTS === '1' && width === 1440 && !dark) {
                     await page.screenshot({ path: '../tmp/detailed-proposal-requirements.png' });
@@ -898,13 +905,15 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 assert.ok(Math.abs(color[0] - color[1]) < 10, `Expected a neutral panel: ${color}`);
                 await checklist.getByRole('button', { name: 'Complete Responsibility percentage.' }).click();
                 assert.equal(await page.getByRole('spinbutton', { name: 'Responsibility percentage' }).evaluate(field => field === document.activeElement), true);
+                await page.getByRole('button', { name: 'Check requirements' }).click();
+                await expect(checklist).toBeHidden();
                 await page.getByRole('spinbutton', { name: 'Responsibility percentage' }).fill('100');
                 assert.equal(await page.locator('#responsibility-percentage').getAttribute('aria-invalid'), null);
                 assert.equal(await page.locator('#'+feedbackId).isVisible(), false);
                 await page.locator('#leader-contact').fill('09123456789');
                 await page.getByRole('button', { name: 'Check requirements' }).click();
                 await checklist.waitFor({ state: 'hidden' });
-                assert.equal(await page.locator('[data-proposal-requirements-result]').isVisible(), true);
+                await expect(page.locator('[data-proposal-requirements-result]')).toBeVisible();
                 assert.match(await page.locator('[data-proposal-requirements-result]').innerText(), /required fields are complete/);
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
                 await page.evaluate(() => {

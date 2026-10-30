@@ -1,3 +1,6 @@
+@if (Auth::user()->isUsingWorkspace('vcrdes'))
+    <x-vcrdes-navigation />
+@else
 @php
     $isFacultyNavigation = Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
     $isResearchOfficeNavigation = Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE);
@@ -213,3 +216,4 @@
         </div>
     @endif
 </aside>
+@endif

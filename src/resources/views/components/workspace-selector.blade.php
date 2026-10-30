@@ -3,6 +3,7 @@
 @php
     $workspaceCount = count($workspaces);
     $workspaceCopy = [
+        'vcrdes' => ['label' => 'VCRDES', 'description' => 'Monitor research delivery, budgets, and college performance across the institution.'],
         'research_head' => ['label' => 'Research Head', 'description' => 'Manage research calls, review proposals, and oversee institutional research.'],
         'faculty_researcher' => ['label' => 'Faculty Researcher', 'description' => 'Manage approved projects, submit monitoring reports, and access released documents.'],
         'faculty' => ['label' => 'Faculty', 'description' => 'Prepare proposals, submit research papers, and respond to review feedback.'],
@@ -68,7 +69,9 @@
                     ]) aria-labelledby="{{ $titleId }}">
                         <div class="flex min-h-11 flex-wrap items-center justify-between gap-2">
                             <span class="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-red-50 text-[#7A0019] dark:bg-red-950/50 dark:text-red-300">
-                                @if ($key === 'research_head')
+                                @if ($key === 'vcrdes')
+                                    <x-report-library-icon name="presentation" />
+                                @elseif ($key === 'research_head')
                                     <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v6m-9.75 3.75h13.5M4.5 5.25h15a.75.75 0 0 1 .75.75v12.75H3.75V6a.75.75 0 0 1 .75-.75Z" /></svg>
                                 @elseif ($key === 'faculty_researcher')
                                     <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5h6l2-3h10v15H3V7.5Zm0 3h18M8 14.25h8M8 16.75h5" /></svg>

@@ -64,6 +64,14 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .proposal-preview-dock :is(button, a):focus-visible, .proposal-writing-preview-launcher:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 3px; }
 .proposal-writing-action-group { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
 .proposal-writing-action-group + .proposal-writing-action-group { padding-left: .375rem; border-left: 1px solid var(--proposal-writing-border); }
+.proposal-writing-toolbar.detailed-proposal-writing-toolbar { display: flex; flex-direction: column; align-items: start; gap: .5rem; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.detailed-proposal-writing-toolbar [data-writing-toolbar-toggle] { min-width: 10rem; min-height: 2.5rem; padding: .375rem 1.5rem; border-radius: .375rem; font-size: .875rem; }
+.detailed-proposal-writing-toolbar [data-writing-toolbar-toggle]:hover { background: var(--proposal-writing-workspace); }
+.detailed-proposal-writing-toolbar [data-writing-toolbar-toggle]:focus-visible { outline: none; text-decoration: underline; text-underline-offset: .2em; }
+.detailed-proposal-writing-toolbar .proposal-writing-toolbar-panel { width: 100%; padding: .625rem; border: 1px solid var(--proposal-writing-border); border-radius: .75rem; background: var(--proposal-writing-surface); box-shadow: 0 6px 20px rgb(15 23 42 / .12); }
+.detailed-proposal-writing-toolbar [data-writing-toolbar-controls] { margin-top: 0; }
+.detailed-proposal-writing-toolbar .proposal-writing-toolbar-heading { margin-top: .5rem; }
+.detailed-proposal-writing-toolbar [data-writing-target-active] { text-decoration: underline; text-decoration-color: #dc2626; text-decoration-thickness: 2px; text-underline-offset: .25em; }
 .detailed-proposal-writing-toolbar .proposal-writing-toolbar-row { flex-wrap: wrap; }
 .detailed-proposal-writing-toolbar .proposal-writing-toolbar-row > .proposal-writing-buttons:not(.proposal-writing-primary-action) { flex: 1 1 auto; width: auto; flex-wrap: wrap; overflow-x: visible; }
 .detailed-proposal-writing-toolbar :is(.proposal-writing-buttons, .proposal-table-picker, .proposal-writing-menu) button { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; line-height: 1.25; }

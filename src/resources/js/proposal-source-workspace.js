@@ -140,6 +140,7 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceNotice: '',
         sourceWorkspaceVersion: 0,
         sourceWorkspaceActiveSourceId: 0,
+        sourceWorkspacePreviewSource: null,
         sourceWorkspaceEvidenceCache: {},
         sourceWorkspaceSelectedPassages: [],
         sourceWorkspacePage: 0,
@@ -282,7 +283,7 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceView = 'list';
             this.sourceWorkspaceError = '';
             this.sourceWorkspaceNotice = '';
-            if (this.sourceWorkspaceTab === 'library') await this.searchSourceWorkspaceLibrary();
+            if (this.sourceWorkspaceTab === 'library' && this.sourceWorkspaceCitationMode) await this.searchSourceWorkspaceLibrary();
         },
 
         sourceWorkspaceUrl(value) { return sourceWorkspaceSafeUrl(value); },
@@ -294,18 +295,25 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceCitationSource = source;
         },
         sourceWorkspaceSources() {
-            if (this.sourceWorkspaceTab === 'library') return this.sourceWorkspaceLibraryResults;
+            if (this.sourceWorkspaceTab === 'library' && this.sourceWorkspaceCitationMode) return this.sourceWorkspaceLibraryResults;
             if (this.sourceWorkspaceTab === 'search') return this.sourceWorkspaceSearchResults;
             const query = this.sourceWorkspaceQuery.trim().toLowerCase();
-            return (this.literatureSources || []).filter((source) => !query
-                || [source.title, sourceAuthors(source.authors), source.doi].some((value) => sourceText(value).toLowerCase().includes(query)));
+            return (this.literatureSources || []).filter((source) => (this.sourceWorkspaceTab !== 'library' || source.is_saved !== false)
+                && (!query || [source.title, sourceAuthors(source.authors), source.doi, source.venue].some((value) => sourceText(value).toLowerCase().includes(query))));
         },
         sourceWorkspaceSourceKey(source) { return sourceText(source?.id || source?.doi || source?.url || source?.title); },
         sourceWorkspaceLinkedSource(source) {
-            if (this.sourceWorkspaceTab === 'paper') return source;
+            if (this.sourceWorkspaceTab === 'paper' || (this.sourceWorkspaceTab === 'library' && !this.sourceWorkspaceCitationMode)) {
+                return (this.literatureSources || []).find((item) => Number(item.id) === Number(source.id)) || null;
+            }
             if (this.sourceWorkspaceTab === 'library') return (this.literatureSources || []).find((item) => Number(item.literature_source_id) === Number(source.id)) || null;
-            return this.linkedLiteratureSourceForResult?.(source) || (this.literatureSources || []).find((item) =>
-                (source.doi && item.doi === source.doi) || (source.url && item.url === source.url) || (item.title && item.title === source.title)) || null;
+            const linked = this.linkedLiteratureSourceForResult?.(source);
+            return (this.literatureSources || []).find((item) => (linked?.id && Number(item.id) === Number(linked.id))
+                || (source.doi && item.doi === source.doi) || (source.url && item.url === source.url) || (item.title && item.title === source.title)) || linked || null;
+        },
+        sourceWorkspaceSourceSaved(source) {
+            const linked = this.sourceWorkspaceLinkedSource(source);
+            return Boolean(linked && linked.is_saved !== false);
         },
         sourceWorkspaceEndpoint(sourceId, suffix = 'evidence') {
             return `${String(config.evidenceBase || '').replace(/\/$/, '')}/${Number(sourceId)}/${suffix}`;
@@ -323,6 +331,7 @@ export function proposalSourceWorkspace(config = {}) {
         },
         async searchSourceWorkspaceLibrary() {
             if (this.sourceWorkspaceBusy()) return false;
+            if (!this.sourceWorkspaceCitationMode) return true;
             const version = ++this.sourceWorkspaceVersion;
             this.sourceWorkspaceLoading = true;
             this.sourceWorkspaceError = '';
@@ -390,6 +399,24 @@ export function proposalSourceWorkspace(config = {}) {
             } catch (error) { this.sourceWorkspaceError = error.message; return false; }
             finally { this.sourceWorkspaceSaving = false; }
         },
+        async toggleSourceWorkspaceSource(source) {
+            if (this.sourceWorkspaceBusy()) return false;
+            const linked = this.sourceWorkspaceLinkedSource(source);
+            if (!linked) return this.saveSourceWorkspaceSource(source);
+            this.sourceWorkspaceSaving = true;
+            this.sourceWorkspaceError = '';
+            try {
+                const saved = !this.sourceWorkspaceSourceSaved(source);
+                const payload = await this.sourceWorkspaceRequest(this.sourceWorkspaceEndpoint(linked.id, 'bookmark'), {
+                    method: 'PATCH', body: JSON.stringify({ is_saved: saved }),
+                });
+                if (!payload.source?.id) throw new Error('The literature bookmark could not be updated.');
+                this.upsertLiteratureSource(payload.source);
+                this.sourceWorkspaceNotice = saved ? 'Literature saved.' : 'Literature unsaved. Existing citations and source evidence are kept.';
+                return payload.source;
+            } catch (error) { this.sourceWorkspaceError = error.message; return false; }
+            finally { this.sourceWorkspaceSaving = false; }
+        },
         async citeSourceWorkspaceSource(source) {
             if (this.sourceWorkspaceBusy() || !this.sourceWorkspaceCanCite?.()) return false;
             this.sourceWorkspaceSaving = true;
@@ -404,12 +431,12 @@ export function proposalSourceWorkspace(config = {}) {
             } catch (error) { this.sourceWorkspaceError = error.message; return false; }
             finally { this.sourceWorkspaceSaving = false; }
         },
-        sourceWorkspaceActiveSource() { return (this.literatureSources || []).find((source) => Number(source.id) === Number(this.sourceWorkspaceActiveSourceId)) || null; },
+        sourceWorkspaceActiveSource() { return (this.literatureSources || []).find((source) => Number(source.id) === Number(this.sourceWorkspaceActiveSourceId)) || this.sourceWorkspacePreviewSource; },
         sourceWorkspaceEvidence() { return this.sourceWorkspaceEvidenceCache[this.sourceWorkspaceActiveSourceId] || { document: null, passages: [] }; },
         sourceWorkspaceCurrentPage() { return this.sourceWorkspaceEvidence().document?.pages?.[this.sourceWorkspacePage] || null; },
         sourceWorkspaceHasPdfText() { return Number(this.sourceWorkspaceEvidence().document?.coverage?.characters || 0) > 0; },
         sourceWorkspaceCanDraftPaper() {
-            return Boolean(config.synthesisUrl && Number(config.proposalDraftId) > 0 && this.sourceWorkspaceActiveSource());
+            return Boolean(config.synthesisUrl && Number(config.proposalDraftId) > 0 && this.sourceWorkspaceActiveSourceId && this.sourceWorkspaceActiveSource());
         },
         sourceWorkspacePaperDraftSignature() {
             return JSON.stringify({ source: this.sourceWorkspaceActiveSource(), evidence: this.sourceWorkspaceEvidence() });
@@ -481,11 +508,12 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceError = '';
             const version = ++this.sourceWorkspaceVersion;
             try {
-                const linked = await this.sourceWorkspaceEnsureLinked(source);
-                const payload = await this.sourceWorkspaceRequest(this.sourceWorkspaceEndpoint(linked.id));
+                const linked = this.sourceWorkspaceLinkedSource(source);
+                const payload = linked ? await this.sourceWorkspaceRequest(this.sourceWorkspaceEndpoint(linked.id)) : null;
                 if (version !== this.sourceWorkspaceVersion) return false;
-                this.sourceWorkspaceAcceptEvidence(linked.id, payload);
-                this.sourceWorkspaceActiveSourceId = Number(linked.id);
+                if (linked) this.sourceWorkspaceAcceptEvidence(linked.id, payload);
+                this.sourceWorkspacePreviewSource = linked ? null : source;
+                this.sourceWorkspaceActiveSourceId = Number(linked?.id || 0);
                 this.sourceWorkspacePage = 0;
                 this.sourceWorkspaceQuote = '';
                 this.sourceWorkspaceNote = '';
@@ -691,7 +719,7 @@ export function proposalSourceWorkspace(config = {}) {
         },
         async uploadSourceWorkspaceReaderPdf(event) {
             const file = event?.target?.files?.[0];
-            if (this.sourceWorkspaceBusy() || !file) return false;
+            if (this.sourceWorkspaceBusy() || !this.sourceWorkspaceActiveSourceId || !file) return false;
             if (!/\.pdf$/i.test(file.name) || file.size > 8 * 1024 * 1024) { this.sourceWorkspaceError = 'Choose a PDF under 8 MB.'; return false; }
             this.sourceWorkspaceSaving = true;
             this.sourceWorkspaceError = '';

@@ -22,6 +22,117 @@ function workspace(request = async () => response({})) {
 }
 function collectEvidence(state) { state.sourceWorkspaceAcceptEvidence(12, evidence); state.sourceWorkspaceActiveSourceId = 12; state.toggleSourceWorkspacePassage(12, state.sourceWorkspaceEvidence().passages[0]); }
 
+for (const tab of ['library', 'search']) {
+    test(`${tab} source previews do not save or link literature`, async () => {
+        const calls = [];
+        const state = workspace(async (url) => { calls.push(url); return response(evidence); });
+        collectEvidence(state);
+        state.sourceWorkspaceTab = tab;
+        state.sourceWorkspaceCitationMode = tab === 'library';
+        const source = { ...librarySource, id: 12 };
+
+        assert.equal(await state.readSourceWorkspaceSource(source), true);
+        assert.deepEqual(calls, []);
+        assert.deepEqual(state.literatureSources, [linkedSource]);
+        assert.equal(state.sourceWorkspaceView, 'reader');
+        assert.equal(state.sourceWorkspaceActiveSource().title, librarySource.title);
+        assert.equal(state.sourceWorkspaceActiveSourceId, 0);
+        assert.deepEqual(state.sourceWorkspaceEvidence(), { document: null, passages: [] });
+        assert.equal(state.sourceWorkspaceCanDraftPaper(), false);
+        state.sourceWorkspaceNote = 'A note for this source';
+        assert.equal(state.sourceWorkspaceCanSavePassage(), false);
+        assert.equal(await state.uploadSourceWorkspaceReaderPdf({ target: { files: [new File(['PDF'], 'paper.pdf')] } }), false);
+        assert.deepEqual(calls, []);
+
+        state.sourceWorkspaceTab = 'paper';
+        assert.equal(await state.readSourceWorkspaceSource(linkedSource), true);
+        assert.deepEqual(calls, ['/proposal/links/12/evidence']);
+        assert.equal(state.sourceWorkspaceActiveSource().title, linkedSource.title);
+        assert.equal(state.sourceWorkspaceCanDraftPaper(), true);
+    });
+}
+
+test('saving academic literature stores and links it once without opening its preview', async () => {
+    const calls = [];
+    const saved = { ...librarySource, id: 52, literature_source_id: 8 };
+    const state = workspace(async (url, options) => {
+        calls.push({ url, body: JSON.parse(options.body) });
+        return response({ source: url === '/library' ? librarySource : saved });
+    });
+    state.sourceWorkspaceTab = 'search';
+
+    assert.equal((await state.saveSourceWorkspaceSource(librarySource)).id, 52);
+    assert.deepEqual(calls.map((call) => call.url), ['/library', '/proposal/sources/8']);
+    assert.equal(calls[0].body.title, librarySource.title);
+    assert.equal(state.sourceWorkspaceLinkedSource(librarySource).id, 52);
+    assert.equal(state.sourceWorkspaceView, 'list');
+    assert.equal((await state.saveSourceWorkspaceSource(librarySource)).id, 52);
+    assert.equal(calls.length, 2);
+    assert.equal(state.literatureSources.length, 2);
+});
+
+test('saved literature lists only this proposal bookmarks and searches all of them beyond the shared catalog limit', async () => {
+    const calls = [];
+    const state = workspace(async (url) => { calls.push(url); return response({ sources: [librarySource] }); });
+    const bookmarks = Array.from({ length: 25 }, (_, index) => ({ ...linkedSource, id: index + 1, literature_source_id: index + 100, title: `Saved paper ${index + 1}`, is_saved: true }));
+    state.literatureSources = [...bookmarks, { ...librarySource, id: 52, literature_source_id: 8, is_saved: false }];
+    state.sourceWorkspaceLibraryResults = [librarySource];
+
+    await state.setSourceWorkspaceTab('library');
+    assert.deepEqual(state.sourceWorkspaceSources(), bookmarks);
+    assert.deepEqual(calls, []);
+    state.sourceWorkspaceQuery = 'Saved paper 25';
+    assert.deepEqual(state.sourceWorkspaceSources(), [bookmarks[24]]);
+    assert.equal(state.sourceWorkspaceLinkedSource(bookmarks[24]).id, 25);
+
+    state.sourceWorkspaceCitationMode = true;
+    state.sourceWorkspaceQuery = '';
+    await state.setSourceWorkspaceTab('library');
+    assert.deepEqual(state.sourceWorkspaceSources(), [librarySource]);
+    assert.deepEqual(calls, ['/library?query=']);
+});
+
+test('bookmark toggles persist without discarding citations, PDF evidence, or selected passages', async () => {
+    const calls = [];
+    const state = workspace(async (url, options) => {
+        const body = JSON.parse(options.body);
+        calls.push({ url, method: options.method, body });
+        return response({ source: { ...linkedSource, is_saved: body.is_saved } });
+    });
+    collectEvidence(state);
+    state.literatureCitations = [{ source_link_id: 12, field: 'related-literature' }];
+    state.sourceWorkspaceTab = 'search';
+    const result = { ...linkedSource, _linkedSource: { ...linkedSource, is_saved: true } };
+    state.linkedLiteratureSourceForResult = (source) => source._linkedSource;
+
+    assert.equal((await state.toggleSourceWorkspaceSource(result)).is_saved, false);
+    assert.equal(state.sourceWorkspaceSourceSaved(result), false);
+    state.sourceWorkspaceTab = 'library';
+    assert.deepEqual(state.sourceWorkspaceSources(), []);
+    state.sourceWorkspaceTab = 'search';
+    assert.equal((await state.toggleSourceWorkspaceSource(result)).is_saved, true);
+    assert.equal(state.sourceWorkspaceSourceSaved(result), true);
+    assert.deepEqual(calls, [
+        { url: '/proposal/links/12/bookmark', method: 'PATCH', body: { is_saved: false } },
+        { url: '/proposal/links/12/bookmark', method: 'PATCH', body: { is_saved: true } },
+    ]);
+    assert.equal(state.sourceWorkspaceEvidence().document.name, 'study.pdf');
+    assert.equal(state.sourceWorkspaceSelectedPassages[0].passage_id, firstId);
+    assert.deepEqual(state.literatureCitations, [{ source_link_id: 12, field: 'related-literature' }]);
+    assert.equal(state.literatureSources.length, 1);
+});
+
+test('failed unsaving leaves the saved state and evidence intact and can be retried', async () => {
+    const state = workspace(async () => response({ message: 'Could not save bookmark.' }, false, 503));
+    collectEvidence(state);
+    assert.equal(await state.toggleSourceWorkspaceSource(linkedSource), false);
+    assert.equal(state.sourceWorkspaceSourceSaved(linkedSource), true);
+    assert.equal(state.sourceWorkspaceEvidence().document.name, 'study.pdf');
+    assert.equal(state.sourceWorkspaceSelectedPassages.length, 1);
+    assert.equal(state.sourceWorkspaceSaving, false);
+    assert.equal(state.sourceWorkspaceError, 'Could not save bookmark.');
+});
+
 test('reader normalization preserves UUID passage IDs, explicit origin, pages and safe private PDF URLs', () => {
     const normalized = normalizeSourceEvidence({ ...evidence, passages: [...evidence.passages, { id: 'invalid', quote }] });
     assert.equal(normalized.passages.length, 2);
@@ -476,6 +587,7 @@ test('a PDF already being saved cannot be replaced by another file selection', a
 test('changing tabs during a pending library request prevents stale results and resets loading', async () => {
     let finish;
     const state = workspace(() => new Promise((resolve) => { finish = resolve; }));
+    state.sourceWorkspaceCitationMode = true;
     const pending = state.searchSourceWorkspaceLibrary();
     await state.setSourceWorkspaceTab('paper');
     finish(response({ sources: [{ id: 45, title: 'Late result' }] }));
@@ -515,14 +627,18 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await page.addScriptTag({ content: `const uploadRequest = (...args) => fetch(...args);\n${helpers}
                     window.sourceRequests = []; window.sourceInsertions = 0; window.paperDraftInsertions = 0;
                     document.addEventListener('alpine:init', () => Alpine.data('sourcesFixture', () => ({
-                        ...proposalSourceWorkspace({ csrfToken: 'test', proposalDraftId: 42, synthesisUrl: '/synthesis', evidenceBase: '/proposal/links', assistanceUrl: '/assistance', libraryUrl: '/library', request: async (url, options) => {
+                        ...proposalSourceWorkspace({ csrfToken: 'test', proposalDraftId: 42, synthesisUrl: '/synthesis', evidenceBase: '/proposal/links', assistanceUrl: '/assistance', libraryUrl: '/library', storeUrl: '/library', searchUrl: '/search', linkUrlTemplate: '/proposal/sources/__literature_source__', request: async (url, options) => {
                             window.sourceRequests.push({url, body: options.body ? JSON.parse(options.body) : null});
+                            if (url === '/search') return {ok:true,json:async()=>({results:[${JSON.stringify(librarySource)}]})};
+                            if (url === '/library' && options.method === 'POST') return {ok:true,json:async()=>({source:${JSON.stringify(librarySource)}})};
+                            if (url.endsWith('/bookmark')) return {ok:true,json:async()=>({source:{...${JSON.stringify({ ...librarySource, id: 52, literature_source_id: 8 })},is_saved:JSON.parse(options.body).is_saved}})};
+                            if (url === '/proposal/sources/8') return {ok:true,json:async()=>({source:${JSON.stringify({ ...librarySource, id: 52, literature_source_id: 8 })}})};
                             if (url === '/synthesis' && window.paperExtractionFails) return {ok:false,status:422,json:async()=>({message:'The whole source paper could not be read. Attach a complete readable PDF in Sources, then try again.'})};
                             return {ok:true, json:async () => url.startsWith('/library') ? { sources: ${JSON.stringify([{ ...linkedSource, id: 3 }, librarySource])} } : url === '/synthesis' ? {synthesis:'The paper describes community participation and its relationship to the measured learning outcomes.',basis:'full_text',notice:'Only part of the body text was extracted.',coverage:{limited:true}} : url === '/assistance' ? {mode:'synthesize',supported:true,draft:{paragraph:'This reviewed synthesis relates community participation to the research objectives and learning outcomes.',can_insert:true,evidence:[{source_link_id:12,passage_id:'${firstId}',page:2,quote:${JSON.stringify(quote)},title:'Community learning outcomes',kind:'quote',origin:'pdf'}]}} : ${JSON.stringify(evidence)} };
                         } }),
                         literatureSources: [${JSON.stringify(linkedSource)}], sourceWorkspaceCanCite: () => true,
                         citationPickerLocator: '', citationPickerSelection: { selectedText: 'Community participation improves outcomes.' },
-                        upsertLiteratureSource(source) { this.literatureSources = [source]; },
+                        upsertLiteratureSource(source) { this.literatureSources = [...this.literatureSources.filter(item => item.id !== source.id), source]; },
                         citeSelectedText: async () => true,
                         insertSourceWorkspaceDraft: async (draft,destination) => {window.sourceInsertions++;window.sourceInsertedDraft={draft,destination};return true;},
                         insertSourceWorkspacePaperDraft: async (draft) => {window.paperDraftInsertions++;window.paperInsertedDraft=draft;return true;},
@@ -543,7 +659,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 const sourceRow = page.locator('article').filter({ has: page.getByRole('heading', { name: linkedSource.title, exact: true }) });
                 await expect(sourceRow.getByRole('button', { name: 'View details', exact: true })).toBeVisible();
                 await expect(sourceRow.getByText(linkedSource.description, { exact: true })).toBeHidden();
-                await expect(sourceRow.getByText('Added to proposal', { exact: true })).toBeHidden();
+                await expect(sourceRow.getByRole('button', { name: 'Unsave literature', exact: true })).toHaveAttribute('aria-pressed', 'true');
                 await expect(sourceRow.getByRole('link')).toBeHidden();
                 await expect(page.getByText(/To cite your own text/)).toBeHidden();
                 if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await panel.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `sources-list-${width}-${dark ? 'dark' : 'light'}.png`) });
@@ -555,7 +671,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await page.keyboard.press('Shift+Tab');
                 await expect(page.getByRole('button', { name: 'Add source', exact: true })).toBeFocused();
                 await page.keyboard.press('Shift+Tab');
-                await expect(sourceRow.getByRole('button', { name: 'View details', exact: true })).toBeFocused();
+                await expect(sourceRow.getByRole('button', { name: 'Unsave literature', exact: true })).toBeFocused();
                 await expect(page.getByRole('tab')).toHaveCount(0);
                 await page.getByRole('button', { name: 'Find sources', exact: true }).click();
                 await expect(page.getByRole('group', { name: 'Paper access', exact: true })).toBeHidden();
@@ -568,13 +684,54 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await expect(page.getByRole('button', { name: 'All papers', exact: true })).toHaveAttribute('aria-pressed', 'true');
                 await page.getByLabel('Search in', { exact: true }).selectOption('library');
                 const savedLibraryRow = page.locator('article').filter({ has: page.getByRole('heading', { name: linkedSource.title, exact: true }) });
-                await expect(savedLibraryRow.getByText('Added to proposal', { exact: true })).toBeVisible();
-                await expect(savedLibraryRow.getByRole('button', { name: 'Add to proposal', exact: true })).toBeHidden();
+                await expect(savedLibraryRow.getByRole('button', { name: 'Unsave literature', exact: true })).toBeEnabled();
                 const newLibraryRow = page.locator('article').filter({ has: page.getByRole('heading', { name: librarySource.title, exact: true }) });
-                await expect(newLibraryRow.getByRole('button', { name: 'Add and view', exact: true })).toBeVisible();
+                await expect(newLibraryRow).toHaveCount(0);
+                await page.getByLabel('Search in', { exact: true }).selectOption('search');
+                await page.getByRole('searchbox', { name: 'Search academic publications', exact: true }).fill('community');
+                await page.getByRole('button', { name: 'Search', exact: true }).click();
+                const previewButton = newLibraryRow.getByRole('button', { name: 'View details', exact: true });
+                const saveButton = newLibraryRow.getByRole('button', { name: 'Save literature', exact: true });
+                await expect(previewButton).toBeVisible();
+                await expect(saveButton).toHaveAttribute('aria-pressed', 'false');
+                await expect(saveButton.locator('svg')).toHaveAttribute('fill', 'none');
+                const [previewButtonBox, saveButtonBox] = await newLibraryRow.locator('button[aria-label="View details"], button[aria-label="Save literature"]')
+                    .evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().toJSON()));
+                assert.ok(saveButtonBox.x >= previewButtonBox.x + previewButtonBox.width, 'The bookmark should sit to the right of the preview arrow');
+                assert.equal(saveButtonBox.y, previewButtonBox.y);
                 await expect(newLibraryRow.getByText(librarySource.description, { exact: true })).toBeVisible();
                 await expect(newLibraryRow.getByRole('link', { name: 'Visit website', exact: true })).toHaveAttribute('href', librarySource.url);
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).literatureSources.length), 1, 'Browsing shared sources should not add them to the proposal');
+                await previewButton.click();
+                await expect(page.getByRole('region', { name: 'Abstract or description', exact: true }).getByText(librarySource.description, { exact: true })).toBeVisible();
+                await expect(page.getByLabel('Attach source PDF', { exact: false })).toBeDisabled();
+                await expect(page.getByLabel('Researcher supplied excerpt', { exact: true })).toBeDisabled();
+                await expect(page.getByLabel('Reading note', { exact: true })).toBeDisabled();
+                await expect(page.getByRole('button', { name: 'Draft from paper', exact: true })).toBeHidden();
+                assert.equal(await page.evaluate(() => sourceRequests.some(request => request.body && request.url !== '/search')), false, 'Preview must not write to the library or proposal');
+                assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).literatureSources.length), 1);
+                await page.getByRole('button', { name: 'Back to sources', exact: true }).click();
+                await saveButton.click();
+                const savedButton = newLibraryRow.getByRole('button', { name: 'Unsave literature', exact: true });
+                await expect(savedButton).toHaveAttribute('aria-pressed', 'true');
+                await expect(savedButton).toBeEnabled();
+                await expect(savedButton.locator('svg')).toHaveAttribute('fill', 'currentColor');
+                await expect(savedButton).toHaveCSS('color', dark ? 'rgb(252, 165, 165)' : 'rgb(185, 28, 28)');
+                assert.equal(await page.evaluate(() => sourceRequests.filter(request => request.url === '/proposal/sources/8').length), 1);
+                assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).literatureSources.length), 2);
+                await page.getByLabel('Search in', { exact: true }).selectOption('library');
+                await expect(newLibraryRow).toBeVisible();
+                await savedButton.click();
+                await expect(newLibraryRow).toHaveCount(0);
+                await page.getByLabel('Search in', { exact: true }).selectOption('search');
+                await expect(saveButton).toHaveAttribute('aria-pressed', 'false');
+                await expect(saveButton.locator('svg')).toHaveAttribute('fill', 'none');
+                await saveButton.click();
+                await expect(savedButton).toHaveAttribute('aria-pressed', 'true');
+                assert.deepEqual(await page.evaluate(() => sourceRequests.filter(request => request.url.endsWith('/bookmark')).map(request => request.body.is_saved)), [false, true]);
+                assert.equal(await page.evaluate(() => sourceRequests.filter(request => request.url === '/proposal/sources/8').length), 1, 'Resaving should reuse the linked source');
+                await expect(page.getByRole('group', { name: 'Source navigation', exact: true })).toBeVisible();
+                if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await panel.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `source-bookmarks-${width}-${dark ? 'dark' : 'light'}.png`) });
                 await page.getByRole('button', { name: 'Add source', exact: true }).click();
                 await page.locator('summary').filter({ hasText: 'Reference details' }).click();
                 await page.getByLabel('Publication type', { exact: true }).selectOption('report');
@@ -584,7 +741,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 await page.getByLabel('Publisher', { exact: true }).fill('Research Press');
                 assert.equal(await page.evaluate(() => Alpine.$data(document.querySelector('main')).sourceWorkspaceSourceForm.publisher), 'Research Press');
                 await page.getByRole('button', { name: 'Back to proposal sources', exact: true }).click();
-                await page.getByRole('button', { name: 'View details', exact: true }).click();
+                await sourceRow.getByRole('button', { name: 'View details', exact: true }).click();
                 await expect(page.getByRole('button', { name: /draft from abstract|use abstracts? instead/i })).toHaveCount(0);
                 const summary = page.getByRole('region', { name: 'Abstract or description', exact: true });
                 await expect(summary.getByText(linkedSource.description, { exact: true })).toBeVisible();
@@ -639,7 +796,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 assert.equal(await page.evaluate(() => window.sourceInsertedDraft.draft.evidence[0].passage_id), firstId);
                 await page.getByRole('button', { name: 'Back to sources', exact: true }).click();
                 assert.equal((await assertCenteredPanel()).width, readerBox.width, 'Selected evidence should keep its reading space beside the source list');
-                await page.getByRole('button', { name: 'View details', exact: true }).click();
+                await sourceRow.getByRole('button', { name: 'View details', exact: true }).click();
                 await page.getByRole('button', { name: 'Draft from paper', exact: true }).click();
                 await expect(page.getByRole('heading', { name: 'Review the paper-based RRL draft', exact: true })).toBeVisible();
                 await expect(page.getByText('Only part of the body text was extracted.', { exact: true })).toBeVisible();

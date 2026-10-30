@@ -80,7 +80,75 @@ test('profile menu stays above the sticky writing toolbar after scrolling', asyn
     } finally { await browser.close(); }
 });
 
-test('all writing toolbars keep compact actions on one line and close without losing fields in both workspaces', async () => {
+test('detailed proposal tools use a plain wide toggle above the panel', async () => {
+    const toolbarHtml = execFileSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        echo Illuminate\Support\Facades\Blade::render('<x-detailed-proposal-writing-toolbar />');
+    `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
+    const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(read('resources/css/app.css'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [390, 1440]) for (const dark of [false, true]) for (const embedded of [false, true]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            const errors = [];
+            page.on('pageerror', error => errors.push(error.message));
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${css}\n${read('resources/css/proposal-paper-workspace.css')}[x-cloak]{display:none!important}</style>
+                <body class="${embedded ? 'revision-embedded' : ''}" ${embedded ? 'data-revision-embedded' : 'data-app-shell'}>
+                <main data-paper-editor data-proposal-paper-workspace x-data="toolsFixture" class="p-3">
+                    ${toolbarHtml}<label for="notes">Research notes</label><textarea id="notes">Keep these notes.</textarea>
+                </main></body></html>`);
+            await page.addScriptTag({ content: `${previewHelpers}
+                document.addEventListener('alpine:init', () => Alpine.data('toolsFixture', () => ({
+                    ...proposalPaperPreviewWorkspace(), writingToolbarOpen: false,
+                    init() { this.initializeProposalPaperPreview(); }
+                })));
+            ` });
+            await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+            const toggle = page.locator('[data-writing-toolbar-open]');
+            await expect(toggle).toBeVisible();
+            const toggleBounds = await toggle.boundingBox();
+            assert.ok(toggleBounds.height >= (width < 640 ? 44 : 40) && toggleBounds.height <= 44, 'The tools toggle should be shorter while retaining a mobile touch target');
+            assert.ok(toggleBounds.width >= 160, 'The tools toggle should be wider');
+            assert.ok(await toggle.evaluate(element => parseFloat(getComputedStyle(element).fontSize) >= 14));
+            await page.keyboard.press('Tab');
+            await expect(toggle).toBeFocused();
+            await expect(toggle).toHaveCSS('outline-style', 'none');
+            await expect(toggle).toHaveCSS('text-decoration-line', 'underline');
+            await toggle.hover();
+            await expect(toggle).toHaveCSS('background-color', dark ? 'rgb(30, 41, 59)' : 'rgb(243, 245, 248)');
+            const panel = page.locator('[data-writing-toolbar-panel]');
+            await toggle.click();
+            await expect(toggle).toBeVisible();
+            await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+            await expect(toggle).toBeFocused();
+            await expect(panel).toBeVisible();
+            const [toggleBox, panelBox] = await page.locator('[data-writing-toolbar-open], [data-writing-toolbar-panel]')
+                .evaluateAll(elements => elements.map(element => element.getBoundingClientRect().toJSON()));
+            assert.ok(panelBox.y >= toggleBox.y + toggleBox.height + 4, 'The tools panel should open below the toggle');
+            assert.ok(Math.abs(panelBox.x - toggleBox.x) <= 1, 'The tools panel should align with the toggle');
+            if (process.env.ATHENA_EDITOR_VISUAL_DIR && !embedded) await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `tools-toggle-${width}-${dark ? 'dark' : 'light'}.png`) });
+            await toggle.click();
+            await expect(panel).toBeHidden();
+            await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+            await toggle.press('Space');
+            await expect(panel).toBeVisible();
+            await toggle.press('Space');
+            await expect(panel).toBeHidden();
+            await toggle.click();
+            await page.locator('[data-writing-toolbar-close]').click();
+            await expect(panel).toBeHidden();
+            await expect(toggle).toBeFocused();
+            await expect(page.getByRole('textbox', { name: 'Research notes', exact: true })).toHaveValue('Keep these notes.');
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            assert.deepEqual(errors, []);
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});
+
+test('all writing toolbars keep action groups readable and close without losing fields in both workspaces', async () => {
     const toolbars = JSON.parse(execFileSync('php', ['-r', String.raw`
         require 'vendor/autoload.php';
         $app = require 'bootstrap/app.php';
@@ -147,7 +215,10 @@ test('all writing toolbars keep compact actions on one line and close without lo
                             const toolbar = workspace.querySelector('[data-proposal-workspace-toolbar]');
                             return Math.abs(parseFloat(workspace.style.getPropertyValue('--proposal-toolbar-height')) - toolbar.getBoundingClientRect().height) < 1;
                         });
-                        for (const row of await toolbar.locator('.proposal-writing-buttons:visible').all()) {
+                        const actionGroups = paper === 'detailed-proposal'
+                            ? toolbar.locator('.proposal-writing-action-group:visible, .proposal-writing-primary-action:visible')
+                            : toolbar.locator('.proposal-writing-buttons:visible');
+                        for (const row of await actionGroups.all()) {
                             const bounds = await row.locator('button:visible, a:visible').evaluateAll((controls) => controls.map((control) => {
                                 const rect = control.getBoundingClientRect();
                                 return { center: rect.top + rect.height / 2, height: rect.height };
@@ -177,22 +248,22 @@ test('all writing toolbars keep compact actions on one line and close without lo
                         const expandedBounds = await toolbar.boundingBox();
                         assert.ok((await field.boundingBox()).y >= expandedBounds.y + expandedBounds.height + 8, `${paper}/${embedded}/${width}/${dark}: focused field must remain below the toolbar`);
                         assert.ok((await page.locator('label[for="answer"]').boundingBox()).y >= expandedBounds.y + expandedBounds.height + 8, `${paper}: the focused field label must remain visible`);
-                        const close = toolbar.getByRole('button', { name: 'Hide tools', exact: true });
+                        const close = toolbar.locator('[data-writing-toolbar-close]');
                         assert.ok(await close.evaluate((element) => parseFloat(getComputedStyle(element).borderTopWidth) >= 1), 'Close is a visible bordered button');
                         assert.equal(await close.locator('svg path').getAttribute('d'), 'm6 6 12 12M18 6 6 18');
                         await close.click();
                         const reopen = toolbar.getByRole('button', { name: 'Show tools', exact: true });
                         await reopen.waitFor();
                         assert.equal(await reopen.getAttribute('aria-expanded'), 'false');
-                        assert.equal(await toolbar.locator('[data-writing-toolbar-controls]').isVisible(), false);
+                        await expect(toolbar.locator('[data-writing-toolbar-controls]')).toBeHidden();
                         await page.waitForFunction(() => document.activeElement?.hasAttribute('data-writing-toolbar-open'));
                         const collapsedBounds = await toolbar.boundingBox();
                         assert.ok(collapsedBounds.height < expandedBounds.height, 'Closing tools must free editing space');
                         await field.fill('I can keep writing with the tools closed.');
                         assert.equal(await page.evaluate(() => window.toolbarState.savedValue), 'I can keep writing with the tools closed.');
                         await reopen.click();
-                        await page.waitForFunction(() => document.activeElement?.hasAttribute('data-writing-toolbar-close')
-                            && document.activeElement.getAttribute('aria-expanded') === 'true').catch(async (error) => {
+                        await page.waitForFunction(selector => document.activeElement?.matches(selector)
+                            && document.activeElement.getAttribute('aria-expanded') === 'true', paper === 'detailed-proposal' ? '[data-writing-toolbar-toggle]' : '[data-writing-toolbar-close]').catch(async (error) => {
                             assert.fail(`${paper}/${embedded ? 'revision' : 'submission'}/${width}/${dark ? 'dark' : 'light'}: ${error.message}; ${JSON.stringify(await page.evaluate(() => ({ open: window.toolbarState.writingToolbarOpen, focused: document.activeElement?.outerHTML, close: document.querySelector('[data-writing-toolbar-close]')?.outerHTML })))}`);
                         });
                         assert.equal(await close.getAttribute('aria-expanded'), 'true');

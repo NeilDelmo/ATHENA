@@ -43,6 +43,8 @@ class User extends Authenticatable
 
     public const WORKSPACE_RESEARCH_HEAD = 'research_head';
 
+    public const WORKSPACE_VCRDES = 'vcrdes';
+
     public const WORKSPACE_RESEARCH_OFFICE = 'research_office';
 
     public const WORKSPACE_RESEARCH_SECRETARY = 'research_secretary';
@@ -108,6 +110,11 @@ class User extends Authenticatable
     public static function workspaceDefinitions(): array
     {
         return [
+            self::WORKSPACE_VCRDES => [
+                'label' => 'VCRDES',
+                'description' => 'Monitor institutional research, project delivery, and budget utilization across colleges.',
+                'route' => 'vcrdes.dashboard',
+            ],
             self::WORKSPACE_RESEARCH_HEAD => [
                 'label' => 'Research Head',
                 'description' => 'Manage research calls, evaluate proposals, and oversee institutional research.',
@@ -152,6 +159,10 @@ class User extends Authenticatable
     {
         $assignedRoles = $this->getRoleNames();
         $available = [];
+
+        if ($assignedRoles->contains(self::WORKSPACE_VCRDES)) {
+            $available[] = self::WORKSPACE_VCRDES;
+        }
 
         if ($assignedRoles->contains(self::WORKSPACE_RESEARCH_HEAD)) {
             $available = [

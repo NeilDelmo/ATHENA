@@ -1,4 +1,4 @@
-<x-proposal-writing-toolbar toolbar-id="detailed-proposal-tools" data-proposal-writing-toolbar class="detailed-proposal-writing-toolbar" aria-label="Detailed proposal writing tools">
+<x-proposal-writing-toolbar toolbar-id="detailed-proposal-tools" :toggle="true" data-proposal-writing-toolbar class="detailed-proposal-writing-toolbar" aria-label="Detailed proposal writing tools">
     <x-slot:context><p class="proposal-writing-target">Editing: <span data-writing-target>Select a writing field</span></p></x-slot:context>
     <div class="proposal-writing-toolbar-row" role="toolbar" aria-label="Text formatting and insertion">
 

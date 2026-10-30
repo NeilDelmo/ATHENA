@@ -2790,6 +2790,10 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         checkDetailedProposalRequirements() {
+            if (this.showCompletionChecklist) {
+                this.requirementsReviewed = false;
+                return false;
+            }
             return this.validateForm({ focus: false });
         },
 

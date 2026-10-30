@@ -103,10 +103,10 @@
         <div x-show="showDetailedProposalSaveStatus" x-cloak>
             <x-proposal-autosave-status />
         </div>
-            <button type="button" @click="checkDetailedProposalRequirements()" data-proposal-check-requirements class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Check requirements</button>
+            <button type="button" @click="checkDetailedProposalRequirements()" data-proposal-check-requirements :aria-expanded="showCompletionChecklist" aria-controls="proposal-completion-checklist" class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Check requirements</button>
         </div>
         <p x-show="requirementsReviewed" x-cloak data-proposal-requirements-result role="status" aria-live="polite" class="text-sm text-slate-700 dark:text-slate-200" x-text="detailedProposalRequirementsResult"></p>
-        <section x-show="showCompletionChecklist" x-cloak data-proposal-completion-checklist class="rounded-xl border border-slate-200 border-l-4 border-l-[#7A0019] bg-white p-5 dark:border-slate-700 dark:border-l-red-400 dark:bg-slate-900" aria-labelledby="proposal-completion-heading" aria-live="polite">
+        <section x-show="showCompletionChecklist" id="proposal-completion-checklist" x-cloak data-proposal-completion-checklist class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-labelledby="proposal-completion-heading" aria-live="polite">
             <h3 id="proposal-completion-heading" class="text-sm font-semibold text-slate-900 dark:text-white">Before generating your proposal</h3>
             <p class="mt-1 max-w-prose text-xs leading-5 text-slate-500 dark:text-slate-400">Your draft is saved as you write. Select a requirement to finish that part of the form.</p>
             <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">

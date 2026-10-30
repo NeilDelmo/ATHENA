@@ -68,6 +68,7 @@ use App\Http\Controllers\SidebarAttentionController;
 use App\Http\Controllers\TopicCommentResponseFormController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\TopicLiveStatusController;
+use App\Http\Controllers\VcrdesDashboardController;
 use App\Http\Controllers\WorkPlanController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Auth;
@@ -85,7 +86,7 @@ Route::get('/dashboard', function () {
     }
     $dashboardRoute = $user->dashboardRouteName();
 
-    if ($user->selectedWorkspace() !== null || $user->isUsingWorkspace(['research_head', 'research_secretary'])) {
+    if ($user->selectedWorkspace() !== null || $user->isUsingWorkspace(['vcrdes', 'research_head', 'research_secretary'])) {
         return redirect()->route($dashboardRoute);
     }
 
@@ -111,6 +112,9 @@ Route::get('/dashboard', function () {
         'google' => 'Your account does not have an ATHENA role yet. Please contact the system administrator.',
     ]);
 })->middleware('auth')->name('dashboard');
+
+Route::get('/vcrdes/dashboard', VcrdesDashboardController::class)
+    ->middleware(['auth', 'workspace:vcrdes'])->name('vcrdes.dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/search', SearchController::class)->middleware('throttle:60,1')->name('search.index');
@@ -500,6 +504,8 @@ Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-sources/{litera
     ->name('faculty.proposal-drafts.literature-sources.store');
 
 Route::middleware(['auth', 'workspace:faculty', 'throttle:30,1'])->group(function () {
+    Route::patch('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/bookmark', [ProposalDraftLiteratureSourceController::class, 'updateBookmark'])
+        ->name('faculty.proposal-drafts.literature-bookmarks.update');
     Route::get('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/evidence', [ProposalLiteratureEvidenceController::class, 'show'])
         ->name('faculty.proposal-drafts.literature-evidence.show');
     Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/document', [ProposalLiteratureEvidenceController::class, 'storeDocument'])

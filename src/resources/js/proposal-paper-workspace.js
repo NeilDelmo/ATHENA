@@ -20,7 +20,7 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
 
         showWritingToolbar() {
             this.writingToolbarOpen = true;
-            this.$nextTick(() => this.$el.closest(workspaceSelector)?.querySelector('[data-writing-toolbar-close]')?.focus({ preventScroll: true }));
+            this.$nextTick(() => this.$el.closest(workspaceSelector)?.querySelector('[data-writing-toolbar-toggle], [data-writing-toolbar-close]')?.focus({ preventScroll: true }));
         },
 
         applyProposalPreviewZoom() {

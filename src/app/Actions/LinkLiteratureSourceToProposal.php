@@ -32,6 +32,7 @@ class LinkLiteratureSourceToProposal
         $link->fill([
             'literature_source_id' => $source->getKey(),
             'saved_by' => $user->getKey(),
+            'is_saved' => true,
             'title' => $source->title,
             'authors' => $source->authors,
             'abstract' => $source->abstract,

@@ -27,6 +27,7 @@
         @livewireStyles
     </head>
     @php($isFacultyWorkspace = Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher']))
+    @php($isVcrdesWorkspace = Auth::user()?->isUsingWorkspace('vcrdes'))
     <body
         x-data
         @keydown.escape.window="if (window.innerWidth < 640 && !$event.defaultPrevented) $store.sidebar.setOpen(false)"
@@ -73,7 +74,7 @@
 
         <div
             x-cloak
-            x-show="$store.sidebar.open"
+            x-show="{{ $isVcrdesWorkspace ? 'false' : '$store.sidebar.open' }}"
             x-transition.opacity
             @click="$store.sidebar.setOpen(false)"
             class="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] sm:hidden"
@@ -81,8 +82,8 @@
         ></div>
 
         <div
-            :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'"
-            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] sm:pl-[280px] transition-colors duration-300 dark:bg-slate-950"
+            @unless ($isVcrdesWorkspace) :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'" @endunless
+            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] {{ $isVcrdesWorkspace ? '' : 'sm:pl-[280px]' }} transition-colors duration-300 dark:bg-slate-950"
             data-app-content-shell
         >
             
@@ -206,7 +207,7 @@
             <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
                 <div class="athena-page-content w-full">
                     @auth
-                        @if (blank(Auth::user()->college))
+                        @if (blank(Auth::user()->college) && ! $isVcrdesWorkspace)
                             @php($collegeIsLocked = Auth::user()->hasRole('research_coordinator'))
                             <aside role="status" data-missing-college-reminder class="mb-6 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900 dark:bg-amber-950/40">
                                 <div>

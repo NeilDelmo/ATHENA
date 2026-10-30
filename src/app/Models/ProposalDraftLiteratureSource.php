@@ -18,6 +18,7 @@ class ProposalDraftLiteratureSource extends Model
     protected $fillable = [
         'literature_source_id',
         'saved_by',
+        'is_saved',
         'fingerprint',
         'title',
         'authors',
@@ -51,6 +52,7 @@ class ProposalDraftLiteratureSource extends Model
 
     protected $attributes = [
         'access_status' => LiteratureSource::ACCESS_UNKNOWN,
+        'is_saved' => true,
         'rrl_draft_status' => self::DRAFT_NONE,
     ];
 
@@ -66,6 +68,7 @@ class ProposalDraftLiteratureSource extends Model
             'publication_date' => 'date',
             'citation_count' => 'integer',
             'is_open_access' => 'boolean',
+            'is_saved' => 'boolean',
             'rrl_word_count' => 'integer',
             'rrl_generated_at' => 'datetime',
             'research_context' => 'array',
@@ -114,6 +117,7 @@ class ProposalDraftLiteratureSource extends Model
         return [
             'id' => $this->getKey(),
             'literature_source_id' => $this->literature_source_id,
+            'is_saved' => $this->is_saved,
             'title' => $this->title,
             'authors' => $this->authors,
             'description' => $this->abstract,

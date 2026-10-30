@@ -95,6 +95,7 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
 
     const activate = (field, imageSection = null) => {
         active = field;
+        target.toggleAttribute('data-writing-target-active', Boolean(field || imageSection));
         activeImageSection = field ? imageSections[field.id] : imageSection;
         workspace.querySelectorAll('.proposal-writing-active').forEach((element) => element.classList.remove('proposal-writing-active'));
         if (field) {

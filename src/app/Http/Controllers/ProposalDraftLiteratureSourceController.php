@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\LinkLiteratureSourceToProposal;
 use App\Http\Requests\AttachLiteratureSourceToProposalRequest;
+use App\Http\Requests\UpdateProposalLiteratureBookmarkRequest;
 use App\Http\Requests\UpdateProposalLiteratureDraftRequest;
 use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
@@ -36,6 +37,18 @@ class ProposalDraftLiteratureSourceController extends Controller
             'already_linked' => $result['already_linked'],
             'source' => $result['link']->toLibraryArray(),
         ], $result['already_linked'] ? 200 : 201);
+    }
+
+    public function updateBookmark(
+        UpdateProposalLiteratureBookmarkRequest $request,
+        ProposalDraft $proposalDraft,
+        ProposalDraftLiteratureSource $proposalDraftLiteratureSource,
+    ): JsonResponse {
+        $proposalDraftLiteratureSource->update($request->validated());
+
+        return response()->json([
+            'source' => $this->sourcePayload($proposalDraftLiteratureSource->fresh()),
+        ]);
     }
 
     public function updateDraft(

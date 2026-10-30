@@ -233,6 +233,11 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 assert.equal(await page.locator('[data-proposal-writing-toolbar]').count(), 1);
                 assert.equal(await page.locator('[aria-label="Text formatting"]').count(), 0);
                 const boldButton = page.getByRole('button', { name: 'Bold', exact: true });
+                const { formattingBox, editingBox } = await page.locator('[data-writing-toolbar-panel]').evaluate(panel => ({
+                    formattingBox: panel.querySelector('[data-writing-toolbar-controls]').getBoundingClientRect().toJSON(),
+                    editingBox: panel.querySelector('.proposal-writing-toolbar-heading').getBoundingClientRect().toJSON(),
+                }));
+                assert.ok(formattingBox.bottom <= editingBox.top, 'Formatting and citation controls should precede the Editing row');
                 assert.equal(await boldButton.isDisabled(), true);
                 assert.equal(await page.getByRole('button', { name: 'Sources', exact: true }).count(), 0);
                 assert.equal(await page.locator('[data-writing-menu-toggle]').count(), 2);
@@ -273,6 +278,10 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                     const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range); element.focus();
                 });
                 await boldButton.locator('svg').click();
+                const editingTarget = page.locator('[data-writing-target]');
+                await expect(editingTarget).toHaveText('Rationale');
+                await expect(editingTarget).toHaveCSS('text-decoration-line', 'underline');
+                await expect(editingTarget).toHaveCSS('text-decoration-color', 'rgb(220, 38, 38)');
                 assert.match(await page.locator('#rationale').inputValue(), /<strong>Study paragraph\.<\/strong>/);
                 const listsButton = page.getByRole('button', { name: 'Lists', exact: true });
                 await listsButton.click();

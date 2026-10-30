@@ -58,6 +58,75 @@ function mockReadableLiteraturePaper(string $introduction): void
     ]);
 }
 
+test('proposal literature bookmarks can be unsaved and saved without losing source evidence or citations', function () {
+    $saved = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()->json('source.id');
+    $linkId = $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $saved]))
+        ->assertCreated()->json('source.id');
+    $link = $this->draft->literatureSources()->findOrFail($linkId);
+    $document = ['path' => 'literature/source.pdf', 'name' => 'source.pdf'];
+    $passages = [['id' => '7c9ae400-6fde-4f0e-9af0-934c22005a41', 'note' => 'Keep this reading note.']];
+    $link->update(['evidence_document' => $document, 'evidence_passages' => $passages, 'rrl_note' => 'A reviewed paper-based paragraph.']);
+    $otherDraft = $this->draft->replicate();
+    $otherDraft->save();
+    $otherLinkId = $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$otherDraft, $saved]))
+        ->assertCreated()->json('source.id');
+    $proposalContent = ['literature_citations' => json_encode([['source_link_id' => $linkId]], JSON_THROW_ON_ERROR)];
+    $paper = $this->draft->documents()->create([
+        'document_type' => config('proposal_papers.detailed-proposal.document_type'),
+        'source_data' => $proposalContent,
+    ]);
+
+    foreach ([false, false, true, true] as $isSaved) {
+        $this->patchJson(route('faculty.proposal-drafts.literature-bookmarks.update', [$this->draft, $link]), ['is_saved' => $isSaved])
+            ->assertOk()->assertJsonPath('source.is_saved', $isSaved);
+        expect($link->fresh()->is_saved)->toBe($isSaved)
+            ->and($link->fresh()->evidence_document)->toEqual($document)
+            ->and($link->fresh()->evidence_passages)->toEqual($passages)
+            ->and($link->fresh()->rrl_note)->toBe('A reviewed paper-based paragraph.')
+            ->and($paper->fresh()->source_data)->toBe($proposalContent);
+    }
+    $this->assertModelExists(LiteratureSource::query()->findOrFail($saved));
+    $link->update(['is_saved' => false]);
+    $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $saved]))
+        ->assertOk()->assertJsonPath('source.id', $linkId)->assertJsonPath('source.is_saved', true);
+    expect($this->draft->literatureSources()->count())->toBe(1);
+    expect($otherDraft->literatureSources()->findOrFail($otherLinkId)->is_saved)->toBeTrue();
+});
+
+test('proposal literature bookmarks reject another proposal source and unauthorized users', function () {
+    $saved = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()->json('source.id');
+    $linkId = $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $saved]))
+        ->assertCreated()->json('source.id');
+    $otherFaculty = User::factory()->create();
+    $otherFaculty->assignRole('faculty');
+    $otherDraft = $this->draft->replicate();
+    $otherDraft->save();
+
+    $this->patchJson(route('faculty.proposal-drafts.literature-bookmarks.update', [$otherDraft, $linkId]), ['is_saved' => false])
+        ->assertForbidden();
+    $this->actingAs($otherFaculty)
+        ->patchJson(route('faculty.proposal-drafts.literature-bookmarks.update', [$this->draft, $linkId]), ['is_saved' => false])
+        ->assertForbidden();
+    expect($this->draft->literatureSources()->findOrFail($linkId)->is_saved)->toBeTrue();
+});
+
+test('proposal literature bookmarks require a boolean saved state', function () {
+    $saved = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()->json('source.id');
+    $linkId = $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $saved]))
+        ->assertCreated()->json('source.id');
+    $url = route('faculty.proposal-drafts.literature-bookmarks.update', [$this->draft, $linkId]);
+    foreach ([[], ['is_saved' => 'unsave'], ['is_saved' => null]] as $payload) {
+        $this->patchJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('is_saved');
+    }
+    expect($this->draft->literatureSources()->findOrFail($linkId)->is_saved)->toBeTrue();
+});
+
 test('manual publication details are preserved in the IEEE reference and proposal link', function () {
     $saved = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), [
