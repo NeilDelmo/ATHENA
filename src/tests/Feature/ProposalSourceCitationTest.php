@@ -72,6 +72,63 @@ test('empty citation records require a matching marker in the same section', fun
     expect(json_decode($document->source_data['literature_citations'], true, flags: JSON_THROW_ON_ERROR))->toBe([]);
 });
 
+test('removing RRL citations and optional wording persists after reopening without deleting the saved source', function (string $remainingText) {
+    $document = $this->draft->documents()->create([
+        'document_type' => 'detailed_proposal', 'position' => 0,
+        'source_data' => [
+            'related_literature' => '<p>Researcher wording.<span data-proposal-citation="'.$this->link['id'].'"> [1]</span></p>',
+            'references' => '<p data-proposal-managed-reference="'.$this->link['id'].'">[1] '.$this->link['reference'].'</p>',
+            'literature_citations' => json_encode([[
+                'source_link_id' => $this->link['id'], 'field' => 'related_literature', 'selected_text' => 'Researcher wording.',
+            ]], JSON_THROW_ON_ERROR),
+        ],
+    ]);
+
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), [
+        'document_version' => 0, 'save_as_draft' => true,
+        'related_literature' => $remainingText, 'references' => '', 'literature_citations' => '[]',
+    ])->assertOk();
+
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertViewHas('sourceData', fn (array $sourceData): bool => $sourceData['related_literature'] === $remainingText
+            && $sourceData['references'] === ''
+            && json_decode($sourceData['literature_citations'], true, flags: JSON_THROW_ON_ERROR) === []);
+
+    expect($document->fresh()->source_data['related_literature'])->toBe($remainingText)
+        ->and($this->draft->literatureSources()->find($this->link['id']))->not->toBeNull();
+    $this->assertModelExists(LiteratureSource::findOrFail($this->link['literature_source_id']));
+})->with([
+    'keep the paragraph' => '<p>Researcher wording.</p>',
+    'delete the paragraph' => '',
+]);
+
+test('discarding a saved RRL draft clears its generation details while keeping inserted text and the source', function () {
+    $link = $this->draft->literatureSources()->findOrFail($this->link['id']);
+    $link->update([
+        'rrl_note' => 'Reviewed research notes that are no longer wanted.',
+        'rrl_draft_status' => 'confirmed', 'rrl_evidence_basis' => 'full_text',
+        'rrl_word_count' => 9, 'rrl_generated_at' => now(),
+    ]);
+    $sourceData = ['related_literature' => '<p>Already inserted researcher wording.</p>'];
+    $document = $this->draft->documents()->create([
+        'document_type' => 'detailed_proposal', 'position' => 0, 'source_data' => $sourceData,
+    ]);
+
+    $this->deleteJson(route('faculty.proposal-drafts.literature-drafts.destroy', [$this->draft, $link]))
+        ->assertOk()
+        ->assertJsonPath('source.rrl_note', '')
+        ->assertJsonPath('source.rrl_draft_status', 'none')
+        ->assertJsonPath('source.rrl_evidence_basis', null)
+        ->assertJsonPath('source.rrl_word_count', null)
+        ->assertJsonPath('source.rrl_generated_at', null);
+
+    expect($link->fresh()->rrl_note)->toBeNull()
+        ->and($document->fresh()->source_data)->toBe($sourceData);
+    $this->assertModelExists($link);
+    $this->assertModelExists(LiteratureSource::findOrFail($this->link['literature_source_id']));
+});
+
 test('citation locators remain plain text in saved markup and exported narrative runs', function () {
     $richText = app(ProposalRichText::class);
     $html = '<p>Supported wording.<span data-proposal-citation="42" data-proposal-locator="p. 6 &quot;quoted&quot;" onclick="alert(1)"> [1, p. 6]</span></p>';
