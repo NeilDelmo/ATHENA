@@ -30,6 +30,14 @@ class EnsureWorkspace
             }
         }
 
+        if ($user?->selectedWorkspace() !== null && ! $user->isUsingWorkspace($allowedWorkspaces)
+            && $request->isMethod('GET') && ! $request->expectsJson()
+            && $request->header('Sec-Fetch-Mode') === 'navigate' && $request->header('Sec-Fetch-Dest') === 'document'
+            && array_intersect($allowedWorkspaces, $user->availableWorkspaceKeys()) !== []) {
+            return redirect()->route($user->dashboardRouteName())
+                ->with('status', 'Your '.$user->activeWorkspaceLabel().' workspace is open.');
+        }
+
         abort_unless(
             $user?->isUsingWorkspace($allowedWorkspaces),
             403,

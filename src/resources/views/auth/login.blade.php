@@ -48,6 +48,9 @@
                     </div>
 
                     <x-auth-session-status class="mt-6" :status="session('status')" />
+                    @auth
+                        <p class="mt-4 text-sm text-slate-600 dark:text-slate-300">Signed in as <strong>{{ Auth::user()->name }}</strong>. Choose a Google account to switch.</p>
+                    @endauth
 
                     @error('google')
                         <div class="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300">{{ $message }}</div>

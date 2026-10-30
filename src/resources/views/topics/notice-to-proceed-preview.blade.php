@@ -5,10 +5,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Notice to Proceed Preview</title>
-        @vite('resources/css/notice-to-proceed-print.css')
+        @vite(['resources/css/notice-to-proceed-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="notice-to-proceed-preview-page">
-        <main data-notice-to-proceed-sheet class="notice-to-proceed-sheet" aria-label="Notice to Proceed preview">
+        <main data-paper-sheet data-notice-to-proceed-sheet class="notice-to-proceed-sheet" aria-label="Notice to Proceed preview">
             <header class="notice-to-proceed-letterhead">
                 <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University seal">
                 <div>
@@ -90,7 +90,7 @@
                     <p class="notice-to-proceed-conforme-date">Date:</p>
                 </section>
             </section>
-            <footer class="notice-to-proceed-footer">Leading Innovations. Transforming Lives. Building the Nation.</footer>
+            <footer data-paper-footer class="notice-to-proceed-footer">Leading Innovations. Transforming Lives. Building the Nation.</footer>
         </main>
     </body>
 </html>

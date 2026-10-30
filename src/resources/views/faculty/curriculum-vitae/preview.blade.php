@@ -5,11 +5,11 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Attachment C - Curriculum Vitae Preview</title>
-        @vite('resources/css/curriculum-vitae-print.css')
+        @vite(['resources/css/curriculum-vitae-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="cv-preview-page">
         @foreach ($curriculumVitae['people'] as $personIndex => $person)
-            <main class="cv-sheet" data-proposal-preview-section="cv-person-{{ $personIndex + 1 }}" aria-label="BatStateU Attachment C Curriculum Vitae for {{ $person['first_name'] }} {{ $person['last_name'] }}">
+            <main data-paper-sheet class="cv-sheet" data-proposal-preview-section="cv-person-{{ $personIndex + 1 }}" aria-label="BatStateU Attachment C Curriculum Vitae for {{ $person['first_name'] }} {{ $person['last_name'] }}">
                 <div class="cv-form">
                     <header class="cv-title-block">
                         <p>Attachment C-BatStateU-FO-RES-02</p>

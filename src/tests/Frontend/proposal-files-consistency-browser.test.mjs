@@ -11,6 +11,37 @@ import loadConfig from 'tailwindcss/loadConfig.js';
 const read = path => readFileSync(resolve(path), 'utf8');
 const script = path => read(path).replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
 
+test('required attachment actions align across different paper labels and screen widths', async () => {
+    const fixture = read('storage/framework/testing/proposal-consistency-draft.html');
+    const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(read('resources/css/app.css'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [390, 768, 1024, 1440]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 1000 } });
+                const rows = await page.evaluate(source => [...new DOMParser().parseFromString(source, 'text/html')
+                    .querySelectorAll('[data-editable-proposal-papers] article[data-proposal-paper]')].map(row => row.outerHTML).join(''), fixture);
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${css}</style></head><body class="font-sans"><main class="mx-auto max-w-7xl p-4"><section>${rows}</section></main></body></html>`);
+                const actions = [];
+                for (const paper of await page.locator('article[data-proposal-paper]').all()) {
+                    const preview = await paper.locator('[data-proposal-paper-preview-trigger]').boundingBox();
+                    const editor = await paper.locator('a[aria-label]').last().boundingBox();
+                    assert.ok(Math.abs(preview.width - editor.width) <= 1, `Preview and Open widths should match at ${width}px`);
+                    actions.push(preview);
+                }
+                assert.equal(actions.length, 5);
+                assert.ok(Math.max(...actions.map(box => box.width)) - Math.min(...actions.map(box => box.width)) <= 1, `All paper actions should share a width at ${width}px`);
+                if (width >= 1024) assert.ok(Math.max(...actions.map(box => box.x)) - Math.min(...actions.map(box => box.x)) <= 1, 'Desktop action columns should line up');
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('proposal lists and required papers share readable file icons while retaining review and editing actions', async () => {
     if (process.env.ATHENA_CONSISTENCY_FIXTURE_READY !== '1') {
         for (const [file, filter] of [

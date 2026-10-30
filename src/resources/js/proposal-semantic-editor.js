@@ -2,7 +2,6 @@ export const proposalCitationFields = Object.freeze([
     { id: 'executive-brief', key: 'executive_brief', label: 'VII. Executive Brief' },
     { id: 'rationale', key: 'rationale', label: 'VIII. Rationale' },
     { id: 'general-objective', key: 'general_objective', label: 'IX. General Objective' },
-    { id: 'introduction', key: 'introduction', label: 'XI. Review of Related Literature — opening paragraphs' },
     { id: 'related-literature', key: 'related_literature', label: 'XI. Review of Related Literature' },
     { id: 'methodology-research_design', key: 'methodology.research_design', label: 'XII. Research Design' },
     { id: 'methodology-specific_methods', key: 'methodology.specific_methods', label: 'XII. Specific Methods' },
@@ -11,8 +10,9 @@ export const proposalCitationFields = Object.freeze([
 
 export function proposalCitationField(value) {
     const normalized = String(value || '').trim();
+    const key = normalized === 'introduction' ? 'related_literature' : normalized;
 
-    return proposalCitationFields.find((field) => field.id === normalized || field.key === normalized) || null;
+    return proposalCitationFields.find((field) => field.id === key || field.key === key) || null;
 }
 
 export function proposalCitationFieldIds() {

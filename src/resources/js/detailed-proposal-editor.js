@@ -190,8 +190,10 @@ export default function registerDetailedProposalEditor(Alpine, {
                 (config.expectedOutputKeys || []).map((key) => [key, this.normalizedExpectedOutputs(data.expected_outputs?.[key])]),
             );
             this.autoSaveInitialContent = this.nestedProposalFieldsNeedSave(data);
-            this.introduction = String(data.introduction ?? '');
-            this.relatedLiterature = String(data.related_literature ?? '');
+            this.introduction = '';
+            this.relatedLiterature = this.appendLiteratureText(this.plainText(data.introduction) ? String(data.introduction) : '', String(data.related_literature ?? ''));
+            this.autoSaveInitialContent ||= Boolean(String(data.introduction ?? '').trim())
+                || (Array.isArray(data.methodology_images) && data.methodology_images.some(image => image.section === 'introduction'));
             this.literatureSources = Array.isArray(config.literatureSources)
                 ? config.literatureSources
                 : [];
@@ -209,7 +211,8 @@ export default function registerDetailedProposalEditor(Alpine, {
                     ...responsibility,
                     percentage: responsibility.percentage ?? (index === 0 ? 100 : ''),
                 }))
-                : [this.newResponsibility({ name: config.projectLeader, percentage: 100 })];
+                : [this.newResponsibility({ name: config.projectLeader, percentage: 100, percentage_fixed: '0' })];
+            if (this.redistributeResponsibilityPercentages()) this.autoSaveInitialContent = true;
             this.checkedVerifiedByName = String(data.checked_verified_by_name ?? '');
             this.recommendingApprovalName = String(data.recommending_approval_name ?? '');
             this.approvedByName = String(data.approved_by_name ?? '');
@@ -2290,17 +2293,21 @@ export default function registerDetailedProposalEditor(Alpine, {
                 id: this.nextId,
                 name: String(values.name ?? ''),
                 percentage: String(values.percentage ?? ''),
+                percentageFixed: values.percentage_fixed == null || values.percentage_fixed === ''
+                    ? String(values.percentage ?? '').trim() !== ''
+                    : values.percentage_fixed === true || String(values.percentage_fixed) === '1',
                 duties: String(values.duties ?? ''),
             };
         },
 
         newMethodologyImage(values = {}) {
             const id = String(values.id ?? '');
+            const section = values.section === 'introduction' ? 'related_literature' : values.section;
 
             return {
                 clientId: this.newMethodologyImageClientId(),
                 id,
-                section: Object.hasOwn(this.figureSections, values.section) ? values.section : 'research_design',
+                section: Object.hasOwn(this.figureSections, section) ? section : 'research_design',
                 alignment: ['left', 'center', 'right'].includes(values.alignment) ? values.alignment : 'center',
                 size: ['small', 'medium', 'large'].includes(values.size) ? values.size : 'medium',
                 caption: String(values.caption ?? ''),
@@ -2429,6 +2436,7 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         moveMethodologyImageToSection(image, section) {
+            if (section === 'introduction') section = 'related_literature';
             const imageIndex = this.methodologyImageIndex(image);
 
             if (imageIndex < 0) return;
@@ -2503,6 +2511,7 @@ export default function registerDetailedProposalEditor(Alpine, {
                 (responsibility) => String(responsibility.name).trim().toLowerCase() === String(person.name).trim().toLowerCase(),
             )) {
                 this.responsibilities.push(this.newResponsibility({ name: person.name }));
+                this.redistributeResponsibilityPercentages();
             }
 
             this.selectedWorkspacePerson = '';
@@ -2568,6 +2577,7 @@ export default function registerDetailedProposalEditor(Alpine, {
 
         addResponsibility() {
             this.responsibilities.push(this.newResponsibility());
+            this.redistributeResponsibilityPercentages();
             this.triggerDetailedProposalAutoSave();
         },
 
@@ -2575,7 +2585,65 @@ export default function registerDetailedProposalEditor(Alpine, {
             if (this.responsibilities.length === 1) return;
 
             this.responsibilities.splice(index, 1);
+            this.redistributeResponsibilityPercentages();
             this.triggerDetailedProposalAutoSave();
+        },
+
+        setResponsibilityPercentage(responsibility, value) {
+            responsibility.percentage = String(value);
+            responsibility.percentageFixed = true;
+            this.redistributeResponsibilityPercentages();
+            this.triggerDetailedProposalAutoSave();
+        },
+
+        setResponsibilityAutomatic(responsibility) {
+            responsibility.percentageFixed = false;
+            this.redistributeResponsibilityPercentages();
+            this.triggerDetailedProposalAutoSave();
+        },
+
+        redistributeResponsibilityPercentages() {
+            const fixed = this.responsibilities.filter(member => member.percentageFixed);
+            if (fixed.some(member => !Number.isInteger(Number(member.percentage)) || Number(member.percentage) < 1 || Number(member.percentage) > 100)) return false;
+            const remaining = 100 - fixed.reduce((total, member) => total + Number(member.percentage), 0);
+            const automatic = this.responsibilities.filter(member => !member.percentageFixed);
+            if (remaining < 0 || !automatic.length) return false;
+            let changed = false;
+            automatic.forEach((member, index) => {
+                const share = Math.floor(remaining / automatic.length) + (index < remaining % automatic.length ? 1 : 0);
+                const percentage = share > 0 ? String(share) : '';
+                if (member.percentage !== percentage) changed = true;
+                member.percentage = percentage;
+            });
+            return changed;
+        },
+
+        availableResponsibilityPercentage(responsibility) {
+            const others = this.responsibilities.filter(member => member !== responsibility);
+            const fixedTotal = others.filter(member => member.percentageFixed).reduce((total, member) => total + (Number(member.percentage) || 0), 0);
+            const automaticCount = others.filter(member => !member.percentageFixed).length;
+            return Math.max(0, Math.min(100, Math.floor(100 - fixedTotal - automaticCount)));
+        },
+
+        responsibilityTotal() {
+            return this.responsibilities.reduce((total, member) => total + (Number(member.percentage) || 0), 0);
+        },
+
+        responsibilityAllocationError() {
+            const fixed = this.responsibilities.filter(member => member.percentageFixed);
+            if (fixed.some(member => !Number.isInteger(Number(member.percentage)) || Number(member.percentage) < 1 || Number(member.percentage) > 100)) {
+                return 'Enter a whole percentage from 1 to 100 for each fixed member.';
+            }
+            if (fixed.reduce((total, member) => total + Number(member.percentage), 0) > 100) {
+                return 'Fixed percentages exceed 100%. Reduce a fixed share or set it to Auto.';
+            }
+            if (this.responsibilities.some(member => Number(member.percentage) < 1)) {
+                return 'Free up at least 1% for each member by reducing a fixed share or setting it to Auto.';
+            }
+            if (this.responsibilityTotal() !== 100) {
+                return `Total ${this.responsibilityTotal()}%. Set a member to Auto or adjust a fixed share to reach 100%.`;
+            }
+            return '';
         },
 
         isComplete() {
@@ -2587,6 +2655,9 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         detailedProposalFieldIsValid(field) {
+            if (this.responsibilities.length && /^responsibilities\[\d+\]\[percentage\]$/.test(field.name || '')) {
+                field.setCustomValidity(this.responsibilityAllocationError());
+            }
             if (field.required && field.matches?.('textarea[data-semantic-editor]')) {
                 field.setCustomValidity(this.plainText(field.value) ? '' : 'Add text to this section.');
             }

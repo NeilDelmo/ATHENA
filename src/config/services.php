@@ -40,6 +40,7 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URL'),
         'remember_login' => env('GOOGLE_REMEMBER_LOGIN', false),
+        'guzzle' => ['connect_timeout' => 5, 'timeout' => 20],
         'allowed_domains' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('GOOGLE_ALLOWED_DOMAINS', 'g.batstate-u.edu.ph')),

@@ -92,7 +92,8 @@ export function commentResponsePaperPreview(url) {
             if (!revisionForm || !paper) return;
             const replies = new Map([...revisionForm.querySelectorAll('[data-revision-response-key]')]
                 .map((reply) => [reply.dataset.revisionResponseKey, reply]));
-            paper.querySelectorAll('[data-comment-response-row]').forEach((row) => {
+            const source = paper.querySelector('[data-paper-pagination-source]') || paper;
+            source.querySelectorAll('[data-comment-response-row]').forEach((row) => {
                 const reply = replies.get(row.dataset.commentResponseRow);
                 if (!reply) return;
                 const response = reply.querySelector('textarea');
@@ -103,7 +104,10 @@ export function commentResponsePaperPreview(url) {
                 row.querySelector('[data-comment-response-remarks]').textContent = noChange
                     ? 'No change made' : (page && paragraph ? `Page ${page}, paragraph ${paragraph}` : '');
             });
-            this.$nextTick(() => this.fitPaperPreview());
+            this.$nextTick(() => {
+                paper.paperPagination?.refresh();
+                this.fitPaperPreview();
+            });
         },
 
         setPaperExpanded(expanded) {

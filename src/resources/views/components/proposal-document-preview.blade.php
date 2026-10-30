@@ -53,6 +53,7 @@
                 @endif
                 <button type="button" @click="toggleProposalPreviewFullscreen()" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold dark:text-white" x-text="previewFullscreen ? 'Exit full screen' : 'Full screen'"></button>
                 <button type="button" @click="printPreview()" :disabled="!previewReady" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-50 dark:text-white">Print preview</button>
+                <x-paper-preview-pagination />
             </div>
             @if ($src === null)
                 <p x-show="previewStale" x-cloak role="status" class="text-xs font-semibold text-amber-700 dark:text-amber-300">Your edits are newer than this preview. Refresh to update it.</p>

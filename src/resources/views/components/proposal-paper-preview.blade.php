@@ -8,6 +8,7 @@
         <div class="proposal-preview-dock-actions">
             <button type="button" x-show="previewError || validationMessage" x-cloak @click="$refs.previewClose.focus({ preventScroll: true }); generatePreview()" :disabled="previewLoading">Retry preview</button>
             <button type="button" @click="printPreview()" :disabled="!previewReady || previewStale || previewLoading">Print</button>
+            <x-paper-preview-pagination />
             <a x-show="previewReadOnly && previewDownloadUrl" x-cloak :href="previewDownloadUrl" class="proposal-preview-download">Download Word</a>
         </div>
         <p x-show="previewError || validationMessage" x-cloak role="alert" class="proposal-preview-error" x-text="previewError || validationMessage"></p>

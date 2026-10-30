@@ -37,6 +37,79 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
     return instance;
 }
 
+test('responsibility percentages share the remainder while manually edited members stay fixed', () => {
+    const state = editor();
+    state.responsibilities = [state.newResponsibility({ name: 'Leader', percentage: 100, percentage_fixed: '0' })];
+    state.addResponsibility();
+    state.addResponsibility();
+    const shares = () => Array.from(state.responsibilities, member => member.percentage);
+    assert.deepEqual(shares(), ['34', '33', '33']);
+
+    state.setResponsibilityPercentage(state.responsibilities[0], '50');
+    assert.deepEqual(shares(), ['50', '25', '25']);
+    state.setResponsibilityPercentage(state.responsibilities[2], '30');
+    assert.deepEqual(shares(), ['50', '20', '30']);
+    state.setResponsibilityPercentage(state.responsibilities[0], '60');
+    assert.deepEqual(shares(), ['60', '10', '30']);
+    assert.equal(state.responsibilityAllocationError(), '');
+});
+
+test('fixed responsibility percentages show the available share and can return to automatic allocation', () => {
+    const state = editor();
+    state.responsibilities = [state.newResponsibility({ percentage: 100, percentage_fixed: 0 })];
+    state.addResponsibility();
+    state.addResponsibility();
+    state.setResponsibilityPercentage(state.responsibilities[0], '50');
+    assert.equal(state.availableResponsibilityPercentage(state.responsibilities[2]), 49);
+    state.setResponsibilityPercentage(state.responsibilities[2], '60');
+    assert.equal(state.responsibilities[0].percentage, '50');
+    assert.ok(state.responsibilityAllocationError());
+    state.setResponsibilityAutomatic(state.responsibilities[2]);
+    assert.deepEqual(Array.from(state.responsibilities, member => member.percentage), ['50', '25', '25']);
+
+    state.setResponsibilityPercentage(state.responsibilities[2], '30');
+    state.setResponsibilityPercentage(state.responsibilities[1], '10');
+    assert.ok(state.responsibilityAllocationError());
+    assert.equal(state.responsibilities[0].percentage, '50');
+    state.setResponsibilityAutomatic(state.responsibilities[1]);
+    assert.deepEqual(Array.from(state.responsibilities, member => member.percentage), ['50', '20', '30']);
+});
+
+test('responsibility allocation rebalances added and removed members without changing fixed shares', () => {
+    const state = editor({ formatPersonName });
+    state.responsibilities = [state.newResponsibility({ percentage: 100, percentage_fixed: 0 })];
+    state.addResponsibility();
+    state.setResponsibilityPercentage(state.responsibilities[0], '80');
+    assert.deepEqual(Array.from(state.responsibilities, member => member.percentage), ['80', '20']);
+    state.addResponsibility();
+    state.addResponsibility();
+    assert.deepEqual(Array.from(state.responsibilities, member => member.percentage), ['80', '7', '7', '6']);
+    state.removeResponsibility(2);
+    assert.deepEqual(Array.from(state.responsibilities, member => member.percentage), ['80', '10', '10']);
+
+    state.workspacePeople = [{ key: 'new-member', name: 'Project staff', email: 'staff@example.test' }];
+    state.addWorkspacePerson('new-member');
+    assert.deepEqual(Array.from(state.responsibilities, member => member.percentage), ['80', '7', '7', '6']);
+});
+
+test('responsibility allocation retains saved and legacy manual shares and rejects fractional or empty fixed values', () => {
+    const state = editor();
+    assert.equal(state.newResponsibility({ percentage: '50' }).percentageFixed, true);
+    assert.equal(state.newResponsibility({ percentage: '25', percentage_fixed: '0' }).percentageFixed, false);
+    assert.equal(state.newResponsibility({ percentage: '50', percentage_fixed: '1' }).percentageFixed, true);
+    assert.equal(state.newResponsibility().percentageFixed, false);
+    state.responsibilities = [state.newResponsibility({ percentage: 100, percentage_fixed: 0 })];
+    state.addResponsibility();
+    for (const value of ['', '25.5', '-1', '101']) {
+        state.setResponsibilityPercentage(state.responsibilities[0], value);
+        assert.equal(state.responsibilities[1].percentage, '50');
+        assert.ok(state.responsibilityAllocationError());
+    }
+    state.setResponsibilityPercentage(state.responsibilities[0], '100');
+    assert.equal(state.responsibilities[1].percentage, '');
+    assert.ok(state.responsibilityAllocationError(), 'Each member must retain at least one percent');
+});
+
 test('an autosave response preserves images selected or replaced after that request started', () => {
     class Input {
         constructor(file) { this.file = file; }

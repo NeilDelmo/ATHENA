@@ -107,7 +107,7 @@
             </div>
             <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
                 <div class="sm:col-span-2">
-                    <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt>
+                    <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <x-required-mark /></dt>
                     <dd class="mt-1 text-sm text-gray-900">{{ $proposalDraft->project_title ?: 'Not provided' }}</dd>
                 </div>
                 <div>
@@ -128,7 +128,7 @@
                     <div>
                         <h3 class="text-base font-black text-gray-900">Expense items</h3>
                         <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Use MOOE, Capital Outlay, or both. Only add expense items for categories that apply to your project; an unused category has a zero total. Remove any unused expense rows.</p>
-                        <p class="mt-2 text-[11px] text-gray-500"><span class="text-red-600" aria-hidden="true">*</span> Required for each entered expense item. At least one expense item overall is required to complete this paper, not one in each category.</p>
+                        <p data-proposal-required-legend class="mt-2 text-[11px] text-gray-500"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required for each entered expense item. At least one expense item overall is required to complete this paper, not one in each category.</p>
                     </div>
                     <button type="button" x-on:click="addItem(true)" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Add expense item</button>
                 </div>
@@ -155,7 +155,7 @@
                             <div x-bind:id="`expense-item-editor-${item.id}`" x-show="isItemExpanded(item)" x-cloak x-transition class="mt-4">
                                 <div class="expense-writing-grouping grid gap-4">
                                 <div>
-                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-category-${item.id}`">Expense type <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-category-${item.id}`">Expense type <x-required-mark /></label>
                                     <select :id="`expense-category-${item.id}`" :name="`items[${index}][category]`" x-model="item.category" x-on:change="$nextTick(() => syncGrouping(item, true))" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         @foreach (config('expense_breakdown.categories') as $categoryKey => $categoryLabel)
                                             <option value="{{ $categoryKey }}">{{ $categoryLabel }}</option>
@@ -163,7 +163,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-account-${item.id}`">Account <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-account-${item.id}`">Account <x-required-mark /></label>
                                     <select :id="`expense-account-${item.id}`" x-model="item.account" x-on:change="$nextTick(() => syncGrouping(item))" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         <option value="">Select an official account</option>
                                         <template x-for="account in accountsFor(item)" :key="account.label">
@@ -173,7 +173,7 @@
                                     <input type="hidden" :name="`items[${index}][account]`" :value="item.account">
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-sub-account-${item.id}`">Sub-account <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-sub-account-${item.id}`">Sub-account <x-required-mark /></label>
                                     <select :id="`expense-sub-account-${item.id}`" x-model="item.sub_account" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         <option value="">Select an official sub-account</option>
                                         <template x-for="subAccount in subAccountsFor(item)" :key="subAccount.label">
@@ -188,30 +188,30 @@
                                 <div>
                                     <div class="expense-writing-costs mt-4 grid gap-4">
                                         <div>
-                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-particulars-${item.id}`">Particular/s <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-particulars-${item.id}`">Particular/s <x-required-mark /></label>
                                             <input :id="`expense-particulars-${item.id}`" :name="`items[${index}][particulars]`" x-bind:data-expense-item-primary="item.id" type="text" maxlength="255" x-model="item.particulars" required placeholder="e.g. Prepaid Card" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         </div>
                                         <div>
-                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-${item.id}`">Unit <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-${item.id}`">Unit <x-required-mark /></label>
                                             <input :id="`expense-unit-${item.id}`" :name="`items[${index}][unit]`" type="text" maxlength="50" x-model="item.unit" required placeholder="pc, hours" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         </div>
                                         <div>
-                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-quantity-${item.id}`">Qty. <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-quantity-${item.id}`">Qty. <x-required-mark /></label>
                                             <input :id="`expense-quantity-${item.id}`" :name="`items[${index}][quantity]`" type="number" min="0.01" max="{{ config('expense_breakdown.maximum_quantity') }}" step="0.01" x-model="item.quantity" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         </div>
                                         <div>
-                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-cost-${item.id}`">Unit Cost (Php) <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-cost-${item.id}`">Unit Cost (Php) <x-required-mark /></label>
                                             <input :id="`expense-unit-cost-${item.id}`" :name="`items[${index}][unit_cost]`" type="number" min="0.01" max="{{ config('expense_breakdown.maximum_unit_cost') }}" step="0.01" x-model="item.unit_cost" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         </div>
                                     </div>
 
                                     <div class="expense-writing-details mt-4 grid gap-4">
                                         <div>
-                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-details-${item.id}`">Descriptions / Specifications / Details <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-details-${item.id}`">Descriptions / Specifications / Details <x-required-mark /></label>
                                             <textarea :id="`expense-details-${item.id}`" :name="`items[${index}][details]`" rows="3" maxlength="500" x-model="item.details" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                         </div>
                                         <div>
-                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-purpose-${item.id}`">Purpose in the project <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-purpose-${item.id}`">Purpose in the project <x-required-mark /></label>
                                             <textarea :id="`expense-purpose-${item.id}`" :name="`items[${index}][purpose]`" rows="3" maxlength="500" x-model="item.purpose" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                         </div>
                                     </div>
@@ -225,11 +225,11 @@
                                     <input type="hidden" :name="`items[${index}][unit]`" value="N/A">
                                     <input type="hidden" :name="`items[${index}][quantity]`" value="1">
                                     <div>
-                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-purpose-${item.id}`">Purpose in the project <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-purpose-${item.id}`">Purpose in the project <x-required-mark /></label>
                                         <textarea :id="`expense-purpose-${item.id}`" :name="`items[${index}][purpose]`" x-bind:data-expense-item-primary="item.id" rows="3" maxlength="500" x-model="item.purpose" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                     </div>
                                     <div>
-                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-cost-${item.id}`">Contingency amount (Php) <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-cost-${item.id}`">Contingency amount (Php) <x-required-mark /></label>
                                         <input :id="`expense-unit-cost-${item.id}`" :name="`items[${index}][unit_cost]`" type="number" min="0.01" max="{{ config('expense_breakdown.maximum_unit_cost') }}" step="0.01" x-model="item.unit_cost" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                     </div>
                                 </div>

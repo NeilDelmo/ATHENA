@@ -2,7 +2,7 @@ import { escapeAssistantHtml, safeAssistantSourceUrl } from './research-assistan
 
 const maximumHandoffAge = 10 * 60 * 1000;
 const narrativeFields = new Set([
-    'executive_brief', 'rationale', 'general_objective', 'introduction',
+    'executive_brief', 'rationale', 'general_objective',
     'methodology.research_design', 'methodology.data_analysis', 'related_literature',
 ]);
 const expectedOutputKeys = new Set(['publication', 'patent', 'product', 'people_service',

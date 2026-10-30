@@ -13,8 +13,8 @@ export function curriculumVitaePaperWorkspace() {
             const previewDocument = this.$refs.previewFrame?.contentDocument;
             const section = previewDocument?.querySelector(`[data-proposal-preview-section="${this.previewFocusSection}"]`);
             if (section) {
-                // Keep preview scrolling from moving the surrounding editor page.
-                previewDocument.defaultView.scrollBy({ top: section.getBoundingClientRect().top, behavior: 'instant' });
+                if (previewDocument.paperPagination) previewDocument.paperPagination.reveal(section);
+                else previewDocument.defaultView.scrollBy({ top: section.getBoundingClientRect().top, behavior: 'instant' });
             }
         },
 

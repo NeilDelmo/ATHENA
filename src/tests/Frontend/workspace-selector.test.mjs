@@ -136,7 +136,7 @@ async function switchingPage(browser, kind = 'three') {
     const appEntry = manifest['resources/js/app.js'];
     const allowedAssets = new Set(Object.values(manifest).map((entry) => entry.file));
     const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-    const state = { posts: [], choosers: 0, dashboards: 0, documents: 0, bundles: 0, errors: [], responseStatus: 200, responseBody: null, releasePost: null, releaseDocuments: null, pausePost: false };
+    const state = { userId: 1, posts: [], choosers: 0, dashboards: 0, documents: 0, bundles: 0, errors: [], responseStatus: 200, responseBody: null, releasePost: null, releaseDocuments: null, pausePost: false };
     let activeWorkspace = 'Faculty';
     page.on('pageerror', (error) => state.errors.push(error.message));
     function html(body) {
@@ -169,7 +169,7 @@ async function switchingPage(browser, kind = 'three') {
         if (request.url() === dashboard) {
             state.dashboards++;
             const contextId = activeWorkspace === 'Faculty' ? 101 : activeWorkspace === 'Faculty Researcher' ? 202 : 303;
-            return route.fulfill({ contentType: 'text/html', body: html(`<script>window.athenaResearchAssistantContexts = [{ id: ${contextId}, label: '${activeWorkspace} project' }]; window.athenaResearchAssistantActiveContextId = null; window.athenaResearchAssistantPageActions = [];</script><div x-data data-app-shell data-auth-user-id="1"><h1>${activeWorkspace} workspace</h1><aside x-persist="app-sidebar-${activeWorkspace}">${activeWorkspace} navigation</aside><a ${switchNavigation} href="${action}">Switch Workspace</a></div>`) });
+            return route.fulfill({ contentType: 'text/html', body: html(`<script>window.athenaResearchAssistantContexts = [{ id: ${contextId}, label: '${activeWorkspace} project' }]; window.athenaResearchAssistantActiveContextId = null; window.athenaResearchAssistantPageActions = [];</script><div x-data data-app-shell data-auth-user-id="${state.userId}"><h1>${activeWorkspace} workspace</h1><aside x-persist="app-sidebar-${activeWorkspace}">${activeWorkspace} navigation</aside><a ${switchNavigation} href="${action}">Switch Workspace</a></div>`) });
         }
         if (request.url() === action) {
             state.choosers++;
@@ -273,4 +273,17 @@ test('failed switches show the server error and permit a single retry without le
     } finally {
         await browser.close();
     }
+});
+
+test('browser Back fetches the current account instead of reviving a previous account from Livewire cache', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const { page, state } = await switchingPage(browser);
+        state.userId = 2;
+        await page.goBack();
+        await page.waitForFunction(() => document.querySelector('[data-auth-user-id]')?.dataset.authUserId === '2', { timeout: 3000 });
+        assert.equal(state.documents, 2);
+        assert.equal(state.posts.length, 0);
+        assert.deepEqual(state.errors, []);
+    } finally { await browser.close(); }
 });

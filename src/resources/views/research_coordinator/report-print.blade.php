@@ -79,6 +79,7 @@
             @media print { body { min-width: 0; background: white; } main { display: block; width: auto; min-height: auto; margin: 0 1in; padding: 21.3pt 0 0; } header { margin-top: 0; } footer, .toolbar { display: none; } }
             @media screen and (max-width: 850px) { main { margin: 0; } .toolbar { width: 100vw; justify-content: flex-start; } }
         </style>
+        @vite('resources/js/paper-preview-pagination.js')
     </head>
     <body>
         @unless ($embedded ?? request()->boolean('embedded'))
@@ -88,7 +89,7 @@
             <span>{{ $report?->submitted_at ? 'Submitted report' : 'Draft preview · Save your draft to include recent changes' }}</span>
         </nav>
         @endunless
-        <main>
+        <main data-paper-sheet>
             <header>
                 <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University logo">
                 <p class="republic">Republic of the Philippines</p>
@@ -145,7 +146,7 @@
                     </figure>
                 @endforeach
             @endif
-            <footer>Leading Innovations, Transforming Lives, Building the Nation</footer>
+            <footer data-paper-footer>Leading Innovations, Transforming Lives, Building the Nation</footer>
         </main>
     </body>
 </html>

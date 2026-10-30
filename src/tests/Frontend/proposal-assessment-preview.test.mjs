@@ -76,7 +76,7 @@ function renderForms() {
             review: `<x-modal name="proposal-review" :show="true" focusable>${reviewRoot}<div :inert="previewFullscreen">${reviewSections}<button type="button">Turn in proposal</button></div><x-proposal-paper-preview panel-id="review-paper-preview-panel" /></div></x-modal>`,
             papers: paperSection,
             gad: read('resources/views/faculty/gad-checklist/preview.blade.php')
-                .replace("@vite('resources/css/gad-checklist-print.css')", `<style>${read('resources/css/gad-checklist-print.css')}</style>`),
+                .replace("@vite(['resources/css/gad-checklist-print.css', 'resources/js/paper-preview-pagination.js'])", `<style>${read('resources/css/gad-checklist-print.css')}</style>`),
         }),
         encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' }, maxBuffer: 3 * 1024 * 1024,
     }));
@@ -267,13 +267,13 @@ test('both assessment forms open the shared viewer with working zoom, print, dow
                     if (name === 'GAD Generic Checklist') {
                         await page.waitForFunction(() => {
                             const frame = document.querySelector('iframe');
-                            const firstPage = frame.contentDocument?.querySelector('.gad-page');
+                            const firstPage = frame.contentDocument?.querySelector('[data-paper-pagination-sheet].gad-page');
                             return firstPage && firstPage.getBoundingClientRect().height <= frame.clientHeight + 1;
                         });
-                        assert.equal(await iframe.evaluate((frame) => frame.contentDocument.querySelectorAll('.gad-page').length), 7);
+                        assert.equal(await iframe.evaluate((frame) => frame.contentDocument.querySelectorAll('[data-paper-pagination-sheet].gad-page').length), 7);
                         assert.ok(await iframe.evaluate((frame) => frame.contentDocument.body.textContent.includes('Community Survey')));
                         const fittedPage = await iframe.evaluate((frame) => ({
-                            height: frame.contentDocument.querySelector('.gad-page').getBoundingClientRect().height,
+                            height: frame.contentDocument.querySelector('[data-paper-pagination-sheet].gad-page').getBoundingClientRect().height,
                             viewport: frame.clientHeight,
                             zoom: frame.contentDocument.body.style.zoom,
                             fit: window.assessmentState.previewFit,
@@ -295,7 +295,16 @@ test('both assessment forms open the shared viewer with working zoom, print, dow
                     await page.keyboard.up('Control');
                     if (name === 'GAD Generic Checklist') {
                         await page.mouse.wheel(0, 300);
-                        await page.waitForFunction(() => document.querySelector('iframe').contentWindow.scrollY > 0);
+                        if (await iframe.evaluate(frame => frame.contentDocument.scrollingElement.scrollHeight > frame.clientHeight)) {
+                            await page.waitForFunction(() => document.querySelector('iframe').contentWindow.scrollY > 0);
+                        }
+                        assert.equal(await page.evaluate(() => window.assessmentState.previewPageCount), 7);
+                        assert.equal(await page.getByRole('button', { name: 'Next page', exact: true }).count(), 0);
+                        await iframe.evaluate(frame => {
+                            const second = frame.contentDocument.querySelectorAll('[data-paper-pagination-sheet]')[1];
+                            frame.contentWindow.scrollBy({ top: second.getBoundingClientRect().top - 20, behavior: 'instant' });
+                        });
+                        await page.waitForFunction(() => window.assessmentState.previewPage === 2);
                         assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '110%', 'Normal scrolling must not change zoom');
                     }
                     const download = page.getByRole('link', { name: 'Download Word', exact: true });

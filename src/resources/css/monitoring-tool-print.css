@@ -91,7 +91,10 @@ body {
     vertical-align: top;
 }
 
-.monitoring-sheet > table + table, .monitoring-section {
+.monitoring-sheet > table + table,
+.monitoring-sheet > .paper-pagination-flow > table + table,
+.monitoring-sheet > .paper-pagination-fragment > table + table,
+.monitoring-section {
     margin-top: -0.5pt;
 }
 

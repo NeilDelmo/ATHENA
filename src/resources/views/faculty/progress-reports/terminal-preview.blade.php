@@ -23,7 +23,8 @@
 <x-favicon />
 <style>
 body{margin:0;background:#e5e7eb;color:#111;font:11pt/1.45 'Times New Roman',serif}.sheet{box-sizing:border-box;background:white;max-width:210mm;margin:20px auto;padding:18mm}h1{font-size:20pt}h2{font-size:12pt;margin-top:22px}h3{font-size:11pt}.cover{text-align:center;min-height:230mm;break-after:page}.cover-poster{margin:18px auto;max-width:155mm}.cover-poster img{max-height:105mm}.cover-poster figcaption{font-size:9.5pt}.reference{display:flex;justify-content:space-between;gap:12px;border:1px solid #333;padding:8px;font-size:9pt}table{width:100%;border-collapse:collapse;margin:12px 0;table-layout:fixed}th,td{border:1px solid #888;padding:7px;overflow-wrap:anywhere;vertical-align:top}th{background:#f2f2f2}thead{display:table-header-group}p{white-space:pre-wrap}figure{margin:18px 0;text-align:center;break-inside:avoid}figure img{max-width:100%;max-height:650px;object-fit:contain}figcaption{font-style:italic}.signatures{break-before:page}.signature{break-inside:avoid;margin:20px 0}.signature p{margin:3px 0}.placeholder{min-height:100px;border:1px dashed #aaa} @media print{body{background:white}.sheet{margin:0;padding:0;max-width:none}@page{size:A4;margin:18mm}}
-</style></head><body><main class="sheet">
+</style>@vite('resources/js/paper-preview-pagination.js')
+</head><body><main data-paper-sheet class="sheet">
 <div class="reference"><span>Reference No.: BatStateU-REC-RES-04</span><span>Effectivity Date: May 18, 2022</span><span>Revision No.: 02</span></div>
 <section class="cover"><h1>TERMINAL REPORT</h1><h2>I. Cover Page</h2><h2>Batangas State University</h2><p>The National Engineering University</p>
 @if ($coverImage)

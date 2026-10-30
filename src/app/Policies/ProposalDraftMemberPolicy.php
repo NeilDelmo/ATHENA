@@ -21,4 +21,16 @@ class ProposalDraftMemberPolicy
         return $this->review($user, $proposalDraftMember)
             && ! $proposalDraftMember->isAccepted();
     }
+
+    public function decline(User $user, ProposalDraftMember $proposalDraftMember): bool
+    {
+        return $this->accept($user, $proposalDraftMember);
+    }
+
+    public function remove(User $user, ProposalDraftMember $proposalDraftMember): bool
+    {
+        return $proposalDraftMember->draft !== null
+            && $user->can('manageMembers', $proposalDraftMember->draft)
+            && (! $proposalDraftMember->isAccepted() || $proposalDraftMember->draft->topic_id === null);
+    }
 }

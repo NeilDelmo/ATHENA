@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SelectWorkspaceRequest;
-use App\Models\User;
 use App\Support\WorkspaceLocation;
+use App\Support\WorkspacePreference;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class WorkspaceController extends Controller
 
         if (count($workspaces) <= 1) {
             if ($workspace = array_key_first($workspaces)) {
-                $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+                WorkspacePreference::select($request, $workspace, persist: true);
             }
 
             return redirect()->route('dashboard');
@@ -31,12 +31,7 @@ class WorkspaceController extends Controller
     public function store(SelectWorkspaceRequest $request): JsonResponse|RedirectResponse
     {
         $workspace = $request->validated('workspace');
-        $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
-        if ($request->user()->hasRole('research_coordinator')
-            && $request->user()->hasAnyRole(['faculty', 'faculty_researcher'])
-            && in_array($workspace, [User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER], true)) {
-            $request->session()->put('active_role', $workspace === User::WORKSPACE_RESEARCH_OFFICE ? 'research_coordinator' : 'faculty');
-        }
+        WorkspacePreference::select($request, $workspace, persist: true);
         $request->session()->forget('url.intended');
         $request->session()->flash('status', 'You are now using the '.$request->user()->activeWorkspaceLabel().' workspace.');
 

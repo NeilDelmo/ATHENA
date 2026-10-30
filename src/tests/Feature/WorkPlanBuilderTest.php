@@ -81,7 +81,7 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertSee('work-plan-preview-panel')
         ->assertSee('data-proposal-paper-workspace', false)
         ->assertSee('data-work-plan-writing-toolbar', false)
-        ->assertSee('proposal-writing-preview-launcher', false)
+        ->assertDontSee('proposal-writing-preview-launcher', false)
         ->assertSee('proposal-preview-dock', false)
         ->assertSee('Enlarge the paper preview')
         ->assertSee('Collapse preview')

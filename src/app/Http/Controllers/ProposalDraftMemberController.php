@@ -70,7 +70,7 @@ class ProposalDraftMemberController extends Controller
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', $linkedUser
                 ? 'Invitation sent to '.$linkedUser->name.'. Their project staff access starts after accepting it in ATHENA.'
-                : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.')
+                : 'Invitation sent to '.$membership->name.'. They must sign in with '.$membership->email.' and accept before getting access.')
             ->with('workload_warning', $workloadWarning);
     }
 
@@ -140,10 +140,16 @@ class ProposalDraftMemberController extends Controller
     ): RedirectResponse {
         Gate::authorize('manageMembers', $proposalDraft);
 
-        $proposalDraftMember = $proposalDraft->members()->findOrFail($member);
-        $name = $proposalDraftMember->name;
-        abort_if($proposalDraftMember->isAccepted(), 403, 'Confirmed project staff remain part of the project through completion.');
-        abort_unless($proposalDraft->members()->whereKey($proposalDraftMember->id)->whereNull('accepted_at')->delete() === 1, 403);
+        $name = DB::transaction(function () use ($proposalDraft, $member): string {
+            $lockedDraft = ProposalDraft::query()->whereKey($proposalDraft->getKey())->lockForUpdate()->firstOrFail();
+            $lockedDraft->ensureEditable();
+            $membership = $lockedDraft->members()->lockForUpdate()->findOrFail($member);
+            $membership->setRelation('draft', $lockedDraft);
+            Gate::authorize('remove', $membership);
+            $membership->delete();
+
+            return $membership->name;
+        }, 3);
 
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)

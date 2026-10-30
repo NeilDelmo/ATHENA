@@ -5,10 +5,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Initial Screening Form Preview</title>
-        @vite('resources/css/initial-screening-form-print.css')
+        @vite(['resources/css/initial-screening-form-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="initial-screening-preview-page">
-        <main class="initial-screening-sheet" aria-label="BatStateU Initial Screening Form">
+        <main data-paper-sheet data-paper-fixed class="initial-screening-sheet" aria-label="BatStateU Initial Screening Form">
             <img src="{{ asset('images/initial-screening-form-preview.png') }}" alt="" class="initial-screening-source" aria-hidden="true">
             <span class="initial-screening-project-title">{{ $screeningForm['project_title'] }}</span>
             <span class="initial-screening-project-leader">{{ $screeningForm['project_leader'] }}</span>

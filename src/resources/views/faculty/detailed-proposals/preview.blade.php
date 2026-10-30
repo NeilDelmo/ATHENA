@@ -11,10 +11,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>BatStateU-FO-RES-02 - Detailed Research Proposal Preview</title>
-        @vite('resources/css/detailed-proposal-print.css')
+        @vite(['resources/css/detailed-proposal-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="detailed-proposal-preview-page">
-        <main class="detailed-proposal-sheet" aria-label="BatStateU-FO-RES-02 Detailed Research Proposal">
+        <main data-paper-sheet class="detailed-proposal-sheet" aria-label="BatStateU-FO-RES-02 Detailed Research Proposal">
             <table class="detailed-proposal-table">
                 <colgroup><col class="detailed-proposal-col-seal"><col class="detailed-proposal-col-reference"><col class="detailed-proposal-col-effectivity"><col class="detailed-proposal-col-revision"></colgroup>
                 <tbody>
@@ -261,7 +261,7 @@
                 <p class="detailed-proposal-note-indented detailed-proposal-note-detail">Head, Research/Head Research &amp; Extension; Vice Chancellor for RDES; &amp; Vice President for RDES</p>
             </div>
 
-            <footer>
+            <footer data-paper-footer>
                 <span>Tracking No.________________</span>
                 <span class="detailed-proposal-page-number">Page 1 of 1</span>
             </footer>

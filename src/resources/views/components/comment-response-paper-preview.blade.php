@@ -7,6 +7,7 @@
         <button type="button" @click="loadPaperPreview()" class="mt-3 rounded-lg bg-red-700 px-4 py-2 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Try again</button>
     </div>
     <iframe x-ref="previewFrame" x-show="previewHtml" :srcdoc="previewHtml" @load="paperPreviewLoaded()" tabindex="-1" title="Comment Response paper" class="min-h-0 w-full flex-1 border-0 bg-white"></iframe>
+    <div x-show="previewReady" class="border-t border-gray-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"><x-paper-preview-pagination /></div>
     <footer x-show="previewExpanded && previewReady" x-cloak class="revision-reference-footer" role="group" aria-label="Comment Response preview zoom">
         <div data-revision-preview-zoom class="flex flex-wrap items-center gap-2">
             <button type="button" @click="decreaseProposalPreviewZoom()" :disabled="previewZoom <= 50" aria-label="Zoom out">−</button>

@@ -5,10 +5,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Attachment B - Line-Item Budget Preview</title>
-        @vite('resources/css/line-item-budget-print.css')
+        @vite(['resources/css/line-item-budget-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="line-budget-preview-page">
-        <main class="line-budget-sheet" aria-label="BatStateU Attachment B Line-Item Budget">
+        <main data-paper-sheet class="line-budget-sheet" aria-label="BatStateU Attachment B Line-Item Budget">
             <p class="line-budget-form-code">Attachment B-BatStateU-FO-RES-02</p>
             <h1>LINE-ITEM BUDGET</h1>
 
@@ -62,7 +62,7 @@
                 <p><em>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;**For LREC approved research projects signatory shall be the Chancellor, LREC Vice Chairperson</em></p>
             </div>
 
-            <footer><span>{{ $lineItemBudget['project_title'] }}</span><span>Page 1 of 1</span></footer>
+            <footer data-paper-footer><span>{{ $lineItemBudget['project_title'] }}</span><span>Page 1 of 1</span></footer>
         </main>
     </body>
 </html>

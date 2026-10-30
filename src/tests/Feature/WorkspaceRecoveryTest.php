@@ -2,6 +2,8 @@
 
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\WorkspacePreference;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Models\Role;
 
@@ -86,6 +88,80 @@ test('the latest explicit workspace switch remains selected after session loss',
     'Coordinator' => ['research_office', 'research_coordinator.dashboard'],
     'Secretary' => ['research_secretary', 'research_secretary.dashboard'],
 ]);
+
+test('the last explicit workspace survives loss of both the session selection and preference cookie', function (string $workspace, string $dashboard) {
+    $user = User::factory()->create();
+    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_secretary']);
+    Auth::login($user, remember: true);
+    $recallerName = Auth::guard('web')->getRecallerName();
+    $recaller = app('cookie')->queued($recallerName)->getValue();
+
+    $this->postJson(route('workspace.store'), ['workspace' => $workspace])->assertOk();
+    expect($user->fresh()->last_workspace)->toBe($workspace);
+    $this->flushSession();
+    Auth::forgetGuards();
+
+    $this->withCookie($recallerName, $recaller)->get(route('dashboard'))
+        ->assertRedirect(route($dashboard))->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+})->with([
+    ['faculty', 'faculty.dashboard'],
+    ['faculty_researcher', 'faculty.dashboard'],
+    ['research_head', 'research_head.dashboard'],
+    ['research_office', 'research_coordinator.dashboard'],
+    ['research_secretary', 'research_secretary.dashboard'],
+]);
+
+test('an old head session and cookie cannot override the last explicit faculty choice', function () {
+    $user = User::factory()->create();
+    $user->assignRole('research_head');
+    $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head'])
+        ->postJson(route('workspace.store'), ['workspace' => 'faculty'])->assertOk();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head'])
+        ->withCookie('athena_workspace', $user->id.':research_head')
+        ->get(route('dashboard'))->assertRedirect(route('faculty.dashboard'))
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, 'faculty');
+});
+
+test('a restored browser page returns to the chosen workspace without granting access to its old workspace', function () {
+    $user = User::factory()->create();
+    $user->assignRole('research_head');
+    $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty'])
+        ->get(route('research_head.dashboard'), ['Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document'])
+        ->assertRedirect(route('faculty.dashboard'))
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, 'faculty');
+    $this->getJson(route('research_head.dashboard'))->assertForbidden();
+    $this->get(route('research_head.dashboard'))->assertForbidden();
+    $topic = TopicProposal::create(['user_id' => User::factory()->create()->id, 'title' => 'Private proposal', 'status' => 'pending']);
+    $this->get(route('topics.show', $topic), ['Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document'])->assertForbidden();
+});
+
+test('finishing an older request cannot overwrite a newer explicit workspace preference', function () {
+    $user = User::factory()->create();
+    $user->assignRole('research_head');
+    $this->actingAs($user)->postJson(route('workspace.store'), ['workspace' => 'research_head'])->assertOk();
+    $staleUser = $user->fresh();
+    $this->postJson(route('workspace.store'), ['workspace' => 'faculty'])->assertOk();
+
+    $olderRequest = Request::create(route('research_head.dashboard'));
+    $olderRequest->setLaravelSession(app('session.store'));
+    $olderRequest->setUserResolver(fn (): User => $staleUser);
+    WorkspacePreference::restore($olderRequest);
+    WorkspacePreference::remember($olderRequest);
+
+    expect($user->fresh()->last_workspace)->toBe('faculty');
+    $this->actingAs($user->fresh())->get(route('dashboard'))->assertRedirect(route('faculty.dashboard'));
+});
+
+test('an account preference cannot restore a workspace after its role was removed', function () {
+    $user = User::factory()->create();
+    $user->assignRole('faculty');
+    $user->forceFill(['last_workspace' => 'research_head'])->save();
+
+    $this->actingAs($user)->get(route('research_head.dashboard'))->assertForbidden();
+    $this->get(route('faculty.dashboard'))->assertOk();
+    expect($user->selectedWorkspace())->not->toBe('research_head');
+});
 
 test('legacy role choices also take priority over a saved workspace', function () {
     $user = User::factory()->create();

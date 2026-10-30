@@ -45,7 +45,7 @@ class SendProposalWorkspaceInvitation
             invitedEmail: $member->email,
             workspaceUrl: $workspaceUrl,
             accountLinked: $member->isLinked(),
-            requiresAcceptance: $member->isLinked() && ! $member->isAccepted(),
+            requiresAcceptance: ! $member->isAccepted(),
         ));
     }
 }

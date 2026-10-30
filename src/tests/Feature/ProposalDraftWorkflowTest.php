@@ -3252,6 +3252,7 @@ test('an rrl backed proposal completes submission revision approval notice and m
     $proposalSourceId = $this->actingAs($this->faculty)
         ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$draft, $source]), [
             'rrl_note' => $reviewedRrlParagraph,
+            'rrl_evidence_basis' => 'full_text',
         ])
         ->assertCreated()
         ->assertJsonPath('source.rrl_note', $reviewedRrlParagraph)

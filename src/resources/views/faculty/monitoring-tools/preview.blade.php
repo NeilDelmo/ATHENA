@@ -17,11 +17,11 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Monitoring Tool Preview</title>
-        @vite('resources/css/monitoring-tool-print.css')
+        @vite(['resources/css/monitoring-tool-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="monitoring-preview-page">
-        <div class="monitoring-paper-footer">Tracking No. __________________________</div>
-        <main class="monitoring-sheet" aria-label="BatStateU monitoring tool preview">
+        <main data-paper-sheet class="monitoring-sheet" aria-label="BatStateU monitoring tool preview">
+            <div data-paper-footer class="monitoring-paper-footer">Tracking No. __________________________</div>
             <table class="monitoring-table monitoring-header">
                 <colgroup><col style="width: 8.548%"><col style="width: 35.116%"><col style="width: 40.365%"><col style="width: 15.971%"></colgroup>
                 <tbody>

@@ -18,7 +18,7 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'contact_number', 'department', 'professional_title', 'cv_defaults', 'email_verified_at'])]
-#[Hidden(['password', 'remember_token', 'project_workspace', 'report_library_workspace', 'cv_defaults'])]
+#[Hidden(['password', 'remember_token', 'project_workspace', 'report_library_workspace', 'cv_defaults', 'last_workspace'])]
 /**
  * A single `User` row represents one person regardless of how many roles they
  * hold. The `college` and `contact_number` columns are GLOBAL to the account:

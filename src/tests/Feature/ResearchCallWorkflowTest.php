@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Notifications\ResearchCallPublishedNotification;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
@@ -1017,3 +1018,51 @@ test('research head cannot approve a proposal before final signing', function ()
         ->and($topic->project_status)->toBeNull()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
+
+test('research-call announcement groups guidelines dates and budget without changing its timeline or actions', function (string $workspace, string $status, bool $poster) {
+    $this->withoutVite();
+    $this->travelTo(Carbon::parse('2026-10-29 09:00:00'));
+    $description = "Aligned with BatStateU The NEU research\r\nagenda\r\nWith budget requirement lower than\r\nPhp 150,000.00\r\nCross-disciplinary or interdisciplinary\r\nresearch projects addressing the\r\nPhilippine Development Plan or\r\nSustainable Development Goals (SDGs)\r\nCollaborative research focusing on\r\nproduct development and patent";
+    $this->call->update([
+        'title' => 'Call for Proposals — August 2026 Implementation',
+        'description' => $description,
+        'maximum_budget' => 150000,
+        'opens_at' => $status === 'scheduled' ? now()->addMonth() : now()->subMonth(),
+        'closes_at' => now()->addMonths(2),
+        'initial_evaluation_start_date' => now()->addMonths(3),
+        'reference_image_path' => $poster ? 'research-calls/announcement.png' : null,
+        'status' => $status === 'closed' ? 'closed' : 'open',
+    ]);
+    $user = $workspace === 'research_head' ? $this->head : $this->faculty;
+    $response = $this->actingAs($user)->get(route('research-calls.index', ['call' => $this->call->id]))->assertOk()
+        ->assertSee('data-research-call-announcement', false)
+        ->assertSee('Proposal guidelines')
+        ->assertSee('Submission window')
+        ->assertSee('Maximum budget')
+        ->assertSee('Official timeline')
+        ->assertSee('Initial evaluation begins')
+        ->assertDontSee('whitespace-pre-line', false);
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-call-guidelines]/p')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-call-submission-window]//time')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-call-budget]//svg')->length)->toBe(1)
+        ->and($xpath->query('//section[@aria-labelledby="milestone-heading"]//li')->length)->toBe(3)
+        ->and($this->call->fresh()->description)->toBe($description);
+    if ($workspace === 'faculty' && $status === 'open') {
+        $response->assertSee(route('faculty.proposal-drafts.create', ['research_call_id' => $this->call->id]), false);
+    } else {
+        $response->assertDontSee('Create proposal');
+    }
+    if (! $poster) {
+        $response->assertSee('No poster attached.');
+    }
+    if (getenv('ATHENA_EXPORT_CALL_ANNOUNCEMENT') === '1') {
+        file_put_contents(storage_path('framework/testing/research-call-announcement-'.$workspace.'-'.$status.'.html'), $response->getContent());
+    }
+})->with([
+    'open faculty announcement' => ['faculty', 'open', true],
+    'upcoming announcement without a poster' => ['faculty', 'scheduled', false],
+    'closed call for research head' => ['research_head', 'closed', true],
+]);

@@ -76,7 +76,7 @@ class DetailedProposalData
             ],
             'specific_method_objectives' => $specificMethodObjectives,
             'methodology_images' => $methodologyImages,
-            'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'percentage', 'duties'], true),
+            'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'percentage', 'duties', 'percentage_fixed'], true),
             'checked_verified_by_name' => self::signatoryName($validated['checked_verified_by_name'] ?? ''),
             'recommending_approval_name' => self::signatoryName($validated['recommending_approval_name'] ?? ''),
             'approved_by_name' => self::signatoryName($validated['approved_by_name'] ?? ''),
@@ -385,12 +385,14 @@ class DetailedProposalData
             ->filter(fn (mixed $row): bool => is_array($row))
             ->map(fn (array $row): array => collect($fields)->mapWithKeys(
                 fn (string $field): array => [
-                    $field => $narrative && $field === 'duties'
-                        ? self::narrative($row[$field] ?? '')
-                        : self::text($row[$field] ?? ''),
+                    $field => $field === 'percentage_fixed'
+                        ? (string) (int) ($row[$field] ?? filled($row['percentage'] ?? null))
+                        : ($narrative && $field === 'duties'
+                            ? self::narrative($row[$field] ?? '')
+                            : self::text($row[$field] ?? '')),
                 ],
             )->all())
-            ->filter(fn (array $row): bool => collect($row)->contains(fn (string $value): bool => $value !== ''))
+            ->filter(fn (array $row): bool => collect($row)->except('percentage_fixed')->contains(fn (string $value): bool => $value !== ''))
             ->values()
             ->all();
     }

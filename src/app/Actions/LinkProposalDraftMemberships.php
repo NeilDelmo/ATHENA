@@ -39,7 +39,6 @@ class LinkProposalDraftMemberships
                     'user_id' => $user->getKey(),
                     'name' => $user->name,
                     'email' => mb_strtolower(trim($user->email)),
-                    'accepted_at' => now(),
                 ]);
             }, 3);
         }

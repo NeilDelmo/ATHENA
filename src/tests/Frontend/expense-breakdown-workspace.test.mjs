@@ -52,7 +52,7 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
         ], JSON_THROW_ON_ERROR);
     `], {
         input: JSON.stringify({ editor, items, preview: read('resources/views/faculty/expense-breakdowns/preview.blade.php')
-            .replace("@vite('resources/css/expense-breakdown-print.css')", `<style>${read('resources/css/expense-breakdown-print.css')}</style>`) }),
+            .replace("@vite(['resources/css/expense-breakdown-print.css', 'resources/js/paper-preview-pagination.js'])", `<style>${read('resources/css/expense-breakdown-print.css')}</style>`) }),
         encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' }, maxBuffer: 3 * 1024 * 1024,
     }));
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])

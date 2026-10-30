@@ -5,10 +5,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Box 7a - GAD Generic Checklist Preview</title>
-        @vite('resources/css/gad-checklist-print.css')
+        @vite(['resources/css/gad-checklist-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="gad-preview-page">
-        <section class="gad-page gad-page-one" aria-label="Box 7a GAD Generic Checklist page 1">
+        <section data-paper-sheet class="gad-page gad-page-one" aria-label="Box 7a GAD Generic Checklist page 1">
             <p class="gad-project-title"><strong>Research Project Title:</strong> <strong>{{ $gadChecklist['project_title'] }}</strong></p>
             <p class="gad-assessment-title">Assessment of Gender-Responsiveness of Program/Project Design<sup>1</sup></p>
             <h1>Box 7a. Generic Checklist<sup>2</sup></h1>
@@ -37,10 +37,10 @@
                 <p><sup>1</sup> This assessment tool applies to proposals. Terminal or accomplishment reports use a different checklist.</p>
                 <p><sup>2</sup> Based on <em>Harmonized Gender and Development Guidelines (2016)</em> by Philippine Commission on Women, National Economic and Development Authority, Office Development Assistance Gender and Development Network</p>
             </div>
-            <footer><strong>1</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>1</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
 
-        <section class="gad-page gad-page-two" aria-label="Box 7a GAD Generic Checklist page 2">
+        <section data-paper-sheet class="gad-page gad-page-two" aria-label="Box 7a GAD Generic Checklist page 2">
             <table class="gad-table gad-score-table">
                 <colgroup>
                     <col class="gad-element-column"><col class="gad-response-column"><col class="gad-response-column"><col class="gad-response-column"><col class="gad-score-column"><col class="gad-comments-column">
@@ -63,10 +63,10 @@
                     <tr><td>9.2 Does the project have the expertise to promote gender equality and women&rsquo;s empowerment? OR, is the project committing itself to invest project staff time in building capacities within the project to integrate GAD or promote gender equality?<br><span>(possible scores: 0, 0.5, 1.0)</span></td><td></td><td></td><td></td><td></td><td></td></tr>
                 </tbody>
             </table>
-            <footer><strong>2</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>2</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
 
-        <section class="gad-page gad-page-three" aria-label="Box 7a GAD Generic Checklist page 3">
+        <section data-paper-sheet class="gad-page gad-page-three" aria-label="Box 7a GAD Generic Checklist page 3">
             <table class="gad-table gad-score-table gad-score-table-final">
                 <colgroup>
                     <col class="gad-element-column"><col class="gad-response-column"><col class="gad-response-column"><col class="gad-response-column"><col class="gad-score-column"><col class="gad-comments-column">
@@ -104,10 +104,10 @@
                 <div><p>Prepared by:</p><strong>{{ $gadChecklist['project_leader'] }}</strong><span>Project Leader</span></div>
                 <div><p>Checked and verified by:</p><strong>{{ $gadChecklist['verifier_name'] }}</strong><span>{{ $gadChecklist['verifier_role'] }}</span></div>
             </div>
-            <footer><strong>3</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>3</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
 
-        <section class="gad-page gad-guide-page gad-page-four" aria-label="Box 7a GAD Generic Checklist page 4">
+        <section data-paper-sheet class="gad-page gad-guide-page gad-page-four" aria-label="Box 7a GAD Generic Checklist page 4">
             <h2>Guide for accomplishing Box 7a</h2>
             <div class="gad-guide-row"><span>1.</span><p>Put a check (/) in the appropriate column (2a to 2c) under &ldquo;Response&rdquo; to signify the degree in which a project proponent has complied with the GAD element: under column 2a if nothing has been done; under column 2b if an element, item, or question has been partly complied with; and under column 2c if an element, item, or question has been fully complied with.</p></div>
             <div class="gad-guide-row"><span>2.</span><div><p>A partial and a full yes may be distinguished as follows.</p>
@@ -125,10 +125,10 @@
             <div class="gad-guide-row"><span>3.</span><div><p>Enter the appropriate score for an element or item under column 3.</p>
                 <div class="gad-guide-subrow"><span>a.</span><p>To ascertain the score for a GAD element, a three-point rating scale is provided: &ldquo;0&rdquo; when the proponent has not accomplished any of the activities or questions listed under an element or requirement; a score that is less than the stated maximum when compliance is only partial; and &ldquo;2&rdquo; (for the element or requirement), or the maximum score for an item or question, when the proponent has done all the required activities.</p></div>
             </div></div>
-            <footer><strong>4</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>4</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
 
-        <section class="gad-page gad-guide-page gad-page-five" aria-label="Box 7a GAD Generic Checklist page 5">
+        <section data-paper-sheet class="gad-page gad-guide-page gad-page-five" aria-label="Box 7a GAD Generic Checklist page 5">
             <div class="gad-guide-continuation">
                 <div class="gad-guide-subrow"><span>b.</span><p>The scores for &ldquo;partly yes&rdquo; differ by element. For instance, the score for &ldquo;partly yes&rdquo; for sex-disaggregated data in project identification and planning (Element 2.0) is &ldquo;1.&rdquo; For elements that have two or more items or questions (such as Elements 1.0 and 3.0), the rating for a &ldquo;partial yes&rdquo; is the sum of the scores of the items or questions that falls short of the maximum &ldquo;2.0.&rdquo; For instance, the score for &ldquo;partly yes&rdquo; for Elements 4.0, 5.0, 7.0, and 8.0 is &ldquo;1.&rdquo; For elements that have two or more items or questions (such as Element 6.0), the rating for a &ldquo;partial yes&rdquo; is the sum of the scores of the items or questions which falls short of the maximum &ldquo;2.0.&rdquo;</p></div>
                 <div class="gad-guide-subrow"><span>c.</span><p>Because Elements 1.0 and 3.0 have been broken down into two items each, the maximum point (full &ldquo;yes&rdquo;) for each item is pegged at &ldquo;1.0&rdquo; and that for &ldquo;partly yes&rdquo; is &ldquo;0.5.&rdquo; The score for the element will be a positive number that is lower than &ldquo;2.0,&rdquo; the maximum score for the element.</p></div>
@@ -142,10 +142,10 @@
             <table class="gad-table gad-requirements-table gad-requirements-heading">
                 <thead><tr><th>Elements/<br>Requirements</th><th>Things to Consider</th><th>Notes</th></tr></thead>
             </table>
-            <footer><strong>5</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>5</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
 
-        <section class="gad-page gad-requirements-page" aria-label="Box 7a GAD Generic Checklist page 6">
+        <section data-paper-sheet class="gad-page gad-requirements-page" aria-label="Box 7a GAD Generic Checklist page 6">
             <table class="gad-table gad-requirements-table">
                 <colgroup><col class="gad-requirement-column"><col class="gad-consideration-column"><col class="gad-notes-column"></colgroup>
                 <tbody>
@@ -156,10 +156,10 @@
                     <tr><td><span class="gad-row-number">5.</span>Activities include those that address the identified gender issues, including constraints to women&rsquo;s participation</td><td><ul><li>Activities that will address gender issues identified in # 3</li></ul></td><td><ul><li>Articulation of project goals or objectives, activities, analysis of likely gender impact of the project, monitoring targets and indicators, and sex-disaggregated data requirement</li></ul></td></tr>
                 </tbody>
             </table>
-            <footer><strong>6</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>6</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
 
-        <section class="gad-page gad-requirements-page" aria-label="Box 7a GAD Generic Checklist page 7">
+        <section data-paper-sheet class="gad-page gad-requirements-page" aria-label="Box 7a GAD Generic Checklist page 7">
             <table class="gad-table gad-requirements-table">
                 <colgroup><col class="gad-requirement-column"><col class="gad-consideration-column"><col class="gad-notes-column"></colgroup>
                 <tbody>
@@ -170,7 +170,7 @@
                     <tr><td><span class="gad-row-number">10.</span>Planned coordination with PCW or the agency&rsquo;s GAD plans</td><td><ul><li>Proposed project should be in line with the agency&rsquo;s GAD efforts</li></ul></td><td><ul><li>Indication of coherence of the project&rsquo;s GAD plan with the agency&rsquo;s</li></ul></td></tr>
                 </tbody>
             </table>
-            <footer><strong>7</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
+            <footer data-paper-footer><strong>7</strong><span>Box 7a. GAD Checklist for Program/Project Design</span></footer>
         </section>
     </body>
 </html>

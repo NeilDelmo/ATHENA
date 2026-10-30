@@ -25,7 +25,7 @@ class ResearchAssistantProposalAssistanceService
 {
     private const FIELDS = [
         'executive_brief' => 'Executive brief', 'rationale' => 'Rationale',
-        'general_objective' => 'General objective', 'introduction' => 'Introduction',
+        'general_objective' => 'General objective',
         'methodology.research_design' => 'Research design', 'methodology.data_analysis' => 'Data analysis',
         'related_literature' => 'Review of Related Literature',
     ];
@@ -560,7 +560,7 @@ class ResearchAssistantProposalAssistanceService
         }
         foreach (['related literature' => 'related_literature', 'rrl' => 'related_literature', 'specific objective' => 'specific_objectives',
             'general objective' => 'general_objective', 'objectives' => 'specific_objectives', 'rationale' => 'rationale', 'research design' => 'methodology.research_design',
-            'specific methods' => 'specific_method_objectives', 'data analysis' => 'methodology.data_analysis', 'methodology' => 'methodology', 'introduction' => 'introduction', 'executive brief' => 'executive_brief',
+            'specific methods' => 'specific_method_objectives', 'data analysis' => 'methodology.data_analysis', 'methodology' => 'methodology', 'introduction' => 'related_literature', 'executive brief' => 'executive_brief',
             'expected output' => 'expected_outputs', 'responsibilities' => 'responsibilities', 'duties' => 'responsibilities', 'method group' => 'specific_method_objectives'] as $term => $field) {
             if (Str::contains(Str::lower($question), $term)) {
                 return $field;

@@ -129,6 +129,7 @@ test('new detailed proposals reuse the leader profile while another team member 
     $member = collect($response->viewData('workspacePeople'))->firstWhere('email', $collaborator->email);
 
     expect($source['leader_title'])->toBe('Asst Prof.')
+        ->and($source['responsibilities'][0]['percentage_fixed'])->toBe('0')
         ->and($source['proponent_department'])->toBe('Department of Computing Sciences')
         ->and($source['proponent_college'])->toBe(User::COLLEGES['CICS'])
         ->and($source['leader_contact'])->toBe('09170000011')
@@ -273,11 +274,11 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertDontSee('aria-label="Preview zoom"', false)
         ->assertSee('leader@g.batstate-u.edu.ph')
         ->assertSee('x-ref="introductionSection"', false)
-        ->assertSee('Sources for this proposal')
+        ->assertDontSee('Sources for this proposal')
         ->assertSee('Open Sources')
         ->assertSee('Revise RRL')
         ->assertSee('@click="requestRrlRevision()"', false)
-        ->assertSee('then accept or keep your current text.')
+        ->assertDontSee('Previously saved introduction text is retained here')
         ->assertSee('data-source-workspace', false)
         ->assertSee('role="dialog"', false)
         ->assertSee('id="proposal-source-dialog-heading"', false)
@@ -285,9 +286,15 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Insert citation')
         ->assertSee('data-writing-cite', false)
         ->assertSee('Choose source')
-        ->assertSee('Source collections')
+        ->assertSee('Back to proposal sources')
+        ->assertSee('Proposal sources')
+        ->assertSee('Find sources')
+        ->assertSee('Search filters')
+        ->assertSee('Search in')
+        ->assertDontSee('aria-label="Source collections"', false)
         ->assertSee('Loading sources')
-        ->assertSee('Open access only')
+        ->assertSee('All papers')
+        ->assertSee('Open access')
         ->assertSee('View details')
         ->assertSee('Abstract or description')
         ->assertSee('Open publication website')
@@ -452,6 +459,8 @@ test('detailed proposal citations link selected RRL text to one proposal library
 
 test('a complete detailed proposal autosave is promoted immediately', function () {
     $payload = ($this->payload)(['save_as_draft' => '1']);
+    $payload['responsibilities'][0]['percentage_fixed'] = '1';
+    $payload['responsibilities'][1]['percentage_fixed'] = '0';
 
     $this->actingAs($this->faculty)
         ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
@@ -462,12 +471,14 @@ test('a complete detailed proposal autosave is promoted immediately', function (
         ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
         ->sole();
 
-    expect($document->completed_at)->not->toBeNull();
+    expect($document->completed_at)->not->toBeNull()
+        ->and(array_column($document->source_data['responsibilities'], 'percentage_fixed'))->toBe(['1', '0']);
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
         ->assertSee('Complete')
+        ->assertViewHas('sourceData', fn (array $sourceData): bool => array_column($sourceData['responsibilities'], 'percentage_fixed') === ['1', '0'])
         ->assertSee('recheckCompletion: false', false);
 });
 

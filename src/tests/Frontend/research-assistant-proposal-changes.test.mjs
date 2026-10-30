@@ -62,7 +62,7 @@ test('malformed packets and unsafe draft identifiers cannot offer proposal chang
 });
 
 test('only approved narrative fields and bounded objective indexes can be changed', () => {
-    for (const field of ['executive_brief', 'rationale', 'general_objective', 'introduction',
+    for (const field of ['executive_brief', 'rationale', 'general_objective',
         'methodology.research_design', 'methodology.data_analysis', 'related_literature',
         'specific_objectives.0.description', 'specific_objectives.49.description',
         'specific_method_objectives.0.heading', 'specific_method_objectives.19.methods.19.description',
@@ -70,7 +70,7 @@ test('only approved narrative fields and bounded objective indexes can be change
         'responsibilities.29.duties']) {
         assert.equal(allowedProposalChangeField(field), true, field);
     }
-    for (const field of ['references', 'methodology.specific_methods',
+    for (const field of ['references', 'introduction', 'methodology.specific_methods',
         'specific_objectives.50.description', 'specific_objectives.-1.description',
         'specific_objectives.01.description', 'specific_objectives.1.description.extra',
         'specific_method_objectives.20.heading', 'specific_method_objectives.0.methods.20.description',

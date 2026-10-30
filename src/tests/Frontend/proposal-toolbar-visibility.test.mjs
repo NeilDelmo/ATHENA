@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
@@ -12,6 +12,73 @@ const read = (path) => readFileSync(resolve(path), 'utf8').replaceAll('\r\n', '\
 const previewHelpers = read('resources/js/proposal-preview-workspace.js').replaceAll('export ', '')
     + read('resources/js/proposal-paper-workspace.js').replace(/^import .+;\n/gm, '').replaceAll('export ', '');
 const papers = ['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae', 'monitoring', 'progress-report', 'terminal-report'];
+
+test('profile menu stays above the sticky writing toolbar after scrolling', async () => {
+    const components = JSON.parse(execFileSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        $user = new class extends App\Models\User {
+            public function hasMultipleWorkspaces(): bool { return true; }
+            public function activeWorkspaceLabel(): string { return 'Faculty'; }
+        };
+        $user->forceFill(['name' => 'Project leader', 'email' => 'leader@example.test']);
+        Illuminate\Support\Facades\Auth::setUser($user);
+        $layout = file_get_contents(resource_path('views/layouts/app.blade.php'));
+        preg_match('/<nav data-app-topbar[^>]*>/', $layout, $nav);
+        preg_match('/<div class="athena-header-actions[^>]*>/', $layout, $actions);
+        preg_match('/<div x-data="\{ open: false \}"[^>]*data-header-account-menu>.*?<\/form>\s*<\/div>\s*<\/div>/s', $layout, $account);
+        echo json_encode([
+            'header' => Illuminate\Support\Facades\Blade::render($nav[0].$actions[0].$account[0].'</div></nav>'),
+            'toolbar' => Illuminate\Support\Facades\Blade::render('<x-detailed-proposal-writing-toolbar />'),
+        ], JSON_THROW_ON_ERROR);
+    `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } }));
+    const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(read('resources/css/app.css'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [390, 1440]) for (const dark of [false, true]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+            const errors = [];
+            page.on('pageerror', error => errors.push(error.message));
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${css}\n${read('resources/css/proposal-paper-workspace.css')}[x-cloak]{display:none!important}</style>
+                <body data-app-shell><div class="min-h-screen pl-[76px] sm:pl-[280px]">${components.header}
+                    <main data-proposal-paper-workspace x-data="toolbarFixture" class="p-3">
+                        ${components.toolbar}<label for="notes">Research notes</label><textarea id="notes">Saved notes</textarea><div style="height:1800px"></div>
+                    </main>
+                </div></body></html>`);
+            await page.addScriptTag({ content: `${previewHelpers}
+                document.addEventListener('alpine:init', () => Alpine.data('toolbarFixture', () => ({
+                    ...proposalPaperPreviewWorkspace(), init() { this.initializeProposalPaperPreview(); }
+                })));
+            ` });
+            await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+            await page.evaluate(() => window.scrollTo(0, 600));
+            const toolbar = page.locator('[data-proposal-workspace-toolbar]');
+            await expect.poll(async () => (await toolbar.boundingBox()).y).toBe(128);
+            const trigger = page.getByRole('button', { name: 'Open account menu', exact: true });
+            await trigger.click();
+            const menu = page.getByRole('menu');
+            await expect(menu).toBeVisible();
+            const profile = menu.getByRole('link', { name: 'Account Profile', exact: true });
+            const profileBox = await profile.boundingBox();
+            const toolbarBox = await toolbar.boundingBox();
+            assert.ok(profileBox.y < toolbarBox.y + toolbarBox.height && profileBox.y + profileBox.height > toolbarBox.y,
+                'The regression check must exercise the overlapping area');
+            await profile.click({ trial: true, timeout: 1500 });
+            await menu.getByRole('link', { name: 'Switch Workspace', exact: true }).click({ trial: true, timeout: 1500 });
+            await menu.getByRole('button', { name: 'Log Out', exact: true }).click({ trial: true, timeout: 1500 });
+            if (process.env.ATHENA_EDITOR_VISUAL_DIR) {
+                await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `profile-toolbar-${width}-${dark ? 'dark' : 'light'}.png`) });
+            }
+            await trigger.click();
+            await expect(menu).toBeHidden();
+            await toolbar.getByRole('button', { name: 'Hide tools', exact: true }).click();
+            await expect(toolbar.getByRole('button', { name: 'Show tools', exact: true })).toBeVisible();
+            assert.deepEqual(errors, []);
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});
 
 test('all writing toolbars keep compact actions on one line and close without losing fields in both workspaces', async () => {
     const toolbars = JSON.parse(execFileSync('php', ['-r', String.raw`

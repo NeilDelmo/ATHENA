@@ -27,14 +27,14 @@ const toolbar = execFileSync('php', ['-r', String.raw`
 const editView = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/work-plan/edit.blade.php', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const entryView = editView.slice(editView.indexOf('<template x-for="(entry, index) in entries"'), editView.indexOf('\n            </section>\n\n            <x-proposal-signatory-summary'));
 
-test('Work Plan shares responsive preview controls while preserving linked objectives, autosave, and month locks', async () => {
+test('Work Plan opens the desktop preview automatically and uses one preview toggle while preserving autosave and month locks', async () => {
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
     const workspaceStyles = readFileSync(new URL('../../resources/css/proposal-paper-workspace.css', import.meta.url), 'utf8');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
 
     try {
-        for (const width of [1440, 1024, 390]) {
+        for (const width of [1440, 1024, 768, 390]) {
             for (const dark of [false, true]) {
                 const page = await browser.newPage({ viewport: { width, height: 1000 } });
                 const errors = [];
@@ -60,7 +60,6 @@ test('Work Plan shares responsive preview controls while preserving linked objec
                                     </form>
                                 </div>${previewView}
                             </div>
-                            <button type="button" x-show="!previewPaneOpen" @click="showProposalPreview()" class="proposal-writing-preview-launcher">Preview paper</button>
                         </main>
                     </div></body></html>`);
                 await page.addScriptTag({ content: `${preview}\n${workspace}
@@ -88,16 +87,20 @@ test('Work Plan shares responsive preview controls while preserving linked objec
                     });` });
                 await page.addScriptTag({ content: readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8') });
                 await page.locator('#activity-2').waitFor();
+                await page.waitForFunction((desktop) => window.workPlanState.previewPaneOpen === desktop, width >= 1024);
                 assert.equal(await page.locator('[data-proposal-workspace-toolbar]').count(), 1);
                 assert.equal(await page.locator('#objective-2').getAttribute('readonly'), '');
-                assert.equal(await page.locator('.proposal-preview-dock').isVisible(), false);
+                assert.equal(await page.locator('.proposal-preview-dock').isVisible(), width >= 1024);
+                if (width >= 1024) {
+                    await page.waitForFunction(() => window.workPlanState.previewReady && !window.workPlanState.previewLoading);
+                }
                 await page.locator('#output-2').fill('Reviewed evaluation dataset');
                 const secondEntry = page.locator('[data-work-plan-entry-id="2"]');
                 assert.equal(await secondEntry.locator('input[type="checkbox"][value="1"]').isDisabled(), true);
                 await secondEntry.locator('label:has(input[value="15"])').click();
                 assert.equal(await secondEntry.locator('input[type="checkbox"][value="15"]').isChecked(), true);
                 await page.waitForFunction(() => window.savedBodies.length > 0 && !window.workPlanState.autoSaveInFlight);
-                assert.equal(await page.evaluate(() => window.previewBodies.length), 0);
+                if (width < 1024) assert.equal(await page.evaluate(() => window.previewBodies.length), 0);
                 const saved = await page.evaluate(() => window.savedBodies.at(-1));
                 assert.ok(saved.some(([name, value]) => name === 'entries[1][expected_output]' && value === 'Reviewed evaluation dataset'));
                 assert.ok(saved.some(([name, value]) => name === 'entries[1][months][]' && value === '15'));
@@ -108,8 +111,15 @@ test('Work Plan shares responsive preview controls while preserving linked objec
                 await page.getByRole('button', { name: 'Expand objective', exact: true }).click();
                 await page.locator('#activity-2').waitFor({ state: 'visible' });
                 assert.equal(await page.locator('#activity-2').isVisible(), true);
-                await page.locator('.proposal-writing-preview-launcher').click();
-                await page.waitForFunction(() => window.workPlanState.previewReady && !window.workPlanState.previewLoading);
+                const previewToggle = page.locator('[data-proposal-preview-toggle]');
+                assert.equal(await previewToggle.count(), 1);
+                if (width >= 1024) {
+                    await previewToggle.click();
+                    await page.locator('.proposal-preview-dock').waitFor({ state: 'hidden' });
+                    assert.equal(await page.locator('.proposal-preview-dock').isVisible(), false);
+                }
+                await previewToggle.click();
+                await page.waitForFunction(() => window.workPlanState.previewReady && !window.workPlanState.previewLoading && !window.workPlanState.previewStale);
                 assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
                 assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 const request = await page.evaluate(() => window.previewBodies.at(-1));
@@ -145,17 +155,17 @@ test('Work Plan shares responsive preview controls while preserving linked objec
                 assert.equal(await page.getByRole('button', { name: 'Zoom out', exact: true }).evaluate((element) => element === document.activeElement), true);
                 await page.keyboard.press('Escape');
                 await page.waitForFunction(() => !window.workPlanState.previewFullscreen);
-                const restoredFocus = width >= 1024 ? page.getByRole('button', { name: 'Enlarge the paper preview' }) : page.locator('.proposal-writing-preview-launcher');
+                const restoredFocus = width >= 1024 ? page.getByRole('button', { name: 'Enlarge the paper preview' }) : previewToggle;
                 await page.waitForFunction((element) => element === document.activeElement, await restoredFocus.elementHandle());
                 await page.locator('#activity-2').fill('Validate results with community monitors');
-                if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
+                if (width < 1024) await previewToggle.click();
                 await page.waitForFunction(() => !window.workPlanState.previewStale && window.workPlanState.previewHtml.includes('Validate results'));
                 assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 const lastPreview = await page.evaluate(() => window.workPlanState.previewHtml);
                 await page.evaluate(() => { window.previewFailure = true; });
                 if (width < 1024) await page.evaluate(() => window.workPlanState.closeProposalPreview());
                 await page.locator('#activity-2').fill('Validate results after reviewing required months');
-                if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
+                if (width < 1024) await previewToggle.click();
                 await page.waitForFunction(() => !window.workPlanState.previewLoading && window.workPlanState.validationMessage);
                 assert.equal(await page.evaluate(() => window.workPlanState.previewHtml), lastPreview);
                 assert.equal(await page.getByRole('alert').textContent(), 'Choose the required months.');

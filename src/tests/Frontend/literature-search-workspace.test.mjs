@@ -371,7 +371,9 @@ test('literature search keeps optional controls quiet and works in both themes o
                 await page.keyboard.press('Enter');
                 await expect(filters).toHaveAttribute('aria-expanded', 'true');
                 await page.getByLabel('From year', { exact: true }).fill('2020');
-                await page.getByLabel('Open access only', { exact: true }).check();
+                await expect(page.getByRole('checkbox', { name: /open access/i })).toHaveCount(0);
+                await page.getByRole('button', { name: 'Open access', exact: true }).click();
+                await expect(page.getByRole('button', { name: 'Open access', exact: true })).toHaveAttribute('aria-pressed', 'true');
                 await filters.click();
                 await expect(page.locator('#literature-search-filters')).toBeHidden();
                 await page.getByRole('button', { name: 'Add a source', exact: true }).click();
@@ -437,7 +439,7 @@ test('literature search keeps optional controls quiet and works in both themes o
                 await page.evaluate(() => window.finishSearch({ results: [] }));
                 await expect(hint).toBeHidden();
                 await expect(page.getByText('No literature records found', { exact: true })).toBeVisible();
-                await page.getByRole('tab', { name: /Shared library/ }).click();
+                await page.getByRole('link', { name: /^Saved literature/ }).click();
                 await expect(page.locator('#shared-literature-library')).toBeVisible();
                 await expect(page.locator('#literature-find-workspace')).toBeHidden();
                 assert.deepEqual(errors, []);
@@ -471,7 +473,7 @@ test('saved papers remain readable and show proposal action errors in both theme
                     window.fetch = async () => new Response(JSON.stringify({ message: 'Forbidden' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
                     document.addEventListener('alpine:init', () => { ${store} Alpine.store('researchAssistant', { isLoading: false }); });` });
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
-                await page.getByRole('tab', { name: /Shared library/ }).click();
+                await page.getByRole('link', { name: /^Saved literature/ }).click();
                 const library = page.locator('#shared-literature-library');
                 await expect(library.locator('article')).toHaveCount(2);
                 await expect(library.getByRole('button', { name: 'Draft RRL', exact: true }).first()).toBeDisabled();
@@ -535,7 +537,7 @@ test('literature pickers search full titles and owners, support keyboard selecti
                 });
                 await page.addScriptTag({ content: `${helpers} document.addEventListener('alpine:init', () => { ${store} Alpine.store('researchAssistant', { isLoading: false }); });` });
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
-                await page.getByRole('tab', { name: /Shared library/ }).click();
+                await page.getByRole('link', { name: /^Saved literature/ }).click();
                 const trigger = page.locator('#library-literature-proposal');
                 await expect(trigger).toHaveAttribute('aria-haspopup', 'dialog', { timeout: 1000 });
                 await trigger.click();
@@ -583,13 +585,13 @@ test('literature pickers search full titles and owners, support keyboard selecti
                 await collections.getByRole('option', { name: 'Environment', exact: true }).click();
                 assert.equal(await page.evaluate(() => Alpine.store('literatureSearch').libraryCollectionFilter), '3');
                 await collection.click();
-                await page.getByRole('heading', { name: 'Browse the shared library' }).click();
+                await page.getByRole('heading', { name: 'Saved literature' }).click();
                 await expect(collections).toBeHidden();
                 await page.evaluate(() => {
                     Alpine.store('literatureSearch').collections.push({ id: 9, name: 'Public health' });
                     Alpine.store('literatureSearch').selectedCollectionId = '9';
                 });
-                await page.getByRole('tab', { name: 'Find papers', exact: true }).click();
+                await page.getByRole('link', { name: 'Find papers', exact: true }).click();
                 await page.evaluate(() => { Alpine.$data(document.querySelector('[data-rrl-workspace]')).saveOptionsOpen = true; });
                 await expect(page.locator('#literature-collection')).toContainText('Public health');
                 await expect(page.locator('#literature-proposal-draft')).toHaveCount(0);
@@ -601,7 +603,7 @@ test('literature pickers search full titles and owners, support keyboard selecti
         await page.setContent(workspace('empty'));
         await page.addScriptTag({ content: `${helpers} document.addEventListener('alpine:init', () => { ${store} });` });
         await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
-        await page.getByRole('tab', { name: /Shared library/ }).click();
+        await page.getByRole('link', { name: /^Saved literature/ }).click();
         await expect(page.locator('#library-literature-proposal')).toBeDisabled();
         await expect(page.locator('#library-literature-proposal')).toContainText('No editable proposal');
     } finally {

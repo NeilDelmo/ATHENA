@@ -70,3 +70,70 @@ test('project folder tabs, search, status and location resume per account and re
         await page.close();
     } finally { await browser.close(); }
 });
+
+for (const scenario of [
+    { name: 'another account', user: 2, workspace: 'research_secretary' },
+    { name: 'another workspace', user: 1, workspace: 'research_head' },
+    { name: 'logout', user: null, workspace: null },
+]) {
+    test(`an older tab verifies the session after ${scenario.name} in a second tab`, async () => {
+        const source = readFileSync(resolve('resources/js/workspace-switching.js'), 'utf8');
+        const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+        const context = await browser.newContext();
+        let current = { user: 1, workspace: 'faculty' };
+        let checks = 0;
+        const origin = 'https://athena-session.test';
+        try {
+            await context.route(`${origin}/**`, route => {
+                const request = route.request();
+                const path = new URL(request.url()).pathname;
+                if (path === '/switch.js') return route.fulfill({ contentType: 'text/javascript', body: source });
+                if (path === '/changed-session') current = scenario;
+                if (request.headers().accept?.includes('application/json')) {
+                    checks++;
+                    return route.fulfill({ status: current.user ? 200 : 401, json: { user_id: current.user, workspace: current.workspace } });
+                }
+                return route.fulfill({ contentType: 'text/html', body: `<body data-auth-user-id="${current.user || ''}" data-active-workspace="${current.workspace || ''}" data-session-check-url="${origin}/dashboard"><h1>${current.user ? `Account ${current.user} ${current.workspace}` : 'Sign in'}</h1><script type="module">import {initializeWorkspaceSwitching} from '/switch.js'; initializeWorkspaceSwitching(()=>{}); window.sessionGuardReady=true;</script></body>` });
+            });
+            const original = await context.newPage();
+            await original.goto(`${origin}/private-project`);
+            await original.waitForFunction(() => window.sessionGuardReady);
+            const other = await context.newPage();
+            await other.goto(`${origin}/changed-session`);
+            await other.waitForFunction(() => window.sessionGuardReady);
+            await original.evaluate(() => window.dispatchEvent(new Event('focus')));
+            await expect(original.getByRole('heading')).toHaveText(scenario.user ? `Account ${scenario.user} ${scenario.workspace}` : 'Sign in', { timeout: 3000 });
+            assert.equal(original.url(), `${origin}/dashboard`);
+            assert.ok(checks > 0);
+        } finally { await context.close(); await browser.close(); }
+    });
+}
+
+test('a failed session check keeps the page and a restored browser snapshot is revalidated', async () => {
+    const source = readFileSync(resolve('resources/js/workspace-switching.js'), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    let checks = 0, documents = 0;
+    const origin = 'https://athena-session.test';
+    try {
+        const page = await browser.newPage();
+        await page.route(`${origin}/**`, route => {
+            if (new URL(route.request().url()).pathname === '/switch.js') return route.fulfill({ contentType: 'text/javascript', body: source });
+            if (route.request().headers().accept?.includes('application/json')) {
+                checks++;
+                return route.fulfill({ status: checks === 1 ? 503 : 200, json: { user_id: 1, workspace: 'faculty' } });
+            }
+            documents++;
+            return route.fulfill({ contentType: 'text/html', body: `<body data-auth-user-id="1" data-active-workspace="faculty" data-session-check-url="${origin}/dashboard"><h1>Current account</h1><script type="module">import {initializeWorkspaceSwitching} from '/switch.js'; initializeWorkspaceSwitching(()=>{}); window.sessionGuardReady=true;</script></body>` });
+        });
+        await page.goto(`${origin}/private-project`);
+        await page.waitForFunction(() => window.sessionGuardReady);
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await expect.poll(() => checks, { timeout: 3000 }).toBe(1);
+        await expect(page.getByRole('heading')).toHaveText('Current account');
+        assert.equal(documents, 1);
+        await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+        await expect.poll(() => documents, { timeout: 3000 }).toBe(2);
+        assert.equal(page.url(), `${origin}/private-project`);
+        await expect(page.getByRole('heading')).toBeVisible();
+    } finally { await browser.close(); }
+});

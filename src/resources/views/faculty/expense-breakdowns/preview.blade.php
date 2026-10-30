@@ -5,10 +5,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Estimated Expense Breakdown Preview</title>
-        @vite('resources/css/expense-breakdown-print.css')
+        @vite(['resources/css/expense-breakdown-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="expense-breakdown-preview-page">
-        <main class="expense-breakdown-sheet" aria-label="Estimated Breakdown and Details of Expenses">
+        <main data-paper-sheet class="expense-breakdown-sheet" aria-label="Estimated Breakdown and Details of Expenses">
             <h1>Estimated Breakdown and Details of Expenses</h1>
             <p class="expense-breakdown-project-title">Project Title: {{ $expenseBreakdown['project_title'] }}</p>
 

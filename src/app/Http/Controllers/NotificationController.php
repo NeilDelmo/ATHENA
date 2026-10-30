@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Actions\AcceptProposalWorkspaceInvitation;
+use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use App\Services\FacultyProjectCapacityService;
 use App\Services\NotificationInbox;
 use App\Services\WorkspaceActionItems;
@@ -14,8 +16,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Throwable;
 
 class NotificationController extends Controller
 {
@@ -157,34 +161,54 @@ class NotificationController extends Controller
         ]);
     }
 
-    private function completeInvitationNotification(Request $request, ProposalDraftMember $proposalDraftMember): void
+    public function declineProposalInvitation(Request $request, ProposalDraftMember $proposalDraftMember): JsonResponse|RedirectResponse
+    {
+        $request->validate(['notification_id' => ['nullable', 'uuid']]);
+        Gate::authorize('decline', $proposalDraftMember);
+
+        $draft = DB::transaction(function () use ($proposalDraftMember): ProposalDraft {
+            $draft = $proposalDraftMember->draft()->lockForUpdate()->firstOrFail();
+            $membership = $draft->members()->lockForUpdate()->findOrFail($proposalDraftMember->getKey());
+            Gate::authorize('decline', $membership);
+            $membership->delete();
+
+            return $draft;
+        }, 3);
+        $this->completeInvitationNotification($request, $proposalDraftMember, declined: true);
+
+        try {
+            $draft->owner->notify(new ProposalActivityNotification(
+                title: 'Project staff invitation declined',
+                message: $request->user()->name.' declined the project staff invitation for “'.$draft->project_title.'”.',
+                url: route('faculty.proposal-drafts.show', $draft),
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+            ));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        $url = route($request->user()->dashboardRouteName() ?? 'workspace.select');
+        $request->session()->flash('status', 'Invitation declined.');
+
+        return $request->expectsJson()
+            ? response()->json(['declined' => true, 'url' => $url, 'message' => 'Invitation declined.'])
+            : redirect()->to($url);
+    }
+
+    private function completeInvitationNotification(Request $request, ProposalDraftMember $proposalDraftMember, bool $declined = false): void
     {
         $notificationId = $request->string('notification_id')->toString();
-
-        if ($notificationId === '') {
-            return;
-        }
-
-        $notification = $request->user()->notifications()->find($notificationId);
-
-        if (! $notification) {
-            return;
-        }
-
         $expectedActionUrl = route('notifications.proposal-invitations.accept', $proposalDraftMember);
-        $data = $notification->data ?? [];
-
-        if (($data['action_url'] ?? null) !== $expectedActionUrl) {
-            return;
+        foreach ($request->user()->notifications()->where('data->action_url', $expectedActionUrl)
+            ->when($notificationId !== '' && ! $declined, fn ($query) => $query->whereKey($notificationId))->get() as $notification) {
+            $data = $notification->data;
+            unset($data['action_url'], $data['action_data']);
+            $data['action_completed'] = true;
+            if ($declined) {
+                $data['url'] = route('notifications.index');
+            }
+            $notification->forceFill(['data' => $data, 'read_at' => now()])->save();
         }
-
-        unset($data['action_url'], $data['action_data']);
-        $data['action_completed'] = true;
-
-        $notification->forceFill([
-            'data' => $data,
-            'read_at' => now(),
-        ])->save();
     }
 
     private function safeNotificationUrl(mixed $url): string

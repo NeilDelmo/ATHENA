@@ -2,6 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+.swal2-popup.athena-alert-dialog {
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+    max-width: calc(100vw - 2rem);
+    overflow: hidden;
+    border: 1px solid #d6d3d1;
+    border-radius: 1rem;
+    text-align: left;
+    box-shadow: 0 24px 64px rgba(28, 25, 23, 0.24);
+}
+
+.athena-alert-dialog::before {
+    content: '';
+    grid-column: 1 / -1;
+    grid-row: 1;
+    background: #7a0019;
+}
+
+.athena-alert-dialog .swal2-icon {
+    grid-column: 1;
+    grid-row: 1;
+    z-index: 1;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: 1.25rem 0 1.25rem 1.5rem;
+    border: 0;
+    animation: none;
+}
+
+.athena-alert-dialog .swal2-title {
+    grid-column: 2;
+    grid-row: 1;
+    z-index: 1;
+    align-self: center;
+    padding: 1.25rem 1.5rem 1.25rem 0.75rem;
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: left;
+}
+
+.athena-alert-dialog .swal2-html-container {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+    padding: 1.5rem;
+    color: #44403c;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    text-align: left;
+}
+
+.athena-alert-dialog .swal2-actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    width: 100%;
+    margin: 0;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e7e5e4;
+    background: #fafaf9;
+}
+
+.athena-alert-dialog [data-proposal-alert-undo] { margin: 0; }
+
+.athena-alert-dialog .swal2-confirm,
+.athena-alert-dialog [data-proposal-alert-undo] button {
+    min-height: 44px;
+    margin: 0;
+    padding: 0.625rem 1rem;
+    border: 1px solid #7a0019;
+    border-radius: 0.5rem;
+    background: #7a0019;
+    color: #fff;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.athena-alert-dialog [data-proposal-alert-undo] button {
+    border-color: #d6d3d1;
+    background: #fff;
+    color: #7a0019;
+}
+
+.athena-alert-dialog .swal2-confirm:hover { background: #590013; }
+.athena-alert-dialog [data-proposal-alert-undo] button:hover { background: #f5f5f4; }
+.athena-alert-dialog :is(.swal2-confirm, [data-proposal-alert-undo] button):focus-visible { outline: 2px solid #7a0019; outline-offset: 3px; }
+.dark .swal2-popup.athena-alert-dialog { border-color: #44403c; }
+.dark .athena-alert-dialog .swal2-html-container { color: #d6d3d1; }
+.dark .athena-alert-dialog .swal2-actions { border-color: #44403c; background: #171717; }
+.dark .athena-alert-dialog [data-proposal-alert-undo] button { border-color: #57534e; background: #292524; color: #f5f5f4; }
+.dark .athena-alert-dialog [data-proposal-alert-undo] button:hover { background: #44403c; }
+.dark .athena-alert-dialog :is(.swal2-confirm, [data-proposal-alert-undo] button):focus-visible { outline-color: #f5f5f4; }
+
 @layer utilities {
     [data-faculty-shell] :is(.font-black, .font-extrabold) {
         @apply font-bold;
@@ -538,6 +635,11 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     /* Analytics has a reading scale of its own; overview queues stay compact. */
     .athena-page-header:has(.rh-analytics-header)::before,
     .athena-page-header:has(.rh-analytics-header)::after {
+        display: none;
+    }
+
+    .athena-page-header:has([data-dashboard-header])::before,
+    .athena-page-header:has([data-dashboard-header])::after {
         display: none;
     }
 

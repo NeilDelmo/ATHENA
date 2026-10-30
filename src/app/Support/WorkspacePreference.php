@@ -13,8 +13,20 @@ class WorkspacePreference
     public static function restore(Request $request): bool
     {
         $user = $request->user();
+        if (! $user) {
+            return false;
+        }
+        $savedWorkspace = $user->last_workspace;
+        if (is_string($savedWorkspace) && $user->canUseWorkspace($savedWorkspace)) {
+            if ($user->selectedWorkspace() === $savedWorkspace) {
+                return false;
+            }
+            self::select($request, $savedWorkspace);
+
+            return true;
+        }
         $preference = $request->cookie(self::COOKIE_NAME);
-        if (! $user || $user->selectedWorkspace() !== null || ! is_string($preference)) {
+        if ($user->selectedWorkspace() !== null || ! is_string($preference)) {
             return false;
         }
         $parts = explode(':', $preference, 2);
@@ -27,11 +39,14 @@ class WorkspacePreference
         return true;
     }
 
-    public static function select(Request $request, string $workspace): void
+    public static function select(Request $request, string $workspace, bool $persist = false): void
     {
         $user = $request->user();
         abort_unless($user?->canUseWorkspace($workspace), 403);
 
+        if ($persist && $user->last_workspace !== $workspace) {
+            $user->forceFill(['last_workspace' => $workspace])->save();
+        }
         $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
         $request->session()->forget(User::WORKSPACE_RECOVERY_SESSION_KEY);
         if ($user->hasRole('research_coordinator') && $user->hasAnyRole(['faculty', 'faculty_researcher'])

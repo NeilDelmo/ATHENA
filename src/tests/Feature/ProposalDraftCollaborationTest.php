@@ -14,6 +14,7 @@ use App\Notifications\ProposalWorkspaceInvitation;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -123,7 +124,7 @@ test('project team roster keeps member states and management controls visible', 
         ->and($xpath->query($team.'//*[@data-project-role-picker]')->length)->toBe($canManage ? 1 : 0)
         ->and($xpath->query('//*[@data-collaborator-invitation-modal]')->length)->toBe($canManage ? 1 : 0)
         ->and($xpath->query($team.'//button[normalize-space(.)="Resend invitation"]')->length)->toBe($canManage ? 2 : 0)
-        ->and($xpath->query($team.'//button[normalize-space(.)="Remove"]')->length)->toBe($canManage ? 2 : 0);
+        ->and($xpath->query($team.'//button[normalize-space(.)="Remove"]')->length)->toBe($canManage ? 3 : 0);
     expect(trim($xpath->query($team.'//*[@data-project-team-member="owner"]//*[@data-team-member-status]')->item(0)->textContent))->toBe('Project leader')
         ->and(trim($xpath->query($team.'//*[@data-project-team-member="'.$accepted->id.'"]//*[@data-team-member-status]')->item(0)->textContent))->toBe('Confirmed')
         ->and($xpath->query($team.'//*[@data-project-team-member="'.$accepted->id.'"]')->item(0)->textContent)->toContain($accepted->isProjectSecretary() ? 'Project Secretary' : 'Project staff');
@@ -219,7 +220,7 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Confirmed')
-        ->assertSee('Project staff for this research project through completion. Only the project leader can submit.');
+        ->assertSee('Can edit proposal papers. Only the project leader can submit.');
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.index'))
@@ -253,12 +254,12 @@ test('an owner can tag an existing account and the collaborator can edit but not
 
     $this->actingAs($this->owner)
         ->delete(route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]))
-        ->assertForbidden();
-    $this->assertModelExists($membership);
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
+    $this->assertModelMissing($membership);
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
-        ->assertOk();
+        ->assertForbidden();
 
     $this->actingAs($this->outsider)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
@@ -556,6 +557,87 @@ test('late invitation acceptance follows the current submitted project roster', 
     ->with(['pending', 'ongoing', 'completed'])
     ->with(['current staff' => true, 'removed from current roster' => false]);
 
+test('an invited member can decline without changing their selected workspace', function (string $workspace, array $roles, string $dashboard) {
+    $this->collaborator->syncRoles($roles);
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id, 'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email, 'accepted_at' => null,
+    ]);
+    $invitation = new ProposalActivityNotification(
+        title: 'Project staff invitation', message: 'Please join this project.',
+        url: route('notifications.proposal-invitations.show', $membership),
+        actionUrl: route('notifications.proposal-invitations.accept', $membership),
+        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+    );
+    $notification = $this->collaborator->notifications()->create([
+        'id' => (string) Str::uuid(),
+        'type' => ProposalActivityNotification::class,
+        'data' => $invitation->toArray($this->collaborator),
+    ]);
+
+    $this->actingAs($this->collaborator)->withSession(['active_workspace' => $workspace])
+        ->get(route('notifications.proposal-invitations.show', $membership))
+        ->assertOk()->assertSee('Decline invitation');
+    $this->post(route('notifications.proposal-invitations.show', $membership).'/decline')
+        ->assertRedirect(route($dashboard))
+        ->assertSessionHas('status', 'Invitation declined.')
+        ->assertSessionHas('active_workspace', $workspace);
+
+    $this->assertModelMissing($membership);
+    expect($notification->fresh()->read_at)->not->toBeNull()
+        ->and($notification->fresh()->data)->toHaveKey('action_completed', true)->not->toHaveKey('action_url');
+    Notification::assertSentTo($this->owner, ProposalActivityNotification::class,
+        fn ($notice): bool => $notice->title === 'Project staff invitation declined');
+    $this->getJson(route('notifications.index'))->assertOk()->assertJsonMissing(['key' => 'invitation:'.$membership->id]);
+    $this->post(route('notifications.proposal-invitations.accept', $membership))->assertNotFound();
+    $this->withSession(['active_workspace' => User::WORKSPACE_FACULTY])
+        ->get(route('faculty.proposal-drafts.show', $this->draft))->assertForbidden();
+})->with('collaboration invitation workspaces');
+
+test('declining an invitation cannot remove another person or an accepted member', function (bool $accepted) {
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id, 'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email, 'accepted_at' => $accepted ? now() : null,
+    ]);
+    $this->actingAs($accepted ? $this->collaborator : $this->outsider)
+        ->postJson(route('notifications.proposal-invitations.show', $membership).'/decline')->assertForbidden();
+    $this->assertModelExists($membership);
+})->with([false, true]);
+
+test('only the leader can remove confirmed staff from an unsubmitted draft', function () {
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id, 'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email, 'accepted_at' => now(), 'project_role' => 'secretary',
+    ]);
+    $url = route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]);
+    $this->actingAs($this->outsider)->delete($url)->assertForbidden();
+    $this->actingAs($this->collaborator)->delete($url)->assertForbidden();
+    $this->actingAs($this->owner)->delete($url)->assertRedirect();
+    $this->assertModelMissing($membership);
+    $this->get(route('faculty.proposal-drafts.show', $this->draft))->assertOk()->assertSee('No Project Secretary has been assigned.');
+    $this->actingAs($this->collaborator)->get(route('faculty.proposal-drafts.show', $this->draft))->assertForbidden();
+    $this->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $this->workPlan)->assertForbidden();
+    $this->actingAs($this->owner)->post(route('faculty.proposal-drafts.members.store', $this->draft), [
+        'name' => $this->collaborator->name, 'email' => $this->collaborator->email,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    expect($this->draft->members()->sole()->accepted_at)->toBeNull();
+});
+
+test('confirmed staff cannot be removed from an already submitted project using a revision draft', function () {
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id, 'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email, 'accepted_at' => now(),
+    ]);
+    $topic = TopicProposal::create([
+        'user_id' => $this->owner->id, 'research_call_id' => $this->draft->research_call_id,
+        'title' => $this->draft->project_title, 'status' => 'revision_requested',
+    ]);
+    $this->draft->update(['topic_id' => $topic->id]);
+    $this->actingAs($this->owner)
+        ->delete(route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]))->assertForbidden();
+    $this->assertModelExists($membership);
+});
+
 test('pending invitations may still be cancelled before the collaborator joins', function () {
     $membership = $this->draft->members()->create(['user_id' => $this->collaborator->id, 'name' => $this->collaborator->name, 'email' => $this->collaborator->email, 'accepted_at' => null]);
     $this->actingAs($this->owner)->delete(route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]))
@@ -582,7 +664,8 @@ test('an unregistered person remains external and is linked after verified Googl
         function (ProposalWorkspaceInvitation $notification, array $channels, object $notifiable): bool {
             return in_array('mail', $channels, true)
                 && isset($notifiable->routes['mail']['future.member@g.batstate-u.edu.ph'])
-                && ! $notification->accountLinked;
+                && ! $notification->accountLinked
+                && $notification->requiresAcceptance;
         },
     );
 
@@ -609,9 +692,16 @@ test('an unregistered person remains external and is linked after verified Googl
 
     $membership->refresh();
     expect($membership->user_id)->toBe($futureAccount->id)
-        ->and($membership->name)->toBe('Verified Future Member');
+        ->and($membership->name)->toBe('Verified Future Member')
+        ->and($membership->accepted_at)->toBeNull();
 
     $this->actingAs($futureAccount)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertForbidden();
+    $this->get(route('notifications.proposal-invitations.show', $membership))
+        ->assertOk()->assertSee('Accept invitation')->assertSee('Decline invitation');
+    $this->post(route('notifications.proposal-invitations.accept', $membership))->assertRedirect();
+    $this
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Workspace Owner')

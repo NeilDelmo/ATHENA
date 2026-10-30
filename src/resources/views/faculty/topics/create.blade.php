@@ -298,6 +298,7 @@
                     </div>
 
                     <div x-show="previewHtml && !previewLoading" x-cloak class="overflow-hidden rounded-2xl border border-gray-300 bg-gray-100 shadow-inner">
+                        <div class="flex border-b border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"><x-paper-preview-pagination /></div>
                         <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="proposalPreviewLoaded()" title="Official Work Plan preview" class="h-[42rem] w-full bg-gray-100"></iframe>
                     </div>
 

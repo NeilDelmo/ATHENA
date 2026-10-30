@@ -34,6 +34,7 @@
         data-app-shell
         @if ($isFacultyWorkspace) data-faculty-shell @endif
         data-auth-user-id="{{ Auth::id() }}"
+        data-session-check-url="{{ route('dashboard') }}"
         data-active-workspace="{{ Auth::user()?->activeWorkspace() }}"
         @auth
             data-research-assistant-url="{{ route('research-support.chat') }}"
@@ -65,7 +66,7 @@
             </script>
         @endauth
 
-        @php($sidebarPersistenceKey = 'app-sidebar-'.(Auth::user()?->activeWorkspace() ?? 'guest'))
+        @php($sidebarPersistenceKey = 'app-sidebar-'.Auth::id().'-'.(Auth::user()?->activeWorkspace() ?? 'guest'))
         @persist($sidebarPersistenceKey)
             @include('layouts.navigation')
         @endpersist

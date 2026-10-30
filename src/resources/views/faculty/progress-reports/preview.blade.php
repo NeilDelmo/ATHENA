@@ -11,11 +11,11 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Progress Report Preview</title>
-        @vite('resources/css/progress-report-print.css')
+        @vite(['resources/css/progress-report-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="progress-report-preview-page">
-        <div class="progress-report-paper-footer">Tracking No.{{ $report->tracking_number ?: '____________________' }}</div>
-        <main class="progress-report-sheet" aria-label="BatStateU progress report preview">
+        <main data-paper-sheet class="progress-report-sheet" aria-label="BatStateU progress report preview">
+            <div data-paper-footer class="progress-report-paper-footer">Tracking No.{{ $report->tracking_number ?: '____________________' }}</div>
             <table class="progress-report-table progress-report-header">
                 <colgroup><col style="width: 10.113%"><col style="width: 37.118%"><col style="width: 34.355%"><col style="width: 18.414%"></colgroup>
                 <tbody>

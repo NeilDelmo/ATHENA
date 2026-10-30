@@ -8,7 +8,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 import { commentResponsePaperPreview } from '../../resources/js/comment-response-paper-preview.js';
-import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
+import { initializePaperPagination, proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 import { initializeRevisionCommentResponsePapers } from '../../resources/js/revision-workspace.js';
 
 test('a loaded paper is retained and concurrent requests do not prepare it twice', async (t) => {
@@ -115,7 +115,7 @@ test('faculty can preview all current replies from the revision panel without le
             ['key' => 'annotation_12', 'form_source' => 'research_head', 'comment' => 'Explain the work plan.', 'response' => '', 'remarks' => ''],
             ['key' => 'co_evaluator_narrative_19', 'form_source' => 'co_evaluator', 'comment' => 'Clarify the sampling.', 'response' => '', 'remarks' => ''],
         ];
-        $template = str_replace("@vite('resources/css/comment-response-form-print.css')", '<style>'.file_get_contents(resource_path('css/comment-response-form-print.css')).'</style>', file_get_contents(resource_path('views/faculty/comment-response-form/preview.blade.php')));
+        $template = str_replace("@vite(['resources/css/comment-response-form-print.css', 'resources/js/paper-preview-pagination.js'])", '<style>'.file_get_contents(resource_path('css/comment-response-form-print.css')).'</style>', file_get_contents(resource_path('views/faculty/comment-response-form/preview.blade.php')));
         $output = ['papers' => [], 'previews' => [], 'replies' => ''];
         foreach (['research_head', 'co_evaluator'] as $source) {
             $form = [
@@ -149,7 +149,7 @@ test('faculty can preview all current replies from the revision panel without le
             const papers = Object.entries(rendered.previews).map(([source, component]) => `<section data-comment-response-source="${source}"><dialog open role="region" data-preview-source="${source}" data-comment-response-paper class="revision-comment-response-paper"><header class="flex items-center justify-between border-b p-4"><h2>${source} Comment Response</h2><button type="button" data-comment-response-paper-close hidden>Minimize preview</button></header><div data-comment-response-paper-open role="button" tabindex="0" class="revision-comment-response-paper-content">${component}</div></dialog></section>`).join('');
             await page.route('**/reply-fixture', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html class="${dark ? 'dark' : ''}"><meta charset="utf-8"><style>${styles.css}</style><body><form data-revision-workspace="7"><section data-preview-step hidden>${papers}</section><dialog data-editor-dialog style="width:min(500px,95vw);max-height:90vh;overflow:auto;padding:16px">${rendered.replies}</dialog></form></body></html>` }));
             await page.goto('http://localhost/reply-fixture');
-            await page.addScriptTag({ content: `${proposalPreviewWorkspace.toString()}\n${commentResponsePaperPreview.toString()}\n${initializeRevisionCommentResponsePapers.toString()}\ndocument.addEventListener('alpine:init',()=>Alpine.data('commentResponsePaperPreview',commentResponsePaperPreview));` });
+            await page.addScriptTag({ content: `${initializePaperPagination.toString()}\n${proposalPreviewWorkspace.toString()}\n${commentResponsePaperPreview.toString()}\n${initializeRevisionCommentResponsePapers.toString()}\ndocument.addEventListener('alpine:init',()=>Alpine.data('commentResponsePaperPreview',commentResponsePaperPreview));` });
             await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
             await page.evaluate(() => {
                 initializeRevisionCommentResponsePapers(document.querySelector('form'));
@@ -174,7 +174,7 @@ test('faculty can preview all current replies from the revision panel without le
             const headPaper = page.locator('[data-preview-source="research_head"]');
             await page.waitForFunction(() => document.querySelector('[data-preview-source="research_head"] iframe').contentDocument?.querySelector('[data-comment-response-answer]')?.textContent.includes('literal text'));
             const frame = headPaper.locator('iframe');
-            const values = await frame.evaluate((element) => [...element.contentDocument.querySelectorAll('[data-comment-response-row]')].map((row) => ({ key: row.dataset.commentResponseRow, cells: [...row.cells].map((cell) => cell.textContent) })));
+            const values = await frame.evaluate((element) => [...element.contentDocument.querySelectorAll('[data-paper-rendered] [data-comment-response-row]')].map((row) => ({ key: row.dataset.commentResponseRow, cells: [...row.cells].map((cell) => cell.textContent) })));
             assert.deepEqual(values, [
                 { key: 'annotation_11', cells: ['1.', 'Clarify the objectives.', answer, 'Page 3, paragraph 2'] },
                 { key: 'annotation_12', cells: ['2.', 'Explain the work plan.', 'Updated the schedule in the work plan.', ''] },
@@ -196,7 +196,7 @@ test('faculty can preview all current replies from the revision panel without le
             await evaluator.getByRole('button', { name: 'Preview Comment Response', exact: true }).click();
             const coPaper = page.locator('[data-preview-source="co_evaluator"]');
             await page.waitForFunction(() => document.querySelector('[data-preview-source="co_evaluator"] iframe').contentDocument?.body?.textContent.includes('Explained the sampling calculation.'));
-            assert.equal(await coPaper.locator('iframe').evaluate((element) => element.contentDocument.querySelectorAll('[data-comment-response-row]').length), 1);
+            assert.equal(await coPaper.locator('iframe').evaluate((element) => element.contentDocument.querySelectorAll('[data-paper-rendered] [data-comment-response-row]').length), 1);
             assert.equal(await coPaper.locator('iframe').evaluate((element) => element.contentDocument.body.textContent.includes('Clarify the objectives.')), false);
             if (process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY, `current-comment-response-${width}-${dark ? 'dark' : 'light'}.png`) });
             await page.keyboard.press('Escape');
@@ -224,7 +224,7 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
             'evaluation_stages' => ['research_head'], 'comment_response_head' => 'Research Head', 'comment_response_vice_chancellor' => 'Vice Chancellor',
             'feedback' => [['comment' => 'Explain the sustainable development goal.', 'response' => 'Added the connection to the project objectives.', 'remarks' => 'Page 1, paragraph 2']],
         ];
-        $source = str_replace("@vite('resources/css/comment-response-form-print.css')", '<style>'.file_get_contents(resource_path('css/comment-response-form-print.css')).'</style>', file_get_contents(resource_path('views/faculty/comment-response-form/preview.blade.php')));
+        $source = str_replace("@vite(['resources/css/comment-response-form-print.css', 'resources/js/paper-preview-pagination.js'])", '<style>'.file_get_contents(resource_path('css/comment-response-form-print.css')).'</style>', file_get_contents(resource_path('views/faculty/comment-response-form/preview.blade.php')));
         echo json_encode([
             'component' => Illuminate\Support\Facades\Blade::render('<x-comment-response-paper-preview :url="$url" />', ['url' => '/paper-preview?embedded=1']),
             'paper' => Illuminate\Support\Facades\Blade::render($source, ['topic' => $topic, 'commentResponseForm' => $form, 'embedded' => true]),
@@ -246,7 +246,7 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 await page.route('**/images/batstateu-logo.png', (route) => route.fulfill({ contentType: 'image/png', body: readFileSync(resolve('public/images/batstateu-logo.png')) }));
                 await page.route('**/paper-fixture', (route) => route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<html class="${dark ? 'dark' : ''}"><meta charset="utf-8"><style>${styles.css}</style><body><div style="height:1100px"></div><form style="padding:16px"><dialog open role="region" data-comment-response-paper class="revision-comment-response-paper"><header class="flex items-center justify-between border-b p-4"><h2>Research Head Comment Response paper</h2><button type="button" data-comment-response-paper-close hidden>Minimize preview</button></header><div data-comment-response-paper-open role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" class="revision-comment-response-paper-content">${rendered.component}</div></dialog></form></body></html>` }));
                 await page.goto('http://localhost/paper-fixture');
-                await page.addScriptTag({ content: `${proposalPreviewWorkspace.toString()}
+                await page.addScriptTag({ content: `${initializePaperPagination.toString()}\n${proposalPreviewWorkspace.toString()}
                     ${commentResponsePaperPreview.toString()}
                     ${initializeRevisionCommentResponsePapers.toString()}
                     document.addEventListener('alpine:init',()=>Alpine.data('commentResponsePaperPreview',(url)=>{const state=commentResponsePaperPreview(url);const init=state.init;state.init=function(){window.previewState=this;init.call(this)};return state}));` });
@@ -264,7 +264,7 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 assert.equal(requests, 2);
                 const frame = viewer.locator('iframe');
                 const dimensions = await frame.evaluate((element) => {
-                    const paper = element.contentDocument.querySelector('.comment-response-sheet');
+                    const paper = element.contentDocument.querySelector('[data-paper-pagination-sheet].comment-response-sheet');
                     return { width: paper.offsetWidth, displayed: paper.getBoundingClientRect().width, frame: element.clientWidth, headingSize: getComputedStyle(paper.querySelector('h1')).fontSize, toolbar: getComputedStyle(element.contentDocument.querySelector('.preview-toolbar')).display };
                 });
                 assert.equal(dimensions.width, 816, 'The official page keeps its paper width');
@@ -308,14 +308,14 @@ test('the real Comment Response paper loads only when visible, fits without PDF 
                 await viewer.getByRole('button', { name: 'Fit width', exact: true }).click();
                 await page.waitForFunction(() => {
                     const frame = document.querySelector('iframe');
-                    return frame.contentDocument.querySelector('.comment-response-sheet').getBoundingClientRect().width > 280;
+                    return frame.contentDocument.querySelector('[data-paper-pagination-sheet].comment-response-sheet').getBoundingClientRect().width > 280;
                 });
                 await viewer.getByRole('button', { name: 'Zoom in', exact: true }).click();
-                assert.equal(await viewer.locator('output').textContent(), '110%');
+                assert.equal(await viewer.locator('[data-revision-preview-zoom] output').textContent(), '110%');
                 await viewer.getByRole('button', { name: 'Fit width', exact: true }).click();
                 assert.equal(await viewer.getByRole('button', { name: 'Fit width', exact: true }).getAttribute('aria-pressed'), 'true');
                 await viewer.getByRole('button', { name: 'Fit page', exact: true }).click();
-                assert.ok(await frame.evaluate((element) => element.contentDocument.querySelector('.comment-response-sheet').getBoundingClientRect().height <= element.clientHeight + 1), 'Fit page remains available to see the whole sheet');
+                assert.ok(await frame.evaluate((element) => element.contentDocument.querySelector('[data-paper-pagination-sheet].comment-response-sheet').getBoundingClientRect().height <= element.clientHeight + 1), 'Fit page remains available to see the whole sheet');
                 if (process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY) await page.screenshot({ path: resolve(process.env.REVISION_WORKSPACE_SCREENSHOT_DIRECTORY, `fast-comment-response-${width}-${dark ? 'dark' : 'light'}.png`) });
                 await frame.focus();
                 await page.keyboard.press('Escape');

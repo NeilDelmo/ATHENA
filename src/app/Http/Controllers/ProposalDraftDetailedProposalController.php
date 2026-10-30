@@ -335,6 +335,7 @@ class ProposalDraftDetailedProposalController extends Controller
             'responsibilities' => [[
                 'name' => $draft->project_leader,
                 'percentage' => '100',
+                'percentage_fixed' => '0',
                 'duties' => '',
             ]],
             'checked_verified_by_name' => '',

@@ -115,16 +115,17 @@
                             @method('PUT')
                             <fieldset @disabled(! $canEditDraft) @if (! $canEditDraft) inert data-proposal-editing-locked @endif class="space-y-6">
                             <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
+                            <p data-proposal-required-legend class="text-xs text-gray-600 dark:text-slate-400"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required for submission.</p>
 
                             <div>
-                                <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Title <span class="text-red-600">Required</span></label>
+                                <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Title <x-required-mark /></label>
                                 <input id="project_title" name="project_title" type="text" value="{{ old('project_title', $proposalDraft->project_title) }}" maxlength="255" required autofocus class="mt-2 block w-full rounded-lg border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                                 @error('project_title')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                             </div>
 
                             <div class="grid gap-5 md:grid-cols-3">
                                 <div>
-                                    <label for="duration_months" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Total Duration <span class="text-red-600">Required</span></label>
+                                    <label for="duration_months" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Total Duration <x-required-mark /></label>
                                     <div class="relative mt-2"><input id="duration_months" name="duration_months" type="number" min="1" max="{{ config('work_plan.max_duration_months') }}" x-model.number="durationMonths" required class="block w-full rounded-lg border-gray-300 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"><span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold text-gray-500 dark:text-slate-400">months</span></div>
                                     <p class="mt-2 text-[11px] text-gray-500 dark:text-slate-400">Attachment A adds one M1-M12 sheet for each 12-month project period.</p>
                                     @error('duration_months')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
@@ -134,7 +135,7 @@
                             </div>
 
                             <div>
-                                <label for="project_leader" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Leader <span class="text-red-600">Required</span></label>
+                                <label for="project_leader" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Leader <x-required-mark /></label>
                                 <input id="project_leader" name="project_leader" type="text" list="proposal-workspace-people" value="{{ old('project_leader', $proposalDraft->project_leader ?: $proposalDraft->owner->name) }}" maxlength="120" required class="mt-2 block w-full rounded-lg border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                                 <datalist id="proposal-workspace-people">@foreach ($workspacePeople as $workspacePerson)<option value="{{ $workspacePerson['name'] }}">{{ $workspacePerson['email'] }}</option>@endforeach</datalist>
                                 @error('project_leader')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
@@ -220,7 +221,7 @@
                             'previewUrl' => route('faculty.proposal-drafts.submission-files.download', [$proposalDraft, $paper['slug']]),
                         ] : null;
                     @endphp
-                    <article data-proposal-paper="{{ $paper['slug'] }}" class="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-4 border-b border-gray-200 p-5 last:border-b-0 dark:border-slate-800 sm:px-6 lg:grid-cols-[3rem_minmax(0,1fr)_auto] lg:items-center">
+                    <article data-proposal-paper="{{ $paper['slug'] }}" class="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] gap-4 border-b border-gray-200 p-5 last:border-b-0 dark:border-slate-800 sm:px-6 lg:grid-cols-[3rem_minmax(0,1fr)_18rem] lg:items-center">
                         <x-document-file-icon label="PDF" class="shrink-0" />
                         <div class="min-w-0">
                             <p class="mb-1 text-sm text-gray-500 dark:text-slate-400">Paper {{ str_pad((string) $paper['order'], 2, '0', STR_PAD_LEFT) }}</p>
@@ -254,7 +255,7 @@
                                 </div>
                             @endif
                         </div>
-                        <div class="col-span-2 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap lg:col-span-1 lg:flex-col">
+                        <div class="col-span-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:col-span-1 lg:grid-cols-1">
                             @if ($paperPreview)
                                 <button type="button" data-proposal-paper-preview-trigger @click="openAssessmentPreview(@js($paperPreview))" aria-label="Preview {{ $paper['label'] }}" aria-haspopup="dialog" aria-controls="draft-paper-preview-panel" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-red-200 px-4 py-2.5 text-base font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40">Preview PDF</button>
                             @endif
@@ -352,7 +353,7 @@
                             <div class="min-w-0">
                                 <h4 data-team-member-name class="break-words text-lg font-bold leading-7 text-gray-900 dark:text-white">{{ $member->user?->name ?? $member->name }}</h4>
                                 <p data-team-member-email class="mt-1 break-all text-base leading-6 text-gray-600 dark:text-slate-300">{{ $member->user?->email ?? $member->email }}</p>
-                                <p class="mt-2 text-base leading-6 {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-amber-800 dark:text-amber-200' }}">{{ $member->isAccepted() ? 'Project staff for this research project through completion. Only the project leader can submit.' : ($member->isLinked() ? 'Waiting for the invited staff member to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
+                                <p class="mt-2 text-base leading-6 {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-amber-800 dark:text-amber-200' }}">{{ $member->isAccepted() ? 'Can edit proposal papers. Only the project leader can submit.' : ($member->isLinked() ? 'Waiting for the invited staff member to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
                             </div>
                         </div>
                         <div class="flex h-fit flex-wrap items-center gap-2 sm:max-w-56 sm:justify-end">
@@ -374,13 +375,15 @@
                                 </span>
                         </div>
                         @can('manageMembers', $proposalDraft)
-                        @if (! $member->isAccepted())
+                        @if (! $member->isAccepted() || $proposalDraft->topic_id === null)
                             <div class="flex flex-wrap items-center gap-2 sm:col-span-2 sm:pl-16">
+                                @if (! $member->isAccepted())
                                 <form action="{{ route('faculty.proposal-drafts.members.invitation', [$proposalDraft, $member]) }}" method="POST">
                                     @csrf
                                     <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-base font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Resend invitation</button>
                                 </form>
-                                <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" data-proposal-confirm data-confirm-title="Remove project staff?" data-confirm-text="This invited staff member will immediately lose access to the proposal workspace." data-confirm-button="Remove project staff">
+                                @endif
+                                <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" data-proposal-confirm data-confirm-title="Remove project staff?" data-confirm-text="This person will immediately lose access to the proposal workspace. You can invite them again if needed." data-confirm-button="Remove project staff">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-base font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>

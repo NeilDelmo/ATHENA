@@ -7,5 +7,5 @@
             <button type="button" x-show="activeWorkPlanEntry" x-cloak @click="toggleEntry(activeWorkPlanEntry)" :aria-expanded="activeWorkPlanEntry && isEntryExpanded(activeWorkPlanEntry)" :aria-controls="activeWorkPlanEntry ? `work-plan-editor-${activeWorkPlanEntry.id}` : null" x-text="activeWorkPlanEntry && isEntryExpanded(activeWorkPlanEntry) ? 'Collapse objective' : 'Expand objective'"></button>
         </div>
     </div>
-    <p class="proposal-writing-hint">Activities, expected outputs, and scheduled months save automatically. Open the paper preview when you need it.</p>
+    <p class="proposal-writing-hint">Activities, expected outputs, and scheduled months save automatically. The paper preview opens beside the form on larger screens.</p>
 </x-proposal-writing-toolbar>

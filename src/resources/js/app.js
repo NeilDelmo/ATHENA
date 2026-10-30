@@ -942,6 +942,12 @@ async function initializeProposalAlerts() {
         warning: 'Please note',
         error: 'Something needs attention',
     };
+    const alertIcons = {
+        success: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+        warning: '<path d="m12 3 10 18H2L12 3Zm0 6v4m0 4h.01"/>',
+        error: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>',
+        info: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 11h1v5h1"/>',
+    };
 
     for (const alert of alerts) {
         const icon = ['success', 'warning', 'error'].includes(alert.dataset.alertIcon)
@@ -952,12 +958,23 @@ async function initializeProposalAlerts() {
             title: alert.dataset.alertTitle || alertTitles[icon] || 'Notification',
             html: alert.innerHTML.trim(),
             icon,
-            confirmButtonText: alert.dataset.alertButton || 'OK',
-            confirmButtonColor: '#dc2626',
+            iconHtml: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${alertIcons[icon]}</svg>`,
+            iconColor: '#ffffff',
+            confirmButtonText: alert.dataset.alertButton || 'Close',
+            buttonsStyling: false,
+            width: '30rem',
+            padding: 0,
             customClass: {
+                popup: 'athena-alert-dialog',
                 htmlContainer: alert.querySelector('ul') ? 'text-left' : '',
             },
             ...proposalDialogTheme(),
+            background: document.documentElement.classList.contains('dark') ? '#1c1917' : '#ffffff',
+            didOpen(popup) {
+                const undo = popup.querySelector('[data-proposal-alert-undo]');
+                const actions = popup.querySelector('.swal2-actions');
+                if (undo && actions) actions.prepend(undo);
+            },
         });
     }
 }
@@ -6897,7 +6914,7 @@ Alpine.data('reportPaperPreview', reportPaperPreview);
 Alpine.data('commentResponsePaperPreview', commentResponsePaperPreview);
 
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
-    ...proposalPaperPreviewWorkspace(),
+    ...proposalPaperPreviewWorkspace({ initiallyOpen: true }),
     ...(config.proposalDraftId ? proposalPaperAssistantChanges({ paperSlug: 'work-plan', proposalDraftId: config.proposalDraftId, draftVersion: config.draftVersion,
         resolveChange: (selection) => resolveAssistantProposalChange(selection, document.body.dataset.researchAssistantProposalChangesUrl, config.csrfToken),
         changeHandoff: assistantProposalChangeHandoff(), finishSave: finishPaperEditorAutoSave }) : {}),

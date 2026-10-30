@@ -79,6 +79,10 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     $user = Auth::user();
+    if (request()->expectsJson()) {
+        return response()->json(['user_id' => $user->id, 'workspace' => $user->activeWorkspace()])
+            ->header('Cache-Control', 'no-store, private');
+    }
     $dashboardRoute = $user->dashboardRouteName();
 
     if ($user->selectedWorkspace() !== null || $user->isUsingWorkspace(['research_head', 'research_secretary'])) {
@@ -115,9 +119,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/research-manuals/{version}/file', [ResearchManualReaderController::class, 'file'])
         ->where('version', '[a-f0-9]{64}')->name('research-manuals.file');
     Route::get('/select-role', [RoleSelectionController::class, 'show'])->name('role-selection.show');
-    Route::post('/select-role', [RoleSelectionController::class, 'store'])->name('role-selection.store');
+    Route::post('/select-role', [RoleSelectionController::class, 'store'])->block(60, 60)->name('role-selection.store');
     Route::get('/choose-workspace', [WorkspaceController::class, 'index'])->name('workspace.select');
     Route::post('/choose-workspace', [WorkspaceController::class, 'store'])
+        ->block(60, 60)
         ->middleware('throttle:20,1')
         ->name('workspace.store');
     Route::prefix('college-quarterly-submissions')->name('college-quarterly-submissions.')->group(function () {
@@ -328,6 +333,8 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
         ->name('proposal-invitations.show');
     Route::post('/proposal-invitations/{proposalDraftMember}/accept', [NotificationController::class, 'acceptProposalInvitation'])
         ->name('proposal-invitations.accept');
+    Route::post('/proposal-invitations/{proposalDraftMember}/decline', [NotificationController::class, 'declineProposalInvitation'])
+        ->name('proposal-invitations.decline');
     Route::post('/{notification}/open', [NotificationController::class, 'open'])->name('open');
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
@@ -618,9 +625,9 @@ Route::middleware('auth')->group(function () {
 });
 
 // GOOGLE AUTHENTICATION ROUTES
-Route::middleware(['guest', 'throttle:20,1'])->group(function () {
-    Route::get('/auth/google', [ProviderController::class, 'redirectToGoogle'])->name('auth.google.redirect');
-    Route::get('/auth/google/callback', [ProviderController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+Route::middleware('throttle:20,1')->group(function () {
+    Route::get('/auth/google', [ProviderController::class, 'redirectToGoogle'])->block(60, 60)->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [ProviderController::class, 'handleGoogleCallback'])->block(60, 60)->name('auth.google.callback');
 });
 
 require __DIR__.'/auth.php';

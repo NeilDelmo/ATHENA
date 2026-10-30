@@ -84,7 +84,7 @@ class DetailedProposalRules
                 ])
                 ->all(),
             'introduction' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
-            'related_literature' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
+            'related_literature' => [$presenceRule, 'string', 'max:'.($maximumNarrativeLength * 2 + 2)],
             'literature_research_history' => ['nullable', 'json', 'max:12000'],
             'literature_citations' => ['nullable', 'json', 'max:30000'],
             'methodology' => [$presenceRule, 'array'],
@@ -110,6 +110,7 @@ class DetailedProposalRules
             'responsibilities' => [$presenceRule, 'array', ...$minimumResponsibilities, 'max:30'],
             'responsibilities.*.name' => [$presenceRule, 'string', 'max:255'],
             'responsibilities.*.percentage' => [$presenceRule, 'integer', 'min:1', 'max:100'],
+            'responsibilities.*.percentage_fixed' => ['nullable', 'boolean'],
             'responsibilities.*.duties' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'checked_verified_by_name' => ['nullable', 'string', 'max:255'],
             'recommending_approval_name' => ['nullable', 'string', 'max:255'],
@@ -153,6 +154,14 @@ class DetailedProposalRules
                             $validator->errors()->add('specific_method_objectives.'.$index.'.methods.'.$methodIndex.'.description', 'Describe method '.($methodIndex + 1).' in group '.($index + 1).'.');
                         }
                     }
+                }
+
+                $responsibilities = Arr::wrap($validator->getData()['responsibilities'] ?? []);
+                if ($responsibilities !== []
+                    && ! $validator->errors()->has('responsibilities')
+                    && ! $validator->errors()->has('responsibilities.*.percentage')
+                    && (int) collect($responsibilities)->sum('percentage') !== 100) {
+                    $validator->errors()->add('responsibilities', 'Member responsibility percentages must total 100%.');
                 }
 
                 $expectedOutputs = Arr::wrap($validator->getData()['expected_outputs'] ?? []);

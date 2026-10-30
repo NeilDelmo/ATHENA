@@ -24,6 +24,7 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
         },
 
         applyProposalPreviewZoom() {
+            this.bindProposalPreviewPages();
             previewWorkspace.applyProposalPreviewZoom.call({
                 $refs: this.$refs,
                 previewZoom: this.previewFullscreen ? this.previewZoom : 100,
@@ -38,8 +39,8 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspace
             const section = [...(previewDocument?.querySelectorAll('[data-proposal-preview-section]') || [])]
                 .find((element) => element.dataset.proposalPreviewSection === this.previewFocusSection);
             if (section) {
-                // Keep preview scrolling from moving the surrounding editor page.
-                previewDocument.defaultView.scrollBy({ top: section.getBoundingClientRect().top, behavior: 'instant' });
+                if (previewDocument.paperPagination) previewDocument.paperPagination.reveal(section);
+                else previewDocument.defaultView.scrollBy({ top: section.getBoundingClientRect().top, behavior: 'instant' });
             }
         },
 

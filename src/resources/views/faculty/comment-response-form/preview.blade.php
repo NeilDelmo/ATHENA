@@ -5,14 +5,14 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $commentResponseForm['form_label'] }} — {{ $commentResponseForm['project_title'] }}</title>
-        @vite('resources/css/comment-response-form-print.css')
+        @vite(['resources/css/comment-response-form-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body @class(['paper-preview-embedded' => $embedded ?? false])>
         <nav class="preview-toolbar" aria-label="Form actions">
             <span>{{ $commentResponseForm['form_label'] }}</span>
             <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}" target="_blank" rel="noopener">Open PDF</a>
         </nav>
-        <main class="comment-response-sheet" aria-label="BatStateU Comment-Response Form">
+        <main data-paper-sheet class="comment-response-sheet" aria-label="BatStateU Comment-Response Form">
             <header class="university-header">
                 <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University seal">
                 <div>Republic of the Philippines<strong>BATANGAS STATE UNIVERSITY</strong><span>The National Engineering University</span></div>

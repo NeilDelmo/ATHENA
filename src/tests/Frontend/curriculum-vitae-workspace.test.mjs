@@ -31,7 +31,7 @@ const edit = read('resources/views/faculty/proposal-drafts/curriculum-vitae/edit
 const members = edit.slice(edit.indexOf('<template x-for="(person, personIndex) in people"'), edit.indexOf('\n            <noscript>'));
 const manager = edit.slice(edit.indexOf('<section id="cv-member-manager"'), edit.indexOf('\n        <form id="cv-members-form"'));
 const paperTemplate = read('resources/views/faculty/curriculum-vitae/preview.blade.php')
-    .replace("@vite('resources/css/curriculum-vitae-print.css')", `<style>${read('resources/css/curriculum-vitae-print.css')}</style>`);
+    .replace("@vite(['resources/css/curriculum-vitae-print.css', 'resources/js/paper-preview-pagination.js'])", `<style>${read('resources/css/curriculum-vitae-print.css')}</style>`);
 
 test('CV editing follows one member while preserving the whole package, autosave, section entries, and preview controls', async () => {
     const rendered = JSON.parse(execFileSync('php', ['-r', `
@@ -208,7 +208,7 @@ test('CV editing follows one member while preserving the whole package, autosave
                 const frame = page.locator('[x-ref="previewFrame"]');
                 const previewAtMember = async (index) => {
                     await page.waitForFunction((memberIndex) => {
-                        const section=document.querySelector('[x-ref="previewFrame"]').contentDocument?.querySelector('[data-proposal-preview-section="cv-person-'+memberIndex+'"]');
+                        const section=document.querySelector('[x-ref="previewFrame"]').contentDocument?.querySelector('[data-paper-pagination-sheet][data-proposal-preview-section="cv-person-'+memberIndex+'"]');
                         if(!section) return false;
                         const bounds=section.getBoundingClientRect();
                         const frame=document.querySelector('[x-ref="previewFrame"]');
@@ -216,7 +216,7 @@ test('CV editing follows one member while preserving the whole package, autosave
                     }, index, { timeout: 5000 }).catch(async (error) => {
                         assert.fail(`${width}/${dark ? 'dark' : 'light'}/member ${index}: ${error.message}; ${JSON.stringify(await page.evaluate((memberIndex) => {
                             const frame = document.querySelector('[x-ref="previewFrame"]');
-                            const section = frame.contentDocument?.querySelector('[data-proposal-preview-section="cv-person-'+memberIndex+'"]');
+                            const section = frame.contentDocument?.querySelector('[data-paper-pagination-sheet][data-proposal-preview-section="cv-person-'+memberIndex+'"]');
                             return { target: window.cvState.previewFocusSection, active: window.cvState.activeCvPersonIndex, zoom: frame.contentDocument?.body?.style.zoom, section: section?.getBoundingClientRect().toJSON(), frame: frame.getBoundingClientRect().toJSON(), scroll: frame.contentWindow?.scrollY };
                         }, index))}`);
                     });
@@ -240,7 +240,7 @@ test('CV editing follows one member while preserving the whole package, autosave
                     assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '100%');
                 }
                 await page.locator('.proposal-preview-dock-expanded').waitFor();
-                assert.equal(await frame.contentFrame().locator('.cv-sheet').count(), 2, 'The same preview includes every team member');
+                assert.deepEqual(await frame.contentFrame().locator('[data-paper-pagination-sheet].cv-sheet').evaluateAll(sheets => [...new Set(sheets.map(sheet => sheet.dataset.proposalPreviewSection))]), ['cv-person-1', 'cv-person-2'], 'The scrolling preview includes every team member');
                 assert.equal(await page.locator('.proposal-edit-pane').evaluate((element) => element.inert), true);
                 await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
                 assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '110%');

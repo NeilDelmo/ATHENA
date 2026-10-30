@@ -63,7 +63,10 @@ test('deleting a proposal draft preserves its papers history and membership for 
     $this->assertModelExists($history);
     $this->assertModelExists($member);
     Storage::disk('local')->assertExists($path);
-    $this->get(route('faculty.proposal-drafts.index'))->assertOk()->assertSee('Undo')->assertDontSee($this->draft->project_title);
+    $this->get(route('faculty.proposal-drafts.index'))->assertOk()
+        ->assertSee('data-alert-title="Draft moved to Trash"', false)
+        ->assertSee('data-proposal-alert-undo', false)
+        ->assertSee('Back to drafts')->assertSee('Undo')->assertDontSee($this->draft->project_title);
     $this->post(route('faculty.proposal-drafts.restore', $this->draft))
         ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
     expect($this->draft->fresh()->trashed())->toBeFalse();

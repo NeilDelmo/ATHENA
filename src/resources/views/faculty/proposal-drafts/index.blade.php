@@ -9,13 +9,13 @@
     </x-slot>
     <div class="space-y-5">
         @if (session('success'))
-            <x-proposal-alert>
+            <x-proposal-alert :data-alert-title="session('deleted_proposal_draft_id') ? 'Draft moved to Trash' : null" :data-alert-button="session('deleted_proposal_draft_id') ? 'Back to drafts' : 'Close'">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <span>{{ session('success') }}</span>
+                    <span>{{ session('deleted_proposal_draft_id') ? 'You can restore this proposal draft from Trash within 30 days.' : session('success') }}</span>
                     @if (session('deleted_proposal_draft_id'))
-                        <form method="POST" action="{{ route('faculty.proposal-drafts.restore', session('deleted_proposal_draft_id')) }}">
+                        <form data-proposal-alert-undo method="POST" action="{{ route('faculty.proposal-drafts.restore', session('deleted_proposal_draft_id')) }}">
                             @csrf
-                            <button type="submit" class="inline-flex min-h-11 items-center rounded-lg px-4 font-bold underline focus:outline-none focus:ring-2 focus:ring-red-600">Undo</button>
+                            <button type="submit" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-4 font-semibold text-brand"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m7 4-4 4 4 4M3 8h10a7 7 0 1 1 0 14" /></svg>Undo</button>
                         </form>
                     @endif
                 </div>

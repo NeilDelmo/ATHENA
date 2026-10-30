@@ -14,7 +14,7 @@
         @vite(['resources/css/app.css', Auth::check() ? 'resources/js/app.js' : 'resources/js/guest.js'])
         @livewireStyles
     </head>
-    <body class="font-sans antialiased" data-auth-user-id="{{ Auth::id() }}">
+    <body class="font-sans antialiased" data-auth-user-id="{{ Auth::id() }}" data-session-check-url="{{ route('dashboard') }}">
         {{ $slot }}
 
         @livewireScriptConfig

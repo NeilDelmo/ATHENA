@@ -76,6 +76,7 @@
 
         <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
         <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Curriculum Vitae editing form">
+            <p data-proposal-required-legend class="text-xs text-gray-600 dark:text-slate-400"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required for submission.</p>
 
         <section id="cv-member-manager" x-show="cvMemberManagerOpen" x-cloak class="cv-writing-member-manager rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -166,7 +167,7 @@
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
                                 @php($isContactNumber = in_array($key, ['landline', 'cellphone'], true))
                                 <div>
-                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $key }}`">{{ $label }} @if ($required)<span class="text-red-600">Required</span>@endif</label>
+                                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $key }}`">{{ $label }} @if ($required)<x-required-mark />@endif</label>
                                     @if ($key === 'birthday')
                                         <x-date-picker id-expression="`cv-${person.id}-{{ $key }}`" name-expression="`people[${personIndex}][{{ $key }}]`" model="person.{{ $key }}" :max="now()->toDateString()" class="mt-1.5" />
                                     @else

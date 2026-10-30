@@ -25,9 +25,10 @@
                     class="space-y-6"
                 >
                     @csrf
+                    <p data-proposal-required-legend class="text-xs text-gray-600 dark:text-slate-400"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required for submission.</p>
 
                     <div>
-                        <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Title <span class="text-red-600">Required</span></label>
+                        <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Title <x-required-mark /></label>
                         <input id="project_title" x-ref="projectTitle" name="project_title" type="text" value="{{ old('project_title') }}" maxlength="255" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter the complete research project title">
                         @error('project_title')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                     </div>

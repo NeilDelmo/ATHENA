@@ -5,7 +5,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Attachment A - Work Plan Preview</title>
-        @vite('resources/css/work-plan-print.css')
+        @vite(['resources/css/work-plan-print.css', 'resources/js/paper-preview-pagination.js'])
     </head>
     <body class="work-plan-preview-page">
         @php
@@ -14,7 +14,7 @@
         @endphp
 
         @foreach ($yearGroups as $years)
-            <main
+            <main data-paper-sheet
                 @class(['work-plan-sheet', 'is-extended-work-plan' => $yearCount > 1])
                 aria-label="BatStateU Attachment A Work Plan {{ count($years) === 1 ? 'year '.$years[0] : 'years '.$years[0].' and '.$years[1] }}"
                 data-work-plan-sheet

@@ -204,12 +204,13 @@ test('citation targets accept a caret or selection only inside eligible narrativ
 });
 
 test('proposal citation fields resolve editor ids and persisted keys', () => {
-    assert.equal(proposalCitationField('introduction')?.key, 'introduction');
-    assert.equal(proposalCitationField('introduction')?.label, 'XI. Review of Related Literature — opening paragraphs');
+    assert.equal(proposalCitationField('introduction')?.key, 'related_literature');
+    assert.equal(proposalCitationField('introduction')?.id, 'related-literature');
     assert.equal(proposalCitationField('related-literature')?.label, 'XI. Review of Related Literature');
     assert.equal(proposalCitationField('methodology.research_design')?.id, 'methodology-research_design');
     assert.equal(proposalCitationField('references'), null);
     assert.ok(proposalCitationFieldIds().includes('related-literature'));
+    assert.ok(!proposalCitationFieldIds().includes('introduction'));
 });
 
 test('reference numbers follow citation markers across proposal sections and ignore reference-only records', () => {

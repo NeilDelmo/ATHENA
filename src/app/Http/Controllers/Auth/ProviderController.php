@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\InvalidStateException;
 use Spatie\Permission\Models\Role;
 
 class ProviderController extends Controller
@@ -34,6 +35,13 @@ class ProviderController extends Controller
         LinkTopicCollaborators $linkTopicCollaborators,
     ): RedirectResponse {
         try {
+            $pendingState = $request->session()->get('state');
+            $callbackState = $request->query('state');
+            // A stale callback must not consume a newer sign-in's OAuth state.
+            if (is_string($pendingState) && $pendingState !== ''
+                && (! is_string($callbackState) || ! hash_equals($pendingState, $callbackState))) {
+                throw new InvalidStateException;
+            }
             $googleUser = Socialite::driver('google')->user();
 
             $email = strtolower(trim((string) $googleUser->getEmail()));
@@ -59,16 +67,10 @@ class ProviderController extends Controller
                 report($exception);
             }
 
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
             Auth::login($user, (bool) config('services.google.remember_login', false));
-            $request->session()->regenerate();
-
-            // An intended URL may require another workspace or belong to a previous account.
-            $request->session()->forget([
-                'url.intended',
-                'active_role',
-                User::ACTIVE_WORKSPACE_SESSION_KEY,
-                User::WORKSPACE_RECOVERY_SESSION_KEY,
-            ]);
+            $request->session()->regenerateToken();
 
             if (WorkspacePreference::restore($request)) {
                 return redirect()->route('dashboard');

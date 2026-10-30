@@ -37,8 +37,48 @@ export function workspacePageState(section) {
 
 export function initializeWorkspaceSwitching(navigate, doc = document, browser = window) {
     let pending = null;
-    let workspaceChanged = false;
+    let checkingAccount = null;
     const locationPrefix = 'athena-workspace-locations:';
+
+    function checkAccount() {
+        const shell = doc.querySelector('[data-auth-user-id][data-session-check-url]');
+        if (!shell?.dataset.authUserId) return Promise.resolve(null);
+        if (checkingAccount) return checkingAccount;
+        let destination;
+        try { destination = new URL(shell.dataset.sessionCheckUrl, browser.location.href); } catch { return Promise.resolve(null); }
+        if (destination.origin !== browser.location.origin) return Promise.resolve(null);
+        checkingAccount = browser.fetch(destination.href, {
+            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' },
+            signal: browser.AbortSignal.timeout(10000),
+        }).then(async response => {
+            if (response.status === 401 || response.redirected) {
+                browser.location.replace(destination.href);
+                return false;
+            }
+            if (!response.ok) return null;
+            const current = await response.json();
+            if (!Number.isInteger(current?.user_id) || (current.workspace !== null && typeof current.workspace !== 'string')) return null;
+            if (String(current.user_id) !== shell.dataset.authUserId
+                || (shell.hasAttribute('data-active-workspace') && (current.workspace || '') !== shell.dataset.activeWorkspace)) {
+                browser.location.replace(destination.href);
+                return false;
+            }
+            return true;
+        }).catch(() => null).finally(() => { checkingAccount = null; });
+        return checkingAccount;
+    }
+
+    function recheckVisiblePage() {
+        if (doc.visibilityState === 'visible') void checkAccount();
+    }
+
+    function recheckRestoredPage(event) {
+        if (!event.persisted) return;
+        doc.documentElement.style.visibility = 'hidden';
+        void checkAccount().then(current => {
+            if (current !== false) browser.location.reload();
+        });
+    }
 
     function workspaceLocations() {
         const userId = doc.querySelector('[data-auth-user-id]')?.dataset.authUserId;
@@ -96,6 +136,7 @@ export function initializeWorkspaceSwitching(navigate, doc = document, browser =
         if (!form || event.defaultPrevented || typeof navigate !== 'function') return;
         event.preventDefault();
         if (pending) return;
+        if (await checkAccount() === false || pending) return;
 
         const selector = form.closest('[data-workspace-selector]');
         const button = event.submitter || form.querySelector('button[type="submit"]');
@@ -134,7 +175,6 @@ export function initializeWorkspaceSwitching(navigate, doc = document, browser =
             }
             if (pending !== operation || !selector.isConnected) return;
 
-            workspaceChanged = true;
             operation.destination = destination.href;
             operation.timer = browser.setTimeout(() => {
                 selector.removeAttribute('aria-busy');
@@ -156,7 +196,7 @@ export function initializeWorkspaceSwitching(navigate, doc = document, browser =
             return;
         }
 
-        if (workspaceChanged && event.detail.history) {
+        if (event.detail.history) {
             event.preventDefault();
             browser.location.replace(event.detail.url.toString());
         }
@@ -176,6 +216,9 @@ export function initializeWorkspaceSwitching(navigate, doc = document, browser =
     doc.addEventListener('livewire:navigated', rememberLocation);
     browser.addEventListener('hashchange', rememberLocation);
     browser.addEventListener('popstate', rememberLocation);
+    browser.addEventListener('focus', checkAccount);
+    browser.addEventListener('pageshow', recheckRestoredPage);
+    doc.addEventListener('visibilitychange', recheckVisiblePage);
     rememberLocation();
 
     return () => {
@@ -188,5 +231,8 @@ export function initializeWorkspaceSwitching(navigate, doc = document, browser =
         doc.removeEventListener('livewire:navigated', rememberLocation);
         browser.removeEventListener('hashchange', rememberLocation);
         browser.removeEventListener('popstate', rememberLocation);
+        browser.removeEventListener('focus', checkAccount);
+        browser.removeEventListener('pageshow', recheckRestoredPage);
+        doc.removeEventListener('visibilitychange', recheckVisiblePage);
     };
 }

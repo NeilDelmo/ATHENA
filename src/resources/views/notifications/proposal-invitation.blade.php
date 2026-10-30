@@ -20,15 +20,18 @@
                     <x-proposal-alert type="warning" class="mt-5">{{ $workloadWarning }}</x-proposal-alert>
                 @endif
 
-                <form method="POST" action="{{ route('notifications.proposal-invitations.accept', $proposalDraftMember) }}" class="mt-7 flex flex-wrap gap-3">
-                    @csrf
-                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-                        Accept invitation
-                    </button>
-                    <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                        Not now
-                    </a>
-                </form>
+                <div class="mt-7 flex flex-wrap gap-3">
+                    <form method="POST" action="{{ route('notifications.proposal-invitations.accept', $proposalDraftMember) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                            Accept invitation
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('notifications.proposal-invitations.decline', $proposalDraftMember) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-900">Decline invitation</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
