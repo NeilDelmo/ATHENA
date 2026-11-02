@@ -223,3 +223,48 @@ test('failed temporary PDF writes remove the created file', function (bool $thro
         ->toThrow(LiteratureFullTextPreviewException::class);
     expect(Storage::disk('local')->allFiles())->toBe([]);
 })->with(['write returns false' => false, 'write throws' => true]);
+
+test('publisher landing pages follow their declared public PDF before claiming complete paper coverage', function (string $metadata) {
+    $text = str_repeat('The complete paper describes gamified studying, learning methods, and measured student engagement. ', 12);
+    Http::fake([
+        $this->sourceUrl => Http::response('<html><head>'.$metadata.'</head><body><h1>Paper landing page</h1></body></html>', 200, ['Content-Type' => 'text/html']),
+        'https://93.184.216.34/download/paper.pdf' => Http::response('%PDF-1.7 source bytes', 200, ['Content-Type' => 'application/pdf']),
+    ]);
+    Process::fake(fn (PendingProcess $process) => Process::result(output: Str::contains(implode(' ', $process->command), 'pdfinfo') ? "Pages: 1\n" : $text."\f"));
+    $paper = app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken);
+    expect($paper['coverage']['complete'])->toBeTrue()
+        ->and($paper['source_url'])->toBe('https://93.184.216.34/download/paper.pdf')
+        ->and($paper['preview_text'])->toContain('gamified studying');
+    Http::assertSentCount(2);
+})->with([
+    'publisher citation metadata' => '<meta name="citation_pdf_url" content="/download/paper.pdf">',
+    'declared alternate PDF' => '<link rel="alternate" type="application/pdf" href="/download/paper.pdf">',
+]);
+
+test('a publishers declared PDF cannot redirect retrieval to a private network', function () {
+    Http::fake([$this->sourceUrl => Http::response('<html><head><meta name="citation_pdf_url" content="http://127.0.0.1/private.pdf"></head></html>', 200, ['Content-Type' => 'text/html'])]);
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken))
+        ->toThrow(LiteratureFullTextPreviewException::class, 'public internet address');
+    Http::assertSentCount(1);
+});
+
+test('a DNS lookup failure becomes a useful paper availability error', function () {
+    $token = LiteratureFullTextToken::issue(['url' => 'https://athena-paper-test.invalid/source.pdf', 'provider' => 'Test']);
+    expect(fn () => app(LiteratureFullTextPreviewService::class)->preview($token))
+        ->toThrow(LiteratureFullTextPreviewException::class, 'public internet address');
+    Http::assertNothingSent();
+});
+
+test('publisher PDF links resolve query-only and parent-relative references against the complete article URL', function (string $reference, string $expected) {
+    Http::fake([
+        $this->sourceUrl => Http::response('<html><head><meta name="citation_pdf_url" content="'.$reference.'"></head></html>', 200, ['Content-Type' => 'text/html']),
+        $expected => Http::response('%PDF-1.7 source bytes', 200, ['Content-Type' => 'application/pdf']),
+    ]);
+    $text = str_repeat('The complete source describes the study purpose, methods, findings, and limitations. ', 12);
+    Process::fake(fn (PendingProcess $process) => Process::result(output: Str::contains(implode(' ', $process->command), 'pdfinfo') ? "Pages: 1\n" : $text."\f"));
+    expect(app(LiteratureFullTextPreviewService::class)->preview($this->sourceToken)['source_url'])->toBe($expected);
+    Http::assertSentCount(2);
+})->with([
+    'query-only download' => ['?download=pdf', 'https://93.184.216.34/paper?download=pdf'],
+    'parent-relative download' => ['../download/paper.pdf', 'https://93.184.216.34/download/paper.pdf'],
+]);

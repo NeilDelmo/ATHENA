@@ -1,3 +1,5 @@
+import { sameOriginPaperUrl } from './research-assistant-paper-insertion.js';
+
 const maximumLiteratureSelections = 3;
 const minimumLiteratureParagraphLength = 40;
 const maximumLiteratureParagraphLength = 5000;
@@ -54,12 +56,25 @@ function normalizeLiteratureSource(source) {
                 : [],
         },
         evidence_basis: evidenceBasis,
+        reading_error: literatureText(source?.reading_error).slice(0, 600),
         can_read_paper: source?.can_read_paper === true,
         can_synthesize: source?.can_synthesize === true && source?.can_read_paper === true,
     };
 }
 
 export function normalizeAssistantLiterature(packet) {
+    if (packet?.kind === 'choose_proposal') {
+        const seen = new Set();
+        return { kind: 'choose_proposal', intent: packet.intent === 'draft' ? 'draft' : 'search',
+            request: literatureText(packet.request).slice(0, 8000), workspace_required: packet.workspace_required === true,
+            proposals_url: literatureUrl(packet.proposals_url), is_working: false, error: '',
+            proposals: (Array.isArray(packet.proposals) ? packet.proposals : []).filter(option => {
+                const id = Number(option?.id);
+                if (!Number.isSafeInteger(id) || id <= 0 || !literatureText(option?.title) || seen.has(id)) return false;
+                seen.add(id); return true;
+            }).slice(0, 20).map(option => ({ id: Number(option.id), title: literatureText(option.title).slice(0, 500) })),
+        };
+    }
     const proposalDraftId = Number(packet?.proposal_draft_id);
 
     if (!['results', 'draft', 'insertion'].includes(packet?.kind)
@@ -70,6 +85,12 @@ export function normalizeAssistantLiterature(packet) {
         proposal_draft_id: proposalDraftId,
         proposal_title: literatureText(packet.proposal_title),
         notice: literatureText(packet.notice),
+        topic: literatureText(packet.topic || packet.query || packet.proposal_title).slice(0, 500),
+        editor_url: literatureUrl(packet.editor_url),
+        intent: packet.intent === 'draft' ? 'draft' : 'search',
+        read_failures: (Array.isArray(packet.read_failures) ? packet.read_failures : []).slice(0, 20)
+            .filter(item => literatureText(item?.reason)).map(item => ({ source_token: literatureText(item.source_token),
+                title: literatureText(item.title).slice(0, 500), reason: literatureText(item.reason).slice(0, 600) })),
         is_working: false,
         error: '',
     };
@@ -83,7 +104,7 @@ export function normalizeAssistantLiterature(packet) {
             if (Number.isSafeInteger(year) && year > 0) normalized[field] = year;
         }
         normalized.results = (Array.isArray(packet.results) ? packet.results : [])
-            .map(normalizeLiteratureSource)
+            .slice(0, 12).map(normalizeLiteratureSource)
             .filter((source) => {
                 if (!source.source_token || tokens.has(source.source_token)) return false;
                 tokens.add(source.source_token);
@@ -108,6 +129,7 @@ export function normalizeAssistantLiterature(packet) {
                 year: literatureText(draft?.year),
                 url: literatureUrl(draft?.url),
                 paragraph: literatureText(draft?.paragraph),
+                reference: literatureText(draft?.reference).slice(0, 2048),
                 evidence_basis: literatureEvidenceBasis(draft?.evidence_basis),
                 notice: literatureText(draft?.notice),
                 relationship: literatureText(draft?.relationship),
@@ -134,12 +156,17 @@ export function normalizeAssistantLiterature(packet) {
 export function serializeAssistantLiterature(packet) {
     const normalized = normalizeAssistantLiterature(packet);
     if (!normalized) return null;
+    if (normalized.kind === 'choose_proposal') {
+        const { is_working, error, ...choice } = normalized;
+        return choice;
+    }
 
     const persisted = {
         kind: normalized.kind,
         proposal_draft_id: normalized.proposal_draft_id,
         proposal_title: normalized.proposal_title,
-        notice: normalized.notice,
+        notice: normalized.notice, topic: normalized.topic, intent: normalized.intent,
+        editor_url: normalized.editor_url, read_failures: normalized.read_failures,
     };
 
     if (normalized.kind === 'results') {
@@ -165,9 +192,10 @@ export function serializeAssistantLiterature(packet) {
     return persisted;
 }
 
-export function researchAssistantLiterature({ savePaper } = {}) {
+export function researchAssistantLiterature({ savePaper, finishNavigation = async () => true, browser = globalThis } = {}) {
     return {
         literatureOperationPending: false,
+        pendingLiteratureRequest: null,
 
         literatureBusy(message) {
             return Boolean(this.isLoading || this.sendInProgress || this.reportChangesOperationPending || this.retryAfter > 0 || this.literatureOperationPending || message?.literature?.is_working);
@@ -208,9 +236,161 @@ export function researchAssistantLiterature({ savePaper } = {}) {
             }
         },
 
+        literatureDraftText(message) {
+            const drafts = message?.literature?.drafts || [];
+            const text = drafts.map((draft, index) => `${literatureText(draft.paragraph)} [${index + 1}]`).join('\n\n');
+            const references = drafts.map((draft, index) => draft.reference || `[${index + 1}] ${draft.title}. ${this.literatureSourceMetadata(draft)}. ${draft.url || ''}`);
+            return `${text}\n\nReferences\n${references.join('\n')}`;
+        },
+
+        copyLiteratureDraft(message) {
+            return this.copyMessage({ ...message, literature: null, content: this.literatureDraftText(message) });
+        },
+
+        expandLiteratureDraft(message) {
+            this.openWorkspace();
+            browser.setTimeout(() => {
+                const document = browser.document.querySelector(`[data-assistant-workspace] [data-rrl-artifact="${Number(message.id)}"]`);
+                document?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                document?.focus({ preventScroll: true });
+            }, 250);
+        },
+
+        literatureRequestKey() {
+            const id = browser.document?.body?.dataset.authUserId;
+            return id ? `athena:rrl-request:${id}` : '';
+        },
+
+        rememberLiteratureRequest(request) {
+            this.pendingLiteratureRequest = { ...request, created_at: Date.now() };
+            const key = this.literatureRequestKey();
+            try {
+                if (key) {
+                    browser.sessionStorage.setItem(key, JSON.stringify(this.pendingLiteratureRequest));
+                    return true;
+                }
+            } catch {
+                try { if (key) browser.sessionStorage.removeItem(key); } catch { /* The current page retains the new request. */ }
+            }
+            return false;
+        },
+
+        clearLiteratureRequest() {
+            this.pendingLiteratureRequest = null;
+            try { const key = this.literatureRequestKey(); if (key) browser.sessionStorage.removeItem(key); } catch { /* Browser storage is optional. */ }
+        },
+
+        async chooseLiteratureProposal(message, proposalId) {
+            const packet = message?.literature;
+            const proposal = packet?.proposals?.find(item => item.id === Number(proposalId));
+            if (!proposal || this.literatureBusy(message)) return false;
+            if (this.draft?.trim()) { packet.error = 'Send or clear your unfinished message before starting this draft.'; return false; }
+            this.rememberLiteratureRequest({ request: packet.request, intent: packet.intent, proposal_id: proposal.id });
+            packet.error = '';
+            packet.is_working = true;
+            try {
+                const context = { proposal_draft_id: proposal.id };
+                if (!await this.ensureConversationContext(context)) return false;
+                this.restoreReviewContext(null);
+                if (this.draft?.trim()) return false;
+                const result = await this.sendPrompt(packet.request,
+                    { type: packet.intent === 'draft' ? 'draft_rrl' : 'search_literature' }, context);
+                if (result) this.clearLiteratureRequest();
+                return Boolean(result);
+            } finally { packet.is_working = false; }
+        },
+
+        literatureProposalsUrl(message) {
+            return sameOriginPaperUrl(message?.literature?.proposals_url, browser.location.origin);
+        },
+
+        async switchLiteratureWorkspace(message) {
+            const packet = message?.literature;
+            if (!packet?.workspace_required || this.literatureBusy(message)) return false;
+            if (this.draft?.trim()) { packet.error = 'Send or clear your unfinished message before changing workspace.'; return false; }
+            const endpoint = sameOriginPaperUrl(browser.document.body.dataset.researchAssistantWorkspaceUrl, browser.location.origin);
+            const destination = this.literatureProposalsUrl(message);
+            const csrf = browser.document.querySelector('meta[name="csrf-token"]')?.content;
+            if (!endpoint || !destination || !csrf) { packet.error = 'Refresh this page before choosing a proposal.'; return false; }
+            packet.is_working = true; packet.error = '';
+            try {
+                if (!await finishNavigation() || (this.hasConversation() && !await this.saveConversation())) return false;
+                if (!this.rememberLiteratureRequest({ request: packet.request, intent: packet.intent })) {
+                    throw new Error('Your request could not be retained. Open your proposal workspace and ask again.');
+                }
+                const response = await browser.fetch(endpoint, { method: 'POST', credentials: 'same-origin',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ workspace: 'faculty', resume_url: destination }) });
+                const payload = await response.json().catch(() => ({}));
+                const redirect = sameOriginPaperUrl(payload.redirect, browser.location.origin);
+                if (!response.ok || !redirect) throw new Error(payload.message || 'The proposal workspace could not be opened. Try again.');
+                browser.location.assign(redirect);
+                return true;
+            } catch (error) { packet.error = error.message || 'The proposal workspace could not be opened.'; return false; }
+            finally { packet.is_working = false; }
+        },
+
+        async restoreLiteratureRequest() {
+            if (browser.document?.body?.dataset.activeWorkspace !== 'faculty') return false;
+            try {
+                const key = this.literatureRequestKey();
+                const pending = key ? JSON.parse(browser.sessionStorage.getItem(key) || 'null') : null;
+                if (!pending) return false;
+                if (!Number.isFinite(pending.created_at) || Date.now() - pending.created_at > 10 * 60 * 1000
+                    || pending.created_at > Date.now() || !['draft', 'search'].includes(pending.intent)
+                    || typeof pending.request !== 'string' || !pending.request.trim() || pending.request.length > 8000
+                    || (pending.proposal_id && (!Number.isSafeInteger(pending.proposal_id) || pending.proposal_id <= 0))) {
+                    this.clearLiteratureRequest(); return false;
+                }
+                this.pendingLiteratureRequest = pending;
+                this.openDrawer();
+                return this.conversationReady === false ? false : this.resumeLiteratureRequest();
+            } catch { return false; }
+        },
+
+        async resumeLiteratureRequest() {
+            const pending = this.pendingLiteratureRequest;
+            if (!pending || this.literatureBusy() || this.historyRestoring || this.draft?.trim()) return false;
+            const context = pending.proposal_id ? { proposal_draft_id: pending.proposal_id } : null;
+            if (!await this.ensureConversationContext(context || {}) || this.draft?.trim()) return false;
+            this.restoreReviewContext?.(null);
+            const result = await this.sendPrompt(pending.request, { type: pending.intent === 'draft' ? 'draft_rrl' : 'search_literature' }, context);
+            if (result) this.clearLiteratureRequest();
+            return Boolean(result);
+        },
+
+        async openLiteratureSources(message, mode = 'pdf') {
+            const packet = message?.literature;
+            if (!packet?.proposal_draft_id || !['pdf', 'search'].includes(mode) || this.literatureBusy(message) || !await finishNavigation()) return false;
+            const editor = browser.document.querySelector('[data-detailed-proposal-workspace]');
+            if (Number(editor?.dataset.proposalDraftId) === packet.proposal_draft_id) {
+                this.closeWorkspace();
+                this.closeDrawer();
+                const workspace = browser.Alpine.$data(editor);
+                await workspace.openSourceWorkspace(mode === 'pdf' ? 'add' : 'search');
+                if (mode === 'pdf') workspace.setSourceWorkspaceAddMode('pdf');
+                else workspace.sourceWorkspaceQuery = packet.topic || packet.query || workspace.sourceWorkspaceQuery;
+                return true;
+            }
+            const safe = sameOriginPaperUrl(packet.editor_url, browser.location.origin);
+            if (!safe || (this.hasConversation() && !await this.saveConversation())) return false;
+            const url = new URL(safe);
+            url.searchParams.set('sources', mode);
+            if (mode === 'search') url.searchParams.set('source-query', (packet.topic || packet.query || '').slice(0, 500));
+            browser.location.assign(url.href);
+            return true;
+        },
+
+        resizeLiteratureParagraph(field) {
+            if (!field?.offsetWidth) return;
+            field.style.height = 'auto';
+            field.style.height = `${field.scrollHeight + 2}px`;
+        },
+
         literatureEvidenceLabel(source) {
             if (source?.evidence_basis === 'full_text') return 'Based on extracted paper text';
-            if (source?.can_read_paper) return 'Paper text available to read';
+            if (source?.reading_error) return 'Complete paper could not be read';
+            if (source?.can_read_paper) return 'Paper link found; reading not checked yet';
             if (source?.evidence_basis === 'abstract') return 'Abstract available; paper required';
             return 'Metadata only';
         },

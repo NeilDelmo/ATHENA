@@ -163,7 +163,7 @@ class ReportFigureDraftService
                 'preparation' => 'This report cannot be discarded because you already have a saved draft of this type. Your saved draft and the prepared report, including its PDF and images, have both been kept.',
             ])->errorBag('narrativeProgress');
         }
-        $data = $report->only(['report_type', 'tracking_number', 'researchers', 'funding_agency', 'accomplishments', 'introduction', 'rationale', 'objectives', 'methodology', 'results_discussion', 'terminal_data']);
+        $data = $report->only(['report_type', 'monitoring_report_id', 'tracking_number', 'researchers', 'funding_agency', 'accomplishments', 'introduction', 'rationale', 'objectives', 'methodology', 'results_discussion', 'terminal_data']);
         foreach (['reporting_date', 'submission_date', 'implementation_start', 'implementation_end', 'prepared_by_date_signed'] as $field) {
             $data[$field] = $report->$field?->toDateString();
         }

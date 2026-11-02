@@ -38,7 +38,8 @@ beforeEach(function () {
         $base = ['topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
             'reporting_date' => '2026-03-31', 'reporting_quarter' => 1, 'version_number' => 1,
             'period_start' => '2026-01-01', 'period_end' => '2026-03-31',
-            'submission_status' => 'prepared', 'official_pdf_path' => $pdf, 'prepared_at' => now()];
+            'submission_status' => 'prepared', 'official_pdf_path' => $pdf, 'official_pdf_filename' => $kind.'.pdf',
+            'official_pdf_checksum' => hash('sha256', '%PDF-1.7 Prepared faculty report'), 'prepared_at' => now()];
 
         return $kind === 'monitoring'
             ? ProjectProgressReport::create([...$base, 'reporting_year' => 2026, 'progress_percentage' => 30,

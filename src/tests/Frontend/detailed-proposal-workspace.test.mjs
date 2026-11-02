@@ -68,6 +68,34 @@ test('project team and terminal cover controls fit beside larger default preview
     }
 });
 
+test('staff removal stays at the top right of its card on phones and desktops', async () => {
+    const view = readFileSync(resolve('resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php'), 'utf8');
+    const template = view.match(/<template x-for="\(member, index\) in staff"[\s\S]*?<\/template>/)[0]
+        .replaceAll('<x-required-mark />', '<span>*</span>');
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [320, 390, 1440]) for (const dark of [false, true]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><main class="mx-auto max-w-3xl p-4">${template}</main></html>`);
+            await page.locator('template').evaluate(element => element.after(element.content.cloneNode(true)));
+            const card = page.locator('main > .grid');
+            const remove = card.getByRole('button', { name: 'Remove', exact: true });
+            const cardBox = await card.boundingBox();
+            const buttonBox = await remove.boundingBox();
+            const inputBox = await card.locator('input').first().boundingBox();
+            assert.ok(Math.abs(buttonBox.y - cardBox.y - 17) <= 1, 'Remove belongs at the top of the staff card');
+            assert.ok(Math.abs(buttonBox.x + buttonBox.width - cardBox.x - cardBox.width + 17) <= 1, 'Remove belongs at the right of the staff card');
+            assert.ok(buttonBox.height >= 44 && buttonBox.width < cardBox.width / 2, 'Remove should be compact and keep a usable touch target');
+            assert.ok(inputBox.y >= buttonBox.y + buttonBox.height, 'Remove must not overlap the fields');
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            if (process.env.ATHENA_EDITOR_VISUAL_DIR) await card.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `staff-remove-${width}-${dark ? 'dark' : 'light'}.png`) });
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});
+
 test('following a writing section scrolls only the preview frame before and after refresh', async () => {
     const cvWorkspace = readFileSync(new URL('../../resources/js/curriculum-vitae-workspace.js', import.meta.url), 'utf8').replace(/^import .+;\r?\n/gm, '').replaceAll('export ', '');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -237,7 +265,11 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                     formattingBox: panel.querySelector('[data-writing-toolbar-controls]').getBoundingClientRect().toJSON(),
                     editingBox: panel.querySelector('.proposal-writing-toolbar-heading').getBoundingClientRect().toJSON(),
                 }));
-                assert.ok(formattingBox.bottom <= editingBox.top, 'Formatting and citation controls should precede the Editing row');
+                assert.ok(editingBox.top >= formattingBox.top - 1 && editingBox.bottom <= formattingBox.bottom + 1, 'The close button should fit alongside the controls');
+                const guidance = page.locator('[data-writing-guidance]');
+                await expect(guidance).toBeVisible();
+                assert.ok(await guidance.evaluate(element => parseFloat(getComputedStyle(element).fontSize) >= 16));
+                await expect(page.locator('[data-writing-target]')).toHaveCount(0);
                 assert.equal(await boldButton.isDisabled(), true);
                 assert.equal(await page.getByRole('button', { name: 'Sources', exact: true }).count(), 0);
                 assert.equal(await page.locator('[data-writing-menu-toggle]').count(), 2);
@@ -278,10 +310,8 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                     const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range); element.focus();
                 });
                 await boldButton.locator('svg').click();
-                const editingTarget = page.locator('[data-writing-target]');
-                await expect(editingTarget).toHaveText('Rationale');
-                await expect(editingTarget).toHaveCSS('text-decoration-line', 'underline');
-                await expect(editingTarget).toHaveCSS('text-decoration-color', 'rgb(220, 38, 38)');
+                await expect(guidance).toBeHidden();
+                await expect(rationale.locator('..')).toHaveClass(/proposal-writing-active/);
                 assert.match(await page.locator('#rationale').inputValue(), /<strong>Study paragraph\.<\/strong>/);
                 const listsButton = page.getByRole('button', { name: 'Lists', exact: true });
                 await listsButton.click();
@@ -293,7 +323,7 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 await expect(listsButton).toBeFocused();
                 assert.equal(await listsMenu.isVisible(), false);
                 await listsButton.click();
-                await page.getByRole('button', { name: 'Hide tools', exact: true }).click();
+                await page.locator('[data-writing-toolbar-close]').click();
                 await expect(page.locator('[data-writing-toolbar-controls]')).toBeHidden();
                 await page.getByRole('button', { name: 'Show tools', exact: true }).click();
                 await expect(page.locator('[data-writing-toolbar-controls]')).toBeVisible();

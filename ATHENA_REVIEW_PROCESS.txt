@@ -121,8 +121,11 @@ leaving a requested paper unchanged requires an explanation.
 
 Submitting the revision creates the next version. Earlier versions remain
 available, and unchanged papers can carry forward. A private edited draft
-is not yet the submitted revision. GAD-stage revisions require reassessment;
-eligible assessments can carry forward for an LREC revision.
+is not yet the submitted revision. Revisions requested from GAD require
+reassessment. Co-evaluator revisions retain passing, signature-confirmed GAD
+clearance when its checklist is unchanged, and require a new co-evaluator
+evaluation. Replacing the GAD checklist requires reassessment. Eligible
+assessments can carry forward for an LREC revision.
 
 Rejection closes the proposal. A revision request gives the owner a chance
 to correct it. These outcomes should not be treated as interchangeable.

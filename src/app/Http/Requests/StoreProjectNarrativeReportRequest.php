@@ -75,7 +75,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             'accomplishments' => ['required', 'array', 'min:1', 'max:1000'],
             'accomplishments.*.objective' => ['required', 'string', 'max:1000'],
             'accomplishments.*.target' => ['required', 'string', 'max:2000'],
-            'accomplishments.*.actual' => ['required', 'string', 'max:2000'],
+            'accomplishments.*.actual' => ['required', 'string', 'max:'.ProgressReportData::MAXIMUM_ACCOMPLISHMENT_LENGTH],
             'introduction' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'rationale' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'objectives' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],

@@ -1,6 +1,6 @@
 @props(['compact' => false])
 
-<div x-show="!$store.researchAssistant.hasConversation()" @class(['mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center text-center', 'px-5 py-8' => $compact, 'px-6 py-12 sm:px-10' => ! $compact])>
+<div x-show="!$store.researchAssistant.historyRestoring && !$store.researchAssistant.hasConversation()" @class(['mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center text-center', 'px-5 py-8' => $compact, 'px-6 py-12 sm:px-10' => ! $compact])>
     <div class="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300">
         <x-assistant-icon class="h-7 w-7" />
     </div>

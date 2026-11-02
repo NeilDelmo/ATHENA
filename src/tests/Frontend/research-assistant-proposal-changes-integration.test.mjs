@@ -247,15 +247,15 @@ test('accepted RRL revisions retain authoritative citation HTML and synchronize 
     assert.equal(invalid.savesScheduled, undefined);
 });
 
-test('RRL revision launch saves first and preserves an unfinished assistant message', async () => {
+test('RRL assistance starts blank sections, revises existing text, and preserves unfinished messages', async () => {
     const requests = [];
-    const assistant = { draft: '', proposalChangesBusy: () => false, openDrawer() { requests.push('open'); },
+    const assistant = { draft: '', async ensureConversationContext() { return true; }, proposalChangesBusy: () => false, openDrawer() { requests.push('open'); },
         async sendPrompt(...args) { requests.push(args); } };
     let saves = 0;
     let canSave = true;
     const methods = new Function('Alpine', 'config', 'finishPaperEditorAutoSave', `return ({${methodSource('requestRrlRevision')}});`)(
         { store: () => assistant }, { proposalDraftId: 12 }, async () => { saves++; return canSave; });
-    const state = { ...methods, $el: { closest: () => ({}) }, rrlRevisionPending: false, proposalChangeError: '' };
+    const state = { ...methods, $el: { closest: () => ({}) }, rrlRevisionPending: false, proposalChangeError: '', relatedLiterature: 'Saved RRL.', plainText: value => value };
     assistant.draft = 'Unfinished message';
     assert.equal(await state.requestRrlRevision(), false);
     assert.equal(assistant.draft, 'Unfinished message');
@@ -267,15 +267,41 @@ test('RRL revision launch saves first and preserves an unfinished assistant mess
     canSave = true;
     assert.equal(await state.requestRrlRevision(), true);
     assert.equal(requests[0], 'open');
+    assert.deepEqual(assistant.activePaperField, { field: 'related_literature', label: 'Review of related literature' });
     assert.match(requests[1][0], /saved RRL/);
-    assert.deepEqual(requests[1].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12 }]);
+    assert.deepEqual(requests[1].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12, paper_slug: 'detailed-proposal', field: 'related_literature' }]);
     assert.equal(state.rrlRevisionPending, false);
+    requests.length = 0;
+    state.relatedLiterature = '';
+    assert.equal(await state.requestRrlRevision(), true);
+    assert.equal(state.proposalChangeError, '');
+    assert.equal(requests[0], 'open');
+    assert.match(requests[1][0], /Draft an RRL/);
+    assert.deepEqual(requests[1].slice(1), [{ type: 'draft_rrl' }, { proposal_draft_id: 12, paper_slug: 'detailed-proposal', field: 'related_literature' }]);
+    requests.length = 0;
+    state.relatedLiterature = 'Existing RRL';
+    await state.requestRrlRevision('draft');
+    assert.equal(requests[1][1].type, 'draft_rrl');
+    requests.length = 0;
+    await state.requestRrlRevision('revise');
+    assert.equal(requests[1][1].type, 'suggest_proposal_changes');
 });
 
-test('the actual Revise RRL button finishes its containing editor save before requesting a review', async () => {
+test('RRL actions stay readable and compact, open search directly, and save before AI requests', async () => {
     const blade = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php', import.meta.url), 'utf8');
-    const button = blade.match(/<button\b[^>]*@click="requestRrlRevision\(\)"[\s\S]*?<\/button>/)?.[0];
-    assert.ok(button, 'The RRL revision launch button exists.');
+    const sectionStart = blade.indexOf('<section data-revision-section="section-literature"');
+    assert.ok(sectionStart >= 0, 'The RRL section exists.');
+    const menu = blade.slice(sectionStart, blade.indexOf('<x-proposal-figure-input', sectionStart));
+    const rendered = spawnSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        echo Illuminate\Support\Facades\Blade::render(stream_get_contents(STDIN));
+    `], { input: menu, encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
+    assert.equal(rendered.status, 0, rendered.stderr);
+    const button = rendered.stdout;
+    const styles = await postcss([tailwindcss(loadConfig(resolvePath('tailwind.config.js')))])
+        .process(readFileSync(resolvePath('resources/css/app.css'), 'utf8'), { from: undefined });
+    const workspaceStyles = readFileSync(resolvePath('resources/css/proposal-paper-workspace.css'), 'utf8');
     const saveHelpers = readFileSync(new URL('../../resources/js/proposal-paper-autosave.js', import.meta.url), 'utf8').replace(/^export /gm, '');
     const finishSave = app.slice(app.indexOf('async function finishPaperEditorAutoSave('), app.indexOf('function backgroundAutoSaveContexts('));
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -283,21 +309,23 @@ test('the actual Revise RRL button finishes its containing editor save before re
         const page = await browser.newPage();
         const errors = [];
         page.on('pageerror', (error) => errors.push(error.message));
-        await page.setContent(`<main x-data="revisionLaunch" data-detailed-proposal-workspace data-detailed-proposal-autosave="true" data-paper-editor>
-            <form x-ref="form" data-paper-form><textarea name="related_literature" x-model="relatedLiterature"></textarea>${button}</form>
-            <p role="alert" x-text="proposalChangeError"></p>
-        </main>`);
+        await page.setContent(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles.css}\n${workspaceStyles}</style></head><body class="bg-gray-50 dark:bg-slate-950"><main class="p-3 sm:p-4" x-data="revisionLaunch" data-proposal-paper-workspace data-detailed-proposal-workspace data-detailed-proposal-autosave="true" data-paper-editor>
+            <div class="proposal-edit-pane"><form x-ref="form" data-paper-form>${button}<textarea id="related-literature" name="related_literature" x-model="relatedLiterature" rows="7" class="mt-3 block w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea></section></form>
+            <p role="alert" x-text="proposalChangeError"></p></div>
+        </main></body></html>`);
         await page.addScriptTag({ content: `${saveHelpers}\n${finishSave}
             const config = { proposalDraftId: 12 };
-            window.launchEvents = [];
+            window.launchEvents = []; window.sourceTabs = [];
             document.addEventListener('alpine:init', () => {
-                Alpine.store('researchAssistant', { draft: '', proposalChangesBusy(){return false;},
+                Alpine.store('researchAssistant', { draft: '', async ensureConversationContext(){return true;}, proposalChangesBusy(){return false;},
                     openDrawer(){window.launchEvents.push('open');},
                     async sendPrompt(...args){window.launchEvents.push(args);},
                 });
                 Alpine.data('revisionLaunch', () => ({
                     ${methodSource('requestRrlRevision')}
-                    relatedLiterature: 'Saved RRL.', rrlRevisionPending: false, proposalChangeApplying: false,
+                    ${methodSource('openRrlChat')}
+                    ${methodSource('plainText')} introduction: '', relatedLiterature: 'Saved RRL.', rrlRevisionPending: false, proposalChangeApplying: false,
+                    openSourceWorkspace(tab){window.sourceTabs.push(tab);},
                     proposalChangeError: '', autoSaveBlocked: false, autoSaveInFlight: false,
                     init(){this.$nextTick(() => {this.lastSavedDetailedProposal = this.detailedProposalFingerprint(this.$refs.form);});},
                     detailedProposalFingerprint(form){return JSON.stringify([...new FormData(form)]);},
@@ -306,16 +334,69 @@ test('the actual Revise RRL button finishes its containing editor save before re
             });
         ` });
         await page.addScriptTag({ path: resolvePath('node_modules/alpinejs/dist/cdn.js') });
+        const sourceButton = page.getByRole('button', { name: 'Find sources', exact: true });
+        const trigger = page.getByRole('button', { name: 'Use AI for RRL', exact: true });
+        await expect(sourceButton).toHaveText('Find sources');
+        await expect(trigger).toHaveText('Use AI');
+        for (const width of [320, 390, 768, 1280]) for (const dark of [false, true]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), dark);
+            const section = page.locator('[data-revision-section="section-literature"]');
+            const sectionBox = await section.boundingBox();
+            const fieldBox = await page.locator('textarea').boundingBox();
+            for (const control of [sourceButton, trigger]) {
+                await expect(control).toBeVisible();
+                const box = await control.boundingBox();
+                assert.ok(box.height >= 44 && box.height <= 48, 'RRL actions need a compact, usable click area');
+                assert.ok(box.width > 80 && box.width < 200, 'RRL actions should show their labels without becoming oversized');
+                assert.ok(box.x >= sectionBox.x && box.x + box.width <= sectionBox.x + sectionBox.width, 'RRL actions must fit inside their section');
+                assert.ok(box.y + box.height <= fieldBox.y, 'RRL actions must stay clear of the writing field');
+                assert.ok(await control.evaluate(element => parseFloat(getComputedStyle(element).fontSize) >= 16), 'Action labels must stay readable');
+            }
+            await trigger.click();
+            const menuBox = await page.getByRole('group', { name: 'RRL assistance', exact: true }).boundingBox();
+            assert.ok(menuBox.x >= 0 && menuBox.x + menuBox.width <= width, 'The RRL menu must fit on screen');
+            await page.getByRole('button', { name: 'Draft RRL', exact: true }).press('Escape');
+            await expect(page.getByRole('group', { name: 'RRL assistance', exact: true })).toBeHidden();
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            if (process.env.ATHENA_EDITOR_VISUAL_DIR) await section.screenshot({ path: resolvePath(process.env.ATHENA_EDITOR_VISUAL_DIR, `rrl-actions-${width}-${dark ? 'dark' : 'light'}.png`) });
+        }
+        await sourceButton.click();
+        assert.deepEqual(await page.evaluate(() => window.sourceTabs), ['search']);
+        await trigger.click();
+        await page.getByRole('button', { name: 'Open chat', exact: true }).click();
+        assert.deepEqual(await page.evaluate(() => window.launchEvents), ['open'], 'Open chat must not start another AI action');
+        await page.evaluate(() => { window.launchEvents = []; });
         await page.locator('textarea').fill('Edited RRL waiting to save.');
+        await trigger.click();
+        const draftButton = page.getByRole('button', { name: 'Draft RRL', exact: true });
+        await draftButton.focus();
+        await draftButton.press('Escape');
+        await expect(draftButton).toBeHidden();
+        await expect(trigger).toBeFocused();
+        await trigger.click();
         await page.getByRole('button', { name: 'Revise RRL', exact: true }).click();
         await expect.poll(() => page.evaluate(() => window.launchEvents.length)).toBe(3);
         const events = await page.evaluate(() => window.launchEvents);
         assert.deepEqual(events.slice(0, 2), ['saved', 'open']);
-        assert.deepEqual(events[2].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12 }]);
+        assert.deepEqual(events[2].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12, paper_slug: 'detailed-proposal', field: 'related_literature' }]);
         await expect(page.getByRole('alert')).toBeEmpty();
 
+        for (const blank of ['', '<p><br></p>', '<p>&nbsp;</p>', 'Existing text that I want to draft again.']) {
+            await page.evaluate(() => { window.launchEvents = []; });
+            await page.locator('textarea').fill(blank);
+            await expect(page.getByRole('button', { name: 'Use AI for RRL', exact: true })).toBeEnabled();
+            await page.getByRole('button', { name: 'Use AI for RRL', exact: true }).click();
+            await page.getByRole('button', { name: 'Draft RRL', exact: true }).click();
+            await expect.poll(() => page.evaluate(() => window.launchEvents.length)).toBe(3);
+            const startEvents = await page.evaluate(() => window.launchEvents);
+            assert.deepEqual(startEvents.slice(0, 2), ['saved', 'open']);
+            assert.match(startEvents[2][0], /Draft an RRL/);
+            assert.equal(startEvents[2][1].type, 'draft_rrl');
+            await expect(page.getByRole('alert')).toBeEmpty();
+        }
         await page.evaluate(() => { Alpine.$data(document.querySelector('main')).autoSaveBlocked = true; });
-        await expect(page.getByRole('button', { name: 'Revise RRL', exact: true })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Use AI for RRL', exact: true })).toBeDisabled();
         assert.deepEqual(errors, []);
     } finally {
         await browser.close();

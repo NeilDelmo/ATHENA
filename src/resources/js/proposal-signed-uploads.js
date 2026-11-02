@@ -12,7 +12,7 @@ export function proposalSignedUploads(config = {}) {
             return {
                 matched: 'Form and project title matched',
                 manually_confirmed: 'Form manually checked by uploader',
-                demo_uploaded: 'Demo upload',
+                demo_uploaded: 'PDF uploaded',
             }[document.verificationStatus] ?? '';
         },
         previewSelected(document) {

@@ -6,6 +6,7 @@ import { chromium, expect } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
+import { researchAssistantHistory } from '../../resources/js/research-assistant-history.js';
 import { assistantDocumentAction, assistantDocumentQuery, defaultAssistantContextId } from '../../resources/js/research-assistant-context.js';
 import { normalizeAssistantReportChanges, reportContext } from '../../resources/js/research-assistant-report-changes.js';
 
@@ -31,7 +32,7 @@ function assistant(fetchReply = async () => response({ reply: 'The work plan inc
     };
     const deps = {
         document: pageDocument, window: { location: { origin: 'https://athena.test' }, setTimeout() {}, addEventListener() {} },
-        fetch: fetchReply, assistantDocumentAction, assistantDocumentQuery, defaultAssistantContextId,
+        Alpine: { effect() {} }, fetch: fetchReply, assistantDocumentAction, assistantDocumentQuery, defaultAssistantContextId,
         normalizeAssistantLiterature: () => null, normalizeAssistantProposalChanges: () => null,
         normalizeAssistantReportChanges, reportContext,
         serializeAssistantLiterature: () => null, serializeAssistantProposalChanges: () => null,
@@ -43,9 +44,11 @@ function assistant(fetchReply = async () => response({ reply: 'The work plan inc
     };
     const methods = ['init', 'analyzeSelectedDocument', 'clearActiveDocument', 'documentReadingMetadata',
         'loadDocumentOptions', 'closeDocumentPicker', 'selectProjectContext', 'syncWorkspaceContext',
-        'sendPrompt', 'send', 'requestReply', 'replyContext', 'contextMessages', 'saveConversation',
+        'conversationTranscript', 'hydrateConversation', 'applyConversationContext', 'sendPrompt', 'send', 'requestReply', 'replyContext', 'contextMessages', 'saveConversation',
         'openConversation', 'clearConversation', 'stop', 'retry'];
     return {
+        ...researchAssistantHistory([], fetchReply, { document: deps.document, ...deps.window }),
+        conversationReady: true,
         ...new Function(...Object.keys(deps), `return ({${methods.map(methodSource).join('\n')}});`)(...Object.values(deps)),
         draft: '', messages: [], documentOptions: [{ token: 'saved-paper', label: 'Attachment A: Work Plan', format: 'SAVED' }],
         selectedDocumentToken: 'saved-paper', activeDocument: null, documentAnalysisPending: false,
@@ -167,7 +170,7 @@ test('new chat, page navigation, workspace switching and history reopening disca
     events['livewire:navigating']();
     assert.equal(store.activeDocument, null);
     store.activeDocument = active;
-    store.syncWorkspaceContext();
+    await store.syncWorkspaceContext();
     assert.equal(store.activeDocument, null);
     store.activeDocument = active;
     store.clearConversation();
@@ -178,62 +181,49 @@ test('new chat, page navigation, workspace switching and history reopening disca
     assert.deepEqual(store.messages[0].document_reading, reading);
 });
 
-test('history keeps the current conversation when its saved project cannot be restored', async () => {
+test('history keeps the current conversation when the server denies access to the saved project', async () => {
     const messages = [{ role: 'user', content: 'Keep this current conversation.' }];
-    const store = assistant(async () => response({ conversation: {
-        id: 7, context: { topic_id: 24 }, messages: [{ role: 'assistant', content: 'Saved project answer.' }],
-    } }), {
-        messages, currentConversationId: 8,
-        saveConversation: async () => ({ id: 8 }),
-        loadContextOptions: async () => false,
+    const store = assistant(async () => ({ ok: false, status: 403, json: async () => ({ message: 'This saved project is unavailable.' }) }), {
+        messages, currentConversationId: 8, saveConversation: async () => ({ id: 8 }),
     });
-
     await store.openConversation(7);
-
     assert.equal(store.messages, messages);
     assert.equal(store.currentConversationId, 8);
-    assert.equal(store.selectedContextId, 12);
-    assert.equal(store.contextEnabled, true);
-    assert.match(store.error, /History unavailable:.*Projects could not be loaded/);
-    assert.match(store.error, /Retry opening this chat/);
+    assert.match(store.error, /History unavailable:.*saved project is unavailable/);
 });
 
-test('stopped or switched workspaces discard history still waiting for project options', async () => {
+test('authorized history restores its project even while the project picker is unavailable', async () => {
+    const store = assistant(async () => response({ conversation: { id: 7, context: { topic_id: 24 },
+        messages: [{ role: 'user', content: 'Saved project question.' }] } }), { loadContextOptions: async () => false });
+    await store.openConversation(7);
+    assert.equal(store.currentConversationId, 7);
+    assert.equal(store.selectedContextId, 24);
+    assert.equal(store.liveFormContextEnabled, false);
+});
+
+test('stopped or switched workspaces discard a delayed history response', async () => {
     for (const invalidate of [(store) => store.stop(), (store) => store.syncWorkspaceContext()]) {
-        let releaseContexts;
-        let startLoading;
-        const loading = new Promise((resolve) => { startLoading = resolve; });
+        let release, started;
+        const loading = new Promise(resolve => { started = resolve; });
         const originalMessages = [{ role: 'user', content: 'Previous workspace conversation.' }];
-        const store = assistant(async () => response({ conversation: {
-            id: 7, context: { topic_id: 12 }, messages: [{ role: 'assistant', content: 'Old workspace answer.' }],
-        } }), {
+        const store = assistant(() => new Promise(resolve => { release = resolve; started(); }), {
             messages: originalMessages, currentConversationId: 8, workspaceOpen: false,
             saveConversation: async () => ({ id: 8 }),
-            loadContextOptions: () => new Promise((resolve) => { releaseContexts = resolve; startLoading(); }),
-        }, {
-            window: { athenaResearchAssistantContexts: [{ id: 90, label: 'Current workspace project' }],
-                athenaResearchAssistantActiveContextId: 90 },
-        });
+        }, { window: { athenaResearchAssistantContexts: [{ id: 90, label: 'Current workspace project' }], athenaResearchAssistantActiveContextId: 90 } });
         const pending = store.openConversation(7);
         await loading;
         assert.equal(store.messages, originalMessages);
         const sequence = store.requestSequence;
-        invalidate(store);
+        await invalidate(store);
         assert.ok(store.requestSequence > sequence);
         const currentMessages = [{ role: 'user', content: 'Current workspace conversation.' }];
-        store.messages = currentMessages;
-        store.currentConversationId = 90;
-        store.selectedContextId = 90;
-        store.contextEnabled = true;
-        releaseContexts(true);
+        Object.assign(store, { messages: currentMessages, currentConversationId: 90, selectedContextId: 90, contextEnabled: true });
+        release(response({ conversation: { id: 7, context: { topic_id: 12 }, messages: [{ role: 'user', content: 'Old workspace question.' }] } }));
         await pending;
-
         assert.equal(store.messages, currentMessages);
         assert.equal(store.currentConversationId, 90);
         assert.equal(store.selectedContextId, 90);
-        assert.equal(store.contextEnabled, true);
         assert.equal(store.workspaceOpen, false);
-        assert.equal(store.error, '');
     }
 });
 
@@ -284,7 +274,7 @@ test('selected-document controls and coverage remain readable, safe, and clearab
                 await page.addScriptTag({ content: `document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {
                     activeDocument: { token: 'ephemeral-token', format: 'SAVED', label: 'Work plan <img src=x onerror=alert(1)> with a very long saved paper title' },
                     messages: [{ document_reading: ${JSON.stringify(reading)} }], draft: '', reviewContext: null,
-                    isLoading: false, retryAfter: 0,
+                    conversationReady: true, isLoading: false, retryAfter: 0, proposalHelpOptions() { return []; },
                     hasContextOptions() { return false; }, reviewTargetLabel() { return ''; }, reviewFocusLabel() { return ''; },
                     clearActiveDocument() { this.activeDocument = null; },
                 }));` });

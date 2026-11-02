@@ -136,16 +136,14 @@ class ProposalPackageService
         return $snapshot;
     }
 
-    public function carryForwardLrecAssessments(ProposalVersion $previousVersion, ProposalVersion $version): void
+    /** @param list<string> $purposes */
+    public function carryForwardAssessments(ProposalVersion $previousVersion, ProposalVersion $version, array $purposes): void
     {
         $sourceFiles = $version->files()->where('is_carried_forward', true)
             ->whereIn('document_type', ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
             ->get()->keyBy('source_version_file_id');
         $assessments = $this->signatureWorkflow->signedCopiesBySource($previousVersion)
-            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, [
-                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
-                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
-            ], true));
+            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, $purposes, true));
 
         foreach ($assessments as $assessment) {
             $sourceFile = $sourceFiles->get($assessment->source_version_file_id);
@@ -171,6 +169,15 @@ class ProposalPackageService
             throw new RuntimeException('The staged revision file is no longer available.');
         }
 
+        $sourceData = $document->source_data;
+        if ($document->document_type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL && is_array($sourceData) && $sourceData !== []) {
+            $sourceData = [
+                ...$sourceData,
+                'project_title' => $document->draft->project_title,
+                'project_leader' => $document->draft->project_leader,
+            ];
+        }
+
         $extension = strtolower(pathinfo($document->original_filename, PATHINFO_EXTENSION));
         $path = $permanentDirectory.'/'.$document->document_type.'/'.Str::uuid().'.'.$extension;
 
@@ -189,7 +196,7 @@ class ProposalPackageService
             'mime_type' => $document->mime_type ?: Storage::disk('local')->mimeType($path),
             'file_size' => Storage::disk('local')->size($path),
             'checksum' => hash_file('sha256', $absolutePath) ?: null,
-            'source_data' => $document->source_data,
+            'source_data' => $sourceData,
             'is_carried_forward' => false,
         ];
     }

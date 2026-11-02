@@ -146,6 +146,8 @@ class ProjectArchive
             }
             $records[] = $record;
             array_push($records, ...$this->evidence($topic, $report->accomplishments ?? [], $folder, 'narrative-progress-reports', $record));
+            $report->setRelation('topic', $topic);
+            array_push($records, ...$this->evidence($topic, [['evidence' => app(ProgressReportMonitoringService::class)->evidenceForReport($report)]], $folder.'/linked-monitoring', 'progress-reports', $record));
             foreach ($report->photos ?? [] as $index => $photo) {
                 if (is_array($photo)) {
                     $records[] = [...$this->record($folder.'/evidence', 'figure-'.$index, $photo['original_name'] ?? 'figure', $photo['path'] ?? null, 'Report figure', $record['edition'], $report->submitted_at ?? $report->created_at), 'prefix' => 'narrative-progress-reports/'.$topic->id.'/'];

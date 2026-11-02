@@ -1,0 +1,87 @@
+diff --git a/src/app/Services/ProposalPackageService.php b/src/app/Services/ProposalPackageService.php
+index b902bb6e..648eb3ff 100644
+--- a/src/app/Services/ProposalPackageService.php
++++ b/src/app/Services/ProposalPackageService.php
+@@ -171,6 +171,15 @@ public function copyDraftDocument(ProposalDraftDocument $document, string $perma
+             throw new RuntimeException('The staged revision file is no longer available.');
+         }
+ 
++        $sourceData = $document->source_data;
++        if ($document->document_type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL && is_array($sourceData) && $sourceData !== []) {
++            $sourceData = [
++                ...$sourceData,
++                'project_title' => $document->draft->project_title,
++                'project_leader' => $document->draft->project_leader,
++            ];
++        }
++
+         $extension = strtolower(pathinfo($document->original_filename, PATHINFO_EXTENSION));
+         $path = $permanentDirectory.'/'.$document->document_type.'/'.Str::uuid().'.'.$extension;
+ 
+@@ -189,7 +198,7 @@ public function copyDraftDocument(ProposalDraftDocument $document, string $perma
+             'mime_type' => $document->mime_type ?: Storage::disk('local')->mimeType($path),
+             'file_size' => Storage::disk('local')->size($path),
+             'checksum' => hash_file('sha256', $absolutePath) ?: null,
+-            'source_data' => $document->source_data,
++            'source_data' => $sourceData,
+             'is_carried_forward' => false,
+         ];
+     }
+diff --git a/src/app/Services/ProposalVersionComparison.php b/src/app/Services/ProposalVersionComparison.php
+index d58b9b98..9416cec1 100644
+--- a/src/app/Services/ProposalVersionComparison.php
++++ b/src/app/Services/ProposalVersionComparison.php
+@@ -35,8 +35,8 @@ public function compare(?ProposalVersion $previous, ?ProposalVersion $latest): a
+                 continue;
+             }
+ 
+-            $before = $beforeFile?->source_data;
+-            $after = $afterFile?->source_data;
++            $before = $this->sourceData($beforeFile, $previous);
++            $after = $this->sourceData($afterFile, $latest);
+             $structured = ($beforeFile === null || is_array($before) && $before !== [])
+                 && ($afterFile === null || is_array($after) && $after !== []);
+             $sections = [];
+@@ -45,6 +45,12 @@ public function compare(?ProposalVersion $previous, ?ProposalVersion $latest): a
+                 $fields = array_unique(array_map(fn (string $field): string => explode('.', $field)[0], array_keys($rules)));
+ 
+                 foreach (array_diff($fields, ['methodology_images', 'literature_research_history', 'literature_citations']) as $field) {
++                    // Missing identity metadata in older snapshots does not establish a deletion.
++                    if ($beforeFile !== null && $afterFile !== null
++                        && in_array($field, ['project_title', 'project_leader'], true)
++                        && (! array_key_exists($field, $before) || ! array_key_exists($field, $after))) {
++                        continue;
++                    }
+                     $beforeText = $this->text($before[$field] ?? null);
+                     $afterText = $this->text($after[$field] ?? null);
+ 
+@@ -75,6 +81,29 @@ public function compare(?ProposalVersion $previous, ?ProposalVersion $latest): a
+         return $papers;
+     }
+ 
++    /** @return array<string, mixed>|null */
++    private function sourceData(?ProposalVersionFile $file, ProposalVersion $version): ?array
++    {
++        $source = $file?->source_data;
++        if (! is_array($source)) {
++            return null;
++        }
++        if ($file->document_type !== ProposalVersionFile::TYPE_DETAILED_PROPOSAL || $source === []) {
++            return $source;
++        }
++        if (! array_key_exists('project_title', $source) && $version->title !== null) {
++            $source['project_title'] = $version->title;
++        }
++        if (is_array($source['responsibilities'] ?? null)) {
++            $source['responsibilities'] = array_map(
++                fn (mixed $row): mixed => is_array($row) ? Arr::except($row, ['percentage_fixed']) : $row,
++                $source['responsibilities'],
++            );
++        }
++
++        return $source;
++    }
++
+     /** @return array<string, mixed> */
+     private function paperRules(string $type): array
+     {

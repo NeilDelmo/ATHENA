@@ -1963,6 +1963,7 @@ Alpine.store('researchAssistant', {
     ...researchAssistantContexts(),
     ...researchAssistantSourcePreview(),
     ...researchAssistantLiterature({
+        finishNavigation: finishPendingNavigationChanges,
         savePaper: async (proposalDraftId) => {
             const editor = document.querySelector('[data-detailed-proposal-workspace]');
             return !editor || Number(editor.dataset.proposalDraftId) !== proposalDraftId || finishPaperEditorAutoSave(editor);
@@ -1974,7 +1975,11 @@ Alpine.store('researchAssistant', {
     ...researchAssistantReportChanges({ resolveChange: resolveAssistantReportChange, handoff: assistantReportChangeHandoff,
         safeUrl: (url) => sameOriginPaperUrl(url, window.location.origin), finishNavigation: finishPendingNavigationChanges }),
     currentConversationId: null,
+    conversationVersion: null,
+    conversationContext: null,
+    conversationContextLabel: '',
     historySearchOpen: false,
+    historyRetryConversationId: null,
     historySearchQuery: '',
     historySearchResults: assistantHistory,
     historySearchLoading: false,
@@ -1995,7 +2000,18 @@ Alpine.store('researchAssistant', {
     messages: [],
 
     init() {
+        this.conversationPageScope = this.conversationScope();
+        this.restoreConversationView();
+        void this.restoreConversation().then(() => {
+            if (this.drawerOpen || this.workspaceOpen) {
+                void this.loadHistory();
+                void this.loadContextOptions();
+            }
+            void this.restoreLiteratureRequest();
+        });
+        Alpine.effect(() => this.rememberConversation());
         window.addEventListener('pagehide', () => {
+            this.rememberConversation();
             void this.saveConversation({ keepalive: true });
         }, { once: true });
         window.addEventListener('keydown', (event) => {
@@ -2012,12 +2028,14 @@ Alpine.store('researchAssistant', {
             this.pageScope = assistantPageScope();
         });
         document.addEventListener('livewire:navigating', () => {
+            this.rememberConversation();
+            void this.saveConversation();
             this.clearActiveDocument();
             this.resetContextOptions();
         });
-        document.addEventListener('livewire:navigated', () => {
+        document.addEventListener('livewire:navigated', async () => {
             const { drawerOpen, workspaceOpen } = this;
-            this.syncWorkspaceContext();
+            if (!await this.syncWorkspaceContext()) return;
             this.drawerOpen = drawerOpen;
             this.workspaceOpen = workspaceOpen;
             this.syncPageScroll();
@@ -2032,8 +2050,39 @@ Alpine.store('researchAssistant', {
         );
     },
 
-    syncWorkspaceContext() {
-        this.stop();
+    async syncWorkspaceContext() {
+        this.clearActiveDocument();
+        const sequence = ++this.conversationSwitchSequence;
+        const accountScope = this.conversationStoragePrefix();
+        const accountChanged = this.conversationAccountScope && this.conversationAccountScope !== accountScope;
+        let previousScope = null;
+        if (accountChanged) {
+            if (this.sourcePreviewOpen) window.dispatchEvent(new CustomEvent('close-modal', { detail: 'assistant-source-preview' }));
+            this.sourcePreview = null;
+            this.sourcePreviewOpen = false;
+            this.pendingLiteratureRequest = null;
+            this.clearConversation({ remember: false });
+            this.conversationAccountScope = accountScope;
+            this.conversationReady = false;
+            this.history = [];
+            this.historyLoaded = false;
+            this.historyLoadSequence++;
+            this.historyLoadPromise = null;
+            this.historyLoading = false;
+            this.historyLoadError = '';
+            this.historySearchSequence++;
+            this.historySearchResults = [];
+            this.historySearchQuery = '';
+            this.historySearchOpen = false;
+            this.historySavePromise = null;
+        } else {
+            if (!await this.restoreConversation()) return false;
+            this.rememberConversation();
+            previousScope = this.conversationScope();
+            this.stop();
+            if (this.hasConversation() && !await this.saveConversation()) return false;
+            if (sequence !== this.conversationSwitchSequence) return false;
+        }
         this.resetContextOptions();
         this.contextOptions = Array.isArray(window.athenaResearchAssistantContexts) ? window.athenaResearchAssistantContexts : [];
         const activeContextId = window.athenaResearchAssistantActiveContextId ?? null;
@@ -2049,20 +2098,25 @@ Alpine.store('researchAssistant', {
         this.reportContext = null;
         this.pageActions = Array.isArray(window.athenaResearchAssistantPageActions) ? window.athenaResearchAssistantPageActions : [];
         this.pageScope = assistantPageScope();
-        this.restoreReviewContext(this.reviewContext);
+        this.restoreReviewContext(null);
         this.documentRequestSequence++;
         this.documentPickerOpen = false;
         this.documentOptions = [];
         this.selectedDocumentToken = '';
         this.activeDocument = null;
         this.documentAnalysisPending = false;
-        this.retryAction = null;
-        this.retryContext = null;
         this.documentLoading = false;
         this.documentError = '';
-        this.drawerOpen = false;
-        this.workspaceOpen = false;
-        this.syncPageScroll();
+        this.conversationPageScope = this.conversationScope();
+        if (previousScope !== this.conversationScope()) {
+            const context = this.contextPayload(false);
+            this.clearConversation({ remember: false });
+            this.applyConversationContext(context);
+            this.conversationReady = false;
+            this.restoreConversationView();
+            return this.restoreConversation();
+        }
+        return true;
     },
 
     toggleDrawer(trigger = null) {
@@ -2075,6 +2129,7 @@ Alpine.store('researchAssistant', {
     },
 
     openDrawer(trigger = null) {
+        void this.restoreConversation();
         void this.loadHistory();
         void this.loadContextOptions();
         this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
@@ -2085,6 +2140,7 @@ Alpine.store('researchAssistant', {
     },
 
     openWorkspace() {
+        void this.restoreConversation();
         void this.loadHistory();
         void this.loadContextOptions();
         this.workspaceOpen = true;
@@ -2123,7 +2179,7 @@ Alpine.store('researchAssistant', {
         }
 
         if (this.contextOptions.some((context) => Number(context.id) === normalizedId)) {
-            this.selectProjectContext(normalizedId);
+            await this.selectProjectContext(normalizedId);
         }
     },
 
@@ -2360,12 +2416,14 @@ Alpine.store('researchAssistant', {
     },
 
     async sendPrompt(prompt, action = null, contextOverride = null) {
+        if (!await this.ensureConversationContext(contextOverride)) return null;
         if (this.isLoading || this.sendInProgress || this.documentAnalysisPending || this.disseminationSaving
             || this.proposalChangesOperationPending || this.reportChangesOperationPending || this.retryAfter > 0) return null;
         if (this.draft.trim() && this.draft.trim() !== prompt.trim()) {
             this.setError('Finish your current message', 'Send or clear the message you are writing before starting another AI action.');
             return null;
         }
+        if (contextOverride && contextOverride.workflow_scope !== 'review') this.restoreReviewContext(null);
         this.draft = prompt;
         return this.send(action, contextOverride);
     },
@@ -2375,23 +2433,45 @@ Alpine.store('researchAssistant', {
     },
 
     selectedContext() {
-        return this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId))
-            || (this.reviewContext?.topic_id ? { id: this.reviewContext.topic_id, label: this.reviewTargetLabel(), status: 'review' } : null);
+        return (this.contextEnabled ? this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId)) : null)
+            || (this.reviewContext?.topic_id ? { id: this.reviewContext.topic_id, label: this.reviewTargetLabel(), status: 'review' } : null)
+            || (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)
+                ? { id: this.selectedContextId, label: this.conversationContextLabel || 'This proposal' } : null);
     },
 
-    selectProjectContext(contextId) {
-        if (this.activeDocument || this.documentAnalysisPending) this.clearActiveDocument();
-        this.reviewContext = null;
-        this.reportContext = false;
-        this.proposalHelpOpen = false;
+    async selectProjectContext(contextId) {
         const context = this.contextOptions.find((option) => Number(option.id) === Number(contextId));
-        this.selectedContextId = context?.id || 0;
-        this.contextEnabled = Boolean(context);
+        const target = context ? { topic_id: Number(context.id) } : {};
+        if (!await this.ensureConversationContext(target)) return false;
+        this.applyConversationContext(target);
+        return true;
+    },
+
+    applyConversationContext(context = {}) {
+        context ||= {};
+        this.selectedContextId = Number(context.topic_id || 0);
+        this.contextEnabled = Boolean(this.selectedContextId);
+        this.proposalDraftId = Number(context.proposal_draft_id || 0);
+        const samePage = this.proposalDraftId
+            ? this.proposalDraftId === Number(document.body.dataset.researchAssistantProposalDraftId || 0)
+            : this.selectedContextId > 0 && this.selectedContextId === Number(window.athenaResearchAssistantActiveContextId || 0);
+        this.paperContext = samePage && document.body.dataset.researchAssistantPaperSlug ? {
+            paperSlug: document.body.dataset.researchAssistantPaperSlug,
+            paperLabel: document.body.dataset.researchAssistantPaperLabel || document.body.dataset.researchAssistantPaperSlug,
+        } : null;
+        this.liveFormContextEnabled = samePage;
+        this.activePaperField = null;
+        this.pageActions = samePage && Array.isArray(window.athenaResearchAssistantPageActions) ? window.athenaResearchAssistantPageActions : [];
+        this.restoreReviewContext(context);
+        this.reportContext = reportContext(context) || false;
         this.documentRequestSequence++;
         this.closeDocumentPicker();
         this.documentOptions = [];
         this.selectedDocumentToken = '';
+        this.activeDocument = null;
+        this.documentAnalysisPending = false;
         this.documentLoading = false;
+        this.documentError = '';
     },
 
     contextPayload(includeForm = true) {
@@ -2679,22 +2759,15 @@ Alpine.store('researchAssistant', {
     },
 
     async saveConversation(options = {}) {
+        const accountScope = this.conversationStoragePrefix();
+        if (this.conversationAccountScope && this.conversationAccountScope !== accountScope) return null;
         if (!this.hasConversation() || !this.historyUrl()) return null;
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         if (!csrfToken) return null;
 
         const messages = this.messages;
-        const transcript = {
-            messages: messages.map((message) => ({
-                ...message,
-                literature: serializeAssistantLiterature(message.literature),
-                proposal_changes: serializeAssistantProposalChanges(message.proposal_changes),
-                report_changes: normalizeAssistantReportChanges(message.report_changes),
-                document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
-            })),
-            context: this.contextPayload(false),
-        };
+        const transcript = this.conversationTranscript();
         const snapshot = JSON.stringify(transcript);
         if (this.historySavePromise) {
             const pendingState = this.historySaveState;
@@ -2714,7 +2787,8 @@ Alpine.store('researchAssistant', {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
             },
-            body: JSON.stringify({ id: this.currentConversationId, ...transcript }),
+            body: JSON.stringify({ id: this.currentConversationId, version: this.conversationVersion,
+                account_id: Number(document.body?.dataset.authUserId) || null, workspace: document.body?.dataset.activeWorkspace || null, ...transcript }),
         }).then(async (response) => {
             const responsePayload = await response.json().catch(() => ({}));
 
@@ -2725,9 +2799,17 @@ Alpine.store('researchAssistant', {
                 throw new Error(responsePayload.message || 'The chat could not be saved.');
             }
 
+            if (accountScope !== this.conversationStoragePrefix()) return null;
             this.upsertHistory(responsePayload.conversation);
             if (this.messages === messages) {
                 this.currentConversationId = responsePayload.conversation.id;
+                if (!responsePayload.stale) this.conversationVersion = responsePayload.conversation.version || null;
+                else if (!this.isLoading && !this.sendInProgress && JSON.stringify(this.conversationTranscript()) === snapshot) {
+                    this.hydrateConversation(responsePayload.conversation, true);
+                }
+                if (responsePayload.forked_from) this.conversationNotice = 'This chat changed in another tab. Your changes were saved as a separate chat.';
+                this.conversationFresh = false;
+                this.rememberConversation();
                 if (this.errorTitle === 'Chat not saved') {
                     this.error = '';
                     this.errorTitle = '';
@@ -2755,74 +2837,92 @@ Alpine.store('researchAssistant', {
         }
     },
 
+    conversationTranscript() {
+        return {
+            messages: this.messages.map((message) => ({
+                ...message,
+                literature: serializeAssistantLiterature(message.literature),
+                proposal_changes: serializeAssistantProposalChanges(message.proposal_changes),
+                report_changes: normalizeAssistantReportChanges(message.report_changes),
+                document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
+            })),
+            context: this.conversationContext || this.contextPayload(false),
+        };
+    },
+
+    hydrateConversation(conversation, preservePageContext = false) {
+        this.messages = (Array.isArray(conversation.messages) ? conversation.messages : [])
+            .filter((message) => ['user', 'assistant'].includes(message.role) && String(message.content || '').trim())
+            .map((message) => ({
+                id: this.nextMessageId++,
+                role: message.role,
+                content: String(message.content).trim(),
+                sources: Array.isArray(message.sources) ? message.sources : [],
+                review: message.review && typeof message.review === 'object' ? message.review : null,
+                literature: normalizeAssistantLiterature(message.literature),
+                proposal_changes: normalizeAssistantProposalChanges(message.proposal_changes),
+                report_changes: normalizeAssistantReportChanges(message.report_changes),
+                document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
+            }));
+        this.currentConversationId = conversation.id;
+        this.historyRetryConversationId = null;
+        this.retryAction = null;
+        this.retryContext = null;
+        this.closeDocumentPicker();
+        this.conversationVersion = conversation.version || null;
+        const { workspace, ...context } = conversation.context || {};
+        this.conversationContext = context;
+        this.conversationContextLabel = conversation.context_label || '';
+        this.conversationNotice = '';
+        if (!preservePageContext) this.applyConversationContext(context);
+        else this.restoreReviewContext(context);
+        this.error = '';
+        this.errorTitle = '';
+    },
+
     async openConversation(conversationId) {
+        await this.restoreConversation();
+        this.rememberConversation();
         this.stop();
+        const sequence = ++this.conversationRestoreSequence;
+        const prefix = this.conversationStoragePrefix();
         const requestSequence = this.requestSequence;
-        this.activeDocument = null;
-        this.documentAnalysisPending = false;
-        this.documentRequestSequence++;
-        const hadConversation = this.hasConversation();
-        const savedConversation = await this.saveConversation();
-
-        if ((hadConversation && !savedConversation) || requestSequence !== this.requestSequence) return;
-
+        if (this.hasConversation() && !await this.saveConversation()) return false;
+        if (sequence !== this.conversationRestoreSequence) return false;
         const conversationUrl = this.historyConversationUrl(conversationId);
-        if (!conversationUrl) return;
-
+        if (!conversationUrl) return false;
+        this.historyRestoring = true;
         try {
             const response = await fetch(conversationUrl, {
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json' },
+                credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store',
             });
             const payload = await response.json().catch(() => ({}));
-
-            if (requestSequence !== this.requestSequence) return;
-
-            if (!response.ok || !payload.conversation) {
+            if (sequence !== this.conversationRestoreSequence || requestSequence !== this.requestSequence || prefix !== this.conversationStoragePrefix()) return false;
+            if (response.redirected || !response.ok || !payload.conversation) {
                 throw new Error(payload.message || 'The chat could not be loaded.');
             }
-
-            const contextsReady = await this.loadContextOptions();
-            if (requestSequence !== this.requestSequence) return;
-            if (!contextsReady && payload.conversation.context?.topic_id
-                && !this.contextOptions.some(context => Number(context.id) === Number(payload.conversation.context.topic_id))) {
-                throw new Error('Projects could not be loaded. Retry opening this chat to restore its project context.');
-            }
-
-            const conversation = payload.conversation;
-            this.messages = (Array.isArray(conversation.messages) ? conversation.messages : [])
-                .filter((message) => ['user', 'assistant'].includes(message.role) && String(message.content || '').trim())
-                .map((message) => ({
-                    id: this.nextMessageId++,
-                    role: message.role,
-                    content: String(message.content).trim(),
-                    sources: Array.isArray(message.sources) ? message.sources : [],
-                    review: message.review && typeof message.review === 'object' ? message.review : null,
-                    literature: normalizeAssistantLiterature(message.literature),
-                    proposal_changes: normalizeAssistantProposalChanges(message.proposal_changes),
-                    report_changes: normalizeAssistantReportChanges(message.report_changes),
-                    document_reading: message.document_reading ? this.documentReadingMetadata(message.document_reading) : null,
-                }));
-            this.currentConversationId = conversation.id;
-            this.retryAction = null;
-            this.retryContext = null;
-            this.closeDocumentPicker();
-            const contextId = Number(conversation.context?.topic_id || 0);
-            this.contextEnabled = Boolean(contextId && this.contextOptions.some((context) => Number(context.id) === contextId));
-            if (this.contextEnabled) this.selectedContextId = contextId;
-            this.restoreReviewContext(conversation.context);
-            this.reportContext = reportContext(conversation.context) || false;
-            this.error = '';
-            this.errorTitle = '';
+            this.hydrateConversation(payload.conversation);
+            this.conversationReady = true;
+            this.conversationFresh = false;
+            this.restoreConversationDraft();
             this.historySearchOpen = false;
             this.workspaceOpen = true;
             this.drawerOpen = false;
+            void this.loadContextOptions();
             this.syncPageScroll();
             this.scrollToLatest();
+            return true;
         } catch (error) {
-            this.setError('History unavailable', error instanceof Error
-                ? error.message
-                : 'The chat could not be loaded.');
+            if (sequence === this.conversationRestoreSequence) {
+                this.historyRetryConversationId = conversationId;
+                this.setError('History unavailable', error instanceof Error ? error.message : 'The chat could not be loaded.');
+            }
+            return false;
+        } finally {
+            if (sequence === this.conversationRestoreSequence) {
+                this.historyRestoring = false;
+                this.rememberConversation();
+            }
         }
     },
 
@@ -2832,7 +2932,7 @@ Alpine.store('researchAssistant', {
     },
 
     proposalChangesBusy() {
-        return Boolean(this.isLoading || this.sendInProgress || this.retryAfter > 0 || this.proposalChangesOperationPending
+        return Boolean(this.historyRestoring || this.isLoading || this.sendInProgress || this.retryAfter > 0 || this.proposalChangesOperationPending
             || this.reportChangesOperationPending || this.literatureOperationPending || this.reviewLaunchPending || this.documentAnalysisPending || this.disseminationSaving);
     },
 
@@ -2995,9 +3095,18 @@ Alpine.store('researchAssistant', {
     },
 
     async send(action = null, contextOverride = null) {
+        if (!this.conversationReady || this.conversationAccountScope !== this.conversationStoragePrefix()) {
+            if (!await this.restoreConversation()) return null;
+        }
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
         if (!content || this.isLoading || this.sendInProgress || this.documentAnalysisPending || this.disseminationSaving || this.proposalChangesOperationPending || this.reportChangesOperationPending || this.retryAfter > 0) return;
         if (this.reviewLaunchPending && !['review_proposal', 'suggest_proposal_changes'].includes(action?.type)) return;
+        // shortcut: history holds 100 messages; use paged storage before allowing longer chats.
+        if (this.messages.length >= 99) {
+            this.setError('Chat is full', 'Start a new chat to continue. This conversation will stay in History, and your unfinished message will carry over.');
+            return null;
+        }
+
 
         if (!action && this.reviewContext) {
             this.reviewContext.assistance_mode = contextOverride?.assistance_mode || 'discussion';
@@ -3024,9 +3133,12 @@ Alpine.store('researchAssistant', {
             this.setError('Save report first', error.message);
             return null;
         }
+        this.conversationContext = { ...(this.contextPayload(false) || {}) };
+        delete this.conversationContext.form;
         this.retryAction = action;
         this.retryContext = contextOverride;
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
+        if (this.pendingLiteratureRequest?.request === content) this.clearLiteratureRequest();
         this.draft = '';
         this.resetComposers();
         this.error = '';
@@ -3052,11 +3164,11 @@ Alpine.store('researchAssistant', {
             return context;
         }
         if (!contextOverride) return Object.keys(context).length ? context : null;
-        if (Number(context.proposal_draft_id) === Number(this.proposalDraftId)) {
+        if (this.liveFormContextEnabled && Number(context.proposal_draft_id) === Number(document.body.dataset.researchAssistantProposalDraftId || 0)) {
             const form = this.formContext();
             if (form) context.form = form;
             const rrl = document.getElementById('related-literature');
-            if (action?.type === 'draft_literature' && rrl) {
+            if (['draft_literature', 'draft_rrl'].includes(action?.type) && rrl) {
                 const value = redactAssistantText(rrl._semanticEditor?.innerText || rrl.value || '').slice(-400);
                 const values = (context.form?.values || []).filter((item) => item.field !== 'related_literature').slice(0, 15);
                 context.form = { ...(context.form || {}), values: [...values, { field: 'related_literature', label: 'Current end of RRL', value }] };
@@ -3109,6 +3221,8 @@ Alpine.store('researchAssistant', {
                 },
                 body: JSON.stringify(venueSearch?.body || {
                     messages: this.contextMessages(),
+                    account_id: Number(document.body?.dataset.authUserId) || null,
+                    workspace: document.body?.dataset.activeWorkspace || null,
                     context: requestContext,
                     conversation_id: this.currentConversationId,
                     action: effectiveAction,
@@ -3146,7 +3260,7 @@ Alpine.store('researchAssistant', {
                 }
 
                 if (response.status === 422) {
-                    this.setError('Check your message', payload.message || 'Athena needs a valid message before it can respond.');
+                    this.setError('Request could not be completed', payload.message || 'Review the request details and try again.');
                     return;
                 }
 
@@ -3208,17 +3322,29 @@ Alpine.store('researchAssistant', {
         return this.messages
             .filter((message) => ['user', 'assistant'].includes(message.role) && message.context !== false)
             .slice(-8)
-            .map(({ role, content }) => ({
-                role,
-                content: String(content).slice(0, researchAssistantMessageLimit),
-            }));
+            .map((message) => {
+                const paragraphs = message.role === 'assistant' && message.literature?.kind === 'draft'
+                    ? message.literature.drafts.slice(0, 3).map((draft) => String(draft.paragraph || '').slice(0, 2000)).filter(Boolean).join('\n\n')
+                    : '';
+                const content = paragraphs
+                    ? `${String(message.content).slice(0, 1000)}\n\nEarlier editable RRL draft (conversation text, not source evidence):\n${paragraphs}`
+                    : String(message.content);
+                return { role: message.role, content: content.slice(0, researchAssistantMessageLimit) };
+            });
     },
 
     async retry() {
         if (this.isLoading || this.retryAfter > 0) return;
+        if (this.errorTitle === 'Chat is full') {
+            const draft = this.draft;
+            if (await this.newConversation()) { this.draft = draft; this.rememberConversation(); }
+            return;
+        }
+        if (this.errorTitle === 'History unavailable' && this.historyRetryConversationId) return this.openConversation(this.historyRetryConversationId);
+        if (['Saved chat unavailable', 'History unavailable'].includes(this.errorTitle)) return this.restoreConversation(true);
         if (this.errorTitle === 'Chat not saved') return this.saveConversation();
         if (!this.contextMessages().length) return;
-        await this.requestReply(this.retryAction);
+        await this.requestReply(this.retryAction, this.retryContext);
     },
 
     stop() {
@@ -3239,7 +3365,9 @@ Alpine.store('researchAssistant', {
 
     async copyMessage(message) {
         try {
-            await navigator.clipboard.writeText(message.content);
+            const paragraphs = message.literature?.kind === 'draft' && Array.isArray(message.literature.drafts)
+                ? message.literature.drafts.map(draft => draft.paragraph).filter(Boolean).join('\n\n') : '';
+            await navigator.clipboard.writeText(paragraphs || message.content);
             this.copiedMessageId = message.id;
             window.setTimeout(() => {
                 if (this.copiedMessageId === message.id) this.copiedMessageId = null;
@@ -3304,20 +3432,37 @@ Alpine.store('researchAssistant', {
     },
 
     async newConversation() {
-        if (this.hasConversation() && !window.confirm('Start a new chat? The current conversation will be saved to your history.')) {
-            return;
-        }
-
+        if (!await this.restoreConversation()) return false;
+        this.conversationSwitchSequence++;
+        this.rememberConversation();
+        this.stop();
+        const context = this.contextPayload(false);
+        const contextLabel = this.conversationContextLabel;
         const hadConversation = this.hasConversation();
         const savedConversation = await this.saveConversation();
 
         if (hadConversation && !savedConversation) return;
 
-        this.clearConversation();
+        this.clearConversation({ remember: false });
+        this.applyConversationContext(context);
+        this.conversationContextLabel = contextLabel;
+        if (this.pendingLiteratureRequest) this.clearLiteratureRequest();
+        this.rememberConversation();
+        return true;
     },
 
-    clearConversation() {
+    clearConversation(options = {}) {
         this.stop();
+        this.conversationRestoreSequence++;
+        this.conversationRestorePromise = null;
+        this.historyRestoring = false;
+        this.conversationReady = true;
+        this.conversationFresh = true;
+        this.conversationVersion = null;
+        this.conversationContext = null;
+        this.conversationContextLabel = '';
+        this.conversationNotice = '';
+        this.historyRetryConversationId = null;
         this.reviewContext = null;
         this.reportContext = null;
         this.proposalHelpOpen = false;
@@ -3340,6 +3485,7 @@ Alpine.store('researchAssistant', {
         this.documentError = '';
         this.copiedMessageId = null;
         this.copiedConversation = false;
+        if (options.remember !== false) this.rememberConversation();
         this.scrollToLatest();
     },
 
@@ -5469,7 +5615,7 @@ const documentPreviewForm = (config = {}) => {
         },
 
         showProposalPreview() {
-            if (!this.$refs.form.reportValidity()) return;
+            if (!config.allowIncompletePreview && !this.$refs.form.reportValidity()) return;
             paperPreview.showProposalPreview.call(this);
         },
 
@@ -5531,7 +5677,7 @@ const documentPreviewForm = (config = {}) => {
         },
 
         async generatePreview() {
-            if (this.previewLoading || this.submitting || !this.$refs.form.checkValidity()) return;
+            if (this.previewLoading || this.submitting || (!config.allowIncompletePreview && !this.$refs.form.checkValidity())) return;
 
             this.previewError = '';
             this.previewLoading = true;
@@ -5594,6 +5740,7 @@ const documentPreviewForm = (config = {}) => {
 Alpine.data('monitoringToolForm', (config = {}) => ({
     ...documentPreviewForm({
         ...config,
+        allowIncompletePreview: true,
         omitPreviewFields: ['attachment'],
         validationMessage: 'Please review the monitoring information.',
         failureMessage: 'The monitoring preview could not be generated. Please try again.',

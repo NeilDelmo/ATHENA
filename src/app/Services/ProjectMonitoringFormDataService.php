@@ -78,7 +78,7 @@ class ProjectMonitoringFormDataService
             $draftPeriod = app(MonitoringQuarterService::class)->forDate($draftDate, $topic);
             $quarterOptions = $quarterOptions->filter(fn (array $period): bool => $period['start']->eq($draftPeriod['start']))->values();
         }
-        $progressDefaults = $reportType === 'progress' ? app(ProgressReportData::class)->defaults($topic) : [];
+        $progressDefaults = $reportType === 'progress' ? app(ProgressReportData::class)->defaults($topic, $selectedReportingDate) : [];
         if ($reportType === 'progress' && $draft === null && $preparedReport === null && $selectedReportingDate) {
             $period = app(MonitoringQuarterService::class)->forDate($selectedReportingDate, $topic);
             $revisionSource = $topic->narrativeReports()->submitted()->where('report_type', 'progress')
@@ -87,7 +87,7 @@ class ProjectMonitoringFormDataService
             if ($revisionSource !== null) {
                 $progressDefaults = [
                     ...$progressDefaults,
-                    ...$revisionSource->only(['tracking_number', 'researchers', 'funding_agency', 'introduction', 'rationale', 'methodology', 'results_discussion']),
+                    ...$revisionSource->only(['monitoring_report_id', 'tracking_number', 'researchers', 'funding_agency', 'introduction', 'rationale', 'methodology', 'results_discussion']),
                     'implementation_start' => $revisionSource->implementation_start?->toDateString(),
                     'implementation_end' => $revisionSource->implementation_end?->toDateString(),
                     ...app(ProgressReportData::class)->normalize($topic, ['accomplishments' => $revisionSource->accomplishments ?? [], 'objectives' => $revisionSource->objectives]),

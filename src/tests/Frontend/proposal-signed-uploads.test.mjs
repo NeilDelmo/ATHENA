@@ -19,7 +19,7 @@ test('completed uploads expose readiness without an extra navigation step', () =
     assert.equal(state.continueToNotice, undefined);
 });
 
-test('demo PDFs save with a demo status and their original filename', async t => {
+test('saved PDFs use a neutral upload label while retaining their original filename', async t => {
     const state = proposalSignedUploads({ demoMode: true, documents: [{ id: 1, saved: false }] });
     t.mock.method(globalThis, 'fetch', async () => ({
         ok: true,
@@ -30,7 +30,7 @@ test('demo PDFs save with a demo status and their original filename', async t =>
     assert.equal(state.documents[0].saved, true);
     assert.equal(state.documents[0].filename, 'random.pdf');
     assert.equal(state.documents[0].manualRequired, false);
-    assert.equal(state.verificationMessage(state.documents[0]), 'Demo upload');
+    assert.equal(state.verificationMessage(state.documents[0]), 'PDF uploaded');
     assert.equal(state.verificationMessage({ verificationStatus: 'matched' }), 'Form and project title matched');
     assert.equal(state.verificationMessage({ verificationStatus: 'manually_confirmed' }), 'Form manually checked by uploader');
 });

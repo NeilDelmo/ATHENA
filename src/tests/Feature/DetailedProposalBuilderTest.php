@@ -276,8 +276,9 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('x-ref="introductionSection"', false)
         ->assertDontSee('Sources for this proposal')
         ->assertSee('Open Sources')
-        ->assertSee('Revise RRL')
-        ->assertSee('@click="requestRrlRevision()"', false)
+        ->assertSee('Use AI')
+        ->assertSee("requestRrlRevision('draft')", false)
+        ->assertSee("requestRrlRevision('revise')", false)
         ->assertDontSee('Previously saved introduction text is retained here')
         ->assertSee('data-source-workspace', false)
         ->assertSee('role="dialog"', false)
@@ -2292,4 +2293,33 @@ test('automatic revision replies use a complete editor and the official generate
             ->assertOk()->assertHeader('content-type', 'application/pdf');
         expect($responsePdf->getContent())->toStartWith('%PDF-');
     }
+});
+
+test('incomplete shared details do not add a completion prompt to the proposal editor', function () {
+    $this->draft->forceFill(['planned_start' => null, 'planned_end' => null])->save();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertDontSee('Complete Project Details')
+        ->assertDontSee('You can start writing now.')
+        ->assertSee('data-paper-cancel-exit', false)
+        ->assertSee('Edit shared details');
+});
+
+test('RRL assistance offers both drafting and revision in a new proposal', function () {
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('aria-label="Use AI for RRL"', false)
+        ->assertSee('Find sources')
+        ->assertSee("openSourceWorkspace('search')", false)
+        ->assertSee('Use AI')
+        ->assertSee('Open chat')
+        ->assertSee('openRrlChat()', false)
+        ->assertSee('Draft RRL')
+        ->assertSee('Revise RRL')
+        ->assertSee("requestRrlRevision('draft')", false)
+        ->assertSee("requestRrlRevision('revise')", false)
+        ->assertSee('aria-controls="rrl-assistance-actions"', false);
 });

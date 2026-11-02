@@ -87,6 +87,8 @@ export function initializePaperPagination(doc) {
             sheet.replaceChildren(flow, ...footers);
             sheet.setAttribute('data-paper-pagination-source', '');
             sheet.setAttribute('aria-hidden', 'true');
+            // Off-screen pagination sources must load images so their load events can update page boundaries.
+            flow.querySelectorAll('img').forEach(image => { image.loading = 'eager'; });
             for (const [selector, direction] of breaks) {
                 try { flow.querySelectorAll(selector).forEach(element => element.setAttribute(`data-paper-break-${direction}`, '')); } catch { /* Ignore selectors unsupported by this browser. */ }
             }

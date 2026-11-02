@@ -33,9 +33,13 @@ beforeEach(function () {
         'services.gemini.key' => 'fixture-key', 'services.gemini.model' => 'fixture-model',
         'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai']);
     Http::preventStrayRequests();
-    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode([
-        'synthesis' => $this->paragraph, 'relationship' => 'standalone', 'transition' => '',
-    ], JSON_THROW_ON_ERROR)], 'finish_reason' => 'stop']]])]);
+    Http::fake(['generativelanguage.googleapis.com/*' => function ($request) {
+        $content = ($request['response_format']['json_schema']['name'] ?? null) === 'athena_literature_topic'
+            ? ['intent' => 'search', 'query' => 'community coastal monitoring', 'reply' => '']
+            : ['synthesis' => $this->paragraph, 'relationship' => 'standalone', 'transition' => ''];
+
+        return Http::response(['choices' => [['message' => ['content' => json_encode($content, JSON_THROW_ON_ERROR)], 'finish_reason' => 'stop']]]);
+    }]);
     $this->attachSource = function (?ProposalDraft $draft = null, ?string $text = null): ProposalDraftLiteratureSource {
         return ($draft ?? $this->draft)->literatureSources()->create(['fingerprint' => ProposalDraftLiteratureSource::fingerprintFor($this->source['doi'], $this->source['title'], 2024),
             'title' => $this->source['title'], 'authors' => $this->source['authors'], 'publication_year' => 2024,
@@ -197,7 +201,7 @@ test('chat source selection reads its own attached paper and confirms the actual
         'action' => ['type' => 'confirm_literature', 'drafts' => [['draft_token' => $drafted['draft_token'], 'paragraph' => $drafted['paragraph']]]]])
         ->assertSuccessful()->assertJsonPath('literature.sources.0.rrl_evidence_basis', 'full_text');
     expect($this->paper->fresh()->source_data['related_literature'])->toBe('<p>Keep the saved RRL.</p>');
-    Http::assertSentCount(1);
+    Http::assertSentCount(2);
 });
 
 test('chat validates all paper evidence before any generation and never borrows another proposal PDF', function () {
@@ -214,7 +218,9 @@ test('chat validates all paper evidence before any generation and never borrows 
         ->assertSuccessful()->assertJsonPath('literature.results.1.can_read_paper', false)->json('literature.results');
     $this->postJson(route('research-support.chat'), ['messages' => [['role' => 'user', 'content' => 'Draft selected papers.']], 'context' => $context,
         'action' => ['type' => 'draft_literature', 'source_tokens' => array_column($results, 'source_token')]])->assertUnprocessable()->assertJsonValidationErrors('evidence_basis');
-    Http::assertNothingSent();
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request): bool => ($request['response_format']['json_schema']['name'] ?? null) === 'athena_literature_topic'
+        && ! str_contains($request->body(), 'FOREIGN PRIVATE PAPER'));
 });
 
 test('chat can draft from several complete papers while keeping their evidence separate', function () {
@@ -238,7 +244,7 @@ test('chat can draft from several complete papers while keeping their evidence s
         'context' => $context, 'action' => ['type' => 'draft_literature', 'source_tokens' => array_column($results, 'source_token')]])
         ->assertSuccessful()->assertJsonCount(2, 'literature.drafts')
         ->assertJsonPath('literature.drafts.0.evidence_basis', 'full_text')->assertJsonPath('literature.drafts.1.evidence_basis', 'full_text');
-    Http::assertSentCount(2);
+    Http::assertSentCount(3);
     Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'longitudinal matched-village design')
         && ! str_contains($request['messages'][1]['content'], 'SECOND PAPER METHODS'));
     Http::assertSent(fn ($request): bool => str_contains($request['messages'][1]['content'], 'SECOND PAPER METHODS')

@@ -147,15 +147,15 @@ export function researchAssistantReview() {
             }
 
             this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
-            this.openWorkspace();
-            if (this.draft.trim()) {
-                this.setError('Finish your current message', 'Send or clear the message you are writing before starting a focused review.');
-                return false;
-            }
-
             this.reviewLaunchPending = true;
+            const requestSequence = this.requestSequence;
             try {
-                const requestSequence = this.requestSequence;
+                this.openWorkspace();
+                if (!await this.restoreConversation() || requestSequence !== this.requestSequence) return false;
+                if (this.draft.trim()) {
+                    this.setError('Finish your current message', 'Send or clear the message you are writing before starting a focused review.');
+                    return false;
+                }
                 const hadConversation = this.hasConversation();
                 const savedConversation = await this.saveConversation();
                 if ((hadConversation && !savedConversation) || requestSequence !== this.requestSequence) return false;
@@ -164,13 +164,15 @@ export function researchAssistantReview() {
                     return false;
                 }
 
-                this.clearConversation();
-                this.selectProjectContext(context.topic_id || null);
+                this.rememberConversation();
+                this.clearConversation({ remember: false });
+                this.applyConversationContext(context);
                 this.restoreReviewContext({
                     ...context,
                     review_focus: item.action.review_focus,
                     review_label: item.target_label || context.review_label,
                 });
+                this.rememberConversation();
                 this.historySearchOpen = false;
                 if (chooseHelp) {
                     this.reviewContext.assistance_mode = 'discussion';

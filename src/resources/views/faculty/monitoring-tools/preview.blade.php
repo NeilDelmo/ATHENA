@@ -81,13 +81,13 @@
                                         Objective: {{ $entry['objective'] }}<br>
                                         Activity:
                                     @endif
-                                    {{ $entry['activity'] }}
+                                    {{ $entry['activity'] ?? '' }}
                                 </td>
-                                <td class="monitoring-number">{{ $percentage((float) $entry['percent_weight']) }}</td>
-                                <td class="monitoring-pre-line monitoring-number">{{ $entry['physical_target'] }}</td>
-                                <td class="monitoring-date">{{ \Illuminate\Support\Carbon::parse($entry['target_completion_date'])->format('M j, Y') }}</td>
-                                <td class="monitoring-pre-line monitoring-number">{{ $entry['actual_accomplishment'] }}</td>
-                                <td class="monitoring-number">{{ $percentage((float) $entry['accomplished_percentage']) }}</td>
+                                <td class="monitoring-number">{{ isset($entry['percent_weight']) ? $percentage((float) $entry['percent_weight']) : '' }}</td>
+                                <td class="monitoring-pre-line monitoring-number">{{ $entry['physical_target'] ?? '' }}</td>
+                                <td class="monitoring-date">{{ filled($entry['target_completion_date'] ?? null) ? \Illuminate\Support\Carbon::parse($entry['target_completion_date'])->format('M j, Y') : '' }}</td>
+                                <td class="monitoring-pre-line monitoring-number">{{ $entry['actual_accomplishment'] ?? '' }}</td>
+                                <td class="monitoring-number">{{ isset($entry['accomplished_percentage']) ? $percentage((float) $entry['accomplished_percentage']) : '' }}</td>
                                 <td class="monitoring-pre-line monitoring-number">{{ $entry['findings'] ?? '' }}</td>
                             </tr>
                         @endforeach
@@ -130,9 +130,9 @@
                             <tr>
                                 <th scope="row">{{ $type }}</th>
                                 <td class="monitoring-request-details">{{ $entry['details'] ?? '' }}</td>
-                                <td class="monitoring-money">{{ $money($amountRequested) }}</td>
-                                <td class="monitoring-money">{{ $money($actualAmount) }}</td>
-                                <td class="monitoring-number">{{ $percentage($utilization) }}</td>
+                                <td class="monitoring-money">{{ isset($entry['amount_requested']) ? $money($amountRequested) : '' }}</td>
+                                <td class="monitoring-money">{{ isset($entry['actual_amount']) ? $money($actualAmount) : '' }}</td>
+                                <td class="monitoring-number">{{ isset($entry['actual_amount']) ? $percentage($utilization) : '' }}</td>
                                 <td>{{ $entry['remarks'] ?? '' }}</td>
                             </tr>
                         @endforeach

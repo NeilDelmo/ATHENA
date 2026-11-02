@@ -12,7 +12,7 @@ import { saveProposalPaperWithDraftFallback } from '../../resources/js/proposal-
 const sourceWorkspace = 'const uploadRequest = (...args) => fetch(...args);\n' + readFileSync(new URL('../../resources/js/proposal-source-workspace.js', import.meta.url), 'utf8').replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
 const semanticHelpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
 
-function editor(overrides = {}, { keepAutoSave = false } = {}) {
+function editor(overrides = {}, { keepAutoSave = false, config = {} } = {}) {
     const source = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = source.indexOf("Alpine.data('proposalDraftDetailedProposal'");
     const end = source.indexOf('\n}));', start) + '\n}));'.length;
@@ -30,7 +30,7 @@ function editor(overrides = {}, { keepAutoSave = false } = {}) {
         ...overrides,
     };
     vm.runInNewContext(source.slice(start, end), context);
-    const instance = factory({ figureSections: { rationale: 'Rationale', research_design: 'Research Design', data_analysis: 'Data Analysis' } });
+    const instance = factory({ figureSections: { rationale: 'Rationale', research_design: 'Research Design', data_analysis: 'Data Analysis' }, ...config });
     if (!keepAutoSave) instance.triggerDetailedProposalAutoSave = () => {};
     instance.$nextTick = (callback) => callback();
     instance.assignMethodologyImageFile = () => {};
@@ -548,32 +548,31 @@ test('oversized and unsupported dropped images are rejected before autosave', ()
     assert.match(state.validationMessage, /PNG/);
 });
 
-test('reopening a full text draft uses available abstract evidence until full text is loaded again', () => {
-    const state = editor();
+test('reopening a linked full paper draft retains its evidence basis and saved paragraph', () => {
+    const state = editor({}, { config: { proposalDraftId: 42 } });
     state.literatureReviewContextFromRrl = () => '';
-    state.openLiteratureReview({ rrl_evidence_basis: 'full_text', rrl_note: 'Saved paragraph.', description: 'Indexed abstract evidence. '.repeat(5) });
-    assert.equal(state.literatureReviewBasis, 'abstract');
+    state.openLiteratureReview({ id: 7, rrl_evidence_basis: 'full_text', rrl_note: 'Saved paragraph.', description: 'Indexed abstract evidence. '.repeat(5) });
+    assert.equal(state.literatureReviewBasis, 'full_text');
     assert.equal(state.literatureReviewFullText, '');
-    assert.equal(state.hasLiteratureReviewEvidence(), true);
+    assert.equal(state.hasLiteratureReviewEvidence(), true, 'The server reads the complete paper through its saved source link');
     assert.equal(state.literatureReviewDraft, 'Saved paragraph.');
-    assert.match(state.literatureReviewNotice, /Load the public full text again/);
 });
 
-test('sources without usable evidence explain why generation is disabled', () => {
-    const state = editor();
-    state.literatureReviewSource = { description: '' };
+test('sources without a saved paper link explain what is needed for generation', () => {
+    const state = editor({}, { config: { proposalDraftId: 42 } });
+    state.literatureReviewSource = { description: 'Indexed abstract evidence.' };
     assert.equal(state.hasLiteratureReviewEvidence(), false);
-    assert.match(state.literatureReviewEvidenceMessage(), /no usable abstract/);
+    assert.match(state.literatureReviewEvidenceMessage(), /complete readable PDF/);
     state.literatureReviewBasis = 'full_text';
-    assert.match(state.literatureReviewEvidenceMessage(), /Load the public full text/);
+    assert.equal(state.hasLiteratureReviewEvidence(), false);
 });
 
-test('RRL generation displays actionable validation errors and preserves existing notes', async () => {
-    const state = editor({ fetch: async () => ({ ok: false, status: 422, json: async () => ({ message: 'Invalid input.', errors: { abstract: ['The abstract is too short.'] } }) }) });
-    state.literatureReviewSource = { title: 'Paper', description: 'Evidence '.repeat(15) };
+test('RRL generation displays actionable paper validation errors and preserves existing notes', async () => {
+    const state = editor({ fetch: async () => ({ ok: false, status: 422, json: async () => ({ message: 'Invalid input.', errors: { source_link_id: ['Attach a complete readable source paper.'] } }) }) }, { config: { proposalDraftId: 42 } });
+    state.literatureReviewSource = { id: 7, title: 'Paper', description: 'Evidence '.repeat(15) };
     state.literatureReviewDraft = 'Saved paragraph.';
     await state.generateLiteratureReviewDraft();
-    assert.equal(state.literatureReviewError, 'The abstract is too short.');
+    assert.equal(state.literatureReviewError, 'Attach a complete readable source paper.');
     assert.equal(state.literatureReviewGenerating, false);
     assert.equal(state.literatureReviewDraft, 'Saved paragraph.');
 });
@@ -683,71 +682,22 @@ test('the objective editor shows and focuses the required field when only a gene
     }
 });
 
-test('an abstract-based generated draft enables insertion and adds its matching IEEE reference', async () => {
-    const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
-    const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
-    const end = app.indexOf('\n}));', start) + '\n}));'.length;
-    const helpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
-    const view = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/detailed-proposal/partials/literature-workspace.blade.php', import.meta.url), 'utf8');
-    const generateButton = view.match(/<button[^>]+x-on:click="generateLiteratureReviewDraft\('auto'\)"[^>]*><\/button>/)[0];
-    const insertButton = view.match(/<button[^>]+x-on:click="saveLiteratureReview\(true\)"[^>]*><\/button>/)[0];
-    const alpine = readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8');
-    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
-
-    try {
-        const page = await browser.newPage();
-        const errors = [];
-        page.on('pageerror', (error) => errors.push(error.message));
-        await page.setContent(`<div x-data="rrlTest">${generateButton}${insertButton}</div>`);
-        await page.addScriptTag({ content: `${helpers}
-            ${sourceWorkspace}
-            const proposalPreviewWorkspace = () => ({});
-            const detailedProposalPreviewWorkspace = () => ({});
-            const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
-            ${app.slice(start, end)}
-            window.state = window.proposalFactory({ proposalDraftId: 42, literatureSynthesisUrl: '/synthesize', literatureDraftUpdateUrlTemplate: '/draft/__proposal_literature_source__' });
-            delete window.state.init;
-            window.state.triggerDetailedProposalAutoSave = () => {};
-            window.state.focusLiteratureDestination = () => {};
-            window.state.openLiteratureReview({ id: 7, literature_source_id: 70, title: 'Community Monitoring', description: 'Community participation supports continuous mangrove monitoring and regular environmental observation.', reference: 'M. Santos, "Community Monitoring," Journal of Coastal Research, 2024.' });
-            window.requests = [];
-            window.fetch = async (url, options) => {
-                const body = JSON.parse(options.body);
-                window.requests.push({ url, body });
-                return { ok: true, json: async () => url === '/synthesize'
-                    ? { synthesis: 'The abstract reports that sustained community participation supports continuous mangrove monitoring and more regular environmental observation. These findings suggest a role for residents in local monitoring programs.', basis: 'abstract' }
-                    : { source: { ...window.state.literatureReviewSource, ...body } } };
-            };
-            document.addEventListener('alpine:init', () => {
-                window.Alpine.data('rrlTest', () => ({ ...window.state, init() { window.state = this; } }));
-            });
-        ` });
-        await page.addScriptTag({ content: alpine });
-        const insert = page.getByRole('button', { name: 'Add to RRL + reference', exact: true });
-        assert.equal(await insert.isDisabled(), true);
-        await page.getByRole('button', { name: 'Generate RRL draft', exact: true }).click();
-        await page.waitForFunction(() => window.state.literatureReviewDraft.length >= 40);
-        assert.equal(await insert.isEnabled(), true);
-        await insert.click();
-        await page.waitForFunction(() => window.state.references.includes('Community Monitoring'));
-        const result = await page.evaluate(() => ({ rrl: window.state.relatedLiterature, references: window.state.references, citations: window.state.literatureCitations, requests: window.requests, notice: window.state.literatureSourceNotice }));
-        assert.equal(result.requests[0].body.proposal_draft_id, 42);
-        assert.equal(result.requests[0].body.source_link_id, 7);
-        assert.equal(result.requests[0].body.evidence_basis, 'abstract');
-        assert.equal('evidence_text' in result.requests[0].body, false);
-        assert.match(result.rrl, /The abstract reports/);
-        assert.match(result.rrl, /data-proposal-citation="7"> \[1\]/);
-        assert.match(result.references, /data-proposal-managed-reference="7"/);
-        assert.match(result.references, /\[1\].*Community Monitoring/);
-        assert.equal(result.citations.length, 1);
-        assert.equal(result.requests[0].body.evidence_basis, 'abstract');
-        assert.equal(result.requests[1].body.rrl_evidence_basis, 'abstract');
-        assert.equal(result.requests[1].body.rrl_draft_status, 'confirmed');
-        assert.match(result.notice, /RRL paragraph and its reference were added/);
-        assert.deepEqual(errors, []);
-    } finally {
-        await browser.close();
-    }
+test('source-linked RRL generation requests complete papers and rejects abstract-only responses', async () => {
+    const requests = [];
+    const state = editor({ fetch: async (_url, options) => {
+        requests.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ synthesis: 'An unsupported abstract-only paragraph.', basis: 'abstract' }) };
+    } }, { config: { proposalDraftId: 42, literatureSynthesisUrl: '/synthesize' } });
+    state.literatureReviewSource = { id: 7, title: 'Community Monitoring', description: 'Indexed abstract evidence. '.repeat(5) };
+    state.literatureReviewDraft = 'Keep my saved paragraph.';
+    await state.generateLiteratureReviewDraft();
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].evidence_basis, 'full_text');
+    assert.equal(requests[0].proposal_draft_id, 42);
+    assert.equal(requests[0].source_link_id, 7);
+    assert.equal('evidence_text' in requests[0], false);
+    assert.equal(state.literatureReviewDraft, 'Keep my saved paragraph.');
+    assert.match(state.literatureReviewError, /complete source paper is required/);
 });
 
 test('shared-library reviewed abstract drafts can be confirmed for proposal insertion', async () => {
@@ -807,6 +757,7 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
     const statusWrapper = view.match(/<div x-show="showDetailedProposalSaveStatus"[^>]*>[\s\S]*?<\/div>/)[0].replace('<x-proposal-autosave-status />', status);
     const validation = view.match(/<div x-show="validationMessage"[^>]*><\/div>/)[0];
     const checkButton = view.match(/<button type="button" @click="checkDetailedProposalRequirements\(\)"[^>]*>[\s\S]*?<\/button>/)[0];
+    const resume = view.match(/<p[^>]*data-proposal-resume[^>]*>[\s\S]*?<\/p>/)[0];
     const checkResult = view.match(/<p[^>]*data-proposal-requirements-result[^>]*><\/p>/)?.[0] || '';
     const helpers = readFileSync(new URL('../../resources/js/proposal-paper-autosave.js', import.meta.url), 'utf8').replaceAll('export ', '');
     const alpine = readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8');
@@ -822,7 +773,7 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 page.on('pageerror', error => errors.push(error.message));
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${css}[x-cloak]{display:none!important}</style><body>
                     <div x-data="completionPanelTest" data-paper-editor data-detailed-proposal-autosave="true" data-paper-project-details-complete="true" class="mx-auto max-w-4xl space-y-6 p-4">
-                        ${validation}${statusWrapper}${checkButton}${checkResult}${panel}
+                        ${validation}${statusWrapper}${resume}${checkButton}${checkResult}${panel}
                         <form x-ref="form"><input type="hidden" name="save_as_draft" data-paper-save-mode value="0">
                             <label for="responsibility-percentage">Responsibility percentage</label>
                             <input id="responsibility-percentage" name="responsibilities[0][percentage]" type="number" required min="1" max="100" aria-label="Responsibility percentage" class="block w-full rounded-lg border-slate-300 bg-white dark:bg-slate-900 dark:text-white">
@@ -865,6 +816,12 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 await page.waitForFunction(() => window.completionPanelState);
                 const checklist = page.locator('[data-proposal-completion-checklist]');
                 assert.equal(await checklist.isVisible(), false);
+                await expect(page.locator('[data-proposal-resume]')).toBeHidden();
+                await page.evaluate(() => { window.completionPanelState.resumingDetailedProposal = true; });
+                await expect(page.locator('[data-proposal-resume]')).toBeVisible();
+                await expect(page.getByRole('button', { name: 'Review remaining fields' })).toBeVisible();
+                await expect(checklist).toBeHidden();
+                await page.evaluate(() => { window.completionPanelState.resumingDetailedProposal = false; });
                 assert.equal(await page.locator('[aria-invalid="true"]').count(), 0);
                 if (process.env.ATHENA_DESIGN_SNAPSHOTS === '1' && width === 1440 && !dark) {
                     await page.screenshot({ path: '../tmp/detailed-proposal-writing.png' });
@@ -883,6 +840,8 @@ test('incomplete drafts stay quiet until requirements are checked, with contextu
                 assert.equal(await page.locator('#'+feedbackId).isVisible(), true);
                 await page.getByRole('button', { name: 'Check requirements' }).click();
                 await checklist.waitFor({ state: 'visible' });
+                await expect(checklist.getByRole('heading', { name: 'Proposal details' })).toBeVisible();
+                await expect(checklist.getByRole('button').first()).toHaveCSS('font-size', '16px');
                 await expect(checklist).toHaveCSS('border-left-width', '1px');
                 await expect(checklist).toHaveCSS('border-left-color', dark ? 'rgb(51, 65, 85)' : 'rgb(226, 232, 240)');
                 await page.getByRole('button', { name: 'Check requirements' }).click();
@@ -965,7 +924,9 @@ test('draft and saving indicators use neutral colors and empty output rows do no
     state.completionErrors = { research_agenda: ['Required.'] };
     assert.equal(state.showCompletionChecklist, false);
     assert.equal(state.showDetailedProposalSaveStatus, true);
-    assert.doesNotMatch(state.detailedProposalCompletionClasses(), /amber|yellow/);
+    assert.doesNotMatch(state.detailedProposalCompletionClasses(), /bg-|green|amber|yellow/);
+    state.detailedProposalComplete = true;
+    assert.doesNotMatch(state.detailedProposalCompletionClasses(), /bg-|green|amber|yellow/);
     state.requirementsReviewed = true;
     assert.equal(state.showCompletionChecklist, true);
     state.expectedOutputs = { products: [{ description: '' }] };
@@ -974,4 +935,43 @@ test('draft and saving indicators use neutral colors and empty output rows do no
     assert.equal(state.hasDetailedProposalExpectedOutput(), true);
     state.detailedProposalSaveState = 'saved';
     assert.equal(state.showDetailedProposalSaveStatus, true);
+});
+
+test('returning drafts keep requirements collapsed and group them by their form sections', () => {
+    const state = editor({}, { config: { detailedProposalStarted: true, completionErrors: {
+        research_agenda: ['Choose an agenda.'], sdgs: ['Choose goals.'], rationale: ['Explain the rationale.'],
+    } } });
+    state.$refs = { form: { querySelectorAll: () => [
+        ['research_agenda', 'Research alignment'], ['sdgs[]', 'Research alignment'], ['rationale', 'Rationale'],
+    ].map(([name, title]) => ({ name, type: 'text', closest: () => ({ querySelector: () => ({ textContent: title }) }) })) } };
+    assert.equal(state.resumingDetailedProposal, true);
+    assert.equal(state.showCompletionChecklist, false);
+    assert.deepEqual(Array.from(state.detailedProposalRequirementGroups, group => [group.title, group.requirements.length]),
+        [['Research alignment', 2], ['Rationale', 1]]);
+    state.requirementsReviewed = true;
+    assert.equal(state.showCompletionChecklist, true);
+    assert.equal(editor().resumingDetailedProposal, false);
+});
+
+
+test('RRL recovery links open the actual upload or search mode after the proposal editor initializes', async () => {
+    for (const [action, expected] of [['pdf', 'add'], ['search', 'search'], ['unsafe', null]]) {
+        const calls = [];
+        const state = editor({ formatPersonName, URL,
+            window: { location: { href: `https://athena.test/proposal/42?sources=${action}&source-query=Gamified%20studying` }, crypto: { randomUUID: () => 'client-id' } },
+            assistantLiteratureHandoff: () => ({ read: () => null }),
+        });
+        state.$el = { matches: () => false };
+        state.plainText = value => String(value || '');
+        state.refreshSuggestedLiteratureQuery = () => {};
+        state.applyInitialLiteratureSource = () => {};
+        state.synchronizeLiteratureCitations = () => {};
+        state.startDetailedProposalAutoSave = () => {};
+        state.openSourceWorkspace = async tab => { calls.push(tab); state.sourceWorkspaceQuery = 'Old working title'; };
+        state.init();
+        await Promise.resolve();
+        assert.deepEqual(calls, expected ? [expected] : []);
+        if (action === 'pdf') assert.equal(state.sourceWorkspaceAddMode, 'pdf');
+        if (action === 'search') assert.equal(state.sourceWorkspaceQuery, 'Gamified studying');
+    }
 });

@@ -2,7 +2,7 @@
 
 <div data-proposal-workspace-toolbar :inert="previewFullscreen" :class="{ 'proposal-writing-toolbar-closed': !writingToolbarOpen }" {{ $attributes->class(['proposal-writing-toolbar']) }} role="group">
     @if ($toggle)
-        <button type="button" data-writing-toolbar-open data-writing-toolbar-toggle @click="writingToolbarOpen ? closeWritingToolbar() : showWritingToolbar()" aria-controls="{{ $toolbarId }}-panel" :aria-expanded="writingToolbarOpen" x-text="writingToolbarOpen ? 'Hide tools' : 'Show tools'">Show tools</button>
+        <button type="button" data-writing-toolbar-open data-writing-toolbar-toggle x-show="!writingToolbarOpen" x-cloak @click="showWritingToolbar()" aria-controls="{{ $toolbarId }}-panel" :aria-expanded="writingToolbarOpen">Show tools</button>
     @endif
     <div @if ($toggle) id="{{ $toolbarId }}-panel" data-writing-toolbar-panel class="proposal-writing-toolbar-panel" x-show="writingToolbarOpen" x-cloak @endif>
         @if ($toggle)

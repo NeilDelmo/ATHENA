@@ -1410,6 +1410,70 @@ test('a researcher can preview the filled monitoring tool without submitting it'
     expect(ProjectProgressReport::count())->toBe(0);
 });
 
+test('unfinished monitoring accomplishments can be previewed without preparing or submitting a report', function (string $missing) {
+    $payload = ($this->monitoringPayload)();
+    if ($missing === 'omitted') {
+        unset($payload['work_plan'][1]['actual_accomplishment']);
+    } else {
+        $payload['work_plan'][1]['actual_accomplishment'] = $missing === 'null' ? null : '';
+    }
+    $this->actingAs($this->researcher);
+    $response = $this->postJson(route('project-progress.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertSee('Interviewed 12 participants')->assertSee('Encode research data');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect(trim($xpath->evaluate('string(//table[contains(@class,"monitoring-work-plan-table")]/tbody/tr[2]/td[5])')))->toBe('');
+
+    foreach (['project-progress.prepare', 'project-progress.store'] as $route) {
+        $this->postJson(route($route, $this->topic), $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('work_plan.1.actual_accomplishment');
+    }
+    expect(ProjectProgressReport::count())->toBe(0)
+        ->and(ProjectMonitoringDraft::count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0);
+    Notification::assertNothingSent();
+})->with(['blank', 'null', 'omitted']);
+
+test('blank monitoring activity fields stay blank in a draft preview', function () {
+    $payload = ($this->monitoringPayload)();
+    $payload['work_plan'] = [['activity' => '', 'percent_weight' => '', 'physical_target' => '', 'target_completion_date' => '', 'actual_accomplishment' => '', 'accomplished_percentage' => '']];
+    foreach ($payload['budget_utilization'] as &$entry) {
+        $entry['amount_requested'] = '';
+        $entry['actual_amount'] = '';
+    }
+    unset($entry);
+    $response = $this->actingAs($this->researcher)
+        ->postJson(route('project-progress.preview', $this->topic), $payload)->assertSuccessful();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    foreach (range(1, 7) as $column) {
+        expect(trim($xpath->evaluate('string(//table[contains(@class,"monitoring-work-plan-table")]/tbody/tr[1]/td['.$column.'])')))->toBe('');
+    }
+    expect(trim($xpath->evaluate('string(//table[contains(@class,"monitoring-budget-table")]/tbody/tr[1]/td[2])')))->toBe('')
+        ->and(trim($xpath->evaluate('string(//table[contains(@class,"monitoring-budget-table")]/tbody/tr[1]/td[3])')))->toBe('')
+        ->and(ProjectProgressReport::count())->toBe(0)
+        ->and(ProjectMonitoringDraft::count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0);
+});
+
+test('unfinished monitoring previews still reject invalid supplied values', function (string $field, mixed $value) {
+    $payload = ($this->monitoringPayload)();
+    $payload['work_plan'][1]['actual_accomplishment'] = '';
+    data_set($payload, $field, $value);
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-progress.preview', $this->topic), $payload)
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+    expect(ProjectProgressReport::count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0);
+})->with([
+    'long accomplishment' => ['work_plan.0.actual_accomplishment', str_repeat('a', 501)],
+    'invalid weight' => ['work_plan.0.percent_weight', 101],
+    'invalid target date' => ['work_plan.0.target_completion_date', 'not a date'],
+    'negative budget' => ['budget_utilization.0.amount_requested', -1],
+]);
+
 test('the monitoring preview contains the same filled paper as the official template', function () {
     $this->researcher->update(['name' => 'María Peña']);
     $response = $this->actingAs($this->researcher)

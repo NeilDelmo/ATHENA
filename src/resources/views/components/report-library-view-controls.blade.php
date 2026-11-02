@@ -2,7 +2,7 @@
 
 <div {{ $attributes->merge(['class' => 'flex flex-wrap items-center gap-2 text-base leading-6 text-slate-500 dark:text-slate-400']) }}>
     <span class="hidden sm:inline">Ctrl + scroll to resize · Right-click for actions</span>
-    <button type="button" class="workspace-secondary" aria-haspopup="menu" :aria-expanded="viewMenuOpen" :disabled="$data.saving || $data.stale" @click="openViewMenu($event)">@if ($showTriggerIcon)<x-report-library-icon name="actions" class="!h-5 !w-5" />@endif<span x-text="menuLabel === 'View' ? 'View' : 'Actions'"></span></button>
+    <button type="button" class="workspace-secondary" aria-haspopup="menu" :aria-expanded="viewMenuOpen" :disabled="$data.saving || $data.stale" @click="openViewMenu($event)">@if ($showTriggerIcon)<x-report-library-icon name="actions" class="!h-5 !w-5" />@endif<span>View</span></button>
 </div>
 <template x-teleport="body">
     <div x-ref="libraryViewMenu" x-cloak x-show="viewMenuOpen" role="menu" aria-label="View" :aria-label="menuLabel"

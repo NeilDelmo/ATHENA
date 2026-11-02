@@ -125,3 +125,45 @@ test('accepting a reordered RRL preserves source locators and saves synchronized
         await browser.close();
     }
 });
+
+
+test('reopened submitted papers keep their bibliography when draft source rows are no longer present', async () => {
+    const methods = ['literatureCitationFieldValue', 'citationMarkerSourceIds', 'activeProposalCitations', 'citationReferenceSourceIds',
+        'citationReferenceSources', 'citationReferenceNumbers', 'referenceTextForCitationSource', 'removeManagedReferenceBlocks',
+        'escapeLiteratureHtml', 'plainText', 'synchronizeLiteratureCitations', 'notifyLiteratureFieldChanged'].map(methodSource).join('\n');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent('<textarea id="references"></textarea><input id="literature-citations">');
+        await page.addScriptTag({ content: `${moduleSource('proposal-semantic-editor')}
+            window.state = { ${methods}
+                relatedLiterature: '<p>First finding <span data-proposal-citation="42">[1]</span>.</p><p>Second finding <span data-proposal-citation="43" data-proposal-locator="p. 8">[2, p. 8]</span>.</p>',
+                references: '<p>Keep the manually written reference.</p><p data-proposal-managed-reference="42">[1] A. Reader, First study, 2025.</p><p data-proposal-managed-reference="43">[2] B. Reader, Second study, 2024.</p>',
+                literatureSources: [], literatureCitations: [], methodology: {},
+                $nextTick(callback) { callback(); }, triggerDetailedProposalAutoSave() { window.savedReferences = this.references; },
+            }; state.synchronizeLiteratureCitations();` });
+        const references = await page.evaluate(() => state.references);
+        assert.match(references, /\[1\] A\. Reader, First study, 2025\./);
+        assert.match(references, /\[2\] B\. Reader, Second study, 2024\./);
+        assert.match(references, /Keep the manually written reference/);
+        assert.equal(await page.evaluate(() => window.savedReferences), references);
+        await page.evaluate(() => {
+            state.literatureSources = [{ id: 99, reference: 'C. Reader, New study, 2026.' }];
+            state.relatedLiterature += '<p>New finding <span data-proposal-citation="99">[3]</span>.</p>';
+            state.synchronizeLiteratureCitations();
+        });
+        assert.deepEqual(await page.evaluate(() => state.citationReferenceNumbers()), { 42: 1, 43: 2, 99: 3 });
+        assert.match(await page.evaluate(() => state.references), /\[3\] C\. Reader, New study, 2026\./);
+        await page.evaluate(() => {
+            window.beforeCitationDeletion = state.relatedLiterature;
+            state.relatedLiterature = state.relatedLiterature.replace(/<span data-proposal-citation="42">.*?<\/span>/, '');
+            state.synchronizeLiteratureCitations();
+        });
+        assert.deepEqual(await page.evaluate(() => state.citationReferenceNumbers()), { 43: 1, 99: 2 });
+        assert.doesNotMatch(await page.evaluate(() => state.references), /First study/);
+        assert.match(await page.evaluate(() => state.references), /\[1\] B\. Reader, Second study, 2024\./);
+        await page.evaluate(() => { state.relatedLiterature = window.beforeCitationDeletion; state.synchronizeLiteratureCitations(); });
+        assert.deepEqual(await page.evaluate(() => state.citationReferenceNumbers()), { 42: 1, 43: 2, 99: 3 });
+        assert.match(await page.evaluate(() => state.references), /\[1\] A\. Reader, First study, 2025\./);
+    } finally { await browser.close(); }
+});

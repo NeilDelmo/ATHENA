@@ -40,6 +40,7 @@
         @auth
             data-research-assistant-url="{{ route('research-support.chat') }}"
             data-research-assistant-history-url="{{ route('research-support.history') }}"
+            data-research-assistant-workspace-url="{{ route('workspace.store') }}"
             @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher', 'research_head']))
                 data-research-assistant-contexts-url="{{ route('research-support.contexts') }}"
             @endif

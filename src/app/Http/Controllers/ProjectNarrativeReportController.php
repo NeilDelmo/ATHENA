@@ -19,6 +19,7 @@ use App\Services\ImagePreviewService;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
 use App\Services\ProgressReportEvidenceService;
+use App\Services\ProgressReportMonitoringService;
 use App\Services\ProjectMonitoringFormDataService;
 use App\Services\ProjectReportDraftState;
 use App\Services\ProjectReportEvidence;
@@ -408,6 +409,7 @@ class ProjectNarrativeReportController extends Controller
     public function downloadEvidence(Request $request, TopicProposal $topic, string $evidence, ProjectReportEvidence $evidenceService, ImagePreviewService $previews): StreamedResponse
     {
         $file = null;
+        $evidenceKind = 'narrative';
         if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER) && $topic->isAccessibleTo($request->user())) {
             foreach (ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->where('report_type', 'progress')->get(['source_data']) as $draft) {
                 $file = collect($draft->source_data['accomplishments'] ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
@@ -419,8 +421,16 @@ class ProjectNarrativeReportController extends Controller
         if (! $file) {
             foreach (ProjectNarrativeReport::query()->whereBelongsTo($topic, 'topic')
                 ->when($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), fn ($query) => $query->visibleToResearchHead())
-                ->orderByDesc('submission_status')->orderByDesc('id')->get(['id', 'topic_id', 'submission_status', 'report_type', 'review_stage', 'accomplishments']) as $report) {
+                ->with('monitoringReport')->orderByDesc('submission_status')->orderByDesc('id')
+                ->get(['id', 'topic_id', 'monitoring_report_id', 'reporting_date', 'submission_status', 'report_type', 'review_stage', 'accomplishments']) as $report) {
+                $report->setRelation('topic', $topic);
                 $candidate = collect($report->accomplishments ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
+                if (! $candidate) {
+                    $candidate = collect(app(ProgressReportMonitoringService::class)->evidenceForReport($report))->firstWhere('id', $evidence);
+                    if ($candidate) {
+                        $evidenceKind = 'monitoring';
+                    }
+                }
                 if ($candidate) {
                     if ($report->isSubmitted()) {
                         if ($request->user()->isUsingWorkspace([User::WORKSPACE_RESEARCH_HEAD, User::WORKSPACE_RESEARCH_SECRETARY])) {
@@ -437,7 +447,7 @@ class ProjectNarrativeReportController extends Controller
                 }
             }
         }
-        abort_unless($file && $evidenceService->isStoredEvidence($topic, 'narrative', $file), 404);
+        abort_unless($file && $evidenceService->isStoredEvidence($topic, $evidenceKind, $file), 404);
 
         $mimeType = Storage::disk('local')->mimeType($file['path']);
         if ($request->boolean('preview')) {

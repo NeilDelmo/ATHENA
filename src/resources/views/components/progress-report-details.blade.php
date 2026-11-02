@@ -1,6 +1,7 @@
 @props(['topic', 'report', 'quarter' => null, 'progressPercentage' => null, 'closable' => false])
 
 @php($quarter = $quarter ?? $report->reporting_quarter)
+@php($progressPercentage = $report->monitoringReport?->progress_percentage ?? $progressPercentage)
 
 <div class="quarter-report-document" data-progress-report-detail data-live-report-key="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-scope="{{ \App\Services\TopicLiveStatus::reportScope($topic, $report) }}">
     <x-quarter-report-header :report="$report" :title="'Q'.$quarter.' Progress Report · Version '.($report->version_number ?? 1)" :closable="$closable" />

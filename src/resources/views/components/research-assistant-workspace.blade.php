@@ -53,10 +53,8 @@
                 <p x-show="!$store.researchAssistant.historyLoading && !$store.researchAssistant.historyLoadError && !$store.researchAssistant.history.length" class="px-2 py-6 text-center text-xs leading-5 text-gray-500 dark:text-slate-400">Your saved chats will appear here.</p>
             </div>
 
-            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 rounded-lg bg-stone-200 px-3 py-2.5 text-xs text-red-900 dark:bg-stone-800 dark:text-red-200">
-                <p class="font-semibold uppercase tracking-wider">Paper help</p>
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 text-sm leading-6 text-stone-600 dark:text-stone-300">
                 <p class="mt-1 font-semibold leading-4" x-text="$store.researchAssistant.paperContextLabel()"></p>
-                <p x-show="$store.researchAssistant.hasLiveFormContext()" class="mt-1.5 font-medium text-red-700 dark:text-red-300">Focused field and current row context included</p>
             </div>
 
         </div>
@@ -124,7 +122,7 @@
                                 <x-research-assistant-report-changes />
                                 <x-research-assistant-dissemination />
                                 <x-research-assistant-sources />
-                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex min-h-11 items-center rounded-lg px-2 py-2 text-xs font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
+                                <div x-show="message.literature?.kind !== 'draft'" class="mt-2"><x-research-assistant-copy /></div>
                             </div>
                         </div>
                     </article>
@@ -147,13 +145,11 @@
             <div class="mx-auto max-w-4xl">
                 <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
                     <div><p class="font-semibold" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
-                    <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-red-700 bg-red-900 px-3 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-red-400" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                    <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-red-700 bg-red-900 px-3 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-red-400" x-text="$store.researchAssistant.errorTitle === 'Chat is full' ? 'New chat' : ($store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry')"></button>
                 </div>
 
-                <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-lg bg-stone-200 px-3 py-2 text-xs text-red-900 dark:bg-stone-800 dark:text-red-200 lg:hidden">
-                    <span class="shrink-0 font-semibold uppercase tracking-wider">Paper help</span>
-                    <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
-                    <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded bg-white px-2 py-0.5 font-semibold dark:bg-stone-900">Live context</span>
+                <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 px-1 text-sm leading-6 text-stone-600 dark:text-stone-300 lg:hidden">
+                    <span class="break-words" x-text="$store.researchAssistant.paperContextLabel()"></span>
                 </div>
 
                 <x-research-assistant-composer id="workspace" input-id="research-assistant-message" />

@@ -6,12 +6,12 @@ import { chromium, expect } from '@playwright/test';
 
 const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
 function storeMethod(name) {
-    const match = source.match(new RegExp(`    ${name}\\(([^)]*)\\) \\{([\\s\\S]*?)\\n    \\},`));
+    const match = source.match(new RegExp(`    (?:async )?${name}\\(([^)]*)\\) \\{([\\s\\S]*?)\\n    \\},`));
     assert.ok(match, `Missing assistant method: ${name}`);
-    return new Function('currentPageReportContext', `return function(${match[1]}) {${match[2]}}`)(() => null);
+    return new Function('currentPageReportContext', 'window', 'document', 'reportContext', `return ({${match[0]}})['${name}'];`)(() => null, globalThis.window || {}, globalThis.document || { body: { dataset: {} } }, () => null);
 }
 
-test('project chips enable only available projects and discard stale document choices', () => {
+test('project chips enable only available projects and discard stale document choices', async () => {
     const store = {
         contextOptions: [{ id: 12, label: 'Water research' }, { id: 24, label: 'Student learning' }],
         documentRequestSequence: 5,
@@ -22,21 +22,24 @@ test('project chips enable only available projects and discard stale document ch
         documentError: 'Old error',
         closeDocumentPicker: storeMethod('closeDocumentPicker'),
         selectProjectContext: storeMethod('selectProjectContext'),
+        applyConversationContext: storeMethod('applyConversationContext'),
+        restoreReviewContext() {},
+        async ensureConversationContext(context) { this.applyConversationContext(context); return true; },
     };
-    store.selectProjectContext('24');
+    await store.selectProjectContext('24');
     assert.equal(store.selectedContextId, 24);
     assert.equal(store.contextEnabled, true);
-    assert.equal(store.documentRequestSequence, 6, 'An earlier project document request must be invalidated');
+    assert.ok(store.documentRequestSequence > 5, 'An earlier project document request must be invalidated');
     assert.equal(store.documentPickerOpen, false);
     assert.deepEqual(store.documentOptions, []);
     assert.equal(store.selectedDocumentToken, '');
     assert.equal(store.documentLoading, false);
     assert.equal(store.documentError, '');
 
-    store.selectProjectContext(null);
+    await store.selectProjectContext(null);
     assert.equal(store.contextEnabled, false);
     assert.equal(store.selectedContextId, 0);
-    store.selectProjectContext(999);
+    await store.selectProjectContext(999);
     assert.equal(store.contextEnabled, false, 'Unavailable project IDs cannot become active');
 });
 

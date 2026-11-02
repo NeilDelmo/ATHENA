@@ -72,7 +72,7 @@ test('profile menu stays above the sticky writing toolbar after scrolling', asyn
             }
             await trigger.click();
             await expect(menu).toBeHidden();
-            await toolbar.getByRole('button', { name: 'Hide tools', exact: true }).click();
+            await toolbar.locator('[data-writing-toolbar-close]').click();
             await expect(toolbar.getByRole('button', { name: 'Show tools', exact: true })).toBeVisible();
             assert.deepEqual(errors, []);
             await page.close();
@@ -80,7 +80,7 @@ test('profile menu stays above the sticky writing toolbar after scrolling', asyn
     } finally { await browser.close(); }
 });
 
-test('detailed proposal tools use a plain wide toggle above the panel', async () => {
+test('detailed proposal tools collapse with the close button without an extra toggle row', async () => {
     const toolbarHtml = execFileSync('php', ['-r', String.raw`
         require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
         $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
@@ -114,30 +114,33 @@ test('detailed proposal tools use a plain wide toggle above the panel', async ()
             assert.ok(await toggle.evaluate(element => parseFloat(getComputedStyle(element).fontSize) >= 14));
             await page.keyboard.press('Tab');
             await expect(toggle).toBeFocused();
-            await expect(toggle).toHaveCSS('outline-style', 'none');
-            await expect(toggle).toHaveCSS('text-decoration-line', 'underline');
+            await expect(toggle).toHaveCSS('outline-style', 'solid');
+            await expect(toggle).toHaveCSS('text-decoration-line', 'none');
             await toggle.hover();
             await expect(toggle).toHaveCSS('background-color', dark ? 'rgb(30, 41, 59)' : 'rgb(243, 245, 248)');
             const panel = page.locator('[data-writing-toolbar-panel]');
             await toggle.click();
-            await expect(toggle).toBeVisible();
-            await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-            await expect(toggle).toBeFocused();
+            await expect(toggle).toBeHidden();
             await expect(panel).toBeVisible();
-            const [toggleBox, panelBox] = await page.locator('[data-writing-toolbar-open], [data-writing-toolbar-panel]')
-                .evaluateAll(elements => elements.map(element => element.getBoundingClientRect().toJSON()));
-            assert.ok(panelBox.y >= toggleBox.y + toggleBox.height + 4, 'The tools panel should open below the toggle');
-            assert.ok(Math.abs(panelBox.x - toggleBox.x) <= 1, 'The tools panel should align with the toggle');
+            const close = page.locator('[data-writing-toolbar-close]');
+            await expect(close).toBeFocused();
+            await expect(close).toHaveAttribute('aria-expanded', 'true');
+            const toolbarBox = await page.locator('[data-proposal-workspace-toolbar]').boundingBox();
+            const panelBox = await panel.boundingBox();
+            assert.ok(Math.abs(panelBox.y - toolbarBox.y) <= 1, 'The open toolbar must not reserve space for a toggle above the panel');
             if (process.env.ATHENA_EDITOR_VISUAL_DIR && !embedded) await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `tools-toggle-${width}-${dark ? 'dark' : 'light'}.png`) });
-            await toggle.click();
+            await close.click();
             await expect(panel).toBeHidden();
             await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+            await expect(toggle).toBeFocused();
             await toggle.press('Space');
             await expect(panel).toBeVisible();
-            await toggle.press('Space');
+            await expect(toggle).toBeHidden();
+            await expect(close).toBeFocused();
+            await close.press('Space');
             await expect(panel).toBeHidden();
             await toggle.click();
-            await page.locator('[data-writing-toolbar-close]').click();
+            await close.click();
             await expect(panel).toBeHidden();
             await expect(toggle).toBeFocused();
             await expect(page.getByRole('textbox', { name: 'Research notes', exact: true })).toHaveValue('Keep these notes.');
@@ -263,7 +266,7 @@ test('all writing toolbars keep action groups readable and close without losing 
                         assert.equal(await page.evaluate(() => window.toolbarState.savedValue), 'I can keep writing with the tools closed.');
                         await reopen.click();
                         await page.waitForFunction(selector => document.activeElement?.matches(selector)
-                            && document.activeElement.getAttribute('aria-expanded') === 'true', paper === 'detailed-proposal' ? '[data-writing-toolbar-toggle]' : '[data-writing-toolbar-close]').catch(async (error) => {
+                            && document.activeElement.getAttribute('aria-expanded') === 'true', '[data-writing-toolbar-close]').catch(async (error) => {
                             assert.fail(`${paper}/${embedded ? 'revision' : 'submission'}/${width}/${dark ? 'dark' : 'light'}: ${error.message}; ${JSON.stringify(await page.evaluate(() => ({ open: window.toolbarState.writingToolbarOpen, focused: document.activeElement?.outerHTML, close: document.querySelector('[data-writing-toolbar-close]')?.outerHTML })))}`);
                         });
                         assert.equal(await close.getAttribute('aria-expanded'), 'true');

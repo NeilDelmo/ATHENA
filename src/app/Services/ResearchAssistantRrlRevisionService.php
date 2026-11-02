@@ -92,7 +92,8 @@ PROMPT],
      */
     private function blocks(string $html, array $linkedIds): array
     {
-        abort_unless(trim(strip_tags($html)) !== '' && Str::length($html) <= 30000, 422, 'Save a non-empty RRL of at most 30,000 characters before requesting a revision.');
+        abort_unless(trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'), " \t\n\r\0\x0B\xc2\xa0") !== '', 422, 'There is no saved RRL text to revise. Write your RRL first, or use Sources to build a draft from your papers.');
+        abort_if(Str::length($html) > 30000, 422, 'This RRL exceeds the 30,000-character revision limit, including formatting. Your saved text is unchanged.');
         if (strip_tags($html) === $html) {
             $html = collect(preg_split('/\n\s*\n/u', $html) ?: [])->map(fn (string $text): string => '<p>'.nl2br($this->escape($text), false).'</p>')->join('');
         }

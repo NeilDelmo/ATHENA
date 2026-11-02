@@ -2,6 +2,10 @@
 
 @php($evidencedRows = collect($report->accomplishments ?? [])->filter(fn ($row) => count($row['evidence'] ?? []) > 0))
 
+@if ($report->report_type === 'progress' && $report->monitoring_report_id)
+    <x-progress-report-monitoring :topic="$report->topic" :report="$report" :accomplishments="$report->accomplishments ?? []" {{ $attributes }} />
+@endif
+
 @if ($report->report_type === 'progress' && $evidencedRows->isNotEmpty())
     <section {{ $attributes->class(['space-y-4 print:hidden']) }} data-progress-report-saved-evidence aria-label="Progress Report supporting evidence">
         <div>

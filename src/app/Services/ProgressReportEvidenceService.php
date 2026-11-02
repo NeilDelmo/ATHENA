@@ -51,9 +51,14 @@ class ProgressReportEvidenceService
     public function rules(FormRequest $request): array
     {
         if ($request->input('report_type', 'progress') !== 'progress') {
-            return ['accomplishment_evidence' => ['prohibited']];
+            return ['accomplishment_evidence' => ['prohibited'], 'monitoring_report_id' => ['prohibited']];
         }
+        $sourceId = $request->input('monitoring_report_id');
+        $date = $request->input('reporting_date');
+        $source = is_scalar($sourceId) && is_numeric($sourceId) && is_string($date)
+            ? app(ProgressReportMonitoringService::class)->forDate($request->route('topic'), $date, (int) $sourceId) : null;
         $rules = [
+            'monitoring_report_id' => ['nullable', 'integer', Rule::in($source ? [$source->id] : [])],
             'accomplishments.*.evidence_key' => ['required', 'string', 'distinct', 'regex:/^(?:objective-[a-f0-9]{24}|row-[a-f0-9-]{36})$/'],
             'accomplishments.*.evidence_ids' => ['nullable', 'array', 'max:5'],
             'accomplishments.*.evidence' => ['array', 'max:5'],

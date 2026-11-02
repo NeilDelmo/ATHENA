@@ -62,6 +62,8 @@
     $approvedStart = $proposalDraft?->planned_start ?? $topic->notice_to_proceed_issued_at?->copy()->startOfDay();
     $approvedEnd = $proposalDraft?->planned_end ?? $approvedStart?->copy()->addMonths((int) $topic->estimated_duration_months);
     $draftData = array_replace($progressDefaults, $draftData);
+    $monitoringReportId = $old('monitoring_report_id', $draftData['monitoring_report_id'] ?: ($progressDefaults['monitoring_report_id'] ?? null));
+    $linkedMonitoringReport = $monitoringReportId ? app(\App\Services\ProgressReportMonitoringService::class)->forDate($topic, $selectedReportingDate, (int) $monitoringReportId) : null;
     $approvedObjectives = (bool) ($progressDefaults['objectives_from_work_plan'] ?? false);
     $draftData = app(\App\Support\ProgressReportData::class)->normalize($topic, [...$draftData, 'accomplishments' => $old('accomplishments', $draftData['accomplishments'] ?? [])]);
     $blankAccomplishment = ['objective' => '', 'target' => '', 'actual' => '', 'activities' => ''];
@@ -177,6 +179,12 @@
         @endif
 
         <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes, figures, and accomplishment evidence save privately as a draft. Wait for “Draft saved” before leaving. Attach evidence for each reported accomplishment before submission. Submitted evidence appears in the project folder and the College Accomplishment Report supporting documentation. Evidence stays out of the report preview and downloaded PDF; figures are included in the report.</p>
+        <input type="hidden" name="monitoring_report_id" value="{{ $linkedMonitoringReport?->id }}">
+        @if ($linkedMonitoringReport)
+            <x-progress-report-monitoring :topic="$topic" :monitoring-report="$linkedMonitoringReport" :accomplishments="$accomplishmentRows" />
+        @else
+            <p class="text-sm leading-6 text-gray-600 dark:text-slate-300">Submit the Monitoring Tool for this quarter first to reuse its accomplishments, calculated progress, and supporting evidence here.</p>
+        @endif
         <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>.</p>
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -248,7 +256,7 @@
                                 <textarea :name="'accomplishments[' + index + '][target]'" x-model="row.target" @readonly($approvedObjectives) rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Expected outputs from the approved work plan"></textarea>
                             </label>
                             <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Actual accomplishment
-                                <textarea :name="'accomplishments[' + index + '][actual]'" x-model="row.actual" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="What was completed during this period? Include partial progress or work not yet started."></textarea>
+                                <textarea :name="'accomplishments[' + index + '][actual]'" x-model="row.actual" rows="4" maxlength="{{ \App\Support\ProgressReportData::MAXIMUM_ACCOMPLISHMENT_LENGTH }}" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="What was completed during this period? Include partial progress or work not yet started."></textarea>
                             </label>
                             <div data-progress-evidence class="min-w-0 space-y-2 print:hidden">
                                 <input type="hidden" :name="`accomplishments[${index}][evidence_key]`" :value="row.evidence_key">

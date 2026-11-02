@@ -17,15 +17,15 @@
             @click="open = !open; query = ''; $store.researchAssistant.closeDocumentPicker(); if (open) { $store.researchAssistant.loadContextOptions(); $nextTick(() => { if (open) $refs.search.focus() }) }"
             :aria-expanded="open"
             aria-controls="assistant-projects-{{ $id }}"
-            :aria-label="$store.researchAssistant.contextEnabled ? `Change project: ${$store.researchAssistant.selectedContext()?.label || ''}` : 'Add project context'"
-            :title="$store.researchAssistant.contextEnabled ? $store.researchAssistant.selectedContext()?.label : 'Use a project’s saved records in this chat'"
+            :aria-label="($store.researchAssistant.contextEnabled || $store.researchAssistant.proposalDraftId) ? `Change project: ${$store.researchAssistant.selectedContext()?.label || ''}` : 'Add project context'"
+            :title="($store.researchAssistant.contextEnabled || $store.researchAssistant.proposalDraftId) ? $store.researchAssistant.selectedContext()?.label : 'Use a project’s saved records in this chat'"
             class="inline-flex min-h-11 min-w-0 items-center gap-2 rounded-full px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-slate-200 dark:hover:bg-slate-700"
         >
             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg>
-            <span class="max-w-[8rem] truncate sm:max-w-[14rem]" x-text="$store.researchAssistant.contextEnabled ? $store.researchAssistant.selectedContext()?.label : 'Add project'"></span>
+            <span class="max-w-[8rem] truncate sm:max-w-[14rem]" x-text="($store.researchAssistant.contextEnabled || $store.researchAssistant.proposalDraftId) ? $store.researchAssistant.selectedContext()?.label : 'Add project'"></span>
             <svg class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
         </button>
-        <button x-show="$store.researchAssistant.contextEnabled" type="button" @click="$store.researchAssistant.selectProjectContext(null); open = false; $refs.trigger.focus()" class="inline-flex h-11 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-700" aria-label="Remove project context" title="Remove project context">
+        <button x-show="$store.researchAssistant.contextEnabled || $store.researchAssistant.proposalDraftId" type="button" @click="$store.researchAssistant.selectProjectContext(null); open = false; $refs.trigger.focus()" class="inline-flex h-11 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-700" aria-label="Remove project context" title="Remove project context">
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
     </div>

@@ -35,8 +35,8 @@ class ProposalVersionComparison
                 continue;
             }
 
-            $before = $beforeFile?->source_data;
-            $after = $afterFile?->source_data;
+            $before = $this->sourceData($beforeFile, $previous);
+            $after = $this->sourceData($afterFile, $latest);
             $structured = ($beforeFile === null || is_array($before) && $before !== [])
                 && ($afterFile === null || is_array($after) && $after !== []);
             $sections = [];
@@ -45,6 +45,12 @@ class ProposalVersionComparison
                 $fields = array_unique(array_map(fn (string $field): string => explode('.', $field)[0], array_keys($rules)));
 
                 foreach (array_diff($fields, ['methodology_images', 'literature_research_history', 'literature_citations']) as $field) {
+                    // Missing identity metadata in older snapshots does not establish a deletion.
+                    if ($beforeFile !== null && $afterFile !== null
+                        && in_array($field, ['project_title', 'project_leader'], true)
+                        && (! array_key_exists($field, $before) || ! array_key_exists($field, $after))) {
+                        continue;
+                    }
                     $beforeText = $this->text($before[$field] ?? null);
                     $afterText = $this->text($after[$field] ?? null);
 
@@ -73,6 +79,29 @@ class ProposalVersionComparison
         }
 
         return $papers;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function sourceData(?ProposalVersionFile $file, ProposalVersion $version): ?array
+    {
+        $source = $file?->source_data;
+        if (! is_array($source)) {
+            return null;
+        }
+        if ($file->document_type !== ProposalVersionFile::TYPE_DETAILED_PROPOSAL || $source === []) {
+            return $source;
+        }
+        if (! array_key_exists('project_title', $source) && $version->title !== null) {
+            $source['project_title'] = $version->title;
+        }
+        if (is_array($source['responsibilities'] ?? null)) {
+            $source['responsibilities'] = array_map(
+                fn (mixed $row): mixed => is_array($row) ? Arr::except($row, ['percentage_fixed']) : $row,
+                $source['responsibilities'],
+            );
+        }
+
+        return $source;
     }
 
     /** @return array<string, mixed> */

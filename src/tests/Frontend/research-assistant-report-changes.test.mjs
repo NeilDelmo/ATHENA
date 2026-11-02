@@ -93,7 +93,7 @@ test('keeping current text removes only that candidate and makes no resolve or p
 
 test('report shortcuts preserve a message typed while the draft is saving', async () => {
     const previousWindow = globalThis.window;
-    const store = { draft: '', requestSequence: 1, proposalChangesBusy: () => false,
+    const store = { draft: '', requestSequence: 1, async ensureConversationContext() { return true; }, proposalChangesBusy: () => false,
         sendPrompt: () => { throw new Error('Must not overwrite the unfinished composer.'); } };
     globalThis.window = { Alpine: { store: () => store } };
     try {
@@ -109,7 +109,8 @@ test('ordinary report chat preserves edits typed during the save before sending'
     const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
     const method = app.match(/    async send\(action = null, contextOverride = null\) \{[\s\S]*?\n    \},/)[0];
     const state = { ...new Function('reportContext', 'researchAssistantMessageLimit', `return ({${method}});`)(reportContext, 8000),
-        draft: 'Check this saved report.', requestSequence: 1, contextPayload: () => cases[0][0],
+        async restoreConversation() { return true; },
+        messages: [], draft: 'Check this saved report.', requestSequence: 1, contextPayload: () => cases[0][0],
         async prepareReportContext(context) { this.draft = 'Keep my amended message.'; return context; },
         setError(title, message) { this.error = message; } };
     assert.equal(await state.send(), null);

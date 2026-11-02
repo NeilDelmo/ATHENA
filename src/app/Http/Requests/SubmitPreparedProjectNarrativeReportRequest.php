@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProgressReportMonitoringService;
 use App\Services\ProjectReportEvidence;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -50,8 +51,11 @@ class SubmitPreparedProjectNarrativeReportRequest extends FormRequest
                     return;
                 }
 
+                $monitoring = app(ProgressReportMonitoringService::class);
+                $source = $monitoring->forReport($report);
                 foreach ($report->accomplishments ?? [] as $row) {
                     if (filled($row['actual'] ?? null)
+                        && (! $source || $monitoring->evidenceForObjective($topic, $source, (string) ($row['objective'] ?? '')) === [])
                         && ! collect($row['evidence'] ?? [])->contains(fn (mixed $file): bool => is_array($file)
                             && app(ProjectReportEvidence::class)->isStoredEvidence($topic, 'narrative', $file))) {
                         $validator->errors()->add(

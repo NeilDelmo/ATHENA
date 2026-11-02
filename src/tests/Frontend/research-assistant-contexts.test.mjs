@@ -120,6 +120,7 @@ test('the built app loads projects on opening, retries failures, and drops stale
     const origin = 'https://athena-contexts.test';
     const pending = [];
     const errors = [];
+    let activeAccount = 7, activeWorkspace = 'faculty';
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         const page = await browser.newPage();
@@ -131,9 +132,11 @@ test('the built app loads projects on opening, retries failures, and drops stale
                 const reply = await new Promise(resolve => pending.push(resolve));
                 return route.fulfill(reply);
             }
-            if (path === 'history') return route.fulfill({ json: { conversations: [] } });
+            if (path === 'history') return route.fulfill({ json: new URL(route.request().url()).searchParams.has('resume')
+                ? { account_id: activeAccount, workspace: activeWorkspace, conversation: null } : { conversations: [] } });
             if (path === 'history/9') return route.fulfill({ json: { conversation: { id: 9, context: { topic_id: 101 }, messages: [{ role: 'user', content: 'Saved project question' }] } } });
             const other = path === 'other';
+            activeAccount = other ? 8 : 7; activeWorkspace = other ? 'research_head' : 'faculty';
             const seed = path === 'dashboard' ? [] : [{ id: other ? 100 : 12, label: other ? 'New account project' : 'Current project', meta: 'Research', status: 'approved' }];
             return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>
                 <meta charset="utf-8"><meta name="csrf-token" content="test"><meta name="app-url" content="${origin}">
@@ -187,4 +190,16 @@ test('the built app loads projects on opening, retries failures, and drops stale
         pending.forEach(reply => reply({ status: 503, json: {} }));
         await browser.close();
     }
+});
+
+
+test('restored chat projects take precedence over another pages project when loading the picker', async t => {
+    const f = fixture(t, async url => {
+        assert.equal(new URL(url).searchParams.get('active_topic_id'), '42');
+        return response([{ id: 42, label: 'Restored chat project' }]);
+    });
+    f.state.selectedContextId = 42;
+    f.state.conversationContext = { topic_id: 42 };
+    assert.equal(await f.state.loadContextOptions(), true);
+    assert.equal(f.state.selectedContextId, 42);
 });

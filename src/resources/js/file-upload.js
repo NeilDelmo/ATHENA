@@ -156,7 +156,13 @@ export async function submitFileUploadForm(form, submitter) {
             editor.dataset.paperSubmitting = 'true';
         }
         succeeded = true;
-        location.assign(destination.href);
+        if (destination.pathname === location.pathname && destination.search === location.search) {
+            // A fragment-only redirect does not reload the saved review.
+            history.replaceState(history.state, '', destination.href);
+            location.reload();
+        } else {
+            location.assign(destination.href);
+        }
         return true;
     } catch (error) {
         const panel = form.querySelector(':scope > [data-file-upload-progress]');

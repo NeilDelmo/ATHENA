@@ -59,6 +59,7 @@ class StoreProjectProgressReportRequest extends FormRequest
     public function rules(): array
     {
         $window = app(MonitoringQuarterService::class)->reportingWindow($this->route('topic'));
+        $contentRequirement = $this->routeIs('project-progress.preview') ? 'nullable' : 'required';
 
         return [
             ...app(MonitoringEvidenceService::class)->rules($this),
@@ -70,14 +71,14 @@ class StoreProjectProgressReportRequest extends FormRequest
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],
             'work_plan.*.source_work_plan_index' => ['nullable', 'integer', 'min:0'],
             'work_plan.*.objective' => ['nullable', 'string', 'max:500'],
-            'work_plan.*.activity' => ['required', 'string', 'max:1500'],
-            'work_plan.*.percent_weight' => ['required', 'numeric', 'between:0,100'],
-            'work_plan.*.physical_target' => ['required', 'string', 'max:500'],
-            'work_plan.*.target_completion_date' => ['required', 'date'],
+            'work_plan.*.activity' => [$contentRequirement, 'string', 'max:1500'],
+            'work_plan.*.percent_weight' => [$contentRequirement, 'numeric', 'between:0,100'],
+            'work_plan.*.physical_target' => [$contentRequirement, 'string', 'max:500'],
+            'work_plan.*.target_completion_date' => [$contentRequirement, 'date'],
             'work_plan.*.work_plan_months' => ['nullable', 'array', 'max:120'],
             'work_plan.*.work_plan_months.*' => ['integer', 'min:1', 'max:120'],
-            'work_plan.*.actual_accomplishment' => ['required', 'string', 'max:500'],
-            'work_plan.*.accomplished_percentage' => ['required', 'numeric', 'between:0,100'],
+            'work_plan.*.actual_accomplishment' => [$contentRequirement, 'string', 'max:500'],
+            'work_plan.*.accomplished_percentage' => [$contentRequirement, 'numeric', 'between:0,100'],
             'work_plan.*.findings' => ['nullable', 'string', 'max:500'],
             'budget_utilization' => ['required', 'array', 'size:3'],
             'budget_utilization.*.type' => [
@@ -86,8 +87,8 @@ class StoreProjectProgressReportRequest extends FormRequest
                 Rule::in(['Purchase Request', 'Cash Advance', 'Request of Payment']),
             ],
             'budget_utilization.*.details' => ['nullable', 'string', 'max:300'],
-            'budget_utilization.*.amount_requested' => ['required', 'numeric', 'min:0'],
-            'budget_utilization.*.actual_amount' => ['required', 'numeric', 'min:0'],
+            'budget_utilization.*.amount_requested' => [$contentRequirement, 'numeric', 'min:0'],
+            'budget_utilization.*.actual_amount' => [$contentRequirement, 'numeric', 'min:0'],
             'budget_utilization.*.remarks' => ['nullable', 'string', 'max:300'],
             'prepared_by_date_signed' => ['nullable', 'date', 'before_or_equal:today'],
             'attachment' => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png', 'max:25600'],

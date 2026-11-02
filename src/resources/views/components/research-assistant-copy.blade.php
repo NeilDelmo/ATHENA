@@ -1,0 +1,7 @@
+<div class="flex items-center">
+    <button type="button" @click="message.literature?.kind === 'draft' ? $store.researchAssistant.copyLiteratureDraft(message) : $store.researchAssistant.copyMessage(message)" aria-label="Copy response" :aria-label="message.literature?.kind === 'draft' ? 'Copy RRL draft' : 'Copy response'" title="Copy response" :title="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : message.literature?.kind === 'draft' ? 'Copy RRL draft' : 'Copy response'" class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100">
+        <svg x-show="$store.researchAssistant.copiedMessageId !== message.id" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+        <svg x-show="$store.researchAssistant.copiedMessageId === message.id" x-cloak class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg>
+    </button>
+    <span role="status" class="sr-only" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Response copied' : ''"></span>
+</div>

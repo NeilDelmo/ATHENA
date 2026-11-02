@@ -1,0 +1,26 @@
+diff --git a/src/resources/js/proposal-signed-uploads.js b/src/resources/js/proposal-signed-uploads.js
+index e9e476ba..284c5cb1 100644
+--- a/src/resources/js/proposal-signed-uploads.js
++++ b/src/resources/js/proposal-signed-uploads.js
+@@ -12,7 +12,7 @@ export function proposalSignedUploads(config = {}) {
+             return {
+                 matched: 'Form and project title matched',
+                 manually_confirmed: 'Form manually checked by uploader',
+-                demo_uploaded: 'Demo upload',
++                demo_uploaded: 'PDF uploaded',
+             }[document.verificationStatus] ?? '';
+         },
+         previewSelected(document) {
+diff --git a/src/resources/views/topics/partials/signed-proposal-uploads.blade.php b/src/resources/views/topics/partials/signed-proposal-uploads.blade.php
+index 1ceb2c9e..2039144e 100644
+--- a/src/resources/views/topics/partials/signed-proposal-uploads.blade.php
++++ b/src/resources/views/topics/partials/signed-proposal-uploads.blade.php
+@@ -34,7 +34,7 @@
+     </div>
+ 
+     @if ($canUploadSignedPapers)
+-        <p class="px-5 pb-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6">One PDF per paper, up to 25 MB. @if ($signingDemoMode) Any PDF is accepted for this demo. @else We check the official form and project title before saving. Scans use the configured AI document reader on the first two pages. Required wet signatures must still be checked by staff. @endif</p>
++        <p class="px-5 pb-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6">One PDF per paper, up to 25 MB. @if ($signingDemoMode) Check that each PDF is the correct signed form for this project. @else We check the official form and project title before saving. Scans use the configured AI document reader on the first two pages. Required wet signatures must still be checked by staff. @endif</p>
+         <noscript><p role="alert" class="px-5 pb-5 text-base text-red-700">Enable JavaScript to upload signed copies.</p></noscript>
+     @endif
+ 

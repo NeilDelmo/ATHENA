@@ -29,6 +29,7 @@ class ProjectNarrativeReport extends Model
         'version_number',
         'terminal_data',
         'topic_id',
+        'monitoring_report_id',
         'submitted_by',
         'submission_date',
         'tracking_number',
@@ -102,6 +103,11 @@ class ProjectNarrativeReport extends Model
     public function submitter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    public function monitoringReport(): BelongsTo
+    {
+        return $this->belongsTo(ProjectProgressReport::class, 'monitoring_report_id');
     }
 
     public function reviewer(): BelongsTo

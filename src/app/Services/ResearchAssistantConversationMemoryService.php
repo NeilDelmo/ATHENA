@@ -167,8 +167,14 @@ PROMPT;
             collect($messages)
                 ->map(function (array $message) use ($perMessageLimit): string {
                     $speaker = ($message['role'] ?? null) === 'user' ? 'User' : 'Athena';
+                    $text = (string) ($message['content'] ?? '');
+                    if (($message['role'] ?? null) === 'assistant' && ($message['literature']['kind'] ?? null) === 'draft') {
+                        $paragraphs = collect($message['literature']['drafts'] ?? [])->take(3)
+                            ->pluck('paragraph')->filter(fn (mixed $paragraph): bool => is_string($paragraph))->join("\n\n");
+                        $text = Str::limit($text, 1000, '')."\nEarlier editable RRL draft (conversation text, not source evidence):\n".$paragraphs;
+                    }
                     $content = Str::limit(
-                        Str::squish((string) ($message['content'] ?? '')),
+                        Str::squish($text),
                         $perMessageLimit,
                         '',
                     );

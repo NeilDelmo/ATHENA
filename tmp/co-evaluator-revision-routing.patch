@@ -1,0 +1,55 @@
+--- a/src/app/Http/Controllers/TopicController.php
++++ b/src/app/Http/Controllers/TopicController.php
+@@ -778,8 +778,12 @@
+                 ));
+                 $version->files()->createMany($snapshotFiles);
+ 
+-                if ($revisedTopic->review_stage === 'lrec' && $previousVersion) {
+-                    $packageService->carryForwardLrecAssessments($previousVersion, $version);
++                if ($previousVersion && in_array($revisedTopic->review_stage, ['gad', 'lrec'], true)) {
++                    $assessmentPurposes = [ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT];
++                    if ($revisedTopic->review_stage === 'lrec') {
++                        $assessmentPurposes[] = ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
++                    }
++                    $packageService->carryForwardAssessments($previousVersion, $version, $assessmentPurposes);
+                 }
+ 
+                 $newVersionFiles = $version->files()->get();
+--- a/src/app/Services/ProposalPackageService.php
++++ b/src/app/Services/ProposalPackageService.php
+@@ -136,16 +136,14 @@
+         return $snapshot;
+     }
+ 
+-    public function carryForwardLrecAssessments(ProposalVersion $previousVersion, ProposalVersion $version): void
++    /** @param list<string> $purposes */
++    public function carryForwardAssessments(ProposalVersion $previousVersion, ProposalVersion $version, array $purposes): void
+     {
+         $sourceFiles = $version->files()->where('is_carried_forward', true)
+             ->whereIn('document_type', ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
+             ->get()->keyBy('source_version_file_id');
+         $assessments = $this->signatureWorkflow->signedCopiesBySource($previousVersion)
+-            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, [
+-                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+-                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+-            ], true));
++            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, $purposes, true));
+ 
+         foreach ($assessments as $assessment) {
+             $sourceFile = $sourceFiles->get($assessment->source_version_file_id);
+--- a/ATHENA_REVIEW_PROCESS.txt
++++ b/ATHENA_REVIEW_PROCESS.txt
+@@ -121,8 +121,11 @@
+ 
+ Submitting the revision creates the next version. Earlier versions remain
+ available, and unchanged papers can carry forward. A private edited draft
+-is not yet the submitted revision. GAD-stage revisions require reassessment;
+-eligible assessments can carry forward for an LREC revision.
++is not yet the submitted revision. Revisions requested from GAD require
++reassessment. Co-evaluator revisions retain passing, signature-confirmed GAD
++clearance when its checklist is unchanged, and require a new co-evaluator
++evaluation. Replacing the GAD checklist requires reassessment. Eligible
++assessments can carry forward for an LREC revision.
+ 
+ Rejection closes the proposal. A revision request gives the owner a chance
+ to correct it. These outcomes should not be treated as interchangeable.

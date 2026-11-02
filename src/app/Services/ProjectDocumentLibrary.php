@@ -56,7 +56,7 @@ class ProjectDocumentLibrary
             ]),
             'progressReports.submitter',
             'narrativeReports' => fn (HasMany $reports): HasMany => $reports->select([
-                'id', 'topic_id', 'submitted_by', 'reviewed_by', 'report_type', 'reporting_date',
+                'id', 'topic_id', 'monitoring_report_id', 'submitted_by', 'reviewed_by', 'report_type', 'reporting_date',
                 'reporting_quarter', 'period_start', 'period_end', 'submission_date', 'submission_status',
                 'review_stage', 'review_status', 'accomplishments', 'photos', 'terminal_data', 'official_pdf_path',
                 'official_pdf_filename', 'official_pdf_size', 'submitted_at', 'created_at', 'updated_at',

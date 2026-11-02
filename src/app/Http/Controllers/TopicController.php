@@ -778,8 +778,12 @@ class TopicController extends Controller
                 ));
                 $version->files()->createMany($snapshotFiles);
 
-                if ($revisedTopic->review_stage === 'lrec' && $previousVersion) {
-                    $packageService->carryForwardLrecAssessments($previousVersion, $version);
+                if ($previousVersion && in_array($revisedTopic->review_stage, ['gad', 'lrec'], true)) {
+                    $assessmentPurposes = [ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT];
+                    if ($revisedTopic->review_stage === 'lrec') {
+                        $assessmentPurposes[] = ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
+                    }
+                    $packageService->carryForwardAssessments($previousVersion, $version, $assessmentPurposes);
                 }
 
                 $newVersionFiles = $version->files()->get();

@@ -688,7 +688,7 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
                 const newLibraryRow = page.locator('article').filter({ has: page.getByRole('heading', { name: librarySource.title, exact: true }) });
                 await expect(newLibraryRow).toHaveCount(0);
                 await page.getByLabel('Search in', { exact: true }).selectOption('search');
-                await page.getByRole('searchbox', { name: 'Search academic publications', exact: true }).fill('community');
+                await page.getByRole('searchbox', { name: 'Search online publications', exact: true }).fill('community');
                 await page.getByRole('button', { name: 'Search', exact: true }).click();
                 const previewButton = newLibraryRow.getByRole('button', { name: 'View details', exact: true });
                 const saveButton = newLibraryRow.getByRole('button', { name: 'Save literature', exact: true });
@@ -827,4 +827,27 @@ test('compiled centered Sources dialog supports reading evidence, synthesis revi
             }
         }
     } finally { await browser.close(); }
+});
+
+test('online source searches default to the project title without replacing user input or searching automatically', async () => {
+    const calls = [];
+    const state = workspace(async (url, options) => { calls.push(JSON.parse(options.body)); return response({ results: [] }); });
+    state.proposalTitle = '  Community coastal monitoring  ';
+    await state.setSourceWorkspaceTab('paper');
+    assert.equal(state.sourceWorkspaceQuery, '');
+    await state.setSourceWorkspaceTab('library');
+    assert.equal(state.sourceWorkspaceQuery, '');
+    await state.setSourceWorkspaceTab('search');
+    assert.equal(state.sourceWorkspaceQuery, 'Community coastal monitoring');
+    assert.equal(calls.length, 0);
+    await state.searchSourceWorkspaceAcademic();
+    assert.equal(calls[0].query, 'Community coastal monitoring');
+    state.sourceWorkspaceQuery = 'mangrove field surveys';
+    await state.setSourceWorkspaceTab('paper');
+    await state.setSourceWorkspaceTab('search');
+    assert.equal(state.sourceWorkspaceQuery, 'mangrove field surveys');
+    state.sourceWorkspaceQuery = '';
+    state.proposalTitle = '';
+    await state.setSourceWorkspaceTab('search');
+    assert.equal(state.sourceWorkspaceQuery, '');
 });

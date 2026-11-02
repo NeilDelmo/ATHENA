@@ -1,5 +1,8 @@
 @props(['id', 'inputId'])
 
+<p x-show="$store.researchAssistant.historyRestoring" x-cloak role="status" class="mb-2 px-1 text-base leading-6 text-stone-600 dark:text-stone-300">Opening saved chat…</p>
+<p x-show="$store.researchAssistant.conversationNotice" x-cloak role="status" class="mb-2 px-1 text-base leading-6 text-stone-600 dark:text-stone-300" x-text="$store.researchAssistant.conversationNotice"></p>
+<button x-show="$store.researchAssistant.pendingLiteratureRequest" x-cloak type="button" @click="$store.researchAssistant.resumeLiteratureRequest()" :disabled="$store.researchAssistant.literatureBusy() || !!$store.researchAssistant.draft.trim()" class="mb-2 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-base font-medium text-stone-800 focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50 dark:border-stone-600 dark:text-stone-100">Continue RRL request</button>
 <div class="relative rounded-xl border border-stone-400 bg-white p-2 transition focus-within:border-red-700 dark:border-stone-600 dark:bg-stone-950 dark:focus-within:border-red-400" data-assistant-composer-shell>
     <div data-assistant-active-document x-show="$store.researchAssistant.activeDocument" x-cloak class="mx-2 mb-1 flex min-w-0 items-center gap-2 border-b border-stone-200 pb-1 text-xs text-stone-700 dark:border-stone-700 dark:text-stone-200">
         <svg class="h-4 w-4 shrink-0 text-red-900 dark:text-red-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
@@ -13,7 +16,7 @@
     </div>
     <form id="assistant-send-{{ $id }}" @submit.prevent="$store.researchAssistant.send()">
         <label for="{{ $inputId }}" class="sr-only">Message Athena Research Assistant</label>
-        <textarea id="{{ $inputId }}" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Ask Athena about your research…" class="block max-h-44 min-h-12 w-full resize-none border-0 bg-white px-3 py-3 text-base leading-6 text-stone-950 shadow-none placeholder:text-stone-500 focus:border-0 focus:ring-0 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400"></textarea>
+        <textarea id="{{ $inputId }}" data-assistant-composer :disabled="$store.researchAssistant.historyRestoring || !$store.researchAssistant.conversationReady" x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Ask Athena about your research…" class="block max-h-44 min-h-12 w-full resize-none border-0 bg-white px-3 py-3 text-base leading-6 text-stone-950 shadow-none placeholder:text-stone-500 focus:border-0 focus:ring-0 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400"></textarea>
     </form>
     <div class="flex items-end justify-between gap-2">
         <div class="flex min-w-0 flex-1 items-center gap-1">
@@ -24,7 +27,7 @@
                 <span class="hidden sm:inline">Help options</span>
             </button>
         </div>
-        <button x-show="!$store.researchAssistant.isLoading" type="submit" form="assistant-send-{{ $id }}" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-800 text-white transition hover:bg-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 dark:disabled:bg-stone-800 dark:disabled:text-stone-500" aria-label="Send message">
+        <button x-show="!$store.researchAssistant.isLoading" type="submit" form="assistant-send-{{ $id }}" :disabled="$store.researchAssistant.historyRestoring || !$store.researchAssistant.conversationReady || !$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-800 text-white transition hover:bg-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 dark:disabled:bg-stone-800 dark:disabled:text-stone-500" aria-label="Send message">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg>
         </button>
         <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-800 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2" aria-label="Stop response"><span class="h-3.5 w-3.5 rounded-sm bg-current"></span></button>

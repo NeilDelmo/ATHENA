@@ -6,6 +6,8 @@ use App\Exceptions\LiteratureFullTextPreviewException;
 use App\Support\LiteratureFullTextToken;
 use DOMDocument;
 use DOMNode;
+use GuzzleHttp\Psr7\Uri;
+use GuzzleHttp\Psr7\UriResolver;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\File;
@@ -24,8 +26,16 @@ class LiteratureFullTextPreviewService
         [$response, $resolvedUrl, $body] = $this->fetch($source['url']);
         $contentType = Str::lower(Str::before((string) $response->header('Content-Type'), ';'));
 
-        if (in_array($contentType, ['text/html', 'application/xhtml+xml'], true) && $this->looksLikeAuthenticationPage($body, $resolvedUrl)) {
-            throw new LiteratureFullTextPreviewException('The source redirected to a sign-in or access-control page. ATHENA will not bypass authentication or institutional restrictions.', 403);
+        for ($discovery = 0; $discovery < 2 && in_array($contentType, ['text/html', 'application/xhtml+xml'], true); $discovery++) {
+            if ($this->looksLikeAuthenticationPage($body, $resolvedUrl)) {
+                throw new LiteratureFullTextPreviewException('The source redirected to a sign-in or access-control page. ATHENA will not bypass authentication or institutional restrictions.', 403);
+            }
+            $pdfUrl = $discovery === 0 ? $this->declaredPdfUrl($body, $resolvedUrl) : null;
+            if (! $pdfUrl || $pdfUrl === $resolvedUrl) {
+                break;
+            }
+            [$response, $resolvedUrl, $body] = $this->fetch($pdfUrl);
+            $contentType = Str::lower(Str::before((string) $response->header('Content-Type'), ';'));
         }
 
         $isPdf = $contentType === 'application/pdf' || Str::startsWith($body, '%PDF-');
@@ -169,7 +179,7 @@ class LiteratureFullTextPreviewService
 
         $addresses = filter_var($host, FILTER_VALIDATE_IP)
             ? [$host]
-            : collect(dns_get_record($host, DNS_A | DNS_AAAA) ?: [])
+            : collect(@dns_get_record($host, DNS_A | DNS_AAAA) ?: [])
                 ->flatMap(fn (array $record): array => array_values(array_filter([
                     $record['ip'] ?? null,
                     $record['ipv6'] ?? null,
@@ -187,30 +197,33 @@ class LiteratureFullTextPreviewService
         }
     }
 
+    private function declaredPdfUrl(string $html, string $baseUrl): ?string
+    {
+        $document = new DOMDocument;
+        @$document->loadHTML($html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        foreach ($document->getElementsByTagName('meta') as $meta) {
+            if (strtolower($meta->getAttribute('name')) === 'citation_pdf_url' && filled($meta->getAttribute('content'))) {
+                return $this->resolveRedirect($baseUrl, html_entity_decode($meta->getAttribute('content'), ENT_QUOTES | ENT_HTML5));
+            }
+        }
+        foreach ($document->getElementsByTagName('link') as $link) {
+            if (strtolower($link->getAttribute('type')) === 'application/pdf'
+                && in_array('alternate', preg_split('/\s+/', strtolower($link->getAttribute('rel'))) ?: [], true)
+                && filled($link->getAttribute('href'))) {
+                return $this->resolveRedirect($baseUrl, html_entity_decode($link->getAttribute('href'), ENT_QUOTES | ENT_HTML5));
+            }
+        }
+
+        return null;
+    }
+
     private function resolveRedirect(string $currentUrl, string $location): string
     {
-        if (preg_match('/^https?:\/\//i', $location) === 1) {
-            return $location;
+        try {
+            return (string) UriResolver::resolve(new Uri($currentUrl), new Uri(trim($location)));
+        } catch (\InvalidArgumentException) {
+            throw new LiteratureFullTextPreviewException('The source provided an invalid paper download URL. Attach its readable PDF instead.');
         }
-
-        $parts = parse_url($currentUrl);
-        $origin = ($parts['scheme'] ?? 'https').'://'.($parts['host'] ?? '');
-
-        if (isset($parts['port'])) {
-            $origin .= ':'.$parts['port'];
-        }
-
-        if (Str::startsWith($location, '//')) {
-            return ($parts['scheme'] ?? 'https').':'.$location;
-        }
-
-        if (Str::startsWith($location, '/')) {
-            return $origin.$location;
-        }
-
-        $directory = Str::beforeLast((string) ($parts['path'] ?? '/'), '/');
-
-        return $origin.$directory.'/'.$location;
     }
 
     /** @return array{pages: list<array{number: int, text: string}>, coverage: array<string, mixed>, notice: string} */

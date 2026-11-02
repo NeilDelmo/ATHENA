@@ -279,6 +279,9 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceLoading = false;
             if (this.sourceWorkspaceCitationMode && tab !== this.sourceWorkspaceTab) this.citationPickerLocator = '';
             this.sourceWorkspaceTab = ['paper', 'library', 'search', 'add'].includes(tab) ? tab : 'paper';
+            if (this.sourceWorkspaceTab === 'search' && !this.sourceWorkspaceQuery.trim()) {
+                this.sourceWorkspaceQuery = sourceText(this.proposalTitle).slice(0, 500);
+            }
             this.sourceWorkspaceCitationSource = null;
             this.sourceWorkspaceView = 'list';
             this.sourceWorkspaceError = '';

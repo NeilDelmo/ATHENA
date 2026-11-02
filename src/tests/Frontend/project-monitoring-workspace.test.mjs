@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
@@ -923,6 +923,89 @@ test('opened report readers keep a readable document, aligned actions and access
                         await page.screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `report-reader-${width}-${dark ? 'dark' : 'light'}.png`) });
                     }
                     await page.close();
+                }
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+
+test('faculty monitoring remains contained when the browser layout is zoomed out', async () => {
+    if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
+        execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', '--filter=monitoring prioritizes|progress quarter rows keep'], {
+            encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+            env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_MONITORING_LAYOUT: '1' },
+        });
+    }
+    const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
+    const stylesheet = '/build/' + manifest['resources/css/app.css'].file;
+    const application = '/build/' + manifest['resources/js/app.js'].file;
+    const origin = 'https://athena-monitoring-zoom.test';
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const fixtureName of ['completed-faculty_researcher', 'active']) {
+            const fixture = readFileSync(resolve(`storage/framework/testing/monitoring-${fixtureName}.html`), 'utf8');
+            for (const dark of [false, true]) {
+                for (const { width, height, zoom } of [
+                    { width: 1366, height: 768, zoom: 1 }, { width: 1366, height: 768, zoom: 0.8 },
+                    { width: 1366, height: 768, zoom: 0.67 }, { width: 1366, height: 768, zoom: 0.5 },
+                    { width: 390, height: 844, zoom: 1 }, { width: 768, height: 1024, zoom: 1 },
+                ]) {
+                    // Browser zoom changes the CSS viewport size and device pixel ratio together.
+                    const context = await browser.newContext({
+                        viewport: { width: Math.round(width / zoom), height: Math.round(height / zoom) }, deviceScaleFactor: zoom,
+                        colorScheme: dark ? 'dark' : 'light',
+                    });
+                    const page = await context.newPage();
+                    const errors = [];
+                    page.on('pageerror', error => errors.push(error.message));
+                    await page.route('**/*', async route => {
+                        const url = new URL(route.request().url());
+                        if (url.pathname.startsWith('/build/')) {
+                            const path = resolve('public', url.pathname.slice(1));
+                            return route.fulfill({ body: readFileSync(path), contentType: path.endsWith('.css') ? 'text/css' : path.endsWith('.woff2') ? 'font/woff2' : 'text/javascript' });
+                        }
+                        if (route.request().isNavigationRequest() && route.request().frame() === page.mainFrame()) {
+                            return route.fulfill({ contentType: 'text/html', body: fixture.replaceAll('http://localhost', origin)
+                                .replace('</head>', `<link rel="stylesheet" href="${stylesheet}"></head>`)
+                                .replace('</body>', `<script type="module" src="${application}"></script></body>`) });
+                        }
+                        if (url.pathname.startsWith('/images/')) {
+                            const path = resolve('public', url.pathname.slice(1));
+                            if (existsSync(path)) return route.fulfill({ body: readFileSync(path), contentType: path.endsWith('.svg') ? 'image/svg+xml' : 'image/png' });
+                        }
+                        if (url.hostname === 'fonts.bunny.net') return route.fulfill({ contentType: 'text/css', body: '' });
+                        return route.fulfill({ json: { notifications: [], unread_count: 0 } });
+                    });
+                    await page.goto(origin + '/research/123#project-monitoring');
+                    await page.locator('#project-monitoring-tab').waitFor({ state: 'visible' });
+                    await page.waitForFunction(() => Boolean(document.querySelector('[data-topic-workspace]')?._x_dataStack));
+                    if (process.env.MONITORING_SCREENSHOT_DIRECTORY) {
+                        await page.screenshot({ path: resolve(process.env.MONITORING_SCREENSHOT_DIRECTORY, `faculty-monitoring-${fixtureName}-${width}-${Math.round(zoom * 100)}-${dark ? 'dark' : 'light'}.png`) });
+                    }
+                    const layout = await page.evaluate(() => ({
+                        viewport: innerWidth,
+                        page: document.documentElement.scrollWidth,
+                        overflow: [...document.querySelectorAll('body *')].filter(element => {
+                            const bounds = element.getBoundingClientRect();
+                            return bounds.width > 0 && bounds.right > innerWidth + 1 && getComputedStyle(element).position !== 'fixed';
+                        }).slice(0, 8).map(element => ({ tag: element.tagName, class: element.className?.toString().slice(0, 110), right: element.getBoundingClientRect().right })),
+                        readingWidth: Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 80,
+                        workspace: document.querySelector('[data-topic-workspace]').getBoundingClientRect().toJSON(),
+                        heading: document.querySelector('.project-page-header').getBoundingClientRect().toJSON(),
+                        panels: [...document.querySelectorAll('#project-monitoring, .quarterly-reports')].map(element => ({
+                            name: element.id || element.className, width: element.clientWidth, content: element.scrollWidth,
+                        })),
+                    }));
+                    assert.ok(layout.page <= layout.viewport + 1, `${fixtureName}/${width}/${zoom}/${dark}: ${JSON.stringify(layout)}`);
+                    assert.ok(layout.workspace.width <= layout.readingWidth + 1, 'The app shell must retain the monitoring page reading width at lower browser zoom');
+                    assert.ok(Math.abs(layout.heading.x - layout.workspace.x) <= 1 && Math.abs(layout.heading.width - layout.workspace.width) <= 1, 'The project heading must align with monitoring content');
+                    for (const panel of layout.panels) assert.ok(panel.content <= panel.width + 1, `${panel.name} must not clip report columns at ${Math.round(zoom * 100)}%`);
+                    assert.deepEqual(errors, []);
+                    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('dark')), dark);
+                    await context.close();
                 }
             }
         }

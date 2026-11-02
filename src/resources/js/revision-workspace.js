@@ -335,10 +335,18 @@ function initializeEmbeddedEditor() {
     const originalSource = JSON.parse(context.dataset.originalSource || '{}');
     const state = () => window.Alpine?.$data(root);
     const hasOriginalSource = Object.keys(originalSource).length > 0;
-    if (hasOriginalSource && context.dataset.documentType === 'detailed_proposal'
-        && !originalSource.specific_method_objectives?.length
-        && typeof state()?.legacySpecificMethodGroups === 'function') {
-        originalSource.specific_method_objectives = state().legacySpecificMethodGroups(originalSource.methodology?.specific_methods || '');
+    if (hasOriginalSource && context.dataset.documentType === 'detailed_proposal') {
+        const editor = state();
+        if (!originalSource.specific_method_objectives?.length && typeof editor?.legacySpecificMethodGroups === 'function') {
+            originalSource.specific_method_objectives = editor.legacySpecificMethodGroups(originalSource.methodology?.specific_methods || '');
+        }
+        if (typeof editor?.appendLiteratureText === 'function') {
+            originalSource.related_literature = editor.appendLiteratureText(
+                editor.plainText(originalSource.introduction) ? String(originalSource.introduction) : '',
+                String(originalSource.related_literature ?? ''),
+            );
+            originalSource.introduction = '';
+        }
     }
     const baselineFingerprint = (targetId) => hasOriginalSource
         ? revisionSourceFingerprint(document, targetId, originalSource)
@@ -431,7 +439,7 @@ function initializeEmbeddedEditor() {
             await window.Alpine.nextTick();
             if (!canFocus()) return false;
             const target = findRevisionTarget(document, targetId);
-            return target ? focusRevisionTarget(target, targetId, { withinDocument: true, comment: annotation.comment, label: annotation.label }) : false;
+            return target ? focusRevisionTarget(target, targetId, { withinDocument: true, comment: annotation.comment, label: annotation.label, canFocus }) : false;
         },
         release() {
             root.dataset.paperSubmitting = 'true';
@@ -905,7 +913,7 @@ export function loadRevisionEditorFrame(card) {
     return true;
 }
 
-export function initializeRevisionDialogs(form, topicId) {
+export function initializeRevisionDialogs(form, topicId, workflow = null) {
     initializeRevisionPreviews(form, topicId);
     const cards = [...form.querySelectorAll('[data-revision-document]')]
         .filter((card) => card.querySelector('[data-revision-dialog]'));
@@ -984,6 +992,8 @@ export function initializeRevisionDialogs(form, topicId) {
     const close = (card) => card.querySelector('[data-revision-dialog]').close();
     const open = (card) => {
         if (!card) return;
+        const panel = card.closest('[data-revision-step]');
+        if (panel?.hidden) workflow?.show(panel.dataset.revisionStep, false);
         if (activeCard && activeCard !== card) close(activeCard);
         const dialog = card.querySelector('[data-revision-dialog]');
         if (!dialog.open) {
@@ -1388,7 +1398,7 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
         });
 
         const workflow = initializeRevisionWorkflow(form);
-        const revisionDialogs = initializeRevisionDialogs(form, topicId);
+        const revisionDialogs = initializeRevisionDialogs(form, topicId, workflow);
         workflow?.setDialogs(revisionDialogs);
         const responseLocations = initializeCommentResponseLocations(form, {
             fingerprint: () => frames.map((frame) => revisionEditorForFrame(frame, topicId)?.sourceFingerprint?.() || '').join('\u001f')

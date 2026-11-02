@@ -26,7 +26,7 @@ class ProjectReportEvidence
             return [];
         }
 
-        $topic->loadMissing(['progressReports.submitter', 'narrativeReports.submitter']);
+        $topic->loadMissing(['progressReports.submitter', 'narrativeReports.submitter', 'narrativeReports.monitoringReport']);
         $quarters = app(MonitoringQuarterService::class);
         $sources = [
             'monitoring' => $topic->progressReports->sortByDesc(fn (ProjectProgressReport $report): string => sprintf('%010d-%020d', $report->version_number, $report->id)),
@@ -47,6 +47,9 @@ class ProjectReportEvidence
                         && ($end === null || $date?->toDateString() <= $end->toDateString());
                 });
             foreach ($reports as $report) {
+                $report->setRelation('topic', $topic);
+                $monitoring = app(ProgressReportMonitoringService::class);
+                $linkedSource = $kind === 'narrative' ? $monitoring->forReport($report) : null;
                 $reportingDate = $report->reporting_date ?? $report->period_end;
                 $label = $kind === 'monitoring' ? 'Monitoring Tool' : 'Progress Report';
                 $rows = $kind === 'monitoring' ? $report->work_plan : $report->accomplishments;
@@ -54,8 +57,10 @@ class ProjectReportEvidence
                     if (! is_array($row)) {
                         continue;
                     }
-                    foreach ($row['evidence'] ?? [] as $file) {
-                        if (! is_array($file) || ! $this->isStoredEvidence($topic, $kind, $file) || isset($entries[$file['path']])) {
+                    $linkedFiles = $linkedSource ? $monitoring->evidenceForObjective($topic, $linkedSource, (string) ($row['objective'] ?? '')) : [];
+                    foreach ([...($row['evidence'] ?? []), ...$linkedFiles] as $file) {
+                        $fileKind = is_array($file) && in_array($file['id'] ?? null, array_column($linkedFiles, 'id'), true) ? 'monitoring' : $kind;
+                        if (! is_array($file) || ! $this->isStoredEvidence($topic, $fileKind, $file) || isset($entries[$file['path']])) {
                             continue;
                         }
                         $path = $file['path'];

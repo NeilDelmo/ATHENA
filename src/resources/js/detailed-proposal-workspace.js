@@ -26,7 +26,7 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
     const toolbar = workspace.querySelector('[data-proposal-writing-toolbar]');
     if (!toolbar) return () => {};
 
-    const target = toolbar.querySelector('[data-writing-target]');
+    const guidance = toolbar.querySelector('[data-writing-guidance]');
     const status = toolbar.querySelector('[data-writing-status]');
     const tablePicker = toolbar.querySelector('[data-writing-table-picker]');
     const tableTools = toolbar.querySelector('[data-writing-table-tools]');
@@ -52,8 +52,9 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
         const trigger = toolbar.querySelector(`[data-writing-menu-toggle="${openMenu.dataset.writingMenu}"]`);
         const anchor = trigger.getBoundingClientRect();
         const bounds = openMenu.getBoundingClientRect();
+        const toolbarBounds = toolbar.getBoundingClientRect();
         openMenu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
-        openMenu.style.top = `${Math.max(8, anchor.bottom + bounds.height + 8 <= window.innerHeight ? anchor.bottom + 4 : anchor.top - bounds.height - 4)}px`;
+        openMenu.style.top = `${Math.max(8, toolbarBounds.bottom + bounds.height + 8 <= window.innerHeight ? toolbarBounds.bottom + 4 : toolbarBounds.top - bounds.height - 4)}px`;
     };
     const showMenu = (trigger, last = false) => {
         closeMenu();
@@ -95,16 +96,13 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
 
     const activate = (field, imageSection = null) => {
         active = field;
-        target.toggleAttribute('data-writing-target-active', Boolean(field || imageSection));
+        guidance.hidden = Boolean(field || imageSection);
         activeImageSection = field ? imageSections[field.id] : imageSection;
         workspace.querySelectorAll('.proposal-writing-active').forEach((element) => element.classList.remove('proposal-writing-active'));
         if (field) {
-            const label = field.labels?.[0]?.textContent || field.getAttribute('aria-label') || field.name || 'Writing section';
-            target.textContent = label.trim().replace(/\s+/g, ' ');
             field._semanticEditor?.parentElement.classList.add('proposal-writing-active');
             onActiveSection(field.id);
         } else {
-            target.textContent = imageSection ? 'Specific Methods' : 'Select a writing field';
             if (imageSection) onActiveSection('methodology-specific_methods');
             tablePicker.hidden = true;
         }
@@ -202,7 +200,7 @@ export function initializeDetailedProposalWritingTools(workspace, { openImagePic
             active._semanticApi.execute('insertHTML', proposalTableHtml(rows.value, columns.value, tablePicker.querySelector('[data-table-header]').checked));
             tablePicker.hidden = true;
             toolbar.querySelector('[data-writing-table]').setAttribute('aria-expanded', 'false');
-            status.textContent = `Table inserted in ${target.textContent}. Select a cell to edit rows and columns.`;
+            status.textContent = 'Table inserted. Select a cell to edit rows and columns.';
         }
         if (button.dataset.writingTableAction) replaceSelectedTable(button.dataset.writingTableAction);
         update();

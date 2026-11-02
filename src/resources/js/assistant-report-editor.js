@@ -78,7 +78,9 @@ export function assistantReportEditor(config = {}, dependencies = {}) {
         },
         async request(action) {
             const store = window.Alpine.store('researchAssistant');
-            if (this.working || store.proposalChangesBusy() || store.draft.trim()) {
+            if (this.working) return false;
+            if (!await store.ensureConversationContext(this.context)) { store.openDrawer(); return false; }
+            if (store.proposalChangesBusy() || store.draft.trim()) {
                 this.error = 'Finish your current chat message before starting a report check.';
                 return false;
             }

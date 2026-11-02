@@ -427,3 +427,45 @@ test('saved college evidence captions persist through existing save and reject u
     $input['draft_token'] = $this->college->fresh()->draftToken();
     $this->postJson(route('research_coordinator.reports.store'), $input)->assertUnprocessable()->assertJsonValidationErrors('saved_evidence_captions');
 });
+
+test('report chat resumption distinguishes the report and revision within the same project', function () {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    $contexts = [
+        ['report_type' => 'progress-report', 'topic_id' => $this->topic->id],
+        ['report_type' => 'terminal-report', 'topic_id' => $this->topic->id],
+        ['report_type' => 'monitoring-tool', 'topic_id' => $this->topic->id, 'source_key' => 'new'],
+    ];
+    $ids = [];
+    foreach ($contexts as $index => $context) {
+        $ids[] = $this->postJson(route('research-support.history.save'), [
+            'context' => $context, 'messages' => [['role' => 'user', 'content' => "Question for report {$index}."]],
+        ])->assertSuccessful()->json('conversation.id');
+    }
+    foreach ($contexts as $index => $context) {
+        $this->getJson(route('research-support.history', ['resume' => true, 'context' => $context, 'conversation_id' => $ids[($index + 1) % 3]]))
+            ->assertSuccessful()->assertJsonPath('conversation.id', $ids[$index]);
+    }
+    $this->getJson(route('research-support.history', ['resume' => true, 'context' => ['topic_id' => $this->topic->id]]))
+        ->assertSuccessful()->assertJsonPath('conversation', null);
+});
+
+test('an RRL request in a report chat offers the proposal workflow without sending it to the report model', function () {
+    ($this->selectWorkspace)($this->researcher, User::WORKSPACE_FACULTY_RESEARCHER);
+    ($this->fakeChanges)([]);
+    $this->postJson(route('research-support.chat'), [
+        'context' => ['report_type' => 'progress-report', 'topic_id' => $this->topic->id],
+        'messages' => [['role' => 'user', 'content' => 'Draft an RRL for my proposal using complete source papers. Use the project title and objectives. Show the draft for my review.']],
+    ])->assertSuccessful()->assertJsonPath('literature.kind', 'choose_proposal')
+        ->assertJsonPath('literature.workspace_required', true)->assertJsonPath('literature.intent', 'draft');
+    Http::assertNothingSent();
+});
+
+test('an RRL request in a research head report offers the authorized proposal workspace without using report AI', function () {
+    ($this->selectWorkspace)($this->head, User::WORKSPACE_RESEARCH_HEAD);
+    ($this->fakeChanges)([]);
+    $this->postJson(route('research-support.chat'), [
+        'context' => ['report_type' => 'rms-quarterly', 'report_id' => $this->rms->id],
+        'messages' => [['role' => 'user', 'content' => 'Draft an RRL for my proposal using complete source papers. Use the project title and objectives. Show the draft for my review.']],
+    ])->assertSuccessful()->assertJsonPath('literature.kind', 'choose_proposal')->assertJsonPath('literature.workspace_required', true);
+    Http::assertNothingSent();
+});

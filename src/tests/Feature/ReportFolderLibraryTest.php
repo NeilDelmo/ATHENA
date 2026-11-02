@@ -154,6 +154,9 @@ test('college library locations expose a view context menu and wheel sizing with
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
+    $viewButton = $xpath->query('//button[@aria-haspopup="menu" and @*[name()="@click"]="openViewMenu($event)"]')->item(0);
+    expect($viewButton)->not->toBeNull();
+    expect(trim($viewButton->textContent))->toBe('View');
     $surfaces = $xpath->query('//*[@data-library-view-surface]');
     expect($surfaces->length)->toBeGreaterThan(0);
     foreach ($surfaces as $surface) {

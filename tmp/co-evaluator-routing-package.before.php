@@ -1,0 +1,592 @@
+<?php
+
+namespace App\Services;
+
+use App\Contracts\BatchDocumentPdfConverter;
+use App\Contracts\DocumentPdfConverter;
+use App\Models\ProposalDraftDocument;
+use App\Models\ProposalVersion;
+use App\Models\ProposalVersionFile;
+use App\Models\TopicProposal;
+use App\Support\ProposalPaperCatalog;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use RuntimeException;
+use Throwable;
+
+class ProposalPackageService
+{
+    public function __construct(
+        private readonly DocumentPdfConverter $pdfConverter,
+        private readonly ProposalSignatureWorkflow $signatureWorkflow,
+        private readonly ProposalPaperCatalog $catalog,
+    ) {}
+
+    /**
+     * Store every package file present in the request.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function storeFromRequest(Request $request, string $directory): array
+    {
+        $storedFiles = [];
+
+        try {
+            $primary = $request->file('detailed_proposal') ?: $request->file('document');
+            if ($primary instanceof UploadedFile) {
+                $storedFiles[] = $this->storeFile(
+                    $primary,
+                    $directory.'/detailed-proposal',
+                    ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+                );
+            }
+
+            foreach ([
+                'work_plan' => ProposalVersionFile::TYPE_WORK_PLAN,
+                'line_item_budget' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+                'expense_breakdown' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+                'gad_checklist' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ] as $input => $documentType) {
+                $file = $request->file($input);
+
+                if ($file instanceof UploadedFile) {
+                    $storedFiles[] = $this->storeFile($file, $directory.'/'.$input, $documentType);
+                }
+            }
+
+            foreach ($request->file('curricula_vitae', []) as $position => $curriculumVitae) {
+                if ($curriculumVitae instanceof UploadedFile) {
+                    $storedFiles[] = $this->storeFile(
+                        $curriculumVitae,
+                        $directory.'/curricula-vitae',
+                        ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+                        $position,
+                    );
+                }
+            }
+        } catch (Throwable $exception) {
+            $this->deleteStored($storedFiles);
+
+            throw $exception;
+        }
+
+        return $storedFiles;
+    }
+
+    /**
+     * Create a complete revision snapshot, carrying forward files that were not replaced.
+     *
+     * @param  array<int, array<string, mixed>>  $replacements
+     * @return array<int, array<string, mixed>>
+     */
+    public function revisionSnapshot(?ProposalVersion $previousVersion, array $replacements, TopicProposal $topic): array
+    {
+        $previousFiles = $previousVersion?->files ?? collect();
+        $snapshot = [];
+
+        foreach ([
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            ProposalVersionFile::TYPE_WORK_PLAN,
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+        ] as $documentType) {
+            $replacementFiles = collect($replacements)
+                ->where('document_type', $documentType)
+                ->values();
+
+            if ($replacementFiles->isNotEmpty()) {
+                array_push($snapshot, ...$replacementFiles->all());
+
+                continue;
+            }
+
+            $carriedFiles = $previousFiles
+                ->where('document_type', $documentType)
+                ->map(fn (ProposalVersionFile $file) => $this->carriedFileAttributes($file))
+                ->values();
+
+            if ($carriedFiles->isNotEmpty()) {
+                array_push($snapshot, ...$carriedFiles->all());
+            }
+        }
+
+        if (! collect($snapshot)->contains('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)) {
+            $legacyPath = $previousVersion?->file_path ?: ($topic->final_file_path ?: $topic->initial_file_path);
+
+            if ($legacyPath) {
+                $snapshot[] = [
+                    'source_version_file_id' => null,
+                    'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+                    'position' => 0,
+                    'file_path' => $legacyPath,
+                    'original_filename' => $previousVersion?->original_filename ?: basename($legacyPath),
+                    'mime_type' => $previousVersion?->mime_type,
+                    'file_size' => $previousVersion?->file_size,
+                    'checksum' => $previousVersion?->checksum,
+                    'is_carried_forward' => true,
+                ];
+            }
+        }
+
+        return $snapshot;
+    }
+
+    public function carryForwardLrecAssessments(ProposalVersion $previousVersion, ProposalVersion $version): void
+    {
+        $sourceFiles = $version->files()->where('is_carried_forward', true)
+            ->whereIn('document_type', ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
+            ->get()->keyBy('source_version_file_id');
+        $assessments = $this->signatureWorkflow->signedCopiesBySource($previousVersion)
+            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, [
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            ], true));
+
+        foreach ($assessments as $assessment) {
+            $sourceFile = $sourceFiles->get($assessment->source_version_file_id);
+            if (! $sourceFile) {
+                continue;
+            }
+
+            $version->files()->create([
+                ...$this->carriedFileAttributes($assessment),
+                'source_version_file_id' => $sourceFile->id,
+                'source_data' => [
+                    ...($assessment->source_data ?? []),
+                    'carried_from_version_file_id' => $assessment->id,
+                ],
+            ]);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function copyDraftDocument(ProposalDraftDocument $document, string $permanentDirectory): array
+    {
+        if (! filled($document->file_path) || ! Storage::disk('local')->exists($document->file_path)) {
+            throw new RuntimeException('The staged revision file is no longer available.');
+        }
+
+        $sourceData = $document->source_data;
+        if ($document->document_type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL && is_array($sourceData) && $sourceData !== []) {
+            $sourceData = [
+                ...$sourceData,
+                'project_title' => $document->draft->project_title,
+                'project_leader' => $document->draft->project_leader,
+            ];
+        }
+
+        $extension = strtolower(pathinfo($document->original_filename, PATHINFO_EXTENSION));
+        $path = $permanentDirectory.'/'.$document->document_type.'/'.Str::uuid().'.'.$extension;
+
+        if (! Storage::disk('local')->copy($document->file_path, $path)) {
+            throw new RuntimeException('The staged revision file could not be copied into the project.');
+        }
+
+        $absolutePath = Storage::disk('local')->path($path);
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => $document->document_type,
+            'position' => $document->position,
+            'file_path' => $path,
+            'original_filename' => $document->original_filename,
+            'mime_type' => $document->mime_type ?: Storage::disk('local')->mimeType($path),
+            'file_size' => Storage::disk('local')->size($path),
+            'checksum' => hash_file('sha256', $absolutePath) ?: null,
+            'source_data' => $sourceData,
+            'is_carried_forward' => false,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $files
+     * @return array<string, mixed>
+     */
+    public function primaryFile(array $files): array
+    {
+        $primary = collect($files)->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+
+        if (! $primary) {
+            throw new RuntimeException('A detailed proposal document is required for every version.');
+        }
+
+        return $primary;
+    }
+
+    /**
+     * Delete newly stored files after a failed operation.
+     *
+     * @param  array<int, array<string, mixed>>  $files
+     */
+    public function deleteStored(array $files): void
+    {
+        Storage::disk('local')->delete(collect($files)->pluck('file_path')->all());
+    }
+
+    /**
+     * @param  array<string, array{contents: string, source_data: array<string, mixed>}>  $papers
+     * @return list<array<string, mixed>>
+     */
+    public function storeGeneratedPapers(array $papers, string $directory, string $projectTitle): array
+    {
+        if ($papers === []) {
+            return [];
+        }
+        $documents = [];
+
+        foreach ($papers as $slug => $paper) {
+            $documents[$slug] = [
+                'contents' => $paper['contents'],
+                'format' => $slug === 'expense-breakdown' ? 'xlsx' : 'docx',
+            ];
+        }
+
+        if ($this->pdfConverter instanceof BatchDocumentPdfConverter) {
+            $pdfs = $this->pdfConverter->convertDocuments($documents);
+        } else {
+            $pdfs = [];
+
+            foreach ($documents as $slug => $document) {
+                $pdfs[$slug] = $document['format'] === 'xlsx'
+                    ? $this->pdfConverter->convertXlsx($document['contents'])
+                    : $this->pdfConverter->convertDocx($document['contents']);
+            }
+        }
+
+        $storedFiles = [];
+
+        try {
+            foreach ($papers as $slug => $paper) {
+                $definition = $this->catalog->get($slug);
+                $storedFiles[] = $this->storeGeneratedFile(
+                    $pdfs[$slug],
+                    $directory.'/'.$slug,
+                    $this->catalog->submissionFilename($definition, $projectTitle),
+                    $definition['document_type'],
+                    'application/pdf',
+                    $paper['source_data'],
+                    'pdf',
+                );
+            }
+        } catch (Throwable $exception) {
+            $this->deleteStored($storedFiles);
+
+            throw $exception;
+        }
+
+        return $storedFiles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedWorkPlan(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/work-plan',
+            $filenameBase.'-work-plan.pdf',
+            ProposalVersionFile::TYPE_WORK_PLAN,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedDetailedProposal(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/detailed-proposal',
+            $filenameBase.'-detailed-research-proposal.pdf',
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedLineItemBudget(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/line-item-budget',
+            $filenameBase.'-line-item-budget.pdf',
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedExpenseBreakdown(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/expense-breakdown',
+            $filenameBase.'-estimated-expense-breakdown.pdf',
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+            $sourceData,
+            'xlsx',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedCurriculumVitae(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/curriculum-vitae',
+            $filenameBase.'-curriculum-vitae.pdf',
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedGADChecklist(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/gad-checklist',
+            $filenameBase.'-gad-checklist.pdf',
+            ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedInitialScreeningForm(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/initial-screening-form',
+            $filenameBase.'-initial-screening-form.pdf',
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    private function storeGeneratedPdf(
+        string $sourceContents,
+        string $directory,
+        string $originalFilename,
+        string $documentType,
+        ?array $sourceData,
+        string $sourceFormat = 'docx',
+    ): array {
+        $pdfContents = match ($sourceFormat) {
+            'docx' => $this->pdfConverter->convertDocx($sourceContents),
+            'xlsx' => $this->pdfConverter->convertXlsx($sourceContents),
+            default => throw new RuntimeException('The generated paper format cannot be converted to PDF.'),
+        };
+
+        return $this->storeGeneratedFile(
+            $pdfContents,
+            $directory,
+            $originalFilename,
+            $documentType,
+            'application/pdf',
+            $sourceData,
+            'pdf',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    private function storeGeneratedFile(
+        string $contents,
+        string $directory,
+        string $originalFilename,
+        string $documentType,
+        string $mimeType,
+        ?array $sourceData,
+        string $extension,
+    ): array {
+        $path = $directory.'/'.Str::uuid().'.'.$extension;
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated proposal attachment could not be stored.');
+        }
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => $documentType,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $originalFilename,
+            'mime_type' => $mimeType,
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
+            'is_carried_forward' => false,
+            'source_data' => $sourceData,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function storeFile(UploadedFile $file, string $directory, string $documentType, int $position = 0): array
+    {
+        $path = $file->store($directory, 'local');
+
+        if (! $path) {
+            throw new RuntimeException('A project file could not be stored.');
+        }
+
+        $realPath = $file->getRealPath();
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => $documentType,
+            'position' => $position,
+            'file_path' => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize() ?: null,
+            'checksum' => $realPath ? hash_file('sha256', $realPath) ?: null : null,
+            'is_carried_forward' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function carriedFileAttributes(ProposalVersionFile $file): array
+    {
+        return [
+            'source_version_file_id' => $file->id,
+            'document_type' => $file->document_type,
+            'position' => $file->position,
+            'file_path' => $file->file_path,
+            'original_filename' => $file->original_filename,
+            'mime_type' => $file->mime_type,
+            'file_size' => $file->file_size,
+            'checksum' => $file->checksum,
+            'is_carried_forward' => true,
+            'source_data' => $file->source_data,
+        ];
+    }
+
+    /**
+     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>, co_evaluator_name?: string|null, recommended_action?: string|null, narrative_evaluation?: string|null, narrative_evaluation_entry_method?: string|null, narrative_evaluation_confirmed?: bool, gad_score?: float|null, gad_rating?: string|null, gad_interpretation?: string|null, gad_outcome?: string|null, gad_score_entry_method?: string|null, gad_signature_detected?: bool, gad_signature_confirmed?: bool, gad_signature_detection_method?: string|null}  $meta
+     * @return array<string, mixed>
+     */
+    public function storeHeadUpload(
+        UploadedFile $file,
+        string $directory,
+        array $meta,
+    ): array {
+        $path = $file->store($directory, 'local');
+
+        if (! $path) {
+            throw new RuntimeException('The Research Head upload could not be stored.');
+        }
+
+        $realPath = $file->getRealPath();
+
+        return [
+            'source_version_file_id' => $meta['source_version_file_id'],
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize() ?: null,
+            'checksum' => $realPath ? hash_file('sha256', $realPath) ?: null : null,
+            'is_carried_forward' => false,
+            'source_data' => [
+                'target_document_type' => $meta['target_document_type'],
+                'purpose' => $meta['purpose'],
+                'document_title' => $meta['document_title'] ?? null,
+                'issuing_office' => $meta['issuing_office'] ?? null,
+                'note' => $meta['note'] ?? null,
+                'decision' => $meta['decision'] ?? null,
+                'required_signature_file_ids' => $meta['required_signature_file_ids'] ?? [],
+                'co_evaluator_name' => $meta['co_evaluator_name'] ?? null,
+                'recommended_action' => $meta['recommended_action'] ?? null,
+                'narrative_evaluation' => $meta['narrative_evaluation'] ?? null,
+                'narrative_evaluation_entry_method' => $meta['narrative_evaluation_entry_method'] ?? null,
+                'narrative_evaluation_confirmed' => $meta['narrative_evaluation_confirmed'] ?? false,
+                'gad_score' => $meta['gad_score'] ?? null,
+                'gad_rating' => $meta['gad_rating'] ?? null,
+                'gad_interpretation' => $meta['gad_interpretation'] ?? null,
+                'gad_outcome' => $meta['gad_outcome'] ?? null,
+                'gad_score_entry_method' => $meta['gad_score_entry_method'] ?? null,
+                'gad_signature_detected' => $meta['gad_signature_detected'] ?? false,
+                'gad_signature_confirmed' => $meta['gad_signature_confirmed'] ?? false,
+                'gad_signature_detection_method' => $meta['gad_signature_detection_method'] ?? null,
+                'signed_form_verification' => $meta['signed_form_verification'] ?? null,
+                'assessment_form_verification' => $meta['assessment_form_verification'] ?? null,
+            ],
+        ];
+    }
+}

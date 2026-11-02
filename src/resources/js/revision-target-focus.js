@@ -32,7 +32,7 @@ function visualTarget(target) {
     return target;
 }
 
-export function focusRevisionTarget(target, targetId, { withinDocument = false, comment = null, label = null } = {}) {
+export function focusRevisionTarget(target, targetId, { withinDocument = false, comment = null, label = null, canFocus = () => true } = {}) {
     revealTarget(target);
     if (targetId.startsWith('section-')) target.classList.add('revision-section-revealed');
 
@@ -76,7 +76,7 @@ export function focusRevisionTarget(target, targetId, { withinDocument = false, 
     }
 
     window.setTimeout(() => {
-        if (!visual.isConnected) return;
+        if (!visual.isConnected || !canFocus()) return;
         const focusable = visual;
         if (!focusable.hasAttribute('tabindex') && !focusable.matches('input, textarea, select, button')) {
             focusable.setAttribute('tabindex', '-1');

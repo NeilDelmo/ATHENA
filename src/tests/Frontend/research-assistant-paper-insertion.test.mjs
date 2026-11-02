@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { researchAssistantHistory } from '../../resources/js/research-assistant-history.js';
 import { currentReviewedLiteratureSources, literatureInsertionHandoff, sameOriginPaperUrl } from '../../resources/js/research-assistant-paper-insertion.js';
 import { escapeAssistantHtml } from '../../resources/js/research-assistant-markdown.js';
 import { normalizeAssistantLiterature, serializeAssistantLiterature } from '../../resources/js/research-assistant-literature.js';
@@ -144,19 +145,20 @@ function chat(fetchReply) {
     const sending = app.slice(app.indexOf('    async send(action = null, contextOverride = null) {'), app.indexOf('    async retry() {'));
     const saving = app.slice(app.indexOf('    async saveConversation('), app.indexOf('    async openConversation('));
     const document = {
-        body: { dataset: { researchAssistantUrl: '/chat' } },
+        body: { dataset: { researchAssistantUrl: '/chat', researchAssistantProposalDraftId: '99' } },
         querySelector: () => ({ content: 'csrf' }),
         getElementById: () => ({ value: 'Unsaved text belonging to the currently open proposal.' }),
     };
     const methods = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'serializeAssistantLiterature', 'normalizeAssistantProposalChanges', 'serializeAssistantProposalChanges', 'normalizeAssistantReportChanges', 'reportContext', 'redactAssistantText', 'researchAssistantMessageLimit',
         `return ({${sending}${saving}});`)(document, fetchReply, normalizeAssistantLiterature, serializeAssistantLiterature, normalizeAssistantProposalChanges, serializeAssistantProposalChanges, normalizeAssistantReportChanges, reportContext, (value) => value, 8000);
     return {
-        ...methods,
+        ...researchAssistantHistory([], fetchReply, { document, location: { origin: 'https://athena.test' } }),
+        ...methods, conversationReady: true, conversationAccountScope: '', liveFormContextEnabled: false,
         draft: '', messages: [], isLoading: false, sendInProgress: false, retryAfter: 0,
-        requestSequence: 0, nextMessageId: 1, proposalDraftId: 99, currentConversationId: 7,
+        requestSequence: 0, nextMessageId: 1, proposalDraftId: 12, currentConversationId: 7,
         retryContext: null, error: '', historySavePromise: null,
         historyUrl: () => '/history', hasConversation() { return this.messages.length > 0; },
-        contextPayload: () => ({ proposal_draft_id: 99 }),
+        contextPayload: () => ({ proposal_draft_id: 12 }),
         formContext: () => ({ values: [{ field: 'general_objective', label: 'Objective', value: 'Other proposal objective.' }] }),
         scrollToLatest() {}, resetComposers() {}, upsertHistory() {},
         setError(title, message) { this.error = `${title}: ${message}`; },

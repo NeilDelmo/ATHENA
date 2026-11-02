@@ -3,9 +3,52 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 
 const runtime = readFileSync(new URL('../../resources/js/proposal-preview-workspace.js', import.meta.url), 'utf8').replace(/^export /gm, '');
+
+test('late-loading revision figures remain fully visible inside their physical preview page', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const imageHeight of [360, 900]) {
+            const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+            await page.route('https://paper.test/figure.svg', route => route.fulfill({
+                contentType: 'image/svg+xml',
+                body: `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="${imageHeight}"><rect width="600" height="${imageHeight}" fill="#cbd5e1" stroke="black" stroke-width="8"/><text x="20" y="${imageHeight - 20}">BOTTOM OF FIGURE</text></svg>`,
+            }));
+            const styles = readFileSync(new URL('../../resources/css/detailed-proposal-print.css', import.meta.url), 'utf8');
+            const before = Array.from({ length: 160 }, (_, index) => `<p class="lead">Before figure ${index}</p>`).join('');
+            const after = Array.from({ length: 30 }, (_, index) => `<p>Following research paragraph ${index}.</p>`).join('');
+            await page.setContent(`<style>${styles}.lead{height:28px;line-height:28px;margin:0!important}</style>
+                <main data-paper-sheet class="detailed-proposal-sheet"><table class="detailed-proposal-table"><tbody><tr><td>
+                    ${before}<p class="detailed-proposal-methodology-visual is-medium"><picture><img src="https://paper.test/figure.svg" loading="lazy" alt="Research design diagram"></picture></p>
+                    <p class="detailed-proposal-methodology-caption">Figure 1. Research design diagram</p>${after}
+                </td></tr></tbody></table><footer data-paper-footer>Tracking number</footer></main>`, { waitUntil: 'domcontentloaded' });
+            await page.addScriptTag({ content: runtime });
+            await page.evaluate(() => initializePaperPagination(document));
+            await page.evaluate(() => document.querySelector('[data-paper-rendered] img').scrollIntoView());
+            await page.waitForFunction(() => [...document.querySelectorAll('[data-paper-rendered] img')].every(image => image.complete && image.naturalHeight > 0));
+            await expect.poll(() => page.evaluate(() => {
+                const images = [...document.querySelectorAll('[data-paper-rendered] img')];
+                return images.length === 1 && images.every(image => {
+                    const rect = image.getBoundingClientRect();
+                    const sheet = image.closest('[data-paper-rendered]');
+                    const bounds = sheet.getBoundingClientRect();
+                    const style = getComputedStyle(sheet);
+                    return rect.height > 100 && rect.top >= bounds.top + parseFloat(style.paddingTop) - 1
+                        && rect.bottom <= bounds.bottom - parseFloat(style.paddingBottom) + 1;
+                });
+            }), { message: `The complete ${imageHeight}px figure must fit above the footer` }).toBe(true);
+            assert.equal(await page.locator('[data-paper-rendered] .detailed-proposal-methodology-caption').count(), 1);
+            assert.ok((await page.locator('[data-paper-rendered]').allTextContents()).join(' ').includes('Following research paragraph 29.'));
+            if (process.env.ATHENA_EDITOR_VISUAL_DIR) {
+                await page.locator('[data-paper-rendered] img').evaluate(image => image.closest('[data-paper-rendered]').scrollIntoView());
+                await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `revision-figure-${imageHeight}.png`), fullPage: false });
+            }
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});
 
 test('long table narratives flow across physical pages without losing text or clipping the final paragraph', async () => {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });

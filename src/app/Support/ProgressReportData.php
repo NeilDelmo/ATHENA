@@ -5,23 +5,28 @@ namespace App\Support;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProgressReportMonitoringService;
 use App\Services\ReportFigureDraftService;
 use Illuminate\Http\UploadedFile;
 
 class ProgressReportData
 {
+    public const MAXIMUM_ACCOMPLISHMENT_LENGTH = 6000;
+
     public function __construct(
         private readonly MonitoringQuarterService $schedule,
         private readonly ProposalRichText $richText,
     ) {}
 
     /** @return array<string, mixed> */
-    public function defaults(TopicProposal $topic): array
+    public function defaults(TopicProposal $topic, ?string $reportingDate = null): array
     {
         $topic->loadMissing(['user', 'latestVersion.files', 'revisionDraft.members']);
         $files = $topic->latestVersion?->files ?? collect();
         $proposal = $files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)?->source_data ?? [];
         $workPlan = $files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)?->source_data ?? [];
+        $monitoring = app(ProgressReportMonitoringService::class);
+        $monitoringReport = $monitoring->forDate($topic, $reportingDate);
         $entries = collect($workPlan['entries'] ?? [])
             ->filter(fn (mixed $entry): bool => is_array($entry) && filled($entry['objective'] ?? null));
         $accomplishments = $entries->groupBy(fn (array $entry): string => $this->plain((string) $entry['objective']))
@@ -30,7 +35,8 @@ class ProgressReportData
                 'evidence_key' => $this->objectiveEvidenceKey($objective),
                 'target' => $rows->map(fn (array $row): string => $this->plain((string) ($row['expected_output'] ?? '')))->filter()->unique()->implode("\n"),
                 'activities' => $rows->map(fn (array $row): string => $this->plain((string) ($row['activity'] ?? '')))->filter()->unique()->implode("\n"),
-                'actual' => '',
+                'actual' => $monitoringReport ? collect($monitoring->rowsForObjective($monitoringReport, $objective))
+                    ->pluck('actual_accomplishment')->filter()->unique()->implode("\n") : '',
             ])->values();
         $specificObjectives = collect($proposal['specific_objectives'] ?? [])
             ->filter(fn (mixed $row): bool => is_array($row))
@@ -60,6 +66,7 @@ class ProgressReportData
             ->filter()->unique()->implode("\n");
 
         return [
+            'monitoring_report_id' => $monitoringReport?->id,
             'source_proposal_version' => $topic->latestVersion?->version_number,
             'objectives_from_work_plan' => $entries->isNotEmpty(),
             'researchers' => $researchers,
@@ -78,7 +85,7 @@ class ProgressReportData
     /** @return array<string, mixed> */
     public function normalize(TopicProposal $topic, array $data): array
     {
-        $defaults = $this->defaults($topic);
+        $defaults = $this->defaults($topic, $data['reporting_date'] ?? null);
         if ($defaults['objectives_from_work_plan']) {
             $submitted = collect($data['accomplishments'] ?? [])->filter(fn (mixed $row): bool => is_array($row));
             $data['accomplishments'] = collect($defaults['accomplishments'])->map(function (array $approved, int $index) use ($submitted): array {

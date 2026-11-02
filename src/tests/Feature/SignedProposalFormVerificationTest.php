@@ -71,12 +71,19 @@ function signingVerificationPayload(ProposalVersionFile $source, array $extra = 
     ];
 }
 
-test('local demo PDFs fill all three signing slots and record demo uploads', function (string $role, string $workspace) {
+test('signed PDF upload labels respect the active staff workspace', function (string $role, string $workspace, bool $canUpload) {
     $this->app->detectEnvironment(fn (): string => 'local');
     config(['proposal_signing.demo_mode' => true]);
     $operator = User::factory()->create(['college' => 'CICS']);
     $operator->assignRole($role);
     $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+    if (! $canUpload) {
+        $source = $this->version->files()->where('document_type', 'work_plan')->sole();
+        $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source))->assertForbidden();
+        expect($this->version->files()->where('document_type', 'head_upload')->count())->toBe(0);
+
+        return;
+    }
     foreach ([
         'gad_checklist' => ['purpose' => 'gad_assessment', 'gad_signature_confirmed' => true, 'gad_outcome' => 'passed', 'gad_score' => 10],
         'initial_screening_form' => ['purpose' => 'evaluation', 'narrative_evaluation' => 'Recommended for endorsement.', 'recommended_action' => 'for_endorsement'],
@@ -95,7 +102,7 @@ test('local demo PDFs fill all three signing slots and record demo uploads', fun
     }
     foreach (['detailed_proposal', 'work_plan', 'line_item_budget'] as $index => $type) {
         $source = $this->version->files()->where('document_type', $type)->sole();
-        $filename = 'random-demo-'.($index + 1).'.pdf';
+        $filename = 'uploaded-paper-'.($index + 1).'.pdf';
         $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source, [
             'review_file' => UploadedFile::fake()->createWithContent($filename, '%PDF-1.4 unrelated demonstration content'),
         ]))
@@ -113,11 +120,12 @@ test('local demo PDFs fill all three signing slots and record demo uploads', fun
     Http::assertNothingSent();
     expect(app(ProposalSignatureWorkflow::class)->isComplete($this->version->fresh()))->toBeTrue();
     $this->get(route('topics.show', $this->topic))->assertOk()
-        ->assertSee('Any PDF is accepted for this demo.')->assertSee('data-signed-count="3"', false)
+        ->assertSee('Check that each PDF is the correct signed form for this project.')->assertSee('data-signed-count="3"', false)
+        ->assertDontSeeText('demo')
         ->assertDontSee('We check the official form and project title before saving.');
 })->with([
-    'office' => ['research_coordinator', 'research_office'],
-    'secretary' => ['research_secretary', 'research_secretary'],
+    'office cannot upload signed papers' => ['research_coordinator', 'research_office', false],
+    'secretary uploads signed papers' => ['research_secretary', 'research_secretary', true],
 ]);
 
 test('form checks remain active without the local demo setting', function (string $environment, bool $enabled) {

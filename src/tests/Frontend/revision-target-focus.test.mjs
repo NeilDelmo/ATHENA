@@ -146,6 +146,35 @@ test('embedded field focus scrolls only the editor document and keeps the outer 
     assert.deepEqual(target.focusOptions, { preventScroll: true });
 });
 
+test('queued editor focus cannot interrupt a response started during scrolling', (t) => {
+    const target = new Element('input');
+    environment(t, { target });
+    window.matchMedia = () => ({ matches: false });
+    let focusCallback;
+    window.setTimeout = (callback) => { focusCallback = callback; };
+    let canFocus = true;
+
+    assert.equal(focusRevisionTarget(target, 'activity-1', { canFocus: () => canFocus }), true);
+    assert.equal(target.focusOptions, undefined);
+    canFocus = false;
+    focusCallback();
+
+    assert.equal(target.focusOptions, undefined);
+});
+
+test('queued editor focus still works when the faculty member has not started a response', (t) => {
+    const target = new Element('input');
+    environment(t, { target });
+    window.matchMedia = () => ({ matches: false });
+    let focusCallback;
+    window.setTimeout = (callback) => { focusCallback = callback; };
+
+    focusRevisionTarget(target, 'activity-1', { canFocus: () => true });
+    focusCallback();
+
+    assert.deepEqual(target.focusOptions, { preventScroll: true });
+});
+
 
 test('section destinations reveal the category, show its comment, scroll and briefly emphasize it', (t) => {
     const section = new Element('section');

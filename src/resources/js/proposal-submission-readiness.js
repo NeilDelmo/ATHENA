@@ -88,6 +88,8 @@ export default function initProposalSubmissionReadiness({
     function renderCues(root, data, focusedBlocker = null, focusedTarget = null) {
         clearCues(root);
         if (!data.can_guide) return;
+        if (root.hasAttribute('data-proposal-requirements-on-demand')
+            && !window.Alpine?.$data(root)?.requirementsReviewed) return;
         const rendered = [];
         for (const blocker of data.blockers || []) {
             if (blocker.owner !== 'faculty' || blocker.paper !== root.dataset.proposalPaper) continue;

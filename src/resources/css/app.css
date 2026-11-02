@@ -266,6 +266,14 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         @apply border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200;
     }
 
+    [data-narrative-report-summary] {
+        @apply min-w-0 flex-wrap;
+    }
+
+    [data-narrative-report-summary] > div:last-child {
+        @apply min-w-0 max-w-full;
+    }
+
     .monitoring-secondary-action {
         @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
     }
@@ -361,6 +369,10 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         .quarterly-reports tr[data-reporting-quarter] > :is([data-monitoring-quarter], [data-progress-quarter]) {
             @apply col-span-2;
         }
+    }
+
+    .project-page-header {
+        @apply mx-auto max-w-7xl;
     }
 
     .project-page-header h1 {
@@ -626,7 +638,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         @apply bg-slate-50/70 dark:bg-slate-800/40;
     }
 
-    [data-app-content-shell] > main > div > :is(.max-w-5xl, .max-w-6xl, .max-w-7xl) {
+    [data-app-content-shell] > main > div > :is(.max-w-5xl, .max-w-6xl, .max-w-7xl):not(:where([data-topic-workspace]:has(#project-monitoring-tab))) {
         width: 100%;
         max-width: none;
         padding-left: 0;

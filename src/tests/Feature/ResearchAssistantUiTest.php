@@ -606,8 +606,8 @@ test('proposal draft editors expose the current paper and proposal to athena', f
         ->assertSee('data-research-assistant-paper-label="Project Details"', false)
         ->assertSee('data-research-assistant-proposal-draft-id="'.$draft->id.'"', false)
         ->assertSee('window.athenaResearchAssistantActiveContextId = '.$topic->id, false)
-        ->assertSee('Paper help')
-        ->assertSee('Live context')
+        ->assertDontSee('Paper help')
+        ->assertDontSee('Live context')
         ->assertSee('Review saved paper')
         ->assertSee('Uses saved proposal data and current-paper rules')
         ->assertSee('paperContextLabel()', false);
@@ -2371,4 +2371,21 @@ test('guests cannot send assistant messages', function () {
     ])->assertUnauthorized();
 
     Http::assertNothingSent();
+});
+
+test('assistant response copy controls have icons and accessible names in both chat surfaces', function () {
+    $this->withoutVite();
+    $user = User::factory()->create();
+    $user->assignRole('faculty');
+    $html = $this->actingAs($user)->get(route('profile.edit'))->assertSuccessful()->getContent();
+    $document = new DOMDocument;
+    @$document->loadHTML(str_replace('@click=', 'x-on:click=', $html));
+    $xpath = new DOMXPath($document);
+    $buttons = $xpath->query('//button[@aria-label="Copy response"]');
+    expect($buttons)->toHaveCount(2);
+    foreach ($buttons as $button) {
+        expect($button->getAttribute('aria-label'))->toBe('Copy response')
+            ->and(trim($button->textContent))->toBe('')
+            ->and($xpath->query('.//*[local-name()="svg"]', $button))->toHaveCount(2);
+    }
 });

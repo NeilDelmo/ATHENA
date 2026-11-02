@@ -52,6 +52,44 @@ test('embedded revision baselines wait for lazy proposal rows before reporting c
     }
 });
 
+test('a queued embedded editor focus leaves the faculty response focused while typing', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage({ reducedMotion: 'no-preference' });
+        await page.route('https://athena.test/**', route => {
+            const path = new URL(route.request().url()).pathname;
+            if (path.startsWith('/resources/js/') && path.endsWith('.js')) {
+                return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve(`.${path}`)) });
+            }
+            return route.fulfill({ contentType: 'text/html', body: path === '/parent'
+                ? '<label>Your response<textarea id="reply"></textarea></label><iframe src="/editor"></iframe>'
+                : `<main data-paper-editor>
+                    <div data-revision-editor-context data-topic-id="7" data-draft-id="8" data-document-type="detailed_proposal"
+                        data-targets='{"13":{"target":"general-objective"}}'></div>
+                    <form data-paper-form><input id="general-objective" name="general_objective" value="Understand monitoring."></form>
+                    <script>window.Alpine = { $data: () => ({}), nextTick: async () => {} };</script>
+                    <script type="module">import initialize from '/resources/js/revision-workspace.js'; initialize();</script>
+                </main>` });
+        });
+        await page.goto('https://athena.test/parent');
+        const editor = page.frames().find(frame => frame.url().endsWith('/editor'));
+        await editor.waitForFunction(() => Boolean(window.athenaRevisionEditor));
+        await page.evaluate(async () => {
+            const reply = document.querySelector('#reply');
+            await document.querySelector('iframe').contentWindow.athenaRevisionEditor.focus('13', {
+                canFocus: () => document.activeElement !== reply,
+            });
+        });
+        await page.getByLabel('Your response').fill('Added the requested explanation.');
+        await page.waitForTimeout(600);
+
+        assert.equal(await page.evaluate(() => document.activeElement.id), 'reply');
+        assert.equal(await page.getByLabel('Your response').inputValue(), 'Added the requested explanation.');
+    } finally {
+        await browser.close();
+    }
+});
+
 test('revision stepper shows current completed and upcoming steps without overflow in both themes', async () => {
     const rendered = spawnSync('php', ['-r', String.raw`
         require 'vendor/autoload.php';
@@ -543,6 +581,7 @@ test('full-screen document switching preserves frames, synchronizes feedback and
         };
         const card = {
             dataset: { revisionDocument: type },
+            closest: () => null,
             hasAttribute: () => false,
             querySelector: (key) => nodes[key],
             querySelectorAll: () => bodies,
@@ -1026,4 +1065,96 @@ test('no-change explanations fill matching replies, track edits and preserve fac
     checkbox.checked = true;
     synchronizeRevisionNoChangeResponses(form, card);
     assert.equal(replies[0].value, explanation.value);
+});
+
+
+test('incomplete paper submission reveals a usable editor instead of an invisible modal blocking the page', async () => {
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const failureStage of ['client', 'server']) {
+            let preparationRequests = 0, submissions = 0;
+            const page = await browser.newPage({ viewport: { width: failureStage === 'client' ? 1280 : 390, height: 900 } });
+            const errors = [];
+            page.on('pageerror', error => errors.push(error.message));
+            await page.route('https://athena-revision.test/**', route => {
+                const path = new URL(route.request().url()).pathname;
+                if (path.startsWith('/resources/js/')) return route.fulfill({ contentType: 'text/javascript', body: readFileSync(resolve(`.${path}`)) });
+                if (path === '/prepare') {
+                    preparationRequests++;
+                    return route.fulfill(route.request().postDataJSON().complete
+                        ? { json: { filename: 'revised.pdf', draft_id: 8, document_type: 'detailed_proposal' } }
+                        : { status: 422, json: { message: 'Complete the required field.' } });
+                }
+                if (path === '/submit') {
+                    submissions++;
+                    return route.fulfill({ contentType: 'text/html', body: '<h1>Revision received</h1>' });
+                }
+                return route.fulfill({ contentType: 'text/html', body: `<html><head><style>${styles.css}</style></head><body>
+                    <button id="outside" type="button" onclick="window.outsideClicked=true">Outside action</button>
+                    <form action="/submit" method="post" data-revision-workspace="3" data-revision-start-step="4" novalidate>
+                        <p data-revision-progress></p><input type="hidden" name="revision_draft_id">
+                        <section data-revision-step="1" data-revision-step-label="Comments"></section>
+                        <section data-revision-step="2" data-revision-step-label="Revise and respond">
+                            <article data-revision-document="detailed_proposal" data-revision-label="Detailed Research Proposal">
+                                <p data-revision-document-state data-modified="true" data-addressed="true"></p>
+                                <p data-revision-editor-status></p><button type="button" data-revision-open>Open editor</button>
+                                <dialog class="revision-dialog" data-revision-dialog>
+                                    <div data-revision-document-workspace><p data-revision-dialog-submit-error hidden>Complete the required field.</p>
+                                        <button type="button" data-revision-close>Close editor</button>
+                                        <button type="button" data-revision-previous>Previous</button><button type="button" data-revision-next>Next</button>
+                                        <iframe data-revision-pdf-frame srcdoc=""></iframe>
+                                        <iframe data-revision-editor-frame srcdoc="&lt;input id='missing' required&gt;"></iframe>
+                                    </div>
+                                </dialog>
+                            </article>
+                        </section>
+                        <section data-revision-step="3" data-revision-step-label="Confirm details"><input data-revision-details-confirmed type="checkbox" checked required></section>
+                        <section data-revision-step="4" data-revision-step-label="Submit">
+                            <button type="submit" data-revision-submit-button><span data-revision-submit-button-label>Submit revision</span><span data-revision-submit-button-spinner hidden></span></button>
+                            <div data-revision-submit-error hidden><p data-revision-submit-error-message></p></div>
+                        </section>
+                        <button type="button" data-revision-step-back>Back</button><button type="button" data-revision-step-continue>Continue</button><p data-revision-step-error></p>
+                        <div data-revision-submit-overlay class="fixed inset-0 hidden" aria-hidden="true" tabindex="-1"><p data-revision-submit-title></p><p data-revision-submit-status></p></div>
+                    </form></body></html>` });
+            });
+            await page.goto('https://athena-revision.test/revision');
+            await page.locator('[data-revision-editor-frame]').evaluate((frame, failureStage) => {
+                frame.contentWindow.athenaRevisionEditor = { topicId: '3', draftId: 8, documentType: 'detailed_proposal',
+                    modificationStates: () => ({ __document__: true }),
+                    validate: () => failureStage === 'server' || Boolean(frame.contentDocument.getElementById('missing').value.trim()),
+                    focusInvalid() { frame.contentDocument.getElementById('missing').focus(); },
+                    async save() { return true; },
+                    async prepare() {
+                        const response = await fetch('/prepare', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ complete: Boolean(frame.contentDocument.getElementById('missing').value.trim()) }) });
+                        return response.ok ? response.json() : null;
+                    },
+                    release() {},
+                };
+            }, failureStage);
+            await page.addScriptTag({ type: 'module', content: `import initialize from '/resources/js/revision-workspace.js'; initialize(async () => true); window.revisionReady = true;` });
+            await page.waitForFunction(() => window.revisionReady);
+            await page.locator('[data-revision-submit-button]').click();
+            await page.waitForFunction(() => document.querySelector('[data-revision-dialog]').open);
+            const dialog = page.locator('[data-revision-dialog]');
+            assert.equal(await dialog.evaluate(element => element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0), true, 'The validation dialog must be visible and usable');
+            await page.frameLocator('[data-revision-editor-frame]').locator('#missing').fill('Completed required detail');
+            await page.getByRole('button', { name: 'Close editor', exact: true }).click({ timeout: 3000 });
+            await page.getByRole('button', { name: 'Outside action', exact: true }).click({ timeout: 3000 });
+            assert.equal(await page.evaluate(() => window.outsideClicked), true);
+            assert.equal(await page.locator('[data-revision-submit-button]').isDisabled(), false);
+            assert.equal(await page.locator('form').getAttribute('aria-busy'), null);
+            assert.equal(submissions, 0);
+            await page.locator('[data-revision-step-continue]').click();
+            await page.locator('[data-revision-step-continue]').click();
+            await page.locator('[data-revision-submit-button]').click();
+            await page.getByRole('heading', { name: 'Revision received' }).waitFor();
+            assert.equal(submissions, 1);
+            assert.equal(preparationRequests, failureStage === 'client' ? 1 : 2);
+            assert.deepEqual(errors, []);
+            await page.close();
+        }
+    } finally { await browser.close(); }
 });

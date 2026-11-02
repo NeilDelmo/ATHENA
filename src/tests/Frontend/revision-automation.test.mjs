@@ -82,6 +82,8 @@ test('the real revision page and editor automatically locate a reply in the offi
         await frame.waitForFunction(() => Boolean(window.athenaRevisionEditor));
         assert.deepEqual(errors, []);
         assert.equal(await frame.evaluate(() => window.athenaRevisionEditor.modificationStates().__document__), false, 'Merely opening the paper must not count as editing it');
+        assert.equal(await frame.locator('input[name="introduction"]').inputValue(), '');
+        assert.match(await frame.locator('textarea[name="related_literature"]').inputValue(), /Community coastal monitoring benefits[\s\S]*Recent coastal monitoring studies/);
         const method = frame.locator('textarea[name="specific_method_objectives[0][methods][0][description]"]');
         const originalMethod = await method.inputValue();
         await method.fill(originalMethod + ' Include participant interviews.');

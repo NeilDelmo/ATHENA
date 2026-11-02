@@ -69,6 +69,7 @@ export default function registerDetailedProposalEditor(Alpine, {
         relatedLiterature: '',
         literatureSources: [],
         literatureCitations: [],
+        citationReferenceSnapshots: {},
         literatureSourceNotice: '',
         citationPickerOpen: false,
         citationPickerSelection: null,
@@ -145,6 +146,22 @@ export default function registerDetailedProposalEditor(Alpine, {
         detailedProposalComplete: Boolean(config.detailedProposalComplete),
         completionErrors: config.completionErrors || {},
         requirementsReviewed: Boolean(config.requirementsReviewed),
+        resumingDetailedProposal: Boolean(config.detailedProposalStarted),
+
+        get detailedProposalRequirementGroups() {
+            const fields = [...(this.$refs.form?.querySelectorAll('input, textarea, select') || [])];
+            const groups = new Map();
+            for (const [field, messages] of Object.entries(this.completionErrors)) {
+                const name = field.split('.').map((part, index) => index ? `[${part}]` : part).join('');
+                const control = fields.find(control => control.type !== 'hidden'
+                    && (control.name === name || control.name.startsWith(`${name}[`)));
+                const title = control?.closest('[data-revision-section]')?.querySelector('h3, h4, legend')?.textContent.trim()
+                    || 'Proposal details';
+                if (!groups.has(title)) groups.set(title, { title, requirements: [] });
+                groups.get(title).requirements.push({ field, messages });
+            }
+            return [...groups.values()];
+        },
         proposalFeedbackId: 0,
 
         get showCompletionChecklist() {
@@ -229,6 +246,14 @@ export default function registerDetailedProposalEditor(Alpine, {
             this.$nextTick(() => {
                 this.synchronizeLiteratureCitations();
                 this.startDetailedProposalAutoSave();
+                const sourceLocation = new URL(window.location.href);
+                const sourceAction = sourceLocation.searchParams.get('sources');
+                if (['paper', 'pdf', 'search'].includes(sourceAction)) {
+                    void this.openSourceWorkspace(sourceAction === 'pdf' ? 'add' : sourceAction).then(() => {
+                        if (sourceAction === 'pdf') this.setSourceWorkspaceAddMode('pdf');
+                        if (sourceAction === 'search') this.sourceWorkspaceQuery = (sourceLocation.searchParams.get('source-query') || this.sourceWorkspaceQuery).slice(0, 500);
+                    });
+                }
                 if (this.$el.matches('[data-detailed-proposal-workspace]')) {
                     this.initializeDetailedProposalPreview();
                     initializeSemanticEditors();
@@ -335,28 +360,44 @@ export default function registerDetailedProposalEditor(Alpine, {
             return true;
         },
 
-        async requestRrlRevision() {
+        async openRrlChat() {
+            const assistant = Alpine.store('researchAssistant');
+            if (!assistant || !await assistant.ensureConversationContext({ proposal_draft_id: config.proposalDraftId })) return false;
+            assistant.activePaperField = { field: 'related_literature', label: 'Review of related literature' };
+            assistant.openDrawer();
+            return true;
+        },
+
+        async requestRrlRevision(mode = 'auto') {
             const assistant = Alpine.store('researchAssistant');
             if (this.rrlRevisionPending || !assistant) return false;
             this.proposalChangeError = '';
-            if (assistant.proposalChangesBusy() || assistant.draft.trim()) {
-                this.proposalChangeError = 'Finish your current assistant message before requesting an RRL revision.';
-                return false;
-            }
             this.rrlRevisionPending = true;
             try {
-                if (!await finishPaperEditorAutoSave(this.$el.closest('[data-detailed-proposal-workspace]'))) {
-                    throw new Error('Save your current paper edits before requesting an RRL revision.');
+                if (!await assistant.ensureConversationContext({ proposal_draft_id: config.proposalDraftId })) {
+                    assistant.openDrawer();
+                    return false;
                 }
                 if (assistant.proposalChangesBusy() || assistant.draft.trim()) {
-                    throw new Error('Finish your current assistant message before requesting an RRL revision.');
+                    throw new Error('Send or clear your current assistant message before starting another RRL request.');
                 }
+                if (!await finishPaperEditorAutoSave(this.$el.closest('[data-detailed-proposal-workspace]'))) {
+                    throw new Error('Your latest edits could not be saved. Resolve the save issue, then request RRL help again.');
+                }
+                if (assistant.proposalChangesBusy() || assistant.draft.trim()) {
+                    throw new Error('Send or clear your current assistant message before starting another RRL request.');
+                }
+                assistant.activePaperField = { field: 'related_literature', label: 'Review of related literature' };
                 assistant.openDrawer();
-                await assistant.sendPrompt('Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.',
-                    { type: 'suggest_proposal_changes' }, { proposal_draft_id: config.proposalDraftId });
+                const draftRrl = mode === 'draft' || (mode !== 'revise' && !this.plainText(this.relatedLiterature));
+                await assistant.sendPrompt(draftRrl
+                    ? 'Draft an RRL for my proposal using complete source papers. Use the project title and objectives. Show the draft for my review.'
+                    : 'Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.',
+                draftRrl ? { type: 'draft_rrl' } : { type: 'suggest_proposal_changes' },
+                { proposal_draft_id: config.proposalDraftId, paper_slug: 'detailed-proposal', field: 'related_literature' });
                 return true;
             } catch (error) {
-                this.proposalChangeError = error instanceof Error ? error.message : 'The RRL revision could not be requested.';
+                this.proposalChangeError = error instanceof Error ? error.message : 'RRL assistance could not be requested.';
                 return false;
             } finally {
                 this.rrlRevisionPending = false;
@@ -610,14 +651,26 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         citationReferenceSourceIds() {
-            return orderedCitationSourceIds(this.citationMarkerSourceIds(), this.activeProposalCitations())
-                .filter((sourceLinkId) => this.literatureSources.some((source) => Number(source.id) === sourceLinkId));
+            return this.citationReferenceSources().map((source) => Number(source.id));
         },
 
         citationReferenceSources() {
-            return this.citationReferenceSourceIds()
-                .map((sourceLinkId) => this.literatureSources.find((source) => Number(source.id) === sourceLinkId))
-                .filter(Boolean);
+            const sources = new Map(this.literatureSources.map((source) => [Number(source.id), source]));
+            const snapshots = this.citationReferenceSnapshots ||= {};
+            const template = document.createElement('template');
+            template.innerHTML = String(this.references || '');
+            // Keep submitted bibliography text available for both revision reopening and citation undo.
+            template.content.querySelectorAll('[data-proposal-managed-reference]').forEach((block) => {
+                const id = Number(block.getAttribute('data-proposal-managed-reference'));
+                const reference = String(block.textContent || '').trim();
+                if (Number.isSafeInteger(id) && id > 0 && reference) snapshots[id] = reference;
+            });
+            Object.entries(snapshots).forEach(([id, reference]) => {
+                if (!String(sources.get(Number(id))?.reference || '').trim()) sources.set(Number(id), { id: Number(id), reference });
+            });
+
+            return orderedCitationSourceIds(this.citationMarkerSourceIds(), this.activeProposalCitations())
+                .map((id) => sources.get(id)).filter(Boolean);
         },
 
         citationReferenceNumber(source) {
@@ -1974,9 +2027,7 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         detailedProposalCompletionClasses() {
-            if (this.detailedProposalComplete) return 'bg-green-100 text-green-800';
-
-            return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+            return 'text-slate-700 dark:text-slate-200';
         },
 
         updateDetailedProposalCompletionStatus() {

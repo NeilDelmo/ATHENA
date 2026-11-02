@@ -1,9 +1,13 @@
 <?php
 
 use App\Services\LiteratureSearchService;
+use App\Services\LiteratureSynthesisEvidenceResolver;
+use App\Support\LiteratureFullTextToken;
 use Dotenv\Dotenv;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 if (getenv('ATHENA_TEST_LIVE_LITERATURE') !== '1') {
@@ -112,3 +116,22 @@ test('live academic search returns identifiable relevant papers with accurate av
         'Evaluate how conversational systems answer student service questions in higher education.',
     ],
 ]);
+
+test('live gamified learning search identifies which public papers can actually be read completely', function () {
+    Http::allowStrayRequests();
+    $payload = app(LiteratureSearchService::class)->search('gamification studying learning student engagement', [], 'Gamified studying and learning engagement.');
+    $attempts = [];
+    foreach (collect($payload['results'])->filter(fn (array $source): bool => filled($source['full_text_token'] ?? null))->take(8) as $source) {
+        $url = LiteratureFullTextToken::decode($source['full_text_token'])['url'];
+        try {
+            $paper = app(LiteratureSynthesisEvidenceResolver::class)->resolve($source, 'full_text');
+            $attempts[] = ['title' => $source['title'], 'url' => $url, 'complete' => true, 'characters' => strlen($paper['evidence_text'])];
+        } catch (ValidationException $exception) {
+            $attempts[] = ['title' => $source['title'], 'url' => $url, 'complete' => false, 'reason' => implode(' ', Arr::flatten($exception->errors()))];
+        }
+    }
+    $this->liveSearchResult = ['query' => 'gamification studying learning student engagement', 'attempts' => $attempts,
+        'result_count' => count($payload['results']), 'provider_notice' => $payload['provider_notice']];
+    expect($attempts)->not->toBeEmpty();
+    expect(collect($attempts)->where('complete', true)->count())->toBeGreaterThan(0);
+});

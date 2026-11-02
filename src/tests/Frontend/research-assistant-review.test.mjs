@@ -7,6 +7,7 @@ import { chromium, expect } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
+import { researchAssistantHistory } from '../../resources/js/research-assistant-history.js';
 import { researchAssistantReview } from '../../resources/js/research-assistant-review.js';
 import { journalFinder } from '../../resources/js/journal-finder.js';
 import { normalizeAssistantLiterature, serializeAssistantLiterature } from '../../resources/js/research-assistant-literature.js';
@@ -20,7 +21,7 @@ const methodSource = (name) => {
     return `${app.slice(match.index, match.index + match[0].length)}`;
 };
 const methodsSource = ['sendPrompt', 'contextPayload', 'replyContext', 'send', 'requestReply', 'contextMessages',
-    'saveConversation', 'openConversation', 'openWithContext', 'retry', 'stop', 'clearConversation', 'selectProjectContext', 'selectedContext', 'closeDocumentPicker', 'hasPaperContext', 'hasContextOptions']
+    'conversationTranscript', 'hydrateConversation', 'applyConversationContext', 'saveConversation', 'openConversation', 'openWithContext', 'retry', 'stop', 'clearConversation', 'selectProjectContext', 'selectedContext', 'closeDocumentPicker', 'hasPaperContext', 'hasContextOptions']
     .map(methodSource).join('\n');
 const response = (payload, status = 200) => ({ ok: status === 200, status, json: async () => payload });
 
@@ -32,12 +33,15 @@ function assistant(fetchReply = async (url) => response(url === '/chat'
         querySelector: () => ({ content: 'csrf' }),
         getElementById: () => null,
     };
-    const methods = new Function('document', 'fetch', 'normalizeAssistantLiterature', 'serializeAssistantLiterature',
-        'normalizeAssistantProposalChanges', 'serializeAssistantProposalChanges', 'normalizeAssistantReportChanges', 'reportContext', 'currentPageReportContext', 'redactAssistantText', 'researchAssistantMessageLimit', `return ({${methodsSource}});`)(document, fetchReply,
+    const browserWindow = { location: { origin: 'https://athena.test' } };
+    const methods = new Function('document', 'fetch', 'window', 'normalizeAssistantLiterature', 'serializeAssistantLiterature',
+        'normalizeAssistantProposalChanges', 'serializeAssistantProposalChanges', 'normalizeAssistantReportChanges', 'reportContext', 'currentPageReportContext', 'redactAssistantText', 'researchAssistantMessageLimit', `return ({${methodsSource}});`)(document, fetchReply, browserWindow,
         normalizeAssistantLiterature, serializeAssistantLiterature, normalizeAssistantProposalChanges, serializeAssistantProposalChanges,
         normalizeAssistantReportChanges, reportContext, () => null, (value) => value, 8000);
     return {
+        ...researchAssistantHistory([], fetchReply, { document, ...browserWindow }),
         ...methods, ...researchAssistantReview(),
+        conversationReady: true, conversationFresh: false,
         draft: '', messages: [], isLoading: false, sendInProgress: false, retryAfter: 0,
         requestSequence: 0, nextMessageId: 1, proposalDraftId: 99, currentConversationId: null,
         contextOptions: [{ id: 12, label: 'Water study' }], contextEnabled: true, selectedContextId: 12,
@@ -210,6 +214,7 @@ test('typing or clearing a chat while a review is saving cancels the launch with
             sendPrompt: async () => sends++,
         });
         const pending = store.startSuggestedReview(reviewItem());
+        await new Promise(setImmediate);
         if (change === 'typing') {
             store.draft = 'Text typed while the chat was saving.';
             assert.equal(await store.send(), undefined);
@@ -234,7 +239,7 @@ test('draft reviews use the originating draft without leaking a different pageâ€
     assert.deepEqual(store.replyContext(context), { ...context, assistance_mode: 'discussion' });
     assert.equal(store.contextEnabled, false);
     assert.equal(store.selectedContextId, 0);
-    assert.equal(store.proposalDraftId, 99, 'The current page draft keeps its identity');
+    assert.equal(store.proposalDraftId, 42, 'The chat retains its own draft identity');
     assert.equal(store.hasPaperContext(), false, 'The current-page paper chip cannot imply the wrong review target');
     assert.deepEqual(store.contextPayload(), { ...context, review_focus: 'revision_response', review_label: 'Proposal draft #42' });
 });
@@ -377,7 +382,7 @@ test('opening history restores review focus and clearing or changing project rel
     store.clearConversation();
     assert.equal(store.reviewContext, null);
     store.restoreReviewContext({ topic_id: 12, workflow_scope: 'review', review_focus: 'consistency' });
-    store.selectProjectContext(12);
+    await store.selectProjectContext(12);
     assert.equal(store.reviewContext, null);
     store.restoreReviewContext({ topic_id: 24, workflow_scope: 'review', review_focus: 'consistency' });
     store.openDrawer = () => {};
@@ -557,6 +562,7 @@ test('review starters launch through the actual welcome and menu controls in lig
                         starterPrompts() { return this.reviewStarterPrompts(); }, hasStarterPrompts() { return true; },
                         starterPromptHeading() { return 'Letâ€™s move your research forward.'; },
                         starterPromptDescription() { return 'Pick a starting point below, or ask a question of your own.'; },
+                        restoreConversation() { return Promise.resolve(true); }, rememberConversation() {}, applyConversationContext(context) { this.proposalDraftId = context.proposal_draft_id || 0; this.selectedContextId = context.topic_id || 0; this.contextEnabled = !!context.topic_id; },
                         openWorkspace() { this.workspaceOpen = true; }, async saveConversation() { return { id: 8 }; },
                         clearConversation() { this.messages = []; }, selectProjectContext() {}, setError() {},
                         async sendPrompt(...args) { window.reviewCalls.push(args); await new Promise(resolve => window.finishReview = resolve); },
@@ -638,6 +644,10 @@ test('dashboard suggestion buttons preserve quoted titles and launch the exact p
                 window.dashboardSaves = [];
                 document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {
                     ...({${methodsSource}}), ...researchAssistantReview(),
+                    restoreConversation() { return Promise.resolve(true); }, rememberConversation() {},
+                    applyConversationContext(context) { this.proposalDraftId = context.proposal_draft_id || 0; this.selectedContextId = context.topic_id || 0; this.contextEnabled = !!context.topic_id; },
+                    ensureConversationContext() { return Promise.resolve(true); },
+                    conversationAccountScope: '', conversationStoragePrefix() { return ''; },
                     draft: '', messages: [{role:'user',content:'Previous chat to save'}], currentConversationId: 7,
                     contextOptions: [], contextEnabled: false, selectedContextId: 0, proposalDraftId: 99,
                     paperContext: null, activePaperField: null, isLoading: false, sendInProgress: false, retryAfter: 0,

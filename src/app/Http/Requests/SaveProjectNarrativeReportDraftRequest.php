@@ -60,7 +60,7 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
             'accomplishments' => ['nullable', 'array', 'max:1000'],
             'accomplishments.*.objective' => ['nullable', 'string', 'max:1000'],
             'accomplishments.*.target' => ['nullable', 'string', 'max:2000'],
-            'accomplishments.*.actual' => ['nullable', 'string', 'max:2000'],
+            'accomplishments.*.actual' => ['nullable', 'string', 'max:'.ProgressReportData::MAXIMUM_ACCOMPLISHMENT_LENGTH],
             'introduction' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'rationale' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'objectives' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],

@@ -23,6 +23,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -55,7 +56,18 @@ class ResearchAssistantController extends Controller
     {
         $validated = $request->validate([
             'query' => ['nullable', 'string', 'max:100'],
+            'resume' => ['nullable', 'boolean'],
+            'conversation_id' => ['nullable', 'integer', 'min:1'],
+            'context' => ['nullable', 'array:topic_id,proposal_draft_id,report_type,report_id,source_key'],
+            'context.topic_id' => ['nullable', 'integer', 'min:1'],
+            'context.proposal_draft_id' => ['nullable', 'integer', 'min:1'],
+            'context.report_type' => ['nullable', Rule::in(ResearchAssistantReportAssistanceService::TYPES)],
+            'context.report_id' => ['nullable', 'integer', 'min:1'],
+            'context.source_key' => ['nullable', 'string', 'max:80'],
         ]);
+        if ($validated['resume'] ?? false) {
+            return $this->resumeHistory($request->user(), $validated['context'] ?? [], $validated['conversation_id'] ?? null);
+        }
         $search = trim((string) ($validated['query'] ?? ''));
         $query = $request->user()->researchAssistantConversations()->latest('updated_at');
 
@@ -91,18 +103,17 @@ class ResearchAssistantController extends Controller
         abort_unless($this->canAccessConversation($request->user(), $conversation), 404);
 
         return response()->json([
-            'conversation' => [
-                ...$this->conversationSummary($conversation),
-                'messages' => $conversation->messages ?? [],
-                'context' => $conversation->context,
-            ],
+            'conversation' => $this->conversationPayload($conversation),
         ]);
     }
 
     public function saveHistory(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'account_id' => ['nullable', 'integer', 'min:1'],
+            'workspace' => ['nullable', 'string', 'max:80'],
             'id' => ['nullable', 'integer'],
+            'version' => ['nullable', 'string', 'size:64', 'regex:/\A[a-f0-9]+\z/'],
             'messages' => ['required', 'array', 'min:1', 'max:'.self::HISTORY_MESSAGE_MAX_COUNT],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::HISTORY_MESSAGE_MAX_LENGTH],
@@ -125,13 +136,27 @@ class ResearchAssistantController extends Controller
             'messages.*.document_reading.coverage.visual_pages.*' => ['integer', 'min:1', 'max:200'],
             'messages.*.document_reading.coverage.limitations' => ['nullable', 'array', 'max:8'],
             'messages.*.document_reading.coverage.limitations.*' => ['string', 'max:500'],
-            'messages.*.literature' => ['nullable', 'array:kind,proposal_draft_id,proposal_title,query,context_basis,year_from,year_to,results,drafts,sources,editor_url,notice,confirmed,applied'],
+            'messages.*.literature' => ['nullable', 'array:kind,proposal_draft_id,proposal_title,query,context_basis,year_from,year_to,results,drafts,sources,editor_url,notice,confirmed,applied,topic,intent,read_failures,request,proposals,workspace_required,proposals_url'],
             'messages.*.literature.confirmed' => ['nullable', 'boolean'],
             'messages.*.literature.applied' => ['nullable', 'boolean'],
-            'messages.*.literature.kind' => ['required_with:messages.*.literature', 'in:results,draft,insertion'],
-            'messages.*.literature.results' => ['nullable', 'array', 'max:5'],
+            'messages.*.literature.kind' => ['required_with:messages.*.literature', 'in:results,draft,insertion,choose_proposal'],
+            'messages.*.literature.results' => ['nullable', 'array', 'max:12'],
             'messages.*.literature.drafts' => ['nullable', 'array', 'max:3'],
             'messages.*.literature.sources' => ['nullable', 'array', 'max:3'],
+            'messages.*.literature.topic' => ['nullable', 'string', 'max:500'],
+            'messages.*.literature.intent' => ['nullable', 'in:draft,search'],
+            'messages.*.literature.request' => ['nullable', 'string', 'max:8000'],
+            'messages.*.literature.workspace_required' => ['nullable', 'boolean'],
+            'messages.*.literature.proposals_url' => ['nullable', 'string', 'max:2048'],
+            'messages.*.literature.proposals' => ['nullable', 'array', 'max:20'],
+            'messages.*.literature.proposals.*' => ['required', 'array:id,title'],
+            'messages.*.literature.proposals.*.id' => ['required', 'integer', 'min:1'],
+            'messages.*.literature.proposals.*.title' => ['required', 'string', 'max:500'],
+            'messages.*.literature.read_failures' => ['nullable', 'array', 'max:20'],
+            'messages.*.literature.read_failures.*' => ['required', 'array:source_token,title,reason'],
+            'messages.*.literature.read_failures.*.source_token' => ['nullable', 'string', 'max:100'],
+            'messages.*.literature.read_failures.*.title' => ['required', 'string', 'max:500'],
+            'messages.*.literature.read_failures.*.reason' => ['required', 'string', 'max:600'],
             'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,workflow_scope,review_focus,review_label,assistance_mode,report_type,report_id,source_key'],
             'context.report_type' => ['nullable', Rule::in(ResearchAssistantReportAssistanceService::TYPES)],
             'context.report_id' => ['nullable', 'integer', 'min:1'],
@@ -146,6 +171,11 @@ class ResearchAssistantController extends Controller
             'context.assistance_mode' => ['nullable', 'in:'.implode(',', ResearchAssistantProposalReviewService::ASSISTANCE_MODES)],
         ]);
 
+        if ((isset($validated['account_id']) && (int) $validated['account_id'] !== $request->user()->id)
+            || (isset($validated['workspace']) && $validated['workspace'] !== $request->user()->activeWorkspace())) {
+            return response()->json(['message' => 'Your account or workspace changed. Reload this page before continuing.'], 409);
+        }
+
         if (! $this->canAccessContext($request->user(), $validated['context'] ?? [])) {
             return response()->json(['message' => 'That saved proposal context is unavailable in this workspace.'], 403);
         }
@@ -159,38 +189,129 @@ class ResearchAssistantController extends Controller
             ], 422);
         }
 
-        $conversation = isset($validated['id'])
-            ? $request->user()->researchAssistantConversations()->findOrFail($validated['id'])
-            : $request->user()->researchAssistantConversations()->make();
+        return DB::transaction(function () use ($request, $validated, $messages, $firstUserMessage): JsonResponse {
+            $conversation = isset($validated['id'])
+                ? $request->user()->researchAssistantConversations()->lockForUpdate()->findOrFail($validated['id'])
+                : $request->user()->researchAssistantConversations()->make();
+            abort_if($conversation->exists && ! $this->canAccessConversation($request->user(), $conversation), 404);
+            $forkedFrom = null;
+            if ($conversation->exists) {
+                abort_unless($this->historyScope($conversation->context ?? []) === $this->historyScope($validated['context'] ?? []), 422,
+                    'Open a separate chat for a different project. The saved conversation was not changed.');
+                $currentVersion = $this->historyVersion($conversation->messages ?? []);
+                $incomingVersion = $this->historyVersion($messages);
+                $expectedVersion = $validated['version'] ?? null;
+                if ($expectedVersion && $expectedVersion !== $currentVersion && $expectedVersion === $incomingVersion) {
+                    return response()->json(['conversation' => $this->conversationPayload($conversation), 'stale' => true]);
+                }
+                $currentCount = count($conversation->messages ?? []);
+                $appendsCurrent = count($messages) >= $currentCount
+                    && $this->historyVersion(array_slice($messages, 0, $currentCount)) === $currentVersion;
+                if (count($messages) < $currentCount || ($expectedVersion !== $currentVersion && ! $appendsCurrent)) {
+                    $forkedFrom = $conversation->id;
+                    $conversation = $request->user()->researchAssistantConversations()->make();
+                } elseif (! $appendsCurrent) {
+                    $conversation->forceFill(['summary' => null, 'summarized_message_count' => 0]);
+                }
+            }
+            $conversation->fill([
+                'title' => Str::limit(Str::squish($firstUserMessage['content']), 120, ''),
+                'messages' => $messages,
+                'context' => [...($validated['context'] ?? []), 'workspace' => $request->user()->activeWorkspace()],
+            ]);
+            $conversation->save();
 
-        abort_if($conversation->exists && ! $this->canAccessConversation($request->user(), $conversation), 404);
+            return response()->json([
+                'conversation' => $this->conversationPayload($conversation),
+                ...($forkedFrom ? ['forked_from' => $forkedFrom] : []),
+            ]);
+        });
+    }
 
-        $conversation->fill([
-            'title' => Str::limit(Str::squish($firstUserMessage['content']), 120, ''),
-            'messages' => $messages,
-            'context' => [...($validated['context'] ?? []), 'workspace' => $request->user()->activeWorkspace()],
-        ]);
-        $conversation->save();
+    private function historyScope(array $context): string
+    {
+        if (isset($context['report_type'])) {
+            return implode(':', ['report', $context['report_type'], $context['report_id'] ?? '', $context['topic_id'] ?? '', $context['source_key'] ?? '']);
+        }
+        $topicId = $context['topic_id'] ?? (isset($context['proposal_draft_id'])
+            ? ProposalDraft::query()->whereKey($context['proposal_draft_id'])->value('topic_id') : null);
+
+        return $topicId ? 'topic:'.$topicId : (isset($context['proposal_draft_id']) ? 'draft:'.$context['proposal_draft_id'] : 'general');
+    }
+
+    private function historyVersion(array $messages): string
+    {
+        $canonicalize = function (array $value) use (&$canonicalize): array {
+            if (! array_is_list($value)) {
+                ksort($value);
+            }
+
+            return array_map(fn (mixed $item): mixed => is_array($item) ? $canonicalize($item) : $item, $value);
+        };
+
+        return hash('sha256', json_encode($canonicalize($this->normalizeHistoryMessages($messages)), JSON_THROW_ON_ERROR));
+    }
+
+    private function conversationPayload(ResearchAssistantConversation $conversation): array
+    {
+        $context = $conversation->context ?? [];
+        $label = isset($context['proposal_draft_id']) ? ProposalDraft::query()->whereKey($context['proposal_draft_id'])->value('project_title') : null;
+        $label ??= isset($context['topic_id']) ? TopicProposal::query()->whereKey($context['topic_id'])->value('title') : null;
+
+        return [
+            ...$this->conversationSummary($conversation),
+            'messages' => $conversation->messages ?? [], 'context' => $context,
+            'context_label' => $label, 'version' => $this->historyVersion($conversation->messages ?? []),
+        ];
+    }
+
+    private function resumeHistory(User $user, array $context, ?int $preferredId): JsonResponse
+    {
+        abort_unless($this->canAccessContext($user, $context), 403, 'That project context is unavailable in this workspace.');
+        $query = $user->researchAssistantConversations()->where(function ($query) use ($user): void {
+            $query->where('context->workspace', $user->activeWorkspace())->orWhereNull('context->workspace');
+        });
+        if (isset($context['report_type'])) {
+            $query->where('context->report_type', $context['report_type']);
+            foreach (['report_id', 'topic_id', 'source_key'] as $field) {
+                $query->where('context->'.$field, $context[$field] ?? null);
+            }
+        } elseif (isset($context['proposal_draft_id']) || isset($context['topic_id'])) {
+            $topicId = $context['topic_id'] ?? ProposalDraft::query()->whereKey($context['proposal_draft_id'])->value('topic_id');
+            $query->whereNull('context->report_type')->where(function ($query) use ($user, $context, $topicId): void {
+                if (isset($context['proposal_draft_id'])) {
+                    $query->where('context->proposal_draft_id', $context['proposal_draft_id']);
+                }
+                if ($topicId) {
+                    $query->orWhere('context->topic_id', $topicId)->orWhereIn('context->proposal_draft_id',
+                        ProposalDraft::query()->accessibleTo($user)->where('topic_id', $topicId)->select('id'));
+                }
+            });
+        }
+        if ($preferredId) {
+            $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredId]);
+        }
+        $conversation = $query->latest('updated_at')->latest('id')->lazy(25)
+            ->first(fn (ResearchAssistantConversation $conversation): bool => $this->canAccessConversation($user, $conversation));
 
         return response()->json([
-            'conversation' => [
-                ...$this->conversationSummary($conversation),
-                'messages' => $conversation->messages,
-                'context' => $conversation->context,
-            ],
+            'account_id' => $user->id, 'workspace' => $user->activeWorkspace(),
+            'conversation' => $conversation ? $this->conversationPayload($conversation) : null,
         ]);
     }
 
     public function __invoke(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'account_id' => ['nullable', 'integer', 'min:1'],
+            'workspace' => ['nullable', 'string', 'max:80'],
             'messages' => ['required', 'array', 'min:1', 'max:8'],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'conversation_id' => ['nullable', 'integer'],
             'action' => ['nullable', 'array:type,document_token,query,source_tokens,drafts,review_focus,evidence_basis'],
             'action.evidence_basis' => ['nullable', 'string', 'in:full_text'],
-            'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_literature,confirm_literature,review_proposal,suggest_proposal_changes,suggest_report_changes,review_report'],
+            'action.type' => ['required_with:action', 'string', 'in:analyze_document,search_literature,draft_rrl,draft_literature,confirm_literature,review_proposal,suggest_proposal_changes,suggest_report_changes,review_report'],
             'action.review_focus' => ['required_if:action.type,review_proposal', 'string', 'in:consistency,revision_response'],
             'action.document_token' => ['required_if:action.type,analyze_document', 'string', 'max:4096'],
             'action.query' => ['nullable', 'string', 'max:500'],
@@ -227,6 +348,11 @@ class ResearchAssistantController extends Controller
             'context.form.validation' => ['nullable', 'array', 'max:8'],
             'context.form.validation.*' => ['required', 'string', 'max:300'],
         ]);
+
+        if ((isset($validated['account_id']) && (int) $validated['account_id'] !== $request->user()->id)
+            || (isset($validated['workspace']) && $validated['workspace'] !== $request->user()->activeWorkspace())) {
+            return response()->json(['message' => 'Your account or workspace changed. Reload this page before continuing.'], 409);
+        }
 
         $messages = collect($validated['messages'])
             ->map(fn (array $message) => [
@@ -265,6 +391,10 @@ class ResearchAssistantController extends Controller
                 : 'That proposal context is unavailable for your account.'], 403);
         }
 
+        if ($conversation && $this->historyScope($conversation->context ?? []) !== $this->historyScope($validated['context'] ?? [])) {
+            return response()->json(['message' => 'Open a separate chat for a different project.'], 422);
+        }
+
         if ($this->isAccountIdentityQuestion($messages->last()['content'])) {
             return response()->json([
                 'reply' => $this->accountIdentityReply($request->user()),
@@ -300,11 +430,27 @@ class ResearchAssistantController extends Controller
         }
         $canSearchLiterature = $request->user()->isUsingWorkspace([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
 
+        if ($request->user()->canUseWorkspace(User::WORKSPACE_FACULTY) && isset($validated['context']['report_type'])
+            && $this->literature->isLiteratureRequest($messages->last()['content'], $literatureAction)) {
+            return response()->json($this->literature->chooseProposal($request->user(), $messages->last()['content'], $literatureAction));
+        }
+
         if ($this->reportAssistance->handles($validated['action'] ?? [], $validated['context'] ?? [])) {
             return response()->json($this->reportAssistance->respond($request->user(), $validated['context'] ?? [], $messages->last()['content'], $validated['action'] ?? []));
         }
 
-        if ($this->proposalAssistance->wantsSuggestions($validated['action'] ?? [], $validated['context'] ?? [], $messages->last()['content'])) {
+        $rrlStartingContext = in_array($literatureAction, [null, 'suggest_proposal_changes'], true)
+            && ! $this->literature->isLiteratureRequest($messages->last()['content'], $literatureAction)
+            ? $this->proposalAssistance->rrlStartingContext($request->user(), $validated['context'] ?? [], $messages->last()['content'])
+            : null;
+        if ($rrlStartingContext) {
+            unset($validated['action']);
+            $literatureAction = null;
+            $validated['context']['paper_slug'] = 'detailed-proposal';
+            $validated['context']['field'] = 'related_literature';
+        }
+
+        if (! $rrlStartingContext && $this->proposalAssistance->wantsSuggestions($validated['action'] ?? [], $validated['context'] ?? [], $messages->last()['content'])) {
             if (! $this->canAccessContext($request->user(), $validated['context'] ?? [])) {
                 return response()->json(['message' => 'Choose one proposal or its related draft before requesting changes.'], 422);
             }
@@ -318,14 +464,20 @@ class ResearchAssistantController extends Controller
 
         if (! $reviewFocus && ($literatureAction !== null || $canSearchLiterature)
             && ($literatureAction !== null || ! $this->researchKnowledge->refersToManual($messages->last()['content']))
-            && $this->literature->isLiteratureRequest($messages->last()['content'], $literatureAction)) {
+            && ($this->literature->isLiteratureRequest($messages->last()['content'], $literatureAction)
+                || ($literatureAction === null && $this->literature->isTopicFollowUp($messages->slice(0, -1)->values()->all())))) {
             try {
-                return response()->json($this->literature->respond(
+                $literatureReply = $this->literature->respond(
                     $request->user(),
                     $validated['context'] ?? [],
                     $messages->last()['content'],
                     $validated['action'] ?? [],
-                ));
+                    $messages->slice(0, -1)->values()->all(),
+                    in_array($literatureAction, ['draft_literature', 'confirm_literature'], true) ? null : $this->conversationMemory->promptContext($conversation),
+                );
+                if ($literatureReply !== null) {
+                    return response()->json($literatureReply);
+                }
             } catch (LiteratureSynthesisException $exception) {
                 return response()->json(['message' => $exception->getMessage()], $exception->status);
             }
@@ -435,6 +587,10 @@ class ResearchAssistantController extends Controller
                 'content' => $this->systemPrompt($request->user()),
             ],
         ];
+
+        if ($rrlStartingContext) {
+            $aiMessages[] = ['role' => 'system', 'content' => $rrlStartingContext];
+        }
 
         if ($memoryContext) {
             $aiMessages[] = [

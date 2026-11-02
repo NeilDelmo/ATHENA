@@ -1620,13 +1620,19 @@ test('automatic submission guidance is connected to the hub and every paper edit
     $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()->assertSee('data-proposal-readiness-continue', false)
         ->assertSee('data-proposal-paper="details"', false)
-        ->assertSee('Complete these fields')
+        ->assertDontSee('Complete these fields')
+        ->assertDontSee('data-proposal-readiness-label', false)
         ->assertDontSee('Open section');
 
     foreach (['detailed-proposal', 'work-plan', 'line-item-budget', 'expense-breakdown', 'curriculum-vitae'] as $paper) {
-        $this->get(route('faculty.proposal-drafts.'.$paper.'.edit', ['proposalDraft' => $draft, 'proposal_requirement' => '__paper__']))
-            ->assertOk()->assertSee('data-proposal-paper="'.$paper.'"', false)
-            ->assertSee('data-proposal-readiness-label', false);
+        $response = $this->get(route('faculty.proposal-drafts.'.$paper.'.edit', ['proposalDraft' => $draft, 'proposal_requirement' => '__paper__']))
+            ->assertOk()->assertSee('data-proposal-paper="'.$paper.'"', false);
+        if ($paper === 'detailed-proposal') {
+            $response->assertDontSee('data-proposal-readiness-label', false)
+                ->assertSee('data-proposal-check-requirements', false);
+        } else {
+            $response->assertSee('data-proposal-readiness-label', false);
+        }
     }
 });
 
@@ -3700,9 +3706,11 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
     expect(app(CommentResponseFeedback::class)->rowsForSource($coReview, 'co_evaluator')[0]['comment'])
         ->toBe('Explain how participants will be recruited.');
     $submitRevision(3, TopicProposal::STATUS_GAD_REVIEW);
-    expect($version()->hasPassingGadAssessment())->toBeFalse()
-        ->and($version()->files->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD))->toBeEmpty();
-    $uploadAssessment('gad_checklist');
+    expect($version()->hasPassingGadAssessment())->toBeTrue()
+        ->and($topic->fresh()->currentReviewStageLabel($version()))->toBe('Co-evaluator review')
+        ->and($version()->hasCoEvaluatorReview())->toBeFalse()
+        ->and($version()->files->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->pluck('source_data.purpose')->all())
+        ->toBe([ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT]);
     $uploadAssessment('initial_screening_form');
     $as($this->head, User::WORKSPACE_RESEARCH_HEAD)
         ->patch(route('research_head.topics.updateStatus', $topic), [
@@ -3757,4 +3765,42 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
     }
     $this->get(route('topics.show', $topic))->assertOk()->assertSee('data-released-notice-summary', false)
         ->assertDontSee('Released documents')->assertSee('Project monitoring');
+});
+
+test('submitted managed references remain available when a returned detailed proposal is reopened and autosaved', function () {
+    Notification::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $source = LiteratureSource::create([
+        'added_by' => $this->faculty->id, 'fingerprint' => LiteratureSource::fingerprintFor('10.1234/returned-reference', 'Returned reference', 2025),
+        'title' => 'Returned reference', 'authors' => 'A. Reader', 'publication_year' => 2025, 'provider' => 'Manual entry',
+        'doi' => '10.1234/returned-reference',
+    ]);
+    $link = $draft->literatureSources()->create([
+        'literature_source_id' => $source->id, 'fingerprint' => $source->fingerprint, 'title' => $source->title,
+        'authors' => $source->authors, 'publication_year' => 2025, 'provider' => 'Manual entry', 'doi' => $source->doi,
+    ]);
+    $document = $draft->documents()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $reference = '<p data-proposal-managed-reference="'.$link->id.'">[1] A. Reader, Returned reference, 2025, doi: 10.1234/returned-reference.</p>';
+    $document->update(['source_data' => [...$document->source_data,
+        'related_literature' => $document->source_data['related_literature'].'<p>Existing supported claim <span data-proposal-citation="'.$link->id.'">[1]</span>.</p>',
+        'references' => $document->source_data['references'].$reference,
+        'literature_citations' => json_encode([['source_link_id' => $link->id, 'literature_source_id' => $source->id, 'field' => 'related_literature', 'selected_text' => 'Existing supported claim']]),
+    ]]);
+    app(SubmitProposalDraft::class)->prepare($draft->fresh(), $this->faculty);
+    $topic = app(SubmitProposalDraft::class)->handle($draft->fresh(), $this->faculty);
+    $topic->update(['status' => 'revision_requested']);
+    $revision = app(CreateProposalRevisionDraft::class)->handle($topic->fresh(), $this->faculty);
+    $paper = $revision->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    expect($revision->literatureSources()->count())->toBe(0)
+        ->and($paper->source_data['references'])->toContain($reference)
+        ->and($paper->source_data['related_literature'])->toContain('data-proposal-citation="'.$link->id.'"');
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.detailed-proposal.edit', $revision))
+        ->assertSuccessful()->assertViewHas('sourceData', fn (array $data): bool => str_contains($data['references'], $reference));
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $revision), [
+        'document_version' => $paper->lock_version, 'draft_version' => $revision->lock_version, 'save_as_draft' => true,
+        'related_literature' => $paper->source_data['related_literature'], 'references' => $paper->source_data['references'],
+    ])->assertSuccessful();
+    expect($paper->fresh()->source_data['references'])->toContain($reference);
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $revision))->assertSuccessful()
+        ->assertViewHas('sourceData', fn (array $data): bool => str_contains($data['references'], $reference));
 });

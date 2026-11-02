@@ -34,7 +34,7 @@
     </div>
 
     @if ($canUploadSignedPapers)
-        <p class="px-5 pb-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6">One PDF per paper, up to 25 MB. @if ($signingDemoMode) Any PDF is accepted for this demo. @else We check the official form and project title before saving. Scans use the configured AI document reader on the first two pages. Required wet signatures must still be checked by staff. @endif</p>
+        <p class="px-5 pb-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6">One PDF per paper, up to 25 MB. @if ($signingDemoMode) Check that each PDF is the correct signed form for this project. @else We check the official form and project title before saving. Scans use the configured AI document reader on the first two pages. Required wet signatures must still be checked by staff. @endif</p>
         <noscript><p role="alert" class="px-5 pb-5 text-base text-red-700">Enable JavaScript to upload signed copies.</p></noscript>
     @endif
 

@@ -151,3 +151,108 @@ test('Edge native uploads keep failed edits dirty and leave cleanly after recove
         assert.deepEqual(errors, []);
     } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 });
+
+
+for (const [workflow, extension] of [
+    ['co-evaluator', 'pdf'], ['co-evaluator', 'docx'], ['GAD', 'pdf'], ['GAD', 'docx'],
+]) {
+    test(`${workflow} ${extension.toUpperCase()} uploads show the saved assessment without a manual reload`, async () => {
+        const isGad = workflow === 'GAD';
+        const uploadLabel = isGad ? 'Completed GAD Checklist' : 'Completed Initial Screening Form';
+        const submitLabel = isGad ? 'Upload & read score' : 'Record evaluation';
+        const summarySelector = isGad ? '[data-gad-assessment-summary]' : '[data-co-evaluator-evaluation-summary]';
+        let score = 12.32;
+        let recorded = false;
+        let destination;
+        let pageLoads = 0;
+        const uploads = [];
+        const filename = `${isGad ? 'completed-gad' : 'completed-screening'}.${extension}`;
+        const mimeType = extension === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        const server = createServer(async (request, response) => {
+            response.setHeader('Cache-Control', 'no-store');
+            if (request.url === '/file-upload.js') {
+                response.setHeader('Content-Type', 'text/javascript');
+                response.end(readFileSync('resources/js/file-upload.js'));
+                return;
+            }
+            if (request.method === 'POST') {
+                let body = '';
+                for await (const chunk of request) body += chunk;
+                uploads.push(body);
+                recorded = true;
+                response.setHeader('Content-Type', 'application/json');
+                response.end(JSON.stringify({ redirect: destination }));
+                return;
+            }
+            if (request.url === '/favicon.ico') { response.writeHead(204); response.end(); return; }
+            pageLoads++;
+            response.setHeader('Content-Type', 'text/html');
+            let content;
+            if (!recorded) {
+                content = `<form method="POST" action="/upload" enctype="multipart/form-data"><input type="hidden" name="purpose" value="${isGad ? 'gad_assessment' : 'evaluation'}"><input type="hidden" name="source_file_id" value="17">${isGad
+                    ? '<label><input type="checkbox" name="gad_signature_confirmed" value="1" required>Confirm checklist and signature</label>'
+                    : '<input type="hidden" name="recommended_action" value="minor_revision">'}<label>${uploadLabel}<input type="file" name="review_file" accept=".pdf,.docx" required></label><button type="submit">${submitLabel}</button></form>`;
+            } else if (isGad) {
+                content = `<section data-gad-assessment-summary role="status">Total GAD Score: ${score} / 20<p>${filename}</p><a href="/uploaded-gad">View uploaded form</a></section>${score >= 8
+                    ? '<section data-co-evaluator-screening-panel><h2>Co-evaluator review</h2><button>Record evaluation</button></section>'
+                    : '<section data-gad-revision-required>Return for revision</section>'}`;
+            } else {
+                content = `<section data-co-evaluator-evaluation-summary role="status">Narrative Evaluation recorded <p>${filename}</p><a href="/uploaded-screening">View uploaded form</a></section>`;
+            }
+            response.end(`<!DOCTYPE html><html data-auth-user-id="1"><body data-active-workspace="research_head"><main id="initial-review-workflow">${content}</main><script type="module">import { initializeFileUploads } from '/file-upload.js'; initializeFileUploads(); window.ready = true;</script></body></html>`);
+        });
+        await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+        const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+        try {
+            const page = await browser.newPage();
+            const errors = [];
+            const dialogs = [];
+            page.on('pageerror', error => errors.push(error.message));
+            page.on('dialog', async dialog => { dialogs.push(dialog.type()); await dialog.accept(); });
+            const origin = `http://127.0.0.1:${server.address().port}`;
+            for (const scenario of [
+                { current: '/topics/67/head-uploads#initial-review-workflow', destination: '/topics/67/head-uploads#initial-review-workflow' },
+                { current: '/topics/67?tab=review#proposal-review', destination: '/topics/67?tab=review#initial-review-workflow' },
+                { current: '/topics/67?tab=files#proposal-review', destination: '/topics/67?tab=review#initial-review-workflow' },
+                ...(isGad ? [
+                    { current: '/topics/67/head-uploads#initial-review-workflow', destination: '/topics/67/head-uploads#initial-review-workflow', score: 6.5 },
+                    { current: '/topics/67/head-uploads#initial-review-workflow', destination: '/topics/67/head-uploads#initial-review-workflow', score: 3 },
+                ] : []),
+            ]) {
+                recorded = false;
+                pageLoads = 0;
+                uploads.length = 0;
+                destination = scenario.destination;
+                score = scenario.score ?? 12.32;
+                await page.goto('about:blank');
+                await page.goto(origin + scenario.current);
+                await page.waitForFunction(() => window.ready);
+                await page.getByLabel(uploadLabel).setInputFiles({ name: filename, mimeType, buffer: Buffer.from('Completed assessment form') });
+                if (isGad) {
+                    await page.getByRole('button', { name: submitLabel, exact: true }).click();
+                    assert.equal(uploads.length, 0, 'Signature confirmation must be required before sending the GAD form');
+                    await page.getByLabel('Confirm checklist and signature').check();
+                }
+                await page.getByRole('button', { name: submitLabel, exact: true }).click();
+                await expect(page.locator(summarySelector)).toBeVisible({ timeout: 4000 });
+                await expect(page.locator(summarySelector)).toContainText(filename);
+                if (isGad) {
+                    await expect(page.locator(summarySelector)).toContainText(`Total GAD Score: ${score} / 20`);
+                    await expect(page.locator('[data-co-evaluator-screening-panel]')).toHaveCount(score >= 8 ? 1 : 0);
+                    await expect(page.locator('[data-gad-revision-required]')).toHaveCount(score >= 8 ? 0 : 1);
+                }
+                await expect(page.getByRole('link', { name: 'View uploaded form' })).toBeVisible();
+                assert.equal(page.url(), origin + destination);
+                assert.equal(pageLoads, 2, 'The saved review must be fetched once after the upload');
+                assert.equal(uploads.length, 1, 'Refreshing the review must not submit the upload again');
+                assert.ok(uploads[0].includes(`filename="${filename}"`));
+                assert.ok(uploads[0].includes(`name="${isGad ? 'gad_signature_confirmed' : 'recommended_action'}"`));
+            }
+            assert.deepEqual(errors, []);
+            assert.deepEqual(dialogs, []);
+        } finally {
+            await browser.close();
+            await new Promise(resolve => server.close(resolve));
+        }
+    });
+}

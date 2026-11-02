@@ -119,7 +119,7 @@ test('RRL revisions refuse unsupported saved structures and broken source links 
     $this->postJson(route('research-support.chat'), $this->revisionPayload)->assertUnprocessable();
     expect($this->document->fresh()->source_data['related_literature'])->toBe($html);
     Http::assertNothingSent();
-})->with(['', '<table><tr><td>Keep this table.</td></tr></table>', '<p><strong>Keep emphasized text.</strong></p>',
+})->with(['<table><tr><td>Keep this table.</td></tr></table>', '<p><strong>Keep emphasized text.</strong></p>',
     '<p>Source <span data-proposal-citation="999999999">[1]</span>.</p>', '<div><p>Nested content.</p></div>',
     '<p>'.str_repeat('Long. ', 5001).'</p>']);
 
@@ -178,4 +178,71 @@ test('long RRL previews survive history while generic fields keep their original
     $history['messages'][1]['proposal_changes']['suggestions'][0]['field'] = 'rationale';
     $this->postJson(route('research-support.history.save'), $history)->assertUnprocessable()
         ->assertJsonValidationErrors('messages.1.proposal_changes.suggestions.0.before');
+});
+
+test('oversized RRL revisions keep the saved text and explain the limit', function (string $html, string $message) {
+    $this->document->update(['source_data' => ['related_literature' => $html]]);
+    $this->postJson(route('research-support.chat'), $this->revisionPayload)
+        ->assertUnprocessable()->assertJsonPath('message', $message);
+    expect($this->document->fresh()->source_data['related_literature'])->toBe($html);
+    Http::assertNothingSent();
+})->with([
+    'too long' => [str_repeat('a', 30001), 'This RRL exceeds the 30,000-character revision limit, including formatting. Your saved text is unchanged.'],
+]);
+
+test('blank RRL requests start a project based conversation without changing the paper', function (string $html, bool $savedPaper, bool $legacyRequest) {
+    if ($savedPaper) {
+        $this->document->update(['source_data' => ['related_literature' => $html, 'general_objective' => 'Understand coastal water quality.']]);
+    } else {
+        $this->document->delete();
+    }
+    $before = $this->draft->documents()->get()->toArray();
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'Start with coastal monitoring themes. Here is an outline and a provisional opening paragraph.'], 'finish_reason' => 'stop']],
+        'model' => 'fixture-model',
+    ])]);
+    $payload = $legacyRequest ? $this->revisionPayload : [
+        'messages' => [['role' => 'user', 'content' => 'Help me start my RRL. Use my project title and objectives to give me an outline and an opening paragraph.']],
+        'context' => ['proposal_draft_id' => $this->draft->id, 'paper_slug' => 'detailed-proposal', 'field' => 'related_literature'],
+    ];
+    if ($legacyRequest) {
+        $payload['action'] = ['type' => 'suggest_proposal_changes'];
+    }
+    $this->postJson(route('research-support.chat'), $payload)->assertSuccessful()
+        ->assertJsonPath('reply', 'Start with coastal monitoring themes. Here is an outline and a provisional opening paragraph.')
+        ->assertJsonMissingPath('proposal_changes.suggestions.0');
+    expect($this->draft->documents()->get()->toArray())->toBe($before);
+    Http::assertSent(function ($request) use ($savedPaper): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return str_contains($prompt, 'ATHENA RRL starting context')
+            && str_contains($prompt, 'Community monitoring')
+            && str_contains($prompt, 'First study')
+            && str_contains($prompt, 'Metadata only')
+            && (! $savedPaper || str_contains($prompt, 'Understand coastal water quality.'))
+            && ! str_contains($request->body(), 'athena_rrl_revision');
+    });
+})->with([
+    'fresh paper' => ['', false, false],
+    'empty saved paper' => ['', true, false],
+    'blank rich text' => ['<p><br></p>', true, false],
+    'blank spaces' => ['<p>&nbsp;</p>', true, false],
+    'existing revision prompt' => ['', true, true],
+]);
+
+test('RRL starting help also works without linked sources and keeps private projects inaccessible', function () {
+    $this->document->delete();
+    $this->draft->literatureSources()->delete();
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'Here is a project based outline. We can find studies for these themes next.'], 'finish_reason' => 'stop']],
+        'model' => 'fixture-model',
+    ])]);
+    $payload = ['messages' => [['role' => 'user', 'content' => 'Help me start my RRL.']],
+        'context' => ['proposal_draft_id' => $this->draft->id]];
+    $this->postJson(route('research-support.chat'), $payload)->assertSuccessful()->assertJsonStructure(['reply']);
+    Http::assertSentCount(1);
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty');
+    $this->actingAs($outsider)->postJson(route('research-support.chat'), $payload)->assertForbidden();
+    Http::assertSentCount(1);
 });

@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="$paper['label']" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
-                <span data-detailed-proposal-completion-status class="rounded-full px-3 py-1 text-xs font-semibold {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
+                <span data-detailed-proposal-completion-status class="text-base text-slate-700 dark:text-slate-200">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
             </x-slot>
         </x-page-header>
@@ -28,6 +28,7 @@
         data-proposal-readiness-url="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}"
         data-paper-draft-save="true"
         data-detailed-proposal-autosave="true"
+        data-proposal-requirements-on-demand
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}"
@@ -77,9 +78,6 @@
         })"
     >
         <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
-        @if (request()->has('proposal_requirement'))
-            <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" />
-        @endif
 
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
@@ -99,21 +97,29 @@
         </div>
         <x-paper-editor-submit-status />
         <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
+        <p x-show="resumingDetailedProposal && !detailedProposalComplete" x-cloak data-proposal-resume class="text-base leading-6 text-slate-700 dark:text-slate-200">Continue your proposal. You can review the remaining fields whenever you’re ready.</p>
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700" data-proposal-writing-status>
         <div x-show="showDetailedProposalSaveStatus" x-cloak>
             <x-proposal-autosave-status />
         </div>
-            <button type="button" @click="checkDetailedProposalRequirements()" data-proposal-check-requirements :aria-expanded="showCompletionChecklist" aria-controls="proposal-completion-checklist" class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Check requirements</button>
+            <button type="button" @click="checkDetailedProposalRequirements()" data-proposal-check-requirements :aria-expanded="showCompletionChecklist" aria-controls="proposal-completion-checklist" x-text="resumingDetailedProposal ? 'Review remaining fields' : 'Check requirements'" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base font-semibold text-slate-700 hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Check requirements</button>
         </div>
-        <p x-show="requirementsReviewed" x-cloak data-proposal-requirements-result role="status" aria-live="polite" class="text-sm text-slate-700 dark:text-slate-200" x-text="detailedProposalRequirementsResult"></p>
+        <p x-show="requirementsReviewed" x-cloak data-proposal-requirements-result role="status" aria-live="polite" class="text-base leading-6 text-slate-700 dark:text-slate-200" x-text="detailedProposalRequirementsResult"></p>
         <section x-show="showCompletionChecklist" id="proposal-completion-checklist" x-cloak data-proposal-completion-checklist class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-labelledby="proposal-completion-heading" aria-live="polite">
-            <h3 id="proposal-completion-heading" class="text-sm font-semibold text-slate-900 dark:text-white">Before generating your proposal</h3>
-            <p class="mt-1 max-w-prose text-xs leading-5 text-slate-500 dark:text-slate-400">Your draft is saved as you write. Select a requirement to finish that part of the form.</p>
-            <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">
-                <template x-for="(messages, field) in completionErrors" :key="field">
-                    <li><button type="button" x-on:click="focusProposalRequirement(field)" class="min-h-10 w-full rounded-md py-2 text-left text-xs leading-5 text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-300 dark:decoration-slate-600 dark:hover:text-red-300" x-text="messages.join(' ')"></button></li>
+            <h3 id="proposal-completion-heading" class="text-lg font-semibold text-slate-900 dark:text-white">Remaining requirements</h3>
+            <p class="mt-1 max-w-prose text-base leading-6 text-slate-600 dark:text-slate-300">You can leave and continue later once your changes are saved. Select a requirement to go to that field.</p>
+            <div class="mt-5 grid gap-6 sm:grid-cols-2">
+                <template x-for="group in detailedProposalRequirementGroups" :key="group.title">
+                    <div>
+                        <h4 class="text-base font-semibold text-slate-900 dark:text-white" x-text="group.title"></h4>
+                        <ul class="mt-2 space-y-1">
+                            <template x-for="requirement in group.requirements" :key="requirement.field">
+                                <li><button type="button" x-on:click="focusProposalRequirement(requirement.field)" class="min-h-11 w-full rounded-md py-2 text-left text-base leading-6 text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-300 dark:decoration-slate-600 dark:hover:text-red-300" x-text="requirement.messages.join(' ')"></button></li>
+                            </template>
+                        </ul>
+                    </div>
                 </template>
-            </ul>
+            </div>
         </section>
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $detailedProposalDocument?->lock_version ?? 0)"
@@ -122,12 +128,6 @@
             :label="$paper['label']"
         />
 
-        @unless ($projectDetailsComplete)
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                <p class="max-w-prose text-xs leading-5">You can start writing now. Add the project title, dates and leader in Project Details before generating the document.</p>
-                <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-semibold text-[#7A0019] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-red-300">Complete Project Details</a>
-            </div>
-        @endunless
 
         <x-detailed-proposal-writing-toolbar />
         <x-proposal-source-workspace />
@@ -260,11 +260,14 @@
                     <p x-show="staff.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">No project staff added yet. Choose someone from the project team or add external project staff above.</p>
                     <template x-for="(member, index) in staff" :key="member.id">
                         <div class="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-2">
+                            <div class="flex items-center justify-between gap-3 sm:col-span-2">
+                                <p class="text-base font-semibold text-gray-900 dark:text-white" x-text="'Staff member ' + (index + 1)">Staff member</p>
+                                <button type="button" x-on:click="removeStaff(index)" :aria-label="'Remove ' + (member.name || 'staff member ' + (index + 1))" class="h-11 shrink-0 rounded-lg px-3 text-base font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
+                            </div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:text-slate-400">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-name-${member.id}`">Project Staff (s): <x-required-mark /></label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-email-${member.id}`">Email Address <x-required-mark /></label><input :id="`staff-email-${member.id}`" :name="`staff[${index}][email]`" type="email" required maxlength="255" x-model="member.email" placeholder="name@example.com" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-contact-${member.id}`">Contact Number <x-required-mark /></label><input :id="`staff-contact-${member.id}`" :name="`staff[${index}][contact]`" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="member.contact" x-on:input="member.contact = normalizeContactNumber($event.target.value); $event.target.value = member.contact" placeholder="09XXXXXXXXX" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
-                            <button type="button" x-on:click="removeStaff(index)" class="h-11 rounded-xl px-3 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
                         </div>
                     </template>
                     </div>
@@ -362,20 +365,35 @@
                 </div>
             </section>
 
-            <section data-revision-section="section-literature" x-ref="introductionSection" class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <section data-revision-section="section-literature" x-ref="introductionSection" class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-700 dark:bg-slate-900">
                 <input type="hidden" name="introduction" x-model="introduction">
-                <div class="flex items-center justify-between gap-3">
-                    <label for="related-literature" class="text-base font-semibold text-gray-900 dark:text-white">Review of related literature <x-required-mark /></label>
-                    <div class="flex shrink-0 items-center gap-2">
-                        <button type="button" @click="openSourceWorkspace('paper')" aria-label="Open Sources" title="Sources" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-[#800020] transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-slate-600 dark:text-red-300 dark:hover:bg-slate-800">
-                            <x-proposal-writing-icon name="publication" class="h-4 w-4" />
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1 basis-64">
+                        <label for="related-literature" class="text-base font-semibold text-gray-900 dark:text-white">Review of related literature <x-required-mark /></label>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">Include at least ten relevant studies or literature sources.</p>
+                    </div>
+                    <div class="flex max-w-full flex-wrap items-center justify-end gap-2">
+                        <button type="button" @click="openSourceWorkspace('search')" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-base font-semibold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900">
+                            <x-proposal-writing-icon name="publication" class="h-4 w-4 text-[#800020] dark:text-red-300" />
+                            <span>Find sources</span>
                         </button>
-                        <button type="button" @click="requestRrlRevision()" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked || !relatedLiterature.trim()" aria-label="Revise RRL" title="Revise RRL" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-[#800020] transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-red-300 dark:hover:bg-slate-800">
-                            <x-assistant-icon />
-                        </button>
+                        <x-dropdown align="right" width="48" content-classes="py-1 bg-white dark:bg-slate-900">
+                            <x-slot name="trigger">
+                                <button type="button" x-ref="rrlAssistanceTrigger" :aria-expanded="open" aria-controls="rrl-assistance-actions" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked" @keydown.escape.stop.prevent="open = false" aria-label="Use AI for RRL" title="Draft or revise RRL with AI" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-transparent bg-[#800020] px-3 py-2 text-base font-semibold text-white transition hover:bg-[#600018] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600 dark:focus-visible:ring-offset-slate-900">
+                                    <x-assistant-icon />
+                                    <span>Use AI</span>
+                                </button>
+                            </x-slot>
+                            <x-slot name="content">
+                                <div id="rrl-assistance-actions" role="group" aria-label="RRL assistance" @keydown.escape.stop.prevent="open = false; $refs.rrlAssistanceTrigger.focus()">
+                                    <button type="button" @click="openRrlChat()" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-white dark:hover:bg-slate-800"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" /></svg><span>Open chat</span></button>
+                                    <button type="button" @click="requestRrlRevision('draft')" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:opacity-50 dark:text-white dark:hover:bg-slate-800"><x-assistant-icon class="h-4 w-4" /><span>Draft RRL</span></button>
+                                    <button type="button" @click="requestRrlRevision('revise')" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:opacity-50 dark:text-white dark:hover:bg-slate-800"><x-assistant-icon class="h-4 w-4" /><span>Revise RRL</span></button>
+                                </div>
+                            </x-slot>
+                        </x-dropdown>
                     </div>
                 </div>
-                <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">Include at least ten relevant studies or literature sources.</p>
                 <x-proposal-figure-input section="related_literature" compact />
                 <textarea id="related-literature" name="related_literature" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') * 2 + 2 }}" x-model="relatedLiterature" data-semantic-editor class="mt-3 block w-full scroll-mt-36 rounded-lg border-gray-300 text-sm leading-6 shadow-sm focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
             </section>

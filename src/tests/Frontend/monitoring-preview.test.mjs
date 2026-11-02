@@ -74,6 +74,23 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     const form = workspace.locator('form[x-ref="form"]');
                     assert.equal(await workspace.locator('.proposal-preview-dock').isVisible(), false);
                     assert.equal(await page.evaluate(() => window.previewRequests.length), 0);
+                    if (type === 'monitoring') {
+                        const accomplishments = form.locator('textarea[name$="[actual_accomplishment]"]');
+                        assert.ok(await accomplishments.count() > 0);
+                        for (const accomplishment of await accomplishments.all()) await accomplishment.fill('');
+                        assert.equal(await form.evaluate(element => element.checkValidity()), false);
+                        await workspace.locator('[data-proposal-preview-toggle]').click();
+                        await page.waitForFunction(() => window.monitorState.previewReady && !window.monitorState.previewLoading, null, { timeout: 5000 });
+                        const draftPreview = workspace.locator('.proposal-preview-dock');
+                        assert.equal(await draftPreview.isVisible(), true);
+                        if (width < 1024) await draftPreview.getByRole('button', { name: 'Minimize preview', exact: true }).click();
+                        await accomplishments.first().fill('Started the field interviews.');
+                        await page.waitForFunction(() => window.monitorState.previewHtml.includes('Started the field interviews.') && window.monitorState.previewReady && !window.monitorState.previewLoading);
+                        await draftPreview.frameLocator('iframe').getByText(/Started the field interviews/).waitFor();
+                        assert.equal(await form.evaluate(element => element.checkValidity()), false);
+                        assert.equal(await accomplishments.first().getAttribute('required'), '');
+                        await draftPreview.getByRole('button', { name: 'Collapse preview', exact: true }).click();
+                    }
                     if (type === 'progress') await page.getByRole('button', { name: 'Add figure', exact: true }).click();
                     const fileName = type === 'progress' ? 'figures[0][image]' : 'cover_image';
                     if (type !== 'monitoring') {
@@ -144,11 +161,21 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     assert.equal(await dock.locator('[role="dialog"][aria-modal="true"]').count(), 1);
                     assert.equal(await workspace.locator('.proposal-edit-pane').evaluate((element) => element.inert), true);
                     assert.equal(await toolbar.evaluate((element) => element.inert), true);
-                    const zoom = dock.locator('output');
+                    const zoom = dock.locator('.proposal-preview-zoom output');
                     await dock.getByRole('button', { name: 'Zoom in', exact: true }).click();
                     assert.equal(await zoom.innerText(), '110%');
                     await dock.getByRole('button', { name: 'Zoom out', exact: true }).click();
                     assert.equal(await zoom.innerText(), '100%');
+                    const paperAtFullSize = await frame.locator('.sheet').boundingBox();
+                    for (let step = 0; step < 5; step++) await dock.getByRole('button', { name: 'Zoom out', exact: true }).click();
+                    assert.equal(await zoom.innerText(), '50%');
+                    const paperAtHalfSize = await frame.locator('.sheet').boundingBox();
+                    assert.ok(paperAtHalfSize.width > 0 && paperAtHalfSize.width < paperAtFullSize.width * 0.75, 'The report paper must shrink with the preview zoom control');
+                    assert.equal(await frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1), true);
+                    if (process.env.MONITORING_PREVIEW_SCREENSHOT_DIRECTORY) {
+                        await dock.screenshot({ path: resolve(process.env.MONITORING_PREVIEW_SCREENSHOT_DIRECTORY, `preview-zoom-50-${type}-${width}-${dark ? 'dark' : 'light'}.png`) });
+                    }
+                    for (let step = 0; step < 5; step++) await dock.getByRole('button', { name: 'Zoom in', exact: true }).click();
                     await dock.getByRole('button', { name: 'Print', exact: true }).focus();
                     await page.keyboard.press('Shift+Tab');
                     assert.equal(await dock.getByRole('button', { name: 'Minimize preview', exact: true }).evaluate((element) => element === document.activeElement), true);

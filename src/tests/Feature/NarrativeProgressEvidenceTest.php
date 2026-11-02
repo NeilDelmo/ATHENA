@@ -5,11 +5,16 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\ProgressReportEvidenceService;
+use App\Services\ProjectArchive;
+use App\Services\ProjectReportEvidence;
 use App\Support\ProgressReportData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -133,7 +138,7 @@ test('narrative accomplishment evidence uploads, survives reloading, and can be 
 test('narrative drafts and PDF preparation allow accomplishments without proof', function () {
     $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), ($this->payload)())
         ->assertSuccessful()->assertJsonCount(0, 'accomplishments.0.evidence');
-    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)())->assertSessionHasNoErrors();
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)(['draft_version' => 1]))->assertSessionHasNoErrors();
     $report = ProjectNarrativeReport::query()->sole();
     expect($report->isPrepared())->toBeTrue()->and($report->accomplishments[0]['evidence'])->toBe([]);
     Storage::disk('local')->assertExists($report->official_pdf_path);
@@ -226,7 +231,7 @@ test('narrative proof stays outside paper previews and generated documents and r
         'accomplishment_evidence' => [$this->evidenceKey => [UploadedFile::fake()->image('proof-only.png')]],
     ]))->assertSuccessful();
     $file = $saved->json('accomplishments.0.evidence.0');
-    $payload = ($this->payload)(['accomplishments' => [['evidence_ids' => [$file['id']]]]]);
+    $payload = ($this->payload)(['draft_version' => $saved->json('draft_version'), 'accomplishments' => [['evidence_ids' => [$file['id']]]]]);
     $this->post(route('project-narrative-reports.preview', $this->topic), $payload)
         ->assertSuccessful()->assertSee('Interviewed 12 participants.')
         ->assertDontSee('proof-only.png')->assertDontSee($file['id'])->assertDontSee($file['path']);
@@ -283,6 +288,7 @@ test('failed narrative PDF preparation removes new evidence while keeping draft 
     $paths = Storage::disk('local')->allFiles('narrative-progress-reports');
     $this->pdfConverter->fail = true;
     $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)([
+        'draft_version' => $saved->json('draft_version'),
         'accomplishments' => [['evidence_ids' => [$saved->json('accomplishments.0.evidence.0.id')]]],
         'accomplishment_evidence' => [$this->evidenceKey => [UploadedFile::fake()->image('new.png', 20, 20)]],
     ]))->assertSessionHasErrors('preparation', errorBag: 'narrativeProgress');
@@ -427,7 +433,7 @@ test('narrative corrections restore supporting evidence and keep proof reference
     $payload = ($this->payload)(['accomplishments' => [['evidence_ids' => [$file['id']], 'actual' => 'Updated interview results.']]]);
     $this->postJson(route('project-narrative-reports.draft', $this->topic), $payload)
         ->assertSuccessful()->assertJsonPath('accomplishments.0.evidence.0.id', $file['id']);
-    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
+    $this->post(route('project-narrative-reports.prepare', $this->topic), [...$payload, 'draft_version' => 1])->assertSessionHasNoErrors();
     $replacement = ProjectNarrativeReport::query()->latest('id')->firstOrFail();
     expect($replacement->version_number)->toBe(2)
         ->and($replacement->accomplishments[0]['actual'])->toBe('Updated interview results.')
@@ -436,4 +442,165 @@ test('narrative corrections restore supporting evidence and keep proof reference
     Storage::disk('local')->assertExists($file['path']);
     $this->get(route('project-narrative-reports.evidence', ['topic' => $this->topic, 'evidence' => $file['id']]))
         ->assertSuccessful()->assertDownload('original-proof.png');
+});
+
+describe('linked Monitoring Tool', function () {
+    beforeEach(function () {
+        $version = $this->topic->versions()->create([
+            'submitted_by' => $this->researcher->id, 'version_number' => 1, 'submission_type' => 'initial',
+            'title' => $this->topic->title, 'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf',
+        ]);
+        $version->files()->create([
+            'document_type' => 'work_plan', 'position' => 0, 'file_path' => 'work-plan.pdf', 'original_filename' => 'work-plan.pdf',
+            'source_data' => ['total_duration_months' => 6, 'entries' => [[
+                'objective' => 'Collect research responses', 'activity' => 'Conduct interviews',
+                'expected_output' => '20 interviews', 'months' => [1, 2, 3],
+            ]]],
+        ]);
+        $image = UploadedFile::fake()->image('interview-evidence.png');
+        $path = $image->store('progress-reports/'.$this->topic->id.'/evidence', 'local');
+        $this->monitoringProof = ['id' => (string) Str::uuid(), 'path' => $path, 'name' => 'interview-evidence.png',
+            'mime_type' => $image->getMimeType(), 'size' => $image->getSize(), 'checksum' => hash_file('sha256', $image->getRealPath())];
+        $this->monitoringReport = $this->topic->progressReports()->create([
+            'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-03-31', 'reporting_year' => 2026,
+            'reporting_quarter' => 1, 'period_start' => '2026-01-01', 'period_end' => '2026-03-31',
+            'version_number' => 1, 'progress_percentage' => 30, 'submission_status' => 'submitted', 'review_stage' => 'secretary',
+            'accomplishments' => 'Interviewed 12 participants.',
+            'work_plan' => [['source_work_plan_index' => 0, 'objective' => 'Collect research responses',
+                'activity' => 'Conduct interviews', 'actual_accomplishment' => 'Interviewed 12 participants.',
+                'completed_units' => 12, 'accomplished_percentage' => '30.00', 'evidence' => [$this->monitoringProof]]],
+        ]);
+    });
+
+    test('supplies same-quarter accomplishments and separate evidence to the Progress Report', function () {
+        $page = $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', [
+            'topic' => $this->topic, 'reporting_date' => '2026-03-31',
+        ]))->assertSuccessful()->assertSee('Interviewed 12 participants.')->assertSee('30%')
+            ->assertSee('interview-evidence.png')->assertSee('name="monitoring_report_id"', false);
+        expect($page->viewData('progressDefaults')['monitoring_report_id'])->toBe($this->monitoringReport->id);
+        $otherQuarter = $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'reporting_date' => '2026-06-30']))
+            ->assertSuccessful()->assertDontSee('interview-evidence.png');
+        expect($otherQuarter->viewData('progressDefaults')['monitoring_report_id'])->toBeNull();
+    });
+
+    test('keeps every imported accomplishment when several activities share an objective', function () {
+        $rows = [];
+        foreach (['a', 'b', 'c', 'd', 'e'] as $letter) {
+            $rows[] = [...$this->monitoringReport->work_plan[0], 'actual_accomplishment' => str_repeat($letter, 500)];
+        }
+        $this->monitoringReport->update(['work_plan' => $rows]);
+        $actual = implode("\n", array_map(fn (string $letter): string => str_repeat($letter, 500), ['a', 'b', 'c', 'd', 'e']));
+        $defaults = app(ProgressReportData::class)->defaults($this->topic, '2026-03-31');
+        expect($defaults['accomplishments'][0]['actual'])->toBe($actual);
+        $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), ($this->payload)([
+            'monitoring_report_id' => $this->monitoringReport->id, 'accomplishments' => [['actual' => $actual]],
+        ]))->assertSuccessful()->assertJsonPath('accomplishments.0.actual', $actual);
+        $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)([
+            'draft_version' => 1, 'monitoring_report_id' => $this->monitoringReport->id,
+            'accomplishments' => [['actual' => $actual]],
+        ]))->assertSessionHasNoErrors();
+        expect(ProjectNarrativeReport::query()->sole()->accomplishments[0]['actual'])->toBe($actual);
+    });
+
+    test('real linked Progress Report PDF preserves accomplishments and keeps proof separate', function () {
+        if (getenv('ATHENA_PDF_LAYOUT') !== '1') {
+            $this->markTestSkipped('Set ATHENA_PDF_LAYOUT=1 to verify the linked report with LibreOffice.');
+        }
+        $directory = storage_path('framework/testing/linked-monitoring-verification');
+        File::ensureDirectoryExists($directory);
+        $page = $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', [
+            'topic' => $this->topic, 'reporting_date' => '2026-03-31',
+        ]))->assertSuccessful();
+        $document = new DOMDocument;
+        @$document->loadHTML($page->getContent());
+        $panel = (new DOMXPath($document))->query('//*[@data-progress-report-monitoring]')->item(0);
+        expect($panel)->not->toBeNull();
+        File::put($directory.'/linked-evidence.html', $document->saveHTML($panel));
+        File::copy(Storage::disk('local')->path($this->monitoringProof['path']), $directory.'/interview-evidence.png');
+
+        app()->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
+        $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)([
+            'monitoring_report_id' => $this->monitoringReport->id,
+        ]))->assertSessionHasNoErrors();
+        $report = ProjectNarrativeReport::query()->sole();
+        $pdf = Storage::disk('local')->get($report->official_pdf_path);
+        expect($pdf)->toStartWith('%PDF-');
+        File::put($directory.'/progress-report.pdf', $pdf);
+        $result = Process::timeout(120)->run([
+            (string) config('document_pdf.node_binary'), resource_path('js/pdf-section-coordinates.mjs'), $directory.'/progress-report.pdf',
+        ]);
+        $this->assertTrue($result->successful(), $result->errorOutput());
+        $text = new DOMDocument;
+        expect($text->loadXML($result->output()))->toBeTrue();
+        $words = (new DOMXPath($text))->query('//word');
+        $content = implode(' ', array_map(fn (DOMNode $word): string => $word->textContent, iterator_to_array($words)));
+        expect($content)->toContain('Interviewed 12 participants.', 'Narrative evidence project')
+            ->not->toContain('interview-evidence.png', $this->monitoringProof['id'], $this->monitoringProof['path']);
+        $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+        Storage::disk('local')->assertCount('progress-reports/'.$this->topic->id.'/evidence', 1);
+        Storage::disk('local')->assertDirectoryEmpty('narrative-progress-reports/'.$this->topic->id.'/evidence');
+    });
+
+    test('submits linked proof once and preserves the source version and access rules', function () {
+        $payload = ($this->payload)(['monitoring_report_id' => $this->monitoringReport->id]);
+        $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), $payload)
+            ->assertSessionHasNoErrors();
+        $report = ProjectNarrativeReport::query()->sole();
+        expect($report->monitoring_report_id)->toBe($this->monitoringReport->id)
+            ->and($report->accomplishments[0]['evidence'])->toBe([]);
+        $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+        Storage::disk('local')->assertCount('progress-reports/'.$this->topic->id.'/evidence', 1);
+        Storage::disk('local')->assertDirectoryEmpty('narrative-progress-reports/'.$this->topic->id.'/evidence');
+        $url = route('project-narrative-reports.evidence', [$this->topic, $this->monitoringProof['id']]);
+        $this->actingAs($this->head)->get($url)->assertNotFound();
+        $report->update(['review_stage' => 'head']);
+        $this->get($url.'?preview=1')->assertSuccessful()->assertHeader('Content-Type', 'image/png');
+        $proof = app(ProjectReportEvidence::class)->forProject($this->topic->fresh(), viewer: $this->head);
+        expect(array_column($proof, 'path'))->toContain($this->monitoringProof['path']);
+        $archive = app(ProjectArchive::class)->download($this->topic->fresh(), $this->head);
+        $zip = new ZipArchive;
+        try {
+            expect($zip->open($archive->getFile()->getPathname()))->toBeTrue();
+            $manifest = json_decode($zip->getFromName('manifest.json'), true);
+            expect(collect($manifest['files'])->where('filename', 'interview-evidence.png')->where('status', 'included'))->toHaveCount(1);
+        } finally {
+            $zip->close();
+            unlink($archive->getFile()->getPathname());
+        }
+        $newer = $this->monitoringReport->replicate();
+        $newer->fill(['version_number' => 2, 'progress_percentage' => 80, 'work_plan' => []])->save();
+        expect($report->fresh()->monitoringReport->progress_percentage)->toBe(30);
+        $this->get($url)->assertSuccessful()->assertDownload('interview-evidence.png');
+        $this->actingAs(User::factory()->create())->get($url)->assertForbidden();
+    });
+
+    test('rejects a source outside the project quarter or submitted state', function (string $invalid, string $action) {
+        $this->monitoringReport->update(match ($invalid) {
+            'quarter' => ['reporting_date' => '2026-06-30', 'period_start' => '2026-04-01', 'period_end' => '2026-06-30'],
+            'prepared' => ['submission_status' => 'prepared'],
+            'project' => ['topic_id' => TopicProposal::create(['user_id' => $this->researcher->id, 'title' => 'Another project', 'status' => 'approved'])->id],
+        });
+        $payload = ($this->payload)(['monitoring_report_id' => $this->monitoringReport->id]);
+        $response = $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.'.$action, $this->topic), $payload);
+        $response->assertUnprocessable()->assertJsonValidationErrors('monitoring_report_id');
+        expect(ProjectNarrativeReport::query()->count())->toBe(0);
+    })->with(['quarter', 'prepared', 'project'])->with(['draft', 'prepare']);
+
+    test('does not accept missing proof or proof for a different objective', function (bool $missing) {
+        if ($missing) {
+            Storage::disk('local')->delete($this->monitoringProof['path']);
+        } else {
+            $rows = $this->monitoringReport->work_plan;
+            $rows[0]['objective'] = 'Another objective';
+            $rows[0]['source_work_plan_index'] = 99;
+            $this->monitoringReport->update(['work_plan' => $rows]);
+        }
+        $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)([
+            'monitoring_report_id' => $this->monitoringReport->id,
+        ]))->assertSessionHasNoErrors();
+        $report = ProjectNarrativeReport::query()->sole();
+        $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
+            ->assertSessionHasErrorsIn('narrativeProgress', 'preparation');
+        expect($report->fresh()->isPrepared())->toBeTrue();
+    })->with([true, false]);
 });

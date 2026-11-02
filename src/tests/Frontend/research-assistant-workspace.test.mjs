@@ -16,7 +16,7 @@ const methodSource = name => {
 const uiMethods = ['renderMessage', 'selectedContext', 'hasPaperContext', 'paperContextLabel', 'hasConversation',
     'hasContextOptions', 'resizeComposer', 'handleComposerKeydown', 'closeDocumentPicker', 'sourceUrl',
     'contextPayload', 'replyContext', 'clearConversation', 'selectProjectContext', 'stop',
-    'openWorkspace', 'collapseWorkspace', 'closeWorkspace', 'closeDrawer']
+    'openWorkspace', 'collapseWorkspace', 'closeWorkspace', 'closeDrawer', 'copyMessage']
     .map(methodSource).join('\n');
 const helpers = readFileSync(resolve('resources/js/research-assistant-review.js'), 'utf8').replace(/^export /gm, '');
 const markdown = readFileSync(resolve('resources/js/research-assistant-markdown.js'), 'utf8').replace(/^export /gm, '');
@@ -121,7 +121,10 @@ async function mountWorkspace(page, css, fixture, draft) {
             formatHistoryDate() { return 'Yesterday'; }, starterPrompts() { return []; },
             hasStarterPrompts() { return false; }, starterPromptHeading() { return 'Research support'; },
             starterPromptDescription() { return 'Choose a proposal to begin.'; },
-            newConversation() {}, copyMessage() {},
+            conversationReady: true, historyRestoring: false, conversationNotice: '',
+            restoreConversation() { return Promise.resolve(true); }, rememberConversation() {},
+            applyConversationContext(context) { this.proposalDraftId = context.proposal_draft_id || 0; this.selectedContextId = context.topic_id || 0; this.contextEnabled = !!context.topic_id; },
+            newConversation() {},
             copyConversation() {}, exportConversation() {}, send() {},
             saveConversation() { return Promise.resolve({ id: 8 }); },
             sendPrompt(prompt, action, context) {
@@ -531,4 +534,71 @@ test('proposal help survives the actual workspace collapse and expand controls',
     } finally {
         await browser.close();
     }
+});
+
+
+test('copying an RRL response copies its edited paragraphs and keeps ordinary chat copying intact', async () => {
+    const copied = [];
+    const timers = [];
+    let fail = false;
+    const methods = new Function('navigator', 'window', `return ({${methodSource('copyMessage')}});`)(
+        { clipboard: { async writeText(value) { if (fail) throw new Error('Clipboard blocked'); copied.push(value); } } },
+        { setTimeout(callback) { timers.push(callback); } },
+    );
+    const store = { ...methods, copiedMessageId: null, setError(title, message) { this.failure = { title, message }; } };
+    const ordinary = { id: 1, content: 'An ordinary assistant response.' };
+    const draft = { id: 2, content: 'Review this RRL draft.', literature: { kind: 'draft', drafts: [
+        { paragraph: 'My edited first paragraph.' }, { paragraph: 'The second paragraph.' },
+    ] } };
+    await store.copyMessage(ordinary);
+    await store.copyMessage(draft);
+    assert.deepEqual(copied, [ordinary.content, 'My edited first paragraph.\n\nThe second paragraph.']);
+    assert.equal(store.copiedMessageId, 2);
+    timers[0]();
+    assert.equal(store.copiedMessageId, 2);
+    timers[1]();
+    assert.equal(store.copiedMessageId, null);
+    fail = true;
+    await store.copyMessage(ordinary);
+    assert.equal(store.failure.title, 'Copy failed');
+    assert.equal(store.copiedMessageId, null);
+});
+
+test('both chat surfaces use an accessible copy icon with copied feedback', async () => {
+    const fixture = readFileSync(resolve('storage/framework/testing/research-assistant.html'), 'utf8');
+    const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const dark of [false, true]) {
+            const page = await browser.newPage({ viewport: { width: 1024, height: 900 }, reducedMotion: 'reduce' });
+            const errors = [];
+            page.on('pageerror', error => errors.push(error.message));
+            await mountWorkspace(page, css, fixture, { dark, isDraft: true, withDrawer: true });
+            await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true,
+                value: { async writeText(value) { window.copiedResponse = value; } } }));
+            for (const surface of ['workspace', 'drawer']) {
+                await page.evaluate(surface => {
+                    const store = Alpine.store('researchAssistant');
+                    store.copiedMessageId = null;
+                    store.workspaceOpen = surface === 'workspace';
+                    store.drawerOpen = surface === 'drawer';
+                }, surface);
+                const panel = page.locator(surface === 'workspace' ? '#athena-assistant-workspace' : '#research-assistant-panel');
+                const copy = panel.getByRole('button', { name: 'Copy response', exact: true });
+                await expect(copy).toBeVisible();
+                assert.equal((await copy.innerText()).trim(), '', 'The copy action should show an icon without a visible text label');
+                await expect(copy).toHaveAttribute('title', 'Copy response');
+                assert.equal(await copy.locator('svg:visible').count(), 1);
+                await copy.focus();
+                await copy.press('Enter');
+                await expect.poll(() => page.evaluate(() => window.copiedResponse)).toBe('A readable review of the saved proposal.');
+                await expect(copy).toHaveAttribute('title', 'Copied');
+                assert.equal(await copy.locator('svg:visible').count(), 1);
+                assert.equal(await panel.getByRole('status').filter({ hasText: 'Response copied' }).count(), 1);
+            }
+            assert.deepEqual(errors, []);
+            await page.close();
+        }
+    } finally { await browser.close(); }
 });

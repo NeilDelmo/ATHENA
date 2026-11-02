@@ -2289,3 +2289,96 @@ test('comments form reviewer names use configured officers across legacy selecti
     'Multiple directory entries require a selection' => ['ambiguous', ['', '']],
     'Inactive signatories are excluded' => ['inactive', ['', '']],
 ]);
+
+test('co evaluator revision routing retains valid GAD clearance and requires a fresh evaluator decision', function (string $recommendation, string $outcome, bool $confirmed, bool $replaceGad, bool $preserveGad) {
+    $this->withoutVite();
+    Storage::fake('local');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id, 'title' => 'Co-evaluator revision routing',
+        'estimated_budget' => 10000, 'status' => 'revision_requested', 'review_stage' => 'gad',
+    ]);
+    $previous = createTopicReviewSubmission($topic, $faculty, true);
+    $files = $previous->files()->get()->keyBy('document_type');
+    Storage::disk('local')->put('assessments/gad.pdf', '%PDF-1.7 Approved GAD assessment');
+    if ($outcome === 'returned') {
+        $previous->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD, 'position' => 89,
+            'source_version_file_id' => $files['gad_checklist']->id,
+            'file_path' => 'assessments/gad.pdf', 'original_filename' => 'older-passing-gad.pdf', 'mime_type' => 'application/pdf',
+            'source_data' => [
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT, 'target_document_type' => 'gad_checklist',
+                'gad_outcome' => 'passed', 'gad_signature_confirmed' => true,
+            ],
+        ]);
+    }
+    $assessment = $previous->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD, 'position' => 90,
+        'source_version_file_id' => $files['gad_checklist']->id,
+        'file_path' => 'assessments/gad.pdf', 'original_filename' => 'approved-gad.pdf', 'mime_type' => 'application/pdf',
+        'source_data' => [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT, 'target_document_type' => 'gad_checklist',
+            'gad_outcome' => $outcome, 'gad_signature_confirmed' => $confirmed, 'gad_score' => 12.32,
+        ],
+    ]);
+    Storage::disk('local')->put('assessments/evaluation.pdf', '%PDF-1.7 Previous co-evaluator comments');
+    $previous->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD, 'position' => 91,
+        'source_version_file_id' => $files['initial_screening_form']->id,
+        'file_path' => 'assessments/evaluation.pdf', 'original_filename' => 'previous-evaluation.pdf', 'mime_type' => 'application/pdf',
+        'source_data' => [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION, 'target_document_type' => 'initial_screening_form',
+            'recommended_action' => $recommendation, 'narrative_evaluation' => 'Clarify participant recruitment.',
+        ],
+    ]);
+    $review = $topic->reviews()->create(['reviewer_id' => $head->id, 'decision' => 'revision_requested', 'review_stage' => 'gad']);
+    foreach (['detailed_proposal', ...($replaceGad ? ['gad_checklist'] : [])] as $type) {
+        $review->fileRevisions()->create([
+            'proposal_version_file_id' => $files[$type]->id, 'document_type' => $type, 'original_filename' => $files[$type]->original_filename,
+        ]);
+    }
+    $feedback = app(CommentResponseFeedback::class)->rows($review);
+    $this->actingAs($faculty)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title, 'estimated_budget' => 10000, 'estimated_duration_months' => 12,
+            'detailed_proposal' => UploadedFile::fake()->create('revised-proposal.pdf', 100, 'application/pdf'),
+            ...($replaceGad ? ['gad_checklist' => UploadedFile::fake()->create('changed-gad.pdf', 100, 'application/pdf')] : []),
+            'feedback_review_id' => $review->id,
+            'feedback_responses' => collect($feedback)->mapWithKeys(fn (array $row): array => [$row['key'] => [
+                'response' => 'Clarified participant recruitment.', 'no_change' => false, 'page' => 2, 'paragraph' => 1,
+            ]])->all(),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+    $latest = $topic->latestVersion()->with('files')->firstOrFail();
+    $stage = $preserveGad ? 'co-evaluator-review' : 'gad-office-review';
+    expect($latest->hasPassingGadAssessment())->toBe($preserveGad)
+        ->and($latest->hasCoEvaluatorReview())->toBeFalse()
+        ->and($topic->fresh()->currentReviewStageLabel($latest))->toBe($preserveGad ? 'Co-evaluator review' : 'GAD assessment');
+    if ($preserveGad) {
+        $carried = $latest->files->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->sole();
+        expect($carried->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+            ->and($carried->source_data['carried_from_version_file_id'])->toBe($assessment->id)
+            ->and($carried->source_version_file_id)->toBe($latest->files->firstWhere('document_type', 'gad_checklist')->id)
+            ->and($carried->file_path)->toBe($assessment->file_path);
+    }
+    expect($assessment->fresh()->source_version_file_id)->toBe($files['gad_checklist']->id);
+    $this->get(route('topics.show', $topic))->assertOk()->assertSee('data-current-route-stage="'.$stage.'"', false);
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('topics.show', $topic))->assertOk()->assertSee('data-current-route-stage="'.$stage.'"', false);
+    if ($preserveGad) {
+        $this->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => TopicProposal::STATUS_LREC_QUEUED, 'initial_clearance_confirmed' => true,
+        ])->assertSessionHasErrors('status');
+        expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_GAD_REVIEW);
+    }
+})->with([
+    'minor co-evaluator corrections' => ['minor_revision', 'passed', true, false, true],
+    'major corrections after commended GAD' => ['major_revision', 'commended', true, false, true],
+    'old evaluator endorsement cannot approve a revised paper' => ['for_endorsement', 'passed', true, false, true],
+    'failed GAD still requires assessment' => ['minor_revision', 'returned', true, false, false],
+    'conditional GAD still requires assessment' => ['minor_revision', 'conditional_pass', true, false, false],
+    'unconfirmed GAD signature still requires assessment' => ['minor_revision', 'passed', false, false, false],
+    'replaced GAD checklist requires assessment' => ['minor_revision', 'passed', true, true, false],
+]);

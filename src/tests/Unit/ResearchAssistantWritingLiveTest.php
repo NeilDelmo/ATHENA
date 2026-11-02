@@ -1,8 +1,10 @@
 <?php
 
 use App\Services\AiChatCompletionService;
+use App\Services\LiteratureSynthesisEvidenceResolver;
 use App\Services\LiteratureSynthesisService;
 use App\Services\ResearchAssistantRrlRevisionService;
+use App\Support\LiteratureFullTextToken;
 use Dotenv\Dotenv;
 use Illuminate\Http\Client\Events\ResponseReceived;
 use Illuminate\Support\Facades\Event;
@@ -46,6 +48,9 @@ beforeEach(function () {
     Http::allowStrayRequests($providerUrls);
     $this->liveResult = ['case' => $this->name(), 'responses' => []];
     Event::listen(ResponseReceived::class, function (ResponseReceived $event): void {
+        if (! str_contains(strtolower((string) $event->response->header('Content-Type')), 'json')) {
+            return;
+        }
         $this->liveResult['responses'][] = [
             'status' => $event->response->status(), 'model' => $event->response->json('model'),
             'finish_reason' => $event->response->json('choices.0.finish_reason'),
@@ -161,4 +166,31 @@ test('configured live writing synthesizes verified flood monitoring studies with
         ->toMatch('/10\s*mm/i')->toMatch('/0\.05\s*m/i')
         ->toMatch('/Philippin/i')->toMatch('/(?:validat|test|evaluat)/i')
         ->not->toMatch('/99\.7|999[,.]?999|board\s+approved|Philippine\s+(?:trial|field\s+test)\s+(?:showed|achieved|demonstrated)/i');
+});
+
+test('configured live RRL drafting reads a complete gamification paper before generating its review paragraph', function () {
+    $url = 'https://tales.journals.publicknowledgeproject.org/index.php/tales/article/download/3207/3052';
+    Http::allowStrayRequests();
+    $source = [
+        'title' => 'The Impact of Gamification on Student Engagement and Learning in Science: A Study on Team Jeopardy',
+        'full_text_token' => LiteratureFullTextToken::issue(['url' => $url, 'provider' => 'openalex']),
+    ];
+    $evidence = app(LiteratureSynthesisEvidenceResolver::class)->resolve($source, 'full_text');
+    $this->liveResult['source_url'] = $url;
+    $this->liveResult['input'] = ['title' => $source['title'], 'coverage' => $evidence['coverage'],
+        'characters' => mb_strlen($evidence['evidence_text']), 'proposal_topic' => 'Gamified studying',
+        'proposal_objectives' => 'Fictional proposal: examine how gamified study activities relate to student engagement and learning.'];
+    $result = app(LiteratureSynthesisService::class)->synthesize([
+        ...$source, ...$evidence, 'proposal_title' => 'Fictional working title', 'proposal_topic' => 'Gamified studying',
+        'proposal_objectives' => $this->liveResult['input']['proposal_objectives'], 'connection_mode' => 'standalone',
+    ]);
+    $this->liveResult['result'] = $result;
+
+    expect($evidence['coverage']['complete'])->toBeTrue()
+        ->and($evidence['coverage']['truncated'])->toBeFalse()
+        ->and($evidence['coverage']['extracted_pages'])->toBe($evidence['coverage']['total_pages'])
+        ->and($result['basis'])->toBe('full_text')
+        ->and($result['word_count'])->toBeBetween(40, 180)
+        ->and($result['synthesis'])->toMatch('/gamif|game/i')->toMatch('/learn|engage|student/i')
+        ->not->toMatch('/https?:\/\/|\[\d+\]|fictional working title/i');
 });

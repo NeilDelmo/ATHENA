@@ -126,7 +126,7 @@ test('citation picker makes finding and adding sources visible without crowding 
             await expect(find).toBeFocused();
             await page.keyboard.press('Enter');
             await expect(find).toHaveAttribute('aria-pressed', 'true');
-            await expect(dialog.getByRole('searchbox', { name: 'Search academic publications', exact: true })).toBeVisible();
+            await expect(dialog.getByRole('searchbox', { name: 'Search online publications', exact: true })).toBeVisible();
             await expect(dialog.getByLabel('From year', { exact: true })).toBeHidden();
             if (process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY) await dialog.screenshot({ path: resolve(process.env.SOURCE_WORKSPACE_SCREENSHOT_DIRECTORY, `citation-search-${width}-${dark ? 'dark' : 'light'}.png`) });
             await dialog.locator('summary').filter({ hasText: 'Search filters' }).click();
@@ -135,7 +135,7 @@ test('citation picker makes finding and adding sources visible without crowding 
             await dialog.getByRole('searchbox', { name: 'Search proposal sources', exact: true }).fill('missing publication');
             await expect(dialog.getByText('No matching sources', { exact: true })).toBeVisible();
             await dialog.getByRole('button', { name: 'Find new sources', exact: true }).click();
-            await expect(dialog.getByRole('searchbox', { name: 'Search academic publications', exact: true })).toHaveValue('missing publication');
+            await expect(dialog.getByRole('searchbox', { name: 'Search online publications', exact: true })).toHaveValue('missing publication');
             await dialog.getByRole('button', { name: 'Add source', exact: true }).click();
             await expect(dialog.getByLabel('Add source using', { exact: true })).toBeVisible();
             await dialog.getByRole('button', { name: 'Back to proposal sources', exact: true }).click();
@@ -244,23 +244,26 @@ test('deleting a focused citation returns the cursor to its position and support
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         for (const key of ['Backspace', 'Delete']) {
-            const page = await openEditor(browser);
-            await cite(page, 'Community Monitoring', 10);
-            const editor = page.getByRole('textbox', { name: 'Review of Related Literature', exact: true });
-            const marker = editor.locator('[data-proposal-citation]');
-            await marker.focus();
-            await page.keyboard.press(key);
-            await expect(marker).toHaveCount(0);
-            await expect(editor).toBeFocused();
-            await expect(page.getByRole('textbox', { name: 'References', exact: true })).toHaveText('');
-            await page.locator('[data-writing-command="undo"]').click();
-            await expect(marker).toHaveCount(1);
-            await expect(page.locator('#references')).toHaveValue(/Community Monitoring/);
-            await page.locator('[data-writing-command="redo"]').click();
-            await expect(marker).toHaveCount(0);
-            await page.keyboard.insertText('HERE');
-            await expect(editor).toHaveText(/Community HERE\s+participation supports monitoring\./);
-            await page.close();
+            for (const savedBibliographyOnly of [false, true]) {
+                const page = await openEditor(browser);
+                await cite(page, 'Community Monitoring', 10);
+                if (savedBibliographyOnly) await page.evaluate(() => { citationState.literatureSources = []; citationState.synchronizeLiteratureCitations(); });
+                const editor = page.getByRole('textbox', { name: 'Review of Related Literature', exact: true });
+                const marker = editor.locator('[data-proposal-citation]');
+                await marker.focus();
+                await page.keyboard.press(key);
+                await expect(marker).toHaveCount(0);
+                await expect(editor).toBeFocused();
+                await expect(page.getByRole('textbox', { name: 'References', exact: true })).toHaveText('');
+                await page.locator('[data-writing-command="undo"]').click();
+                await expect(marker).toHaveCount(1);
+                await expect(page.locator('#references')).toHaveValue(/Community Monitoring/);
+                await page.locator('[data-writing-command="redo"]').click();
+                await expect(marker).toHaveCount(0);
+                await page.keyboard.insertText('HERE');
+                await expect(editor).toHaveText(/Community HERE\s+participation supports monitoring\./);
+                await page.close();
+            }
         }
     } finally { await browser.close(); }
 });
@@ -311,7 +314,7 @@ test('citation picker saves and cites library, academic, and manual sources with
             await expect(dialog).toBeHidden();
             dialog = await openPicker();
             await dialog.getByRole('button', { name: 'Find sources', exact: true }).click();
-            await dialog.getByRole('searchbox', { name: 'Search academic publications', exact: true }).fill('Academic publication');
+            await dialog.getByRole('searchbox', { name: 'Search online publications', exact: true }).fill('Academic publication');
             await dialog.getByRole('button', { name: 'Search', exact: true }).click();
             await dialog.getByRole('button', { name: 'Choose source', exact: true }).click();
             await dialog.getByRole('button', { name: 'Insert citation', exact: true }).click();

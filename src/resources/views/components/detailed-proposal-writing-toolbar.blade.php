@@ -1,6 +1,7 @@
 <x-proposal-writing-toolbar toolbar-id="detailed-proposal-tools" :toggle="true" data-proposal-writing-toolbar class="detailed-proposal-writing-toolbar" aria-label="Detailed proposal writing tools">
-    <x-slot:context><p class="proposal-writing-target">Editing: <span data-writing-target>Select a writing field</span></p></x-slot:context>
+    <x-slot:context></x-slot:context>
     <div class="proposal-writing-toolbar-row" role="toolbar" aria-label="Text formatting and insertion">
+        <p data-writing-guidance class="proposal-writing-guidance">Click a text field to use formatting.</p>
 
         <div class="proposal-writing-buttons">
             <div class="proposal-writing-action-group" role="group" aria-label="Text style">

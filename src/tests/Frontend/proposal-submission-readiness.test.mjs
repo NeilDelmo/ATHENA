@@ -77,6 +77,13 @@ test('readiness automatically reveals exact fields, saves before guidance, and n
         assert.equal(await detailed.page.locator('[data-proposal-readiness-cue]').evaluate(cue => cue.previousElementSibling.className), 'proposal-semantic-field');
         assert.deepEqual(detailed.errors, []);
         await detailed.page.close();
+        const fresh = await fixture(`<main x-data="{requirementsReviewed:false}" data-proposal-requirements-on-demand data-proposal-paper="detailed-proposal" data-proposal-readiness-url="/ready"><textarea name="rationale" aria-label="Rationale"></textarea></main>`, { value: state([blocker('rationale', { paper: 'detailed-proposal' })]) }, '?proposal_requirement=rationale');
+        await expect(fresh.page.getByRole('textbox', { name: 'Rationale' })).toBeFocused();
+        await expect(fresh.page.locator('[data-proposal-readiness-cue]')).toHaveCount(0);
+        await expect(fresh.page.locator('[aria-invalid="true"]')).toHaveCount(0);
+        assert.deepEqual(fresh.errors, []);
+        await fresh.page.close();
+
 
         for (const query of ['', '?proposal_requirement=sdgs']) {
             const goalsState = state([blocker('sdgs', { paper: 'detailed-proposal', message: 'Select at least one Sustainable Development Goal.' })]);

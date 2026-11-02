@@ -66,7 +66,6 @@
         @endif
 
 
-        <x-proposal-submission-readiness :url="route('faculty.proposal-drafts.review', $proposalDraft)" :blockers="$readinessBlockers" :ready-to-prepare="$readyToPrepare" :ready-to-submit="$readyToSubmit" />
         <x-proposal-pdf-preparation :proposal-draft="$proposalDraft" />
 
         <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />

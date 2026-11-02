@@ -9,6 +9,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
+use App\Services\ProgressReportMonitoringService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +53,10 @@ class PrepareProjectNarrativeReport
                     throw ValidationException::withMessages(['reporting_date' => 'This reporting quarter is not open.']);
                 }
                 $period = $schedule->forDate($validated['reporting_date'], $topic);
+                if (filled($validated['monitoring_report_id'] ?? null)
+                    && ! app(ProgressReportMonitoringService::class)->forDate($topic, $validated['reporting_date'], (int) $validated['monitoring_report_id'])) {
+                    throw ValidationException::withMessages(['monitoring_report_id' => 'Choose a submitted Monitoring Tool for this project and quarter.']);
+                }
                 $existing = $topic->narrativeReports()->where('report_type', 'progress')->forReportingPeriod($period)->reorder()->latest('id')->first();
                 if ($existing !== null && (! $existing->isSubmitted() || $existing->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED)) {
                     throw ValidationException::withMessages(['reporting_date' => 'This quarter already has a prepared or submitted Progress Report.']);
