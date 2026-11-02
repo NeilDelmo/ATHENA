@@ -1496,6 +1496,17 @@ test('the monitoring preview contains the same filled paper as the official temp
         $paperText = implode('', array_map(fn (DOMNode $node): string => $node->textContent, iterator_to_array($xpath->query('/w:document/w:body//w:t'))));
         $normalize = fn (string $text): string => preg_replace('/\s+/u', '', $text);
 
+        $footer = new DOMDocument;
+        $footer->loadXML($archive->getFromName('word/footer1.xml'));
+        $footerXPath = new DOMXPath($footer);
+        $footerXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $footerText = implode('', array_map(fn (DOMNode $node): string => $node->textContent, iterator_to_array($footerXPath->query('//w:t'))));
+        $previewFooter = $previewXPath->query('//main/*[@data-paper-footer]')->item(0);
+        expect($previewFooter)->not->toBeNull()
+            ->and($normalize($previewFooter->textContent))->toBe('TrackingNo.__________________________')
+            ->and($normalize($footerText))->toContain('TrackingNo.__________________________');
+        $previewFooter->parentNode->removeChild($previewFooter);
+
         expect($normalize($previewXPath->evaluate('string(//main)')))->toBe($normalize($paperText))
             ->and($previewXPath->evaluate('string(//table[contains(@class, "monitoring-budget-table")]/tbody/tr[1]/td[4])'))->toBe('16%')
             ->and($previewXPath->evaluate('string(//table[contains(@class, "monitoring-budget-table")]/tbody/tr[last()]/td[3])'))->toBe('25%');

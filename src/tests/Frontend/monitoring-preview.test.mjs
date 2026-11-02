@@ -85,11 +85,12 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                         assert.equal(await draftPreview.isVisible(), true);
                         if (width < 1024) await draftPreview.getByRole('button', { name: 'Minimize preview', exact: true }).click();
                         await accomplishments.first().fill('Started the field interviews.');
+                        if (width < 1024) await workspace.locator('[data-proposal-preview-toggle]').click();
                         await page.waitForFunction(() => window.monitorState.previewHtml.includes('Started the field interviews.') && window.monitorState.previewReady && !window.monitorState.previewLoading);
                         await draftPreview.frameLocator('iframe').getByText(/Started the field interviews/).waitFor();
                         assert.equal(await form.evaluate(element => element.checkValidity()), false);
                         assert.equal(await accomplishments.first().getAttribute('required'), '');
-                        await draftPreview.getByRole('button', { name: 'Collapse preview', exact: true }).click();
+                        await draftPreview.getByRole('button', { name: width < 1024 ? 'Minimize preview' : 'Collapse preview', exact: true }).click();
                     }
                     if (type === 'progress') await page.getByRole('button', { name: 'Add figure', exact: true }).click();
                     const fileName = type === 'progress' ? 'figures[0][image]' : 'cover_image';
