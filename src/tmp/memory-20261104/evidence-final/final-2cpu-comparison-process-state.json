@@ -1,0 +1,126 @@
+{
+  "runtime_cgroup": "/system.slice/athena-memory-2g.service",
+  "processes": [
+    {
+      "pid": 23620,
+      "group": 23620,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf"
+    },
+    {
+      "pid": 23627,
+      "group": 23627,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf"
+    },
+    {
+      "pid": 23628,
+      "group": 23628,
+      "inside_runtime_cgroup": true,
+      "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)"
+    },
+    {
+      "pid": 23629,
+      "group": 23629,
+      "inside_runtime_cgroup": true,
+      "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off;"
+    },
+    {
+      "pid": 23630,
+      "group": 23630,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction"
+    },
+    {
+      "pid": 23631,
+      "group": 23631,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction"
+    },
+    {
+      "pid": 23632,
+      "group": 23632,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction"
+    },
+    {
+      "pid": 23635,
+      "group": 23635,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction"
+    },
+    {
+      "pid": 23637,
+      "group": 23637,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction"
+    },
+    {
+      "pid": 23638,
+      "group": 23629,
+      "inside_runtime_cgroup": true,
+      "command": "nginx: worker process"
+    },
+    {
+      "pid": 23645,
+      "group": 23628,
+      "inside_runtime_cgroup": true,
+      "command": "php-fpm: pool www"
+    },
+    {
+      "pid": 23646,
+      "group": 23628,
+      "inside_runtime_cgroup": true,
+      "command": "php-fpm: pool www"
+    },
+    {
+      "pid": 23647,
+      "group": 23628,
+      "inside_runtime_cgroup": true,
+      "command": "php-fpm: pool www"
+    },
+    {
+      "pid": 23648,
+      "group": 23628,
+      "inside_runtime_cgroup": true,
+      "command": "php-fpm: pool www"
+    },
+    {
+      "pid": 23709,
+      "group": 23709,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e;urp;"
+    },
+    {
+      "pid": 23711,
+      "group": 23709,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e;urp;"
+    },
+    {
+      "pid": 23732,
+      "group": 23709,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e;urp;"
+    }
+  ],
+  "persistent_office_processes": [
+    {
+      "pid": 23732,
+      "group": 23709,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e;urp;"
+    }
+  ],
+  "persistent_supervisors": [
+    {
+      "pid": 23709,
+      "group": 23709,
+      "inside_runtime_cgroup": true,
+      "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e;urp;"
+    }
+  ],
+  "leftover_transient_office_processes": [],
+  "app_root_processes_outside_runtime": [],
+  "no_leftover_process_groups": true
+}

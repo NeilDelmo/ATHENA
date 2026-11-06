@@ -1,0 +1,29 @@
+{
+  "checked": [
+    "app/Actions/PrepareProjectProgressReport.php",
+    "app/Actions/SaveProjectMonitoringDraft.php",
+    "app/Http/Controllers/ProjectMonitoringController.php",
+    "app/Http/Controllers/ResearchAssistantController.php",
+    "app/Models/ProjectMonitoringDraft.php",
+    "app/Services/MonitoringEvidenceService.php",
+    "app/Services/ProjectMonitoringFormDataService.php",
+    "app/Services/ProjectReportDraftState.php",
+    "app/Services/ResearchAssistantDocumentService.php",
+    "app/Services/ResearchAssistantPaperReader.php",
+    "app/Services/ResearchAssistantProposalAssistanceService.php",
+    "app/Services/ResearchAssistantReportAssistanceService.php",
+    "app/Services/ResearchAssistantWorkflowContextService.php",
+    "resources/css/proposal-paper-workspace.css",
+    "resources/js/detailed-proposal-editor.js",
+    "resources/views/components/monitoring-tool-form.blade.php",
+    "resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php",
+    "tests/Feature/DetailedProposalBuilderTest.php",
+    "tests/Feature/MonitoringEvidenceTest.php",
+    "tests/Feature/ProjectReportDraftRecoveryTest.php",
+    "tests/Feature/ResearchAssistantProposalFigureTest.php",
+    "tests/Feature/ResearchAssistantReportAssistanceTest.php",
+    "tests/Frontend/detailed-proposal-editor.test.mjs",
+    "tests/Frontend/specific-methods-editor.test.mjs"
+  ],
+  "different": []
+}

@@ -1,0 +1,8 @@
+{
+    "case": "manual-retrieve-warm",
+    "index_bytes": 11133070,
+    "sources": 4,
+    "response_bytes": 8112,
+    "elapsed_seconds": 0.012862688,
+    "php_peak_mib": 14.62890625
+}

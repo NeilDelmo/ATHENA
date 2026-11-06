@@ -40,6 +40,10 @@ class PrepareProposalDraftPdfs implements ShouldQueue
 
             return;
         }
+        $conversionTimeout = (int) config('document_pdf.timeout_seconds');
+        $delegateToPhpCli = config('document_pdf.delegate_to_php_cli');
+        // Both conversion phases may wait for the export gate within this job's 540-second budget.
+        config(['document_pdf.timeout_seconds' => min($conversionTimeout, 120), 'document_pdf.delegate_to_php_cli' => false]);
         try {
             $preparation->run($this->draftId, $this->runId ?? null);
         } catch (ProposalPdfPreparationBusy $exception) {
@@ -47,6 +51,8 @@ class PrepareProposalDraftPdfs implements ShouldQueue
                 throw $exception;
             }
             $this->release(15);
+        } finally {
+            config(['document_pdf.timeout_seconds' => $conversionTimeout, 'document_pdf.delegate_to_php_cli' => $delegateToPhpCli]);
         }
     }
 

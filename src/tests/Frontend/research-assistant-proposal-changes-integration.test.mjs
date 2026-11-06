@@ -151,6 +151,16 @@ test('partial literature counts retain the manual minimum without inventing a nu
     assert.equal(state.proposalRrlRequirementSource(state.message).title, 'Manual p92');
 });
 
+test('the saved RRL card shows the shared summary and checks the same proposal again', async () => {
+    const state = proposalStore();
+    const summary = 'The saved text supports 8 distinct studies. There are 3 citations to review.';
+    state.message.proposal_changes.assessment.rrl = { study_check: { summary, entries: [], more: 0 } };
+    assert.equal(state.proposalRrlAssessmentText(state.message), summary);
+    state.checkProposalRrl = new Function(`return ({${methodSource('checkProposalRrl')}}).checkProposalRrl;`)();
+    await state.checkProposalRrl(state.message);
+    assert.deepEqual(state.requests[0], ['Check my saved RRL.', { type: 'check_rrl' }, { proposal_draft_id: 12 }]);
+});
+
 test('Keep current removes a suggestion without resolving or applying it', async () => {
     const state = proposalStore();
     const suggestion = state.message.proposal_changes.suggestions[0];
@@ -382,6 +392,14 @@ test('RRL actions stay readable and compact, open search directly, and save befo
         assert.deepEqual(events[2].slice(1), [{ type: 'suggest_proposal_changes' }, { proposal_draft_id: 12, paper_slug: 'detailed-proposal', field: 'related_literature' }]);
         await expect(page.getByRole('alert')).toBeEmpty();
 
+        await page.evaluate(() => { window.launchEvents = []; });
+        await page.locator('textarea').fill('Check the latest saved studies.');
+        await trigger.click();
+        await page.getByRole('button', { name: 'Check my RRL', exact: true }).click();
+        await expect.poll(() => page.evaluate(() => window.launchEvents.length)).toBe(3);
+        assert.deepEqual(await page.evaluate(() => window.launchEvents), ['saved', 'open', ['Check my saved RRL.',
+            { type: 'check_rrl' }, { proposal_draft_id: 12, paper_slug: 'detailed-proposal', field: 'related_literature' }]]);
+
         for (const blank of ['', '<p><br></p>', '<p>&nbsp;</p>', 'Existing text that I want to draft again.']) {
             await page.evaluate(() => { window.launchEvents = []; });
             await page.locator('textarea').fill(blank);
@@ -529,7 +547,7 @@ test('the compiled preview applies, saves, reports save failure and refreshes st
     const markdownHelpers = readFileSync(resolvePath('resources/js/research-assistant-markdown.js'), 'utf8').replace(/^export /gm, '');
     const paperHelpers = readFileSync(resolvePath('resources/js/proposal-paper-autosave.js'), 'utf8').replace(/^export /gm, '');
     const uploadHelpers = readFileSync(resolvePath('resources/js/file-upload.js'), 'utf8').replace(/^export /gm, '');
-    const storeMethods = ['proposalChangesBusy', 'proposalChangeBeforeText', 'proposalChangeReplacementText', 'keepCurrentProposalText', 'proposalRrlAssessmentText', 'proposalRrlRequirementSource', 'findProposalStudies', 'refreshProposalChanges', 'applyProposalChange'].map(methodSource).join('\n');
+    const storeMethods = ['proposalChangesBusy', 'proposalChangeBeforeText', 'proposalChangeReplacementText', 'keepCurrentProposalText', 'proposalRrlAssessmentText', 'proposalRrlRequirementSource', 'checkProposalRrl', 'findProposalStudies', 'refreshProposalChanges', 'applyProposalChange'].map(methodSource).join('\n');
     const editorMethods = ['proposalChangeFieldValue', 'setProposalChangeFieldValue', 'applyAssistantProposalChange',
         'saveDetailedProposalNow', 'saveDetailedProposal', 'detailedProposalAutoSaveStatus'].map(methodSource).join('\n');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
@@ -597,8 +615,8 @@ test('the compiled preview applies, saves, reports save failure and refreshes st
             await page.addScriptTag({ path: resolvePath('node_modules/alpinejs/dist/cdn.js') });
             await page.evaluate(() => { Alpine.store('researchAssistant').messages = [Alpine.$data(document.querySelector('main')).message]; });
             const panel = page.locator('[data-assistant-proposal-changes]');
-            await expect(panel).toContainText('7 tracked reviewed studies; the proposal form requires at least 10');
-            await expect(panel).toContainText('Add at least 3 more');
+            await expect(panel).toContainText('Form minimum: 10 reviewed studies. 7 tracked citations.');
+            await expect(panel).not.toContainText('Add at least 3 more');
             await expect(panel).toContainText('Manual basis: Research Manual — Detailed Research Proposal (p. 92)');
             assert.equal(await panel.locator('img').count(), 0);
             const rrl = panel.locator('article').filter({ has: page.getByRole('heading', { name: 'RRL revision', exact: true }) });
@@ -638,6 +656,23 @@ test('the compiled preview applies, saves, reports save failure and refreshes st
             await expect(panel.getByText('Review each suggestion before applying it to your proposal document.', { exact: true })).toBeHidden();
             await panel.getByRole('button', { name: 'Find additional studies', exact: true }).click();
             assert.equal(await page.evaluate(() => window.refreshRequests.at(-1)[1].type), 'search_literature');
+            await page.evaluate(() => {
+                Alpine.$data(document.querySelector('main')).message.proposal_changes.assessment.rrl.study_check = {
+                    summary: 'The saved text supports 8 distinct studies. There are 3 citations to review.',
+                    more: 0, entries: [
+                        { status: 'supported', label: 'Feedback study', excerpt: 'The study reported improved participation [1].', reason: '' },
+                        { status: 'needs_review', label: 'Cruz (2024)', excerpt: 'Cruz (2024) reported improved completion.', reason: 'More than one reference matches.' },
+                        { status: 'references_only', label: 'Uncited study', excerpt: '', reason: '' },
+                    ],
+                };
+            });
+            await expect(panel).toContainText('Saved RRL check');
+            await panel.getByText('See studies and citations', { exact: true }).click();
+            await expect(panel.getByText('The study reported improved participation [1].', { exact: true })).toBeVisible();
+            await expect(panel.getByText('More than one reference matches.', { exact: true })).toBeVisible();
+            await expect(panel.getByText('No matching citation in Section XI', { exact: true })).toBeVisible();
+            await panel.getByRole('button', { name: 'Run RRL check again', exact: true }).click();
+            assert.equal(await page.evaluate(() => window.refreshRequests.at(-1)[1].type), 'check_rrl');
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
             assert.deepEqual(errors, []);
             await page.close();

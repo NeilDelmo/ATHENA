@@ -1,0 +1,760 @@
+{
+  "name": "optimized-2g-concurrent-photos",
+  "mode": "burst",
+  "started_at": 1793773531.6028347,
+  "cgroup": "/system.slice/athena-memory-2g.service",
+  "limits": {
+    "memory.max": "1879048192",
+    "memory.swap.max": "0",
+    "cpu.max": "100000 100000"
+  },
+  "phases": [
+    {
+      "phase": "idle",
+      "seconds": 15.500754889999826,
+      "result": {
+        "ok": true
+      },
+      "resources": {
+        "samples": 57,
+        "peak_mib": 932.875,
+        "peak_anon_mib": 810.3125,
+        "peak_pss_mib": 1055.0380859375,
+        "peak_rss_mib": 1317.0703125,
+        "peak_file_mib": 109.33984375,
+        "minimum_mib": 931.9296875,
+        "last_mib": 932.6953125,
+        "cpu_usage_seconds": 0.75531,
+        "cpu_throttled_seconds": 0.0,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 20365,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 321024,
+            "pss_kib": 312842,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9757,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2396,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 77748,
+            "pss_kib": 53246,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 46997,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 47355,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2133,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 79888,
+            "pss_kib": 53980,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 72588,
+            "pss_kib": 46920,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 60964,
+            "pss_kib": 30291,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 58656,
+            "pss_kib": 28184,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 7428,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1172,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 435360,
+            "pss_kib": 417293,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          }
+        ]
+      }
+    },
+    {
+      "phase": "burst-three-exports",
+      "seconds": 53.207323218000056,
+      "result": {
+        "count": 36,
+        "errors": 0,
+        "p50_seconds": 1.5055906624997988,
+        "p95_seconds": 33.09968806899997,
+        "maximum_seconds": 33.218684663999966,
+        "statuses": {
+          "200": 36
+        },
+        "requests": [
+          {
+            "status": 200,
+            "seconds": 2.684449911999991,
+            "bytes": 336493,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 32.511867519999896,
+            "bytes": 495044,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 1.3168559119999372,
+            "bytes": 393054,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 1.7669452290001573,
+            "bytes": 525554,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 1.1143499700001485,
+            "bytes": 334525,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 2.9873787070000617,
+            "bytes": 336493,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 2.0998366970000006,
+            "bytes": 495044,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 1.209819049999851,
+            "bytes": 393054,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 1.4814527180001278,
+            "bytes": 525554,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 1.1056055179999476,
+            "bytes": 334525,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 3.122885783999891,
+            "bytes": 336493,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.188095536999981,
+            "bytes": 495044,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.6353082930002074,
+            "bytes": 290196,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 33.218684663999966,
+            "bytes": 282203,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 2.1960326700000223,
+            "bytes": 382647,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 1.394313645000011,
+            "bytes": 320430,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 1.4840075159997923,
+            "bytes": 290196,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.9945292250001785,
+            "bytes": 282203,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 3.2252970120000555,
+            "bytes": 382647,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 2.0935890130001553,
+            "bytes": 320430,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 1.122199075000026,
+            "bytes": 290196,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.3828717480000705,
+            "bytes": 282203,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 1.308357603000104,
+            "bytes": 382647,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 2.9559478580001723,
+            "bytes": 320430,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.4456624020001527,
+            "bytes": 270908,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 33.09968806899997,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 1.882330536000154,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 1.418971640999871,
+            "bytes": 270908,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.6846220620000167,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 1.0285786129998087,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 3.159587848000001,
+            "bytes": 270908,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 2.0000750990000142,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 1.2015614770000411,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 1.5271738089998053,
+            "bytes": 270908,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.0817907309999555,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 2.7100964690000637,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          }
+        ],
+        "heavy": [
+          {
+            "status": 200,
+            "seconds": 33.217038010000124,
+            "bytes": 847,
+            "result": {
+              "case": "progress-highres-12",
+              "conversion_seconds": 10.82563896,
+              "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-0aac1cfe/progress-images.docx",
+              "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-0aac1cfe/progress-images.pdf",
+              "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-0aac1cfe/progress-images.txt",
+              "pages": 47,
+              "docx_or_xlsx_bytes": 13836678,
+              "pdf_bytes": 13503273,
+              "input_counts": {
+                "images": 12,
+                "image_bytes": 61411049,
+                "accomplishments": 30,
+                "serialized_data_bytes": 145139
+              },
+              "verified_markers": [
+                "ACCOMPLISHMENT30END",
+                "REPORTFIGURE12END",
+                "RESULTSEND"
+              ],
+              "marker_extraction_fallbacks": [],
+              "source_generation_seconds": 20.399007344,
+              "fixture_and_validation_seconds": 0.80518291,
+              "total_image_pixels": 240000000,
+              "elapsed_seconds": 32.529109588,
+              "php_peak_mib": 65.20703125
+            },
+            "body_excerpt": null
+          },
+          {
+            "status": 200,
+            "seconds": 50.91671383999983,
+            "bytes": 848,
+            "result": {
+              "case": "progress-highres-12",
+              "conversion_seconds": 26.279162561,
+              "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-5d6c1f5d/progress-images.docx",
+              "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-5d6c1f5d/progress-images.pdf",
+              "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-5d6c1f5d/progress-images.txt",
+              "pages": 47,
+              "docx_or_xlsx_bytes": 13836678,
+              "pdf_bytes": 13503273,
+              "input_counts": {
+                "images": 12,
+                "image_bytes": 61411049,
+                "accomplishments": 30,
+                "serialized_data_bytes": 145139
+              },
+              "verified_markers": [
+                "ACCOMPLISHMENT30END",
+                "REPORTFIGURE12END",
+                "RESULTSEND"
+              ],
+              "marker_extraction_fallbacks": [],
+              "source_generation_seconds": 20.704175953,
+              "fixture_and_validation_seconds": 0.698668664,
+              "total_image_pixels": 240000000,
+              "elapsed_seconds": 48.22545155,
+              "php_peak_mib": 65.20703125
+            },
+            "body_excerpt": null
+          }
+        ]
+      },
+      "resources": {
+        "samples": 188,
+        "peak_mib": 1205.0859375,
+        "peak_anon_mib": 1073.31640625,
+        "peak_pss_mib": 1324.3544921875,
+        "peak_rss_mib": 1651.5703125,
+        "peak_file_mib": 185.390625,
+        "minimum_mib": 929.06640625,
+        "last_mib": 1022.98046875,
+        "cpu_usage_seconds": 52.493023,
+        "cpu_throttled_seconds": 78.60814,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 20247,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 323072,
+            "pss_kib": 314675,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9154,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2311,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 77748,
+            "pss_kib": 52268,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 46068,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 46418,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2219,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 79888,
+            "pss_kib": 52873,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 72588,
+            "pss_kib": 45758,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 160408,
+            "pss_kib": 127417,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 151060,
+            "pss_kib": 118267,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 7381,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1094,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 435360,
+            "pss_kib": 416741,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          },
+          {
+            "pid": 5689,
+            "name": "sh",
+            "rss_kib": 1792,
+            "pss_kib": 257,
+            "command": "sh -c '/usr/bin/php8.5' 'artisan' schedule:run "
+          },
+          {
+            "pid": 5690,
+            "name": "php8.5",
+            "rss_kib": 74380,
+            "pss_kib": 47541,
+            "command": "/usr/bin/php8.5 artisan schedule:run "
+          },
+          {
+            "pid": 5698,
+            "name": "sh",
+            "rss_kib": 1792,
+            "pss_kib": 254,
+            "command": "sh -c '/usr/bin/php8.5' 'artisan' proposal-pdfs:recover > '/dev/null' 2>&1 "
+          },
+          {
+            "pid": 5699,
+            "name": "php8.5",
+            "rss_kib": 70668,
+            "pss_kib": 45196,
+            "command": "/usr/bin/php8.5 artisan proposal-pdfs:recover "
+          }
+        ]
+      }
+    },
+    {
+      "phase": "after-idle",
+      "seconds": 15.500476127999946,
+      "result": {
+        "ok": true
+      },
+      "resources": {
+        "samples": 56,
+        "peak_mib": 1023.46484375,
+        "peak_anon_mib": 835.796875,
+        "peak_pss_mib": 1089.400390625,
+        "peak_rss_mib": 1363.140625,
+        "peak_file_mib": 172.5,
+        "minimum_mib": 1022.6015625,
+        "last_mib": 1023.1015625,
+        "cpu_usage_seconds": 0.885616,
+        "cpu_throttled_seconds": 0.0,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 20339,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 328448,
+            "pss_kib": 319906,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9750,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2396,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 78004,
+            "pss_kib": 53390,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 46973,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 47334,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2247,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 79888,
+            "pss_kib": 53853,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 72588,
+            "pss_kib": 46787,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 73040,
+            "pss_kib": 36327,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 68656,
+            "pss_kib": 34006,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 7425,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1163,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 452780,
+            "pss_kib": 433650,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          }
+        ]
+      }
+    }
+  ],
+  "server_config": {
+    "projects": 100,
+    "php_fpm_children": 2,
+    "php_worker_memory_limit_mib": 256,
+    "mysql_buffer_pool_mib": 128,
+    "pdf_queue_workers": 1,
+    "default_queue_workers": 1,
+    "persistent_libreoffice": true
+  },
+  "reverb_connections": 20,
+  "finished_at": 1793773616.335754,
+  "reverb_heartbeat_errors": [],
+  "memory_events_end": {
+    "low": 0,
+    "high": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_kill": 0,
+    "oom_group_kill": 0
+  },
+  "cgroup_peak_mib": 1211.359375
+}

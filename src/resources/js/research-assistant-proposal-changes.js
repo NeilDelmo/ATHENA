@@ -44,18 +44,32 @@ function safeCount(value) {
 function normalizeRrlAssessment(value) {
     if (!plainRecord(value)) return null;
     const count = safeCount(value.count);
+    const knownCount = safeCount(value.known_count);
+    const minimum = safeCount(value.minimum);
     const status = ['empty', 'tracked', 'partial', 'unknown'].includes(value.count_status)
         ? value.count_status : 'unknown';
     const known = ['empty', 'tracked'].includes(status) && count !== null;
+    const check = plainRecord(value.study_check) ? value.study_check : null;
+    const summary = displayText(check?.summary, 600);
+    const supportedMinimum = Boolean(summary && knownCount !== null && minimum !== null && knownCount >= minimum);
 
     return {
         count: known ? count : null,
-        known_count: safeCount(value.known_count),
+        known_count: knownCount,
         count_status: known || ['partial', 'unknown'].includes(status) ? status : 'unknown',
-        minimum: safeCount(value.minimum),
-        shortfall: known ? safeCount(value.shortfall) : null,
-        minimum_satisfied: known && typeof value.minimum_satisfied === 'boolean' ? value.minimum_satisfied : null,
+        minimum,
+        shortfall: supportedMinimum ? 0 : known ? safeCount(value.shortfall) : null,
+        minimum_satisfied: supportedMinimum ? true : known && typeof value.minimum_satisfied === 'boolean' ? value.minimum_satisfied : null,
         quality_verified: false,
+        ...(summary ? { study_check: {
+            summary,
+            more: safeCount(check.more) ?? 0,
+            entries: (Array.isArray(check.entries) ? check.entries : []).slice(0, 50)
+                .filter((entry) => plainRecord(entry) && ['supported', 'needs_review', 'references_only'].includes(entry.status))
+                .map((entry) => ({
+                    status: entry.status, label: displayText(entry.label, 230), excerpt: displayText(entry.excerpt, 430), reason: displayText(entry.reason, 180),
+                })).filter((entry) => entry.label),
+        } } : {}),
         requirement_reference: displayText(value.requirement_reference, 80),
         sources: (Array.isArray(value.sources) ? value.sources : []).filter(plainRecord).slice(0, 5).map((source) => ({
             title: displayText(source.title, 300),

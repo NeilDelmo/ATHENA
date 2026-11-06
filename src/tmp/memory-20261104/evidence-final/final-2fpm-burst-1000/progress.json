@@ -1,0 +1,1 @@
+{"elapsed_seconds": 80, "phase": "after-idle", "browsing": {"count": 36, "errors": 0, "p50_seconds": 1.4578953340001135, "p95_seconds": 16.42427035899982, "maximum_seconds": 16.680874235000374, "statuses": {"200": 36}}, "heavy_completed": 0, "heavy_errors": 0, "memory_mib": 1177.2, "resident_pss_mib": 1127.4, "oom_kills": 0, "websocket_errors": 0}

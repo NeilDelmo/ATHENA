@@ -1,0 +1,19 @@
+{
+    "case": "literature-200",
+    "input_bytes": 130652,
+    "coverage": {
+        "total_pages": 200,
+        "extracted_pages": 200,
+        "characters": 101520,
+        "page_limit": 200,
+        "character_limit": 120000,
+        "truncated": false,
+        "unreadable_pages": [],
+        "complete": true,
+        "limited": false,
+        "partial_or_unknown": false,
+        "reason": null
+    },
+    "elapsed_seconds": 0.052110499,
+    "php_peak_mib": 8
+}

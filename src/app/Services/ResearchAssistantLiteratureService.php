@@ -24,6 +24,8 @@ class ResearchAssistantLiteratureService
 {
     private const ACTIONS = ['search_literature', 'draft_rrl', 'draft_literature', 'confirm_literature'];
 
+    private const CHAT_SEARCH_LIMIT = 5;
+
     public function __construct(
         private LiteratureSearchService $search,
         private LiteratureSynthesisService $synthesis,
@@ -289,7 +291,7 @@ PROMPT],
     /** @param array<string, mixed> $context
      * @return array<string, mixed>
      */
-    private function findStudies(User $user, ProposalDraft $draft, array $context, string $question, ?string $queryOverride = null, int $resultLimit = 5): array
+    private function findStudies(User $user, ProposalDraft $draft, array $context, string $question, ?string $queryOverride = null, int $resultLimit = self::CHAT_SEARCH_LIMIT): array
     {
         $researchContext = $this->researchContext($draft, $context, $question);
         $query = $queryOverride ?? $this->searchQuery($question, $researchContext['objectives'], $draft->project_title);
@@ -304,9 +306,23 @@ PROMPT],
             return $this->envelope('I could not find relevant papers for “'.$query.'”. Would you like me to broaden the search, or focus on a particular population or setting?');
         }
         $count = $resultLimit;
+        $limitMessage = '';
+        $chatSearch = $resultLimit === self::CHAT_SEARCH_LIMIT;
+        $namedCounts = ['one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5];
+        if ($chatSearch) {
+            $namedCounts += ['six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10];
+        }
+        $request = '(?<request>^\s*|\b(?:find|search(?:\s+for)?|look\s+for|suggest|recommend|show|give|need|want)\s+(?:me\s+)?(?:(?:only|exactly|up\s+to|at\s+least)\s+)?)?';
+        $number = '\b(?<number>\d+|'.implode('|', array_keys($namedCounts)).')';
+        $modifiers = $chatSearch ? 'relevant|recent|related|academic|rrl' : 'relevant|recent|related|academic';
+        $subjects = $chatSearch ? 'studies|papers|sources|articles|rrls?' : 'studies|papers|sources|articles';
 
-        if (preg_match('/\b(\d+|one|two|three|four|five)\s+(?:(?:relevant|recent|related|academic)\s+)*(?:studies|papers|sources|articles)\b/iu', $question, $match) === 1) {
-            $count = min(5, max(1, ['one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5][Str::lower($match[1])] ?? (int) $match[1]));
+        if (preg_match('/'.$request.$number.'\s+(?:(?:'.$modifiers.')\s+)*(?:'.$subjects.')\b/iu', $question, $match, PREG_UNMATCHED_AS_NULL) === 1) {
+            $requested = $namedCounts[Str::lower($match['number'])] ?? (int) $match['number'];
+            $count = min(self::CHAT_SEARCH_LIMIT, max(1, $requested));
+            if ($chatSearch && $requested > $count && $match['request'] !== null) {
+                $limitMessage = 'You asked for '.$requested.' studies. Chat can show up to '.$count.' studies per search. Open the Sources tab in your proposal for more matches. ';
+            }
         }
 
         $linkedSources = $draft->literatureSources()->get();
@@ -333,7 +349,7 @@ PROMPT],
         })->values()->all();
         $notice = collect([$payload['provider_notice'] ?? null, $payload['search_notice'] ?? null])
             ->filter()->implode(' ');
-        $reply = 'I found '.count($results).' studies to review for your proposal. Select up to three to draft editable RRL paragraphs. Search relevance is a starting point; check each paper before using its claims.';
+        $reply = $limitMessage.'I found '.count($results).' studies to review for your proposal. Select up to three to draft editable RRL paragraphs. Search relevance is a starting point; check each paper before using its claims.';
 
         return $this->envelope($reply, [
             'kind' => 'results',

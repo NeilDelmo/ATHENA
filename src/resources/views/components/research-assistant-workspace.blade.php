@@ -116,6 +116,7 @@
                                 <x-research-assistant-evidence />
                                 <x-research-assistant-document-reading />
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <x-research-assistant-reply-notice />
                                 <x-research-assistant-citation />
                                 <x-research-assistant-literature />
                                 <x-research-assistant-proposal-changes />

@@ -1,0 +1,105 @@
+{
+  "completed_at_utc": "2026-11-04T03:11:55.5319383Z",
+  "scope": "Large RMS export CPU optimization and POSIX LibreOffice worker cleanup; no cloud deployment or new dependencies.",
+  "rms_regression_fixture": {
+    "rows_per_sheet": 500,
+    "sheets": 3,
+    "before_seconds": 133.195773687,
+    "after_seconds": 0.437,
+    "speedup_approx": 305,
+    "before_source": "Original service, same regression fixture on Linux, one CPU, 768 MiB process limit",
+    "after_source": "Final targeted test log on Linux, one CPU, 1024 MiB process limit; both generation runs fit below the limit"
+  },
+  "rms_1500_rows_per_sheet": {
+    "workbook_regression_seconds": 1.293,
+    "native_workbook_generation_seconds": 1.526,
+    "native_pdf_conversion_seconds": 1.839,
+    "last_record_found_in_all_three_pdf_sheets": true
+  },
+  "targeted_linux": {
+    "passed": 31,
+    "skipped": 1,
+    "assertions": 561,
+    "seconds": 40.65,
+    "cpu_quota": 1,
+    "memory_limit_mib": 1024,
+    "memory_peak_mib": 495.5,
+    "swap_mib": 0,
+    "database": "Separate private MySQL process, not counted in this process cgroup"
+  },
+  "windows_unit": {
+    "passed": 9,
+    "skipped": 6,
+    "assertions": 346,
+    "seconds": 23.84,
+    "php": "8.4.27"
+  },
+  "full_linux_suite": {
+    "passed": 3593,
+    "failed": 133,
+    "skipped": 23,
+    "assertions": 32221,
+    "seconds": 370.99
+  },
+  "baseline_comparison": {
+    "failing_test_groups_rerun_with_original_services": 42,
+    "baseline_passed": 651,
+    "baseline_failed": 133,
+    "different_failure_headings": 0,
+    "details": "baseline-comparison.json"
+  },
+  "process_cleanup": {
+    "real_timeout_restart_cycles": 2,
+    "old_office_groups_stopped": true,
+    "unrelated_office_worker_survived_and_exported": true,
+    "normal_stop_startup_failure_and_launcher_exit_covered": true,
+    "live_office_processes_after_tests": false
+  },
+  "preservation": {
+    "pre_existing_changed_files_checked": 24,
+    "differences": 0,
+    "details": "preserved-user-changes.json"
+  },
+  "runtime": "Ubuntu 26.04 chroot in WSL2; PHP 8.5.4 security backport; LibreOffice 26.2.6.3; MySQL 8.4.11. Windows unit verification uses compatible PHP 8.4.27.",
+  "limitations": [
+    "Local synthetic tests do not establish DigitalOcean throughput or complete 2 GB server capacity.",
+    "High resolution photo memory use was outside this fix and still needs separate optimization.",
+    "Linux PHP patch version differs from the Composer patch requirement; native deployment should be smoke-tested with its supported runtime."
+  ],
+  "cleanup": {
+    "isolated_linux_root_removed": true,
+    "private_database_stopped": true,
+    "temporary_source_and_vendor_archives_removed": true,
+    "logs_and_test_results_retained": true
+  },
+  "changed_file_sha256": [
+    {
+      "path": "app/Services/RmsQuarterlyReportDocument.php",
+      "sha256": "949cb0abdda7584c02ec2eb573229401c6f79bcf0d27eafc6fed2974dc1d0c57"
+    },
+    {
+      "path": "app/Services/LibreOfficePdfWorker.php",
+      "sha256": "26cd476372a3e5d7116d6d4135dd5e19bd9e422f1eaca4cb24a7e811adef835f"
+    },
+    {
+      "path": "scripts/libreoffice-worker.py",
+      "sha256": "092213d386766e6cfd32421814191b4918a958f7ef9ab85877f2078f7d6550fb"
+    },
+    {
+      "path": "tests/Unit/RmsQuarterlyReportDocumentTest.php",
+      "sha256": "1b110ab52e935e6e261c99c8ff88ef7a8aee4423dab34f737d6289a3ea2f9565"
+    },
+    {
+      "path": "tests/Unit/LibreOfficePdfWorkerProcessTest.php",
+      "sha256": "5a596ee43f847c4175427b27a2e64dd5f9a6d13636bca2c2b56450f6e70e8ebf"
+    },
+    {
+      "path": "tests/Unit/LibreOfficePdfWorkerNativeTest.php",
+      "sha256": "1175811c4a227f3862a26acb838b2bbbda521198133f2b0b1dd5db0827405946"
+    },
+    {
+      "path": "tests/Feature/LibreOfficeDocumentPdfConverterTest.php",
+      "sha256": "58a166e8a901a979cf7a165de4544da5c7d98ca48814f0c0410df7c1ab82081a"
+    }
+  ]
+}

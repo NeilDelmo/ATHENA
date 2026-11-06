@@ -327,7 +327,7 @@ class ProjectMonitoringController extends Controller
         $validated['review_stage'] = 'secretary';
         $sourceReport = $this->revisionSourceReport($request, $topic);
         $period = $monitoringQuarterService->forDate($validated['reporting_date'], $topic);
-        $savedDraft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->forSource($sourceReport)->first();
+        $savedDraft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->forSource($sourceReport)->first();
         $savedDate = data_get($savedDraft?->source_data, 'reporting_date');
         if ($savedDate && $monitoringQuarterService->forDate($savedDate, $topic)['start']->ne($period['start'])) {
             return back()->withInput()->withErrors(['reporting_date' => 'Finish your saved Monitoring Tool draft before preparing another quarter.']);
@@ -467,7 +467,7 @@ class ProjectMonitoringController extends Controller
                 throw ValidationException::withMessages(['preparation' => 'A submitted report cannot be discarded.']);
             }
             $source = $lockedReport->supersedes;
-            if (ProjectMonitoringDraft::query()->whereBelongsTo($lockedTopic, 'topic')->whereBelongsTo($request->user(), 'user')->forSource($source)->exists()) {
+            if (ProjectMonitoringDraft::query()->whereBelongsTo($lockedTopic, 'topic')->forSource($source)->exists()) {
                 throw ValidationException::withMessages(['preparation' => 'Your saved draft and prepared Monitoring Tool have both been kept. Resolve the saved draft before discarding this PDF.']);
             }
             $data = [
@@ -674,7 +674,7 @@ class ProjectMonitoringController extends Controller
     {
         $file = null;
         if ($request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user())) {
-            foreach (ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->get(['source_data']) as $draft) {
+            foreach (ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->get(['source_data']) as $draft) {
                 $file = collect($draft->source_data['work_plan'] ?? [])->flatMap(fn (array $row): array => $row['evidence'] ?? [])->firstWhere('id', $evidence);
                 if ($file) {
                     break;

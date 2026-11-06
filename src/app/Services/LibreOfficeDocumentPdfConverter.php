@@ -146,7 +146,7 @@ class LibreOfficeDocumentPdfConverter implements BatchDocumentPdfConverter
         }
 
         try {
-            $process = Process::timeout((int) config('document_pdf.timeout_seconds'))
+            $process = Process::timeout(2 * (int) config('document_pdf.timeout_seconds') + 10)
                 ->path(base_path())
                 ->env([
                     'TEMP' => $phpTemporaryDirectory,

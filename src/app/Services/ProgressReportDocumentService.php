@@ -458,7 +458,7 @@ class ProgressReportDocumentService
                 throw new RuntimeException('A submitted Progress Report figure is unavailable.');
             }
 
-            $contents = $disk->get($path);
+            $contents = app(DocumentImageService::class)->contents($disk->path($path));
             $dimensions = getimagesizefromstring($contents);
 
             if ($dimensions === false || ! in_array($dimensions[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {

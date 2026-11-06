@@ -87,6 +87,7 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft))
         ->assertOk()
+        ->assertDontSeeText('printed above the official expense table')
         ->assertSee('Expense items')
         ->assertSee('Use MOOE, Capital Outlay, or both.')
         ->assertSee('Descriptions / Specifications / Details')

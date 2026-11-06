@@ -295,7 +295,6 @@ class CollegeQuarterlyReportDocument
                 throw new RuntimeException('A supporting documentation image is unavailable.');
             }
 
-            $contents = $disk->get($item['path']);
             $number = $index + 1;
             if (($item['source'] ?? null) === 'faculty_report' && ! in_array($item['mime_type'], ['image/jpeg', 'image/png'], true)) {
                 $caption = $anchor->cloneNode(true);
@@ -323,6 +322,7 @@ class CollegeQuarterlyReportDocument
 
                 continue;
             }
+            $contents = app(DocumentImageService::class)->contents($disk->path($item['path']));
             $dimensions = getimagesizefromstring($contents);
             if ($dimensions === false || ! in_array($dimensions[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG], true)) {
                 throw new RuntimeException('A supporting documentation image is invalid.');

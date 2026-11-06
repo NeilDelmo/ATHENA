@@ -2207,6 +2207,12 @@ Alpine.store('researchAssistant', {
                 evidence: 'Uses the saved proposal and Research Manual',
                 prompt: 'Read my saved proposal against the Research Manual requirements. Identify evidence gaps and suggest precise changes for my review.',
                 action: { type: 'suggest_proposal_changes' },
+            }, {
+                label: 'Check my RRL',
+                description: 'See which studies are discussed and which citations need a closer look.',
+                evidence: 'Uses the saved Section XI and References',
+                prompt: 'Check my saved RRL.',
+                action: { type: 'check_rrl' },
             }] : []),
             ...focusedFieldAction,
             ...(document.body.hasAttribute('data-faculty-shell') && (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)) ? [{
@@ -2382,6 +2388,15 @@ Alpine.store('researchAssistant', {
 
     hasConversation() {
         return this.messages.some((message) => message.role === 'user');
+    },
+
+    messageLengthNotice() {
+        const remaining = researchAssistantMessageLimit - this.draft.length;
+        if (remaining > 500) return '';
+        if (remaining <= 0) {
+            return 'You’ve reached the 8,000-character limit. Send this part first, then add the rest in a follow-up.';
+        }
+        return `You have ${remaining} character${remaining === 1 ? '' : 's'} left. Use a follow-up if you need more room.`;
     },
 
     renderMessage(message) {
@@ -2857,6 +2872,7 @@ Alpine.store('researchAssistant', {
                 id: this.nextMessageId++,
                 role: message.role,
                 content: String(message.content).trim(),
+                ...(message.role === 'assistant' && message.reply_truncated === true ? { reply_truncated: true } : {}),
                 sources: Array.isArray(message.sources) ? message.sources : [],
                 review: message.review && typeof message.review === 'object' ? message.review : null,
                 literature: normalizeAssistantLiterature(message.literature),
@@ -2958,20 +2974,25 @@ Alpine.store('researchAssistant', {
     proposalRrlAssessmentText(message) {
         const rrl = message?.proposal_changes?.assessment?.rrl;
         if (!rrl) return '';
+        if (rrl.study_check?.summary) return rrl.study_check.summary;
+        const minimum = rrl.minimum === null ? '' : `Form minimum: ${rrl.minimum} reviewed studies. `;
         if (rrl.count === null) {
-            const minimum = rrl.minimum === null ? '' : `Form minimum: ${rrl.minimum} reviewed studies. `;
             return minimum + (rrl.known_count > 0
                 ? `${rrl.known_count} tracked sources; the total reviewed-study count cannot be verified from the saved text.`
                 : 'The reviewed-study count cannot be verified from the saved text.');
         }
-        const minimum = rrl.minimum === null ? '' : `; the proposal form requires at least ${rrl.minimum}`;
-        const shortfall = rrl.shortfall > 0 ? `. Add at least ${rrl.shortfall} more relevant reviewed studies` : '';
-        return `${rrl.count} tracked reviewed ${rrl.count === 1 ? 'study' : 'studies'}${minimum}${shortfall}.`;
+        return minimum + `${rrl.count} tracked ${rrl.count === 1 ? 'citation' : 'citations'}. Check Section XI for studies cited manually.`;
     },
 
     proposalRrlRequirementSource(message) {
         const rrl = message?.proposal_changes?.assessment?.rrl;
         return rrl?.requirement_reference ? rrl.sources.find((source) => source.reference === rrl.requirement_reference) || null : null;
+    },
+
+    async checkProposalRrl(message) {
+        const packet = message?.proposal_changes;
+        if (!packet || this.proposalChangesBusy() || this.draft.trim()) return false;
+        return this.sendPrompt('Check my saved RRL.', { type: 'check_rrl' }, { proposal_draft_id: packet.proposal_draft_id });
     },
 
     async findProposalStudies(message) {
@@ -3277,6 +3298,7 @@ Alpine.store('researchAssistant', {
                 id: this.nextMessageId++,
                 role: 'assistant',
                 content: payload.reply.trim(),
+                ...(payload.reply_truncated === true ? { reply_truncated: true } : {}),
                 model: payload.model,
                 sources: Array.isArray(payload.sources) ? payload.sources : [],
                 review: payload.review && typeof payload.review === 'object' ? payload.review : null,

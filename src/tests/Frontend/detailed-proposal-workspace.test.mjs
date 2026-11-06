@@ -245,13 +245,21 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 const rationale = page.getByRole('textbox', { name: 'Rationale', exact: true });
                 await rationale.waitFor();
                 const previewStatus = page.locator('.proposal-preview-dock-heading p');
-                await expect(previewStatus).toHaveText('Up to date · Automatic');
+                await expect(previewStatus).toBeHidden();
+                if (width >= 1024) {
+                    await page.evaluate(() => { window.writingState.previewStale = true; });
+                    await expect(previewStatus).toBeVisible();
+                    await expect(previewStatus).toHaveText('Updating preview…');
+                    await page.evaluate(() => { window.writingState.previewStale = false; });
+                    await expect(previewStatus).toBeHidden();
+                }
                 await expect(page.getByRole('button', { name: 'Refresh preview', exact: true, includeHidden: true })).toHaveCount(0);
                 const retryPreview = page.getByRole('button', { name: 'Retry preview', exact: true, includeHidden: true });
                 await expect(retryPreview).toBeHidden();
                 await page.evaluate(() => { window.writingState.previewError = 'Preview failed'; });
-                await expect(previewStatus).toHaveText('Check preview errors');
+                await expect(previewStatus).toBeHidden();
                 if (width >= 1024) {
+                    await expect(page.locator('.proposal-preview-dock').getByRole('alert')).toHaveText('Preview failed');
                     await expect(retryPreview).toBeVisible();
                     await retryPreview.click();
                     await expect(page.locator('[x-ref="previewClose"]')).toBeFocused();

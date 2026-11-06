@@ -241,6 +241,36 @@ test('the coordinator paper preview shows unfinished edits without saving the dr
         ->assertSee('quarterly-report-preview-panel')->assertSee('Fit page')->assertSee('Fit width');
 });
 
+test('unsaved coordinator evidence previews bound photo dimensions without replacing uploads', function (bool $rowEvidence) {
+    $memoryLimit = ini_get('memory_limit');
+    // Leave a request-sized allowance above memory retained by the full test runner.
+    ini_set('memory_limit', (string) (memory_get_usage(true) + 256 * 1024 * 1024));
+    try {
+        Storage::fake('local');
+        $image = UploadedFile::fake()->image('large-evidence.jpg', 3000, 2000);
+        $original = $image->getContent();
+        $row = (string) Str::uuid();
+        $input = [...($this->reportInput)(), 'intent' => 'preview'];
+        if ($rowEvidence) {
+            $input['presentations'] = [['id' => $row, 'event' => 'Fieldwork']];
+            $input['row_evidence'] = ['presentations' => [$row => [$image]]];
+        } else {
+            $input['evidence_images'] = [$image];
+            $input['evidence_captions'] = ['Fieldwork'];
+        }
+        $response = $this->post(route('research_coordinator.reports.preview', ['year' => 2026, 'quarter' => 3]), $input)->assertOk();
+        $evidence = $response->viewData('reportEvidence');
+        expect($evidence)->toHaveCount(1);
+        $contents = base64_decode(explode(',', $evidence[0]['url'], 2)[1], true);
+        [$width, $height] = getimagesizefromstring($contents);
+        expect(max($width, $height))->toBeLessThanOrEqual(1600)
+            ->and($image->getContent())->toBe($original)
+            ->and(array_values(array_filter(Storage::disk('local')->allFiles(), fn (string $path): bool => ! str_starts_with($path, 'image-previews/'))))->toBe([]);
+    } finally {
+        ini_set('memory_limit', $memoryLimit);
+    }
+})->with(['general evidence' => false, 'row evidence' => true]);
+
 test('the report uses the four calendar quarters and shows their month ranges', function () {
     foreach ([1 => ['2026-01-01', '2026-03-31', 'Jan', 'Mar'], 2 => ['2026-04-01', '2026-06-30', 'Apr', 'Jun'], 3 => ['2026-07-01', '2026-09-30', 'Jul', 'Sep'], 4 => ['2026-10-01', '2026-12-31', 'Oct', 'Dec']] as $quarter => [$start, $end, $firstMonth, $lastMonth]) {
         $this->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => $quarter]))

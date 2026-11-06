@@ -1,0 +1,16 @@
+{
+  "app/Services/DocumentImageService.php": "5ba5ebbca881280abec2e6dd4c865597f00a91adb7fd6136d873df822b5b9b90",
+  "app/Services/ProgressReportDocumentService.php": "6dea812b2d9fab8568d2f97ea6d76a0031a27817a3c3d65947a0a3d0dd111897",
+  "app/Services/CollegeQuarterlyReportDocument.php": "5e5e51a2b9e93282828a1752cbae34558a09928555a579336123a478df2c454c",
+  "app/Services/DetailedProposalMethodologyImageService.php": "11f171ccc1e66bf565f53a7bb5061185e1a46445ebc5d8b3b306fce0abeb44bf",
+  "app/Services/DetailedProposalDocumentService.php": "ea39bc13372839e0a35ee8f72f118f5fe478d4f7e31161f08e1c2505ee0f1814",
+  "app/Http/Controllers/ResearchCoordinatorReportController.php": "ef3a4d6bd8f6e514af87538c823cb387a7c95941882eb5adac6e1cf8cbb292f2",
+  "app/Services/LibreOfficeProcess.php": "23c2c9924f39069935952a5a31ef7deb6285d682c44f51cef887d741663459b8",
+  "app/Services/LibreOfficePdfWorker.php": "bb52263b13bf4f8781b01ae9e164d362fd10fede3d45499f388e696da1797aaf",
+  "app/Services/LibreOfficeDocumentPdfConverter.php": "cb8c7ff48dd9296a329575d9d61bcab665c844f92e7367bc21ab385b8c6d1324",
+  "app/Console/Commands/RecoverProposalPdfs.php": "4815dbc018640a94ee89b2abcd875a3222fe12cf63f8d78c7d6165b1a68bbdc0",
+  "scripts/libreoffice-worker.py": "7233734819d3ac97e2c2440f7dbc0348aec2ae85373b3b32136b698b1d675836",
+  "config/document_pdf.php": "adb1500bae2a6e06caa05c15a602de45444d965f49c7a4640eca5eed6de9795d",
+  "app/Jobs/PrepareProposalDraftPdfs.php": "046e399dd4af623c1114d48910507112edfdb751aeee566a4c9394d1b53d95e8",
+  ".env.example": "124501c507e7e63a675f7b3fcfb619e52c5e1474d72b88b4109881fb90efc5b9"
+}

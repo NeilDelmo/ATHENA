@@ -1,0 +1,50 @@
+{
+  "baseline": [
+    {
+      "case": "progress-highres-6",
+      "status": 200,
+      "seconds": 8.29521320699996,
+      "charged_peak_mib": 1424.01953125,
+      "pss_peak_mib": 1388.474609375,
+      "anon_peak_mib": 1142.4375,
+      "php_peak_mib": 94.09765625,
+      "max_events": 0,
+      "oom_kills": 0
+    },
+    {
+      "case": "progress-highres-12",
+      "status": 200,
+      "seconds": 14.271120171000007,
+      "charged_peak_mib": 1791.99609375,
+      "pss_peak_mib": 1862.5205078125,
+      "anon_peak_mib": 1620.421875,
+      "php_peak_mib": 179.92578125,
+      "max_events": 1276,
+      "oom_kills": 0
+    }
+  ],
+  "optimized": [
+    {
+      "case": "progress-highres-6",
+      "status": 200,
+      "seconds": 12.2437387760001,
+      "charged_peak_mib": 793.66015625,
+      "pss_peak_mib": 976.5751953125,
+      "anon_peak_mib": 730.47265625,
+      "php_peak_mib": 34.73046875,
+      "max_events": 0,
+      "oom_kills": 0
+    },
+    {
+      "case": "progress-highres-12",
+      "status": 200,
+      "seconds": 20.599539511000103,
+      "charged_peak_mib": 932.828125,
+      "pss_peak_mib": 1117.896484375,
+      "anon_peak_mib": 872.6484375,
+      "php_peak_mib": 65.20703125,
+      "max_events": 0,
+      "oom_kills": 0
+    }
+  ]
+}

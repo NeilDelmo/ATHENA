@@ -1,0 +1,20 @@
+{
+    "case": "assistant-docx-5m",
+    "input_bytes": 26190,
+    "prompt_bytes": 5881,
+    "source_count": 8,
+    "coverage": {
+        "selected_passages": 8,
+        "total_passages": 2021,
+        "omitted_passages": 2013,
+        "truncated": true,
+        "limitations": [
+            "DOCX locations refer to source paragraphs, not rendered PDF pages. Embedded images and signatures were not read.",
+            "The document exceeded the local extraction size limit; later content was not indexed.",
+            "Only selected excerpts were supplied; omitted passages and cropped text were not reviewed."
+        ]
+    },
+    "images": [],
+    "elapsed_seconds": 0.188816657,
+    "php_peak_mib": 20.04296875
+}

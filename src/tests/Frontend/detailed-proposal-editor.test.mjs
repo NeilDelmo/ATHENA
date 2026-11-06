@@ -476,6 +476,33 @@ test('adding and removing methods and expected outputs invalidate the paper with
     }
 });
 
+test('adding method fields focuses the new blank field and respects the saved-paper limits', () => {
+    const focused = [];
+    const state = editor({ document: { getElementById: id => ({ focus: () => focused.push(id) }) } });
+    state.plainText = value => String(value ?? '');
+    let saves = 0;
+    state.triggerDetailedProposalAutoSave = () => saves++;
+    state.specificMethodGroups = [state.newSpecificMethodGroup({ heading: 'Recruitment', methods: [{ description: 'Invite residents.' }] })];
+    state.addSpecificMethodGroup();
+    const added = state.specificMethodGroups[1];
+    assert.equal(added.heading, '');
+    assert.equal(added.methods[0].description, '');
+    assert.equal(focused.at(-1), `method-heading-${added.id}`);
+    state.addSpecificMethod(added);
+    assert.equal(focused.at(-1), `method-${added.id}-${added.methods[1].id}`);
+    assert.equal(state.specificMethodGroups[0].methods[0].description, 'Invite residents.');
+    while (added.methods.length < 20) state.addSpecificMethod(added);
+    const savesBeforeMethodLimit = saves;
+    state.addSpecificMethod(added);
+    assert.equal(added.methods.length, 20);
+    assert.equal(saves, savesBeforeMethodLimit);
+    while (state.specificMethodGroups.length < 20) state.addSpecificMethodGroup();
+    const savesBeforeGroupLimit = saves;
+    state.addSpecificMethodGroup();
+    assert.equal(state.specificMethodGroups.length, 20);
+    assert.equal(saves, savesBeforeGroupLimit);
+});
+
 test('proposal field and rich text edits invalidate the preview while person searches do not', () => {
     class Form {
         listeners = {};

@@ -1,0 +1,1481 @@
+{
+  "name": "final-2cpu-terminal-scan-browse",
+  "mode": "combined",
+  "started_at": 1793780290.161036,
+  "cgroup": "/system.slice/athena-memory-2g.service",
+  "limits": {
+    "memory.max": "1879048192",
+    "memory.swap.max": "0",
+    "cpu.max": "200000 100000"
+  },
+  "phases": [
+    {
+      "phase": "idle",
+      "seconds": 15.50079337400075,
+      "result": {
+        "ok": true
+      },
+      "resources": {
+        "samples": 58,
+        "peak_mib": 1016.81640625,
+        "peak_anon_mib": 901.34375,
+        "peak_pss_mib": 1154.4501953125,
+        "peak_rss_mib": 1546.09375,
+        "peak_file_mib": 101.6015625,
+        "minimum_mib": 1016.08203125,
+        "last_mib": 1016.3359375,
+        "cpu_usage_seconds": 0.511784,
+        "cpu_throttled_seconds": 0.0,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 23620,
+            "name": "supervisord",
+            "rss_kib": 29016,
+            "pss_kib": 20244,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 23627,
+            "name": "mysqld",
+            "rss_kib": 297104,
+            "pss_kib": 288214,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 23628,
+            "name": "php-fpm8.5",
+            "rss_kib": 38640,
+            "pss_kib": 7737,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 23629,
+            "name": "nginx",
+            "rss_kib": 9600,
+            "pss_kib": 2354,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 23630,
+            "name": "php",
+            "rss_kib": 78344,
+            "pss_kib": 53354,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 23631,
+            "name": "php",
+            "rss_kib": 71560,
+            "pss_kib": 46893,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23632,
+            "name": "php",
+            "rss_kib": 90452,
+            "pss_kib": 65614,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23635,
+            "name": "php",
+            "rss_kib": 79752,
+            "pss_kib": 53721,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 23637,
+            "name": "php",
+            "rss_kib": 72580,
+            "pss_kib": 46496,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 23638,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2200,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 23645,
+            "name": "php-fpm8.5",
+            "rss_kib": 84444,
+            "pss_kib": 37439,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23646,
+            "name": "php-fpm8.5",
+            "rss_kib": 77716,
+            "pss_kib": 29586,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23647,
+            "name": "php-fpm8.5",
+            "rss_kib": 71480,
+            "pss_kib": 24976,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23648,
+            "name": "php-fpm8.5",
+            "rss_kib": 80092,
+            "pss_kib": 34575,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23709,
+            "name": "python3",
+            "rss_kib": 12032,
+            "pss_kib": 7446,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,nam"
+          },
+          {
+            "pid": 23711,
+            "name": "oosplash",
+            "rss_kib": 5352,
+            "pss_kib": 1113,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248"
+          },
+          {
+            "pid": 23732,
+            "name": "soffice.bin",
+            "rss_kib": 479932,
+            "pss_kib": 460191,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4"
+          }
+        ]
+      }
+    },
+    {
+      "phase": "combined",
+      "seconds": 51.69446047499878,
+      "result": {
+        "count": 151,
+        "errors": 0,
+        "p50_seconds": 0.08431326099889702,
+        "p95_seconds": 1.710825019999902,
+        "maximum_seconds": 3.1954658499998914,
+        "statuses": {
+          "200": 151
+        },
+        "requests": [
+          {
+            "status": 200,
+            "seconds": 2.3348520460003783,
+            "bytes": 336495,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.455144208001002,
+            "bytes": 1666871,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.17798356499952206,
+            "bytes": 397623,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 0.447029126000416,
+            "bytes": 1370460,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 0.17602427900055773,
+            "bytes": 342101,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 2.3531131309991906,
+            "bytes": 336495,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.4787391570007458,
+            "bytes": 1666871,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1831494299985934,
+            "bytes": 397623,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 0.42863711300014984,
+            "bytes": 1370460,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 0.17912761199841043,
+            "bytes": 342101,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 2.341836906000026,
+            "bytes": 336495,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.434964175999994,
+            "bytes": 1666871,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.18295856799886678,
+            "bytes": 397623,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 0.4506744529990101,
+            "bytes": 1370460,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1791791600007855,
+            "bytes": 342101,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 2.3484375909993105,
+            "bytes": 336495,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.4183214889999363,
+            "bytes": 1666871,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.20223527500093041,
+            "bytes": 397623,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 0.42958482100038964,
+            "bytes": 1370460,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 0.19013538000035624,
+            "bytes": 342101,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 3.061519777000285,
+            "bytes": 336495,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.710825019999902,
+            "bytes": 1666871,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.20478608000121312,
+            "bytes": 397623,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 0.7447743480006466,
+            "bytes": 1370460,
+            "path_key": "head_projects"
+          },
+          {
+            "status": 200,
+            "seconds": 0.17884058600066055,
+            "bytes": 342101,
+            "path_key": "head_report_reviews"
+          },
+          {
+            "status": 200,
+            "seconds": 3.1954658499998914,
+            "bytes": 336495,
+            "path_key": "head_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 1.8383728669996344,
+            "bytes": 1666871,
+            "path_key": "head_analytics"
+          },
+          {
+            "status": 200,
+            "seconds": 0.18853430099989055,
+            "bytes": 397623,
+            "path_key": "head_proposals"
+          },
+          {
+            "status": 200,
+            "seconds": 0.13316697899972496,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.0656724229993415,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.10528949500076124,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08353222299956542,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.14111120300003677,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.059381723000115016,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08229436700094084,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.09580904700123938,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08444846000020334,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.051162425999791594,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1147306809998554,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.09032125799967616,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.11841454599925783,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05437553000047046,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.12026950799918268,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.10225017000084335,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08950975699917763,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05509296399941377,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08707143900028314,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08472001100017224,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.11382110299928172,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.057378245999643696,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.11576990000139631,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08667092900032003,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1159790379988408,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06573034299981373,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08468146999985038,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08516726000016206,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08532157500121684,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04728930199962633,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08431326099889702,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.11286430400105019,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08681130399963877,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05359693399987009,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.10687716400025238,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1275297550000687,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.0833826220004994,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05373712899927341,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08296015500127396,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08597730600013165,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.15148158600095485,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.18222664300083125,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.2345753000008699,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.15126497900018876,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1309394189993327,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.07080955600031302,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08364075200006482,
+            "bytes": 382625,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.13234272800036706,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.15065285299897369,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06897538799967151,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.09944087300027604,
+            "bytes": 382630,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.13641707700116967,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.15368684100030805,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1495495099989057,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.19375153100008902,
+            "bytes": 382630,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08958641400022316,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.12045010899964836,
+            "bytes": 295106,
+            "path_key": "faculty_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.12149099199996272,
+            "bytes": 282196,
+            "path_key": "faculty_submissions"
+          },
+          {
+            "status": 200,
+            "seconds": 0.08177745299872186,
+            "bytes": 382630,
+            "path_key": "faculty_draft"
+          },
+          {
+            "status": 200,
+            "seconds": 0.0747607089997473,
+            "bytes": 320421,
+            "path_key": "faculty_draft_review"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05560459199841716,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04784307599948079,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.0332779140007915,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05076010199991288,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04869198699998378,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04288082299899543,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.053337403000114136,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04427704299996549,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04344716900050116,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05244103999939398,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.043319976999555365,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04706622999947285,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06327865099956398,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05347818300106155,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.050763588998961495,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06204111599981843,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04639623000002757,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.03770213300049363,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05440794499918411,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.045051118000628776,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.0394594049994339,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.050464238000131445,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.050556666999909794,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05040276600084326,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05464604300141218,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.050942169000336435,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04421705300046597,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05413861899978656,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04459341099936864,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04755870900044101,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05461457999990671,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04639956499886466,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.041651297000498744,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06009744699986186,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05898101200000383,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.0339912950003054,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06461238699921523,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04546385699904931,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05141095699946163,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05270856199967966,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04856164199918567,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.03726150599868561,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06791311300003144,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.06333005799933744,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.10993537099966488,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.07177642100032244,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04518831899986253,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05402366999987862,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.07233605200053717,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04716484100026719,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.042241439999997965,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.1308227320005244,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05191060200013453,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.03945017399928474,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.14861181500054954,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.09886108399950899,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.10559869999997318,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.14974359500047285,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04303233300015563,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.05613075499968545,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          },
+          {
+            "status": 200,
+            "seconds": 0.15828664399850823,
+            "bytes": 270902,
+            "path_key": "coordinator_dashboard"
+          },
+          {
+            "status": 200,
+            "seconds": 0.04486877999988792,
+            "bytes": 57674,
+            "path_key": "quarterly_docx"
+          },
+          {
+            "status": 200,
+            "seconds": 0.03989672400166455,
+            "bytes": 60810,
+            "path_key": "quarterly_print"
+          }
+        ],
+        "heavy": [
+          {
+            "case": "terminal-images-tables",
+            "status": 200,
+            "seconds": 41.94357103599941,
+            "bytes": 922,
+            "result": {
+              "case": "terminal-images-tables",
+              "conversion_seconds": 39.235800118,
+              "source_path": "/app/storage/app/private/capacity-output/terminal-images-tables.docx",
+              "pdf_path": "/app/storage/app/private/capacity-output/terminal-images-tables.pdf",
+              "text_path": "/app/storage/app/private/capacity-output/terminal-images-tables.txt",
+              "pages": 415,
+              "docx_or_xlsx_bytes": 11229338,
+              "pdf_bytes": 15844873,
+              "input_counts": {
+                "images": 12,
+                "image_bytes": 5639834,
+                "accomplishments": 30,
+                "tables": 6,
+                "rows_per_table": 100,
+                "columns_per_table": 6,
+                "serialized_data_bytes": 1341912
+              },
+              "verified_markers": [
+                "ACCOMPLISHMENT30END",
+                "REPORTFIGURE12END",
+                "RESULTSEND",
+                "T6R100C6END",
+                "BIBLIOGRAPHYEND"
+              ],
+              "marker_extraction_fallbacks": {
+                "T6R100C6END": {
+                  "method": "exact_column_text",
+                  "pages": [
+                    398,
+                    399
+                  ],
+                  "crop": [
+                    467,
+                    50,
+                    77,
+                    814
+                  ]
+                }
+              },
+              "source_generation_seconds": 0.311601252,
+              "fixture_and_validation_seconds": 0.43440746,
+              "elapsed_seconds": 41.902085608,
+              "php_peak_mib": 46.87890625
+            },
+            "body_excerpt": null
+          },
+          {
+            "case": "signed-form-scan",
+            "status": 200,
+            "seconds": 6.4753661710001325,
+            "bytes": 292,
+            "result": {
+              "case": "signed-form-scan",
+              "input_bytes": 3997519,
+              "verification": {
+                "status": "matched",
+                "message": "Form and project title matched",
+                "reason": null,
+                "method": "scan_reader"
+              },
+              "prepared_image_bytes": [
+                1692025,
+                1691410
+              ],
+              "external_ai": "never_called",
+              "elapsed_seconds": 6.444108816,
+              "php_peak_mib": 30.83203125
+            },
+            "body_excerpt": null
+          }
+        ]
+      },
+      "resources": {
+        "samples": 193,
+        "peak_mib": 1298.3125,
+        "peak_anon_mib": 1144.19140625,
+        "peak_pss_mib": 1399.271484375,
+        "peak_rss_mib": 1862.22265625,
+        "peak_file_mib": 138.94921875,
+        "minimum_mib": 1000.75390625,
+        "last_mib": 1196.7578125,
+        "cpu_usage_seconds": 81.437537,
+        "cpu_throttled_seconds": 8.994877,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 23620,
+            "name": "supervisord",
+            "rss_kib": 29016,
+            "pss_kib": 19357,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 23627,
+            "name": "mysqld",
+            "rss_kib": 300720,
+            "pss_kib": 292009,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 23628,
+            "name": "php-fpm8.5",
+            "rss_kib": 38640,
+            "pss_kib": 7709,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 23629,
+            "name": "nginx",
+            "rss_kib": 9600,
+            "pss_kib": 2343,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 23630,
+            "name": "php",
+            "rss_kib": 78600,
+            "pss_kib": 53536,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 23631,
+            "name": "php",
+            "rss_kib": 71560,
+            "pss_kib": 46855,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23632,
+            "name": "php",
+            "rss_kib": 90452,
+            "pss_kib": 65568,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23635,
+            "name": "php",
+            "rss_kib": 79752,
+            "pss_kib": 53660,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 23637,
+            "name": "php",
+            "rss_kib": 72580,
+            "pss_kib": 46434,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 23638,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2195,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 23645,
+            "name": "php-fpm8.5",
+            "rss_kib": 100092,
+            "pss_kib": 51425,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23646,
+            "name": "php-fpm8.5",
+            "rss_kib": 69996,
+            "pss_kib": 21272,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23647,
+            "name": "php-fpm8.5",
+            "rss_kib": 68172,
+            "pss_kib": 21116,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23648,
+            "name": "php-fpm8.5",
+            "rss_kib": 88224,
+            "pss_kib": 39568,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23709,
+            "name": "python3",
+            "rss_kib": 12032,
+            "pss_kib": 6692,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,nam"
+          },
+          {
+            "pid": 23711,
+            "name": "oosplash",
+            "rss_kib": 5352,
+            "pss_kib": 1003,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248"
+          },
+          {
+            "pid": 23732,
+            "name": "soffice.bin",
+            "rss_kib": 706716,
+            "pss_kib": 684562,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4"
+          },
+          {
+            "pid": 24175,
+            "name": "python3",
+            "rss_kib": 27080,
+            "pss_kib": 17550,
+            "command": "/usr/bin/python3 /app/scripts/convert-office-pdf.py athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e /app/storage/app/private/pdf-conversions/athena-pdf-abe3e5fd-9590-495c-9015-ec92acf5088b pdf:writer_pdf_Export /app/stor"
+          }
+        ]
+      }
+    },
+    {
+      "phase": "after-idle",
+      "seconds": 15.500636836000922,
+      "result": {
+        "ok": true
+      },
+      "resources": {
+        "samples": 58,
+        "peak_mib": 1197.59765625,
+        "peak_anon_mib": 1050.80078125,
+        "peak_pss_mib": 1305.1953125,
+        "peak_rss_mib": 1702.8515625,
+        "peak_file_mib": 131.5390625,
+        "minimum_mib": 1196.7421875,
+        "last_mib": 1197.3984375,
+        "cpu_usage_seconds": 0.380912,
+        "cpu_throttled_seconds": 0.0,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 23620,
+            "name": "supervisord",
+            "rss_kib": 29016,
+            "pss_kib": 20243,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 23627,
+            "name": "mysqld",
+            "rss_kib": 302436,
+            "pss_kib": 293697,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 23628,
+            "name": "php-fpm8.5",
+            "rss_kib": 38640,
+            "pss_kib": 7743,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 23629,
+            "name": "nginx",
+            "rss_kib": 9600,
+            "pss_kib": 2354,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 23630,
+            "name": "php",
+            "rss_kib": 78728,
+            "pss_kib": 53786,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 23631,
+            "name": "php",
+            "rss_kib": 71560,
+            "pss_kib": 46885,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23632,
+            "name": "php",
+            "rss_kib": 90452,
+            "pss_kib": 65598,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23635,
+            "name": "php",
+            "rss_kib": 79752,
+            "pss_kib": 53690,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 23637,
+            "name": "php",
+            "rss_kib": 72580,
+            "pss_kib": 46464,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 23638,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2200,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 23645,
+            "name": "php-fpm8.5",
+            "rss_kib": 79984,
+            "pss_kib": 31319,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23646,
+            "name": "php-fpm8.5",
+            "rss_kib": 69320,
+            "pss_kib": 20641,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23647,
+            "name": "php-fpm8.5",
+            "rss_kib": 66964,
+            "pss_kib": 19941,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23648,
+            "name": "php-fpm8.5",
+            "rss_kib": 88228,
+            "pss_kib": 39578,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23709,
+            "name": "python3",
+            "rss_kib": 12032,
+            "pss_kib": 7446,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,nam"
+          },
+          {
+            "pid": 23711,
+            "name": "oosplash",
+            "rss_kib": 5352,
+            "pss_kib": 1109,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248"
+          },
+          {
+            "pid": 23732,
+            "name": "soffice.bin",
+            "rss_kib": 643972,
+            "pss_kib": 623826,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4"
+          }
+        ]
+      }
+    }
+  ],
+  "server_config": {
+    "projects": 1000,
+    "php_fpm_children": 4,
+    "php_worker_memory_limit_mib": 256,
+    "mysql_buffer_pool_mib": 128,
+    "pdf_queue_workers": 1,
+    "default_queue_workers": 1,
+    "persistent_libreoffice": true
+  },
+  "reverb_connections": 20,
+  "finished_at": 1793780372.9470243,
+  "reverb_heartbeat_errors": [],
+  "memory_events_end": {
+    "low": 0,
+    "high": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_kill": 0,
+    "oom_group_kill": 0
+  },
+  "cgroup_peak_mib": 1314.4921875
+}

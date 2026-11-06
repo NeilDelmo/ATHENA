@@ -1,0 +1,4 @@
+scripts/libreoffice-worker.py
+tests/Feature/ResearchAssistantProposalFigureTest.php
+tests/Frontend/specific-methods-editor.test.mjs
+tests/Unit/LibreOfficePdfWorkerProcessTest.php

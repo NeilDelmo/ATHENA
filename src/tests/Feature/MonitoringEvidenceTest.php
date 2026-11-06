@@ -6,6 +6,7 @@ use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\MonitoringEvidenceService;
+use App\Services\ResearchAssistantWorkflowContextService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +45,13 @@ beforeEach(function () {
             ['objective' => 'Analyze results', 'activity' => 'Write findings', 'expected_output' => 'Evaluation report', 'months' => [4, 5, 6]],
         ]],
     ]);
+    $this->addTeamMember = function (): User {
+        $member = User::factory()->create();
+        $member->assignRole('faculty_researcher');
+        $this->topic->collaborators()->create(['user_id' => $member->id, 'name' => $member->name, 'email' => $member->email, 'accepted_at' => now()]);
+
+        return $member;
+    };
     $this->payload = fn (array $changes = []): array => array_replace_recursive([
         'progress_mode' => 'evidence', 'draft_version' => 0, 'reporting_date' => '2026-03-31',
         'work_plan' => [['source_work_plan_index' => 0, 'completed_units' => 12, 'actual_accomplishment' => 'Interviewed 12 participants.', 'accomplished_percentage' => 99]],
@@ -366,4 +374,151 @@ test('eleven evidenced activities can reach 100 percent without floating point v
     $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), $payload)
         ->assertSessionHasNoErrors()->assertRedirect();
     expect(ProjectProgressReport::query()->firstOrFail()->progress_percentage)->toBe(100);
+});
+
+test('shared Monitoring Tool drafts expose saved text and evidence to project members', function () {
+    $member = ($this->addTeamMember)();
+    $saved = $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
+        'activity_evidence' => ['plan-0' => [UploadedFile::fake()->image('leader-evidence.png')]],
+    ]))->assertSuccessful();
+    $file = $saved->json('work_plan.0.evidence.0');
+    $page = $this->actingAs($member)->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))->assertSuccessful();
+    expect($page->viewData('monitoringDraft')?->id)->toBe($saved->json('draft_id'));
+    $page->assertSee('Interviewed 12 participants.')->assertSee('leader-evidence.png');
+    $this->get(route('project-progress.evidence', [$this->topic, $file['id']]))->assertSuccessful();
+    $this->getJson(route('project-report-drafts.edit-state', [$this->topic, 'monitoring', '2026-03-31', 0]))
+        ->assertSuccessful()->assertJsonPath('version', 1);
+    expect(ProjectMonitoringDraft::count())->toBe(1);
+});
+
+test('shared Monitoring Tool saves update one team draft and reject a stale teammate', function () {
+    $member = ($this->addTeamMember)();
+    $url = route('project-progress.draft', $this->topic);
+    $first = $this->actingAs($this->researcher)->postJson($url, ($this->payload)([
+        'activity_evidence' => ['plan-0' => [UploadedFile::fake()->image('shared-evidence.png')]],
+    ]))->assertSuccessful();
+    $file = $first->json('work_plan.0.evidence.0');
+    $latest = $this->actingAs($member)->postJson($url, ($this->payload)([
+        'draft_version' => 1, 'draft_id' => $first->json('draft_id'),
+        'work_plan' => [['actual_accomplishment' => 'Team member completed 14 interviews.', 'completed_units' => 14, 'evidence_ids' => [$file['id']]]],
+    ]))->assertSuccessful()->assertJsonPath('draft_version', 2)->assertJsonPath('draft_id', $first->json('draft_id'));
+    $this->actingAs($this->researcher)->postJson($url, ($this->payload)([
+        'draft_version' => 1, 'draft_id' => $first->json('draft_id'),
+        'activity_evidence' => ['plan-0' => [UploadedFile::fake()->image('stale-upload.png', 30, 30)]],
+    ]))->assertUnprocessable()->assertJsonValidationErrors('draft_version');
+    $page = $this->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))->assertSuccessful();
+    expect($page->viewData('monitoringDraft')->id)->toBe($latest->json('draft_id'))
+        ->and(ProjectMonitoringDraft::sole()->source_data['work_plan'][0]['actual_accomplishment'])->toBe('Team member completed 14 interviews.')
+        ->and(Storage::disk('local')->allFiles('progress-reports'))->toBe([$file['path']]);
+});
+
+test('shared Monitoring Tool drafts can be started by a project member', function () {
+    $member = ($this->addTeamMember)();
+    $saved = $this->actingAs($member)->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['tracking_number' => 'Started by member']))->assertSuccessful();
+    $page = $this->actingAs($this->researcher)->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))->assertSuccessful();
+    expect($page->viewData('monitoringDraft')?->id)->toBe($saved->json('draft_id'));
+    $page->assertSee('Started by member');
+    $this->postJson(route('project-progress.draft', $this->topic), ($this->payload)())
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_version');
+    expect(ProjectMonitoringDraft::count())->toBe(1);
+});
+
+test('shared Monitoring Tool drafts stay unavailable to unrelated and removed members', function () {
+    $member = ($this->addTeamMember)();
+    $saved = $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
+        'activity_evidence' => ['plan-0' => [UploadedFile::fake()->image('team-only.png')]],
+    ]))->assertSuccessful();
+    $this->topic->collaborators()->where('user_id', $member->id)->delete();
+    $this->actingAs($member)->get(route('project-progress.create', $this->topic))->assertForbidden();
+    $this->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['draft_version' => 1]))->assertForbidden();
+    $this->get(route('project-progress.evidence', [$this->topic, $saved->json('work_plan.0.evidence.0.id')]))->assertNotFound();
+    expect(ProjectMonitoringDraft::sole()->lock_version)->toBe(1);
+});
+
+test('shared Monitoring Tool revisions reopen the same team draft', function () {
+    $member = ($this->addTeamMember)();
+    $report = $this->topic->progressReports()->create([
+        'submitted_by' => $this->researcher->id, 'reporting_date' => '2026-03-31', 'reporting_year' => 2026,
+        'reporting_quarter' => 1, 'progress_percentage' => 0, 'accomplishments' => 'Submitted original.',
+        'review_status' => 'revision_requested', 'submission_status' => 'submitted',
+    ]);
+    $saved = $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
+        'source_report_id' => $report->id, 'tracking_number' => 'Shared correction',
+    ]))->assertSuccessful();
+    $page = $this->actingAs($member)->get(route('project-progress.create', ['topic' => $this->topic, 'revise_monitoring_report' => $report->id]))->assertSuccessful();
+    expect($page->viewData('monitoringDraft')?->id)->toBe($saved->json('draft_id'));
+    $page->assertSee('Shared correction');
+    $this->getJson(route('project-report-drafts.edit-state', [$this->topic, 'monitoring', '2026-03-31', $report->id]))
+        ->assertSuccessful()->assertJsonPath('version', 1)->assertJsonPath('is_editable', true);
+    expect($report->fresh()->accomplishments)->toBe('Submitted original.');
+});
+
+test('legacy monitoring copies keep their data while the latest becomes the team draft', function () {
+    $member = ($this->addTeamMember)();
+    $older = ProjectMonitoringDraft::create(['topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'source_key' => 'new',
+        'source_data' => ['reporting_date' => '2026-03-31', 'tracking_number' => 'Older leader work'], 'lock_version' => 3, 'updated_at' => now()->subMinute()]);
+    $newer = ProjectMonitoringDraft::create(['topic_id' => $this->topic->id, 'user_id' => $member->id, 'source_key' => 'new',
+        'source_data' => ['reporting_date' => '2026-03-31', 'tracking_number' => 'Latest team work'], 'lock_version' => 2]);
+    $page = $this->actingAs($this->researcher)->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))->assertSuccessful();
+    expect($page->viewData('monitoringDraft')->id)->toBe($newer->id);
+    $this->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['draft_version' => 3, 'draft_id' => $older->id]))
+        ->assertUnprocessable()->assertJsonValidationErrors('draft_version');
+    $this->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
+        'draft_version' => 2, 'draft_id' => $newer->id, 'tracking_number' => 'Continued latest work',
+    ]))->assertSuccessful()->assertJsonPath('draft_id', $newer->id)->assertJsonPath('draft_version', 3);
+    expect(ProjectMonitoringDraft::where('source_key', 'new')->sole()->id)->toBe($newer->id)
+        ->and($older->fresh()->source_data['tracking_number'])->toBe('Older leader work')
+        ->and(ProjectMonitoringDraft::count())->toBe(2);
+});
+
+test('legacy monitoring copies do not reopen after preparing and discarding the shared PDF', function () {
+    $member = ($this->addTeamMember)();
+    $older = ProjectMonitoringDraft::create(['topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'source_key' => 'new',
+        'source_data' => ['reporting_date' => '2026-03-31', 'tracking_number' => 'Preserved older work'], 'lock_version' => 1, 'updated_at' => now()->subMinute()]);
+    $newer = ProjectMonitoringDraft::create(['topic_id' => $this->topic->id, 'user_id' => $member->id, 'source_key' => 'new',
+        'source_data' => ['reporting_date' => '2026-03-31', 'tracking_number' => 'Latest work'], 'lock_version' => 2]);
+    $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->payload)([
+        'draft_version' => 2, 'draft_id' => $newer->id,
+    ]))->assertSessionHasNoErrors();
+    $prepared = ProjectProgressReport::sole();
+    expect(ProjectMonitoringDraft::where('source_key', 'new')->count())->toBe(0)
+        ->and($older->fresh()->source_data['tracking_number'])->toBe('Preserved older work');
+    $this->delete(route('project-progress.discard-prepared', [$this->topic, $prepared]))->assertSessionHasNoErrors();
+    $page = $this->actingAs($member)->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))->assertSuccessful();
+    expect($page->viewData('monitoringDraft')?->id)->toBe(ProjectMonitoringDraft::where('source_key', 'new')->sole()->id)
+        ->and($older->fresh()->source_data['tracking_number'])->toBe('Preserved older work');
+});
+
+test('shared Monitoring Tool context is visible to members and withheld from reviewers', function () {
+    $member = ($this->addTeamMember)();
+    $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)(['tracking_number' => 'TEAM-SAVED-DRAFT-714']))->assertSuccessful();
+    ProjectMonitoringDraft::create(['topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'source_key' => 'archived:fixture:new',
+        'source_data' => ['tracking_number' => 'OLDER-ARCHIVED-DRAFT-713'], 'lock_version' => 1]);
+    $service = app(ResearchAssistantWorkflowContextService::class);
+    $this->actingAs($member)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+    expect($service->promptContext($member, $this->topic, ['workflow_scope' => 'monitoring'], 'What is in the saved Monitoring Tool?'))
+        ->toContain('TEAM-SAVED-DRAFT-714')->not->toContain('OLDER-ARCHIVED-DRAFT-713');
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    expect($service->promptContext($this->head, $this->topic, ['workflow_scope' => 'monitoring'], 'What is in the saved Monitoring Tool?'))
+        ->not->toContain('TEAM-SAVED-DRAFT-714', 'OLDER-ARCHIVED-DRAFT-713');
+});
+
+test('shared Monitoring Tool preparation protects a save by another project member', function () {
+    $member = ($this->addTeamMember)();
+    $saved = $this->actingAs($this->researcher)->postJson(route('project-progress.draft', $this->topic), ($this->payload)())->assertSuccessful();
+    $draftId = $saved->json('draft_id');
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()
+        ->andReturnUsing(function (string $contents) use ($member, $draftId): string {
+            $this->actingAs($member)->postJson(route('project-progress.draft', $this->topic), ($this->payload)([
+                'draft_version' => 1, 'draft_id' => $draftId, 'tracking_number' => 'Member saved while PDF was converting',
+            ]))->assertSuccessful()->assertJsonPath('draft_version', 2);
+
+            return '%PDF-1.4 stale team preview';
+        });
+    $this->post(route('project-progress.prepare', $this->topic), ($this->payload)(['draft_version' => 1, 'draft_id' => $draftId]))
+        ->assertSessionHasErrors('draft_version');
+    expect(ProjectMonitoringDraft::sole()->source_data['tracking_number'])->toBe('Member saved while PDF was converting')
+        ->and(ProjectMonitoringDraft::sole()->lock_version)->toBe(2)
+        ->and(ProjectProgressReport::count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('progress-reports/'.$this->topic->id.'/prepared'))->toBe([]);
 });

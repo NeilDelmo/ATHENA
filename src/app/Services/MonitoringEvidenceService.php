@@ -285,7 +285,7 @@ class MonitoringEvidenceService
             return $request->attributes->get('monitoring_evidence_rows');
         }
         $source = $request->integer('source_report_id') > 0 ? $topic->progressReports()->whereKey($request->integer('source_report_id'))->where('review_status', 'revision_requested')->first() : null;
-        $draft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->forSource($source)->first();
+        $draft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->forSource($source)->first();
         $rows = [];
         $savedDate = data_get($draft?->source_data, 'reporting_date');
         $date = $request->input('reporting_date');

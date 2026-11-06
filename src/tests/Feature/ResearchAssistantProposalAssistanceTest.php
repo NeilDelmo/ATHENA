@@ -3,6 +3,8 @@
 use App\Models\ProposalDraft;
 use App\Models\ResearchAssistantConversation;
 use App\Models\ResearchCall;
+use App\Models\ResearchCategory;
+use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ResearchAssistantProposalAssistanceService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -315,17 +317,126 @@ test('chat routes explicit and plain proposal change requests through the existi
     expect($this->document->fresh()->source_data['rationale'])->toBe('<p>Assess community monitoring needs.</p>');
 })->with([true, false]);
 
-test('normal proposal questions send deterministic saved literature coverage with a separate manual citation namespace', function () {
-    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['choices' => [['message' => ['content' => 'The saved RRL is empty. The manual requires ten reviewed studies [Manual requirement 1].']]], 'model' => 'fixture-model'])]);
+test('RRL count questions use the saved study check for both the reply and card', function (string $question) {
     $response = $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
-        'messages' => [['role' => 'user', 'content' => 'How many RRL does my proposal have?']], 'context' => ['proposal_draft_id' => $this->draft->id],
+        'messages' => [['role' => 'user', 'content' => $question]], 'context' => ['proposal_draft_id' => $this->draft->id],
     ])->assertSuccessful()->assertJsonPath('proposal_changes.assessment.rrl.count', 0)
         ->assertJsonPath('proposal_changes.assessment.rrl.minimum', 10)
         ->assertJsonCount(0, 'proposal_changes.suggestions');
     expect(collect($response->json('sources'))->pluck('reference')->all())->toContain('Manual requirement 1');
-    Http::assertSent(fn ($request): bool => str_contains(json_encode($request['messages']), 'count_status')
-        && str_contains(json_encode($request['messages']), 'Manual requirement 1')
-        && str_contains(json_encode($request['messages']), 'quality_verified'));
+    expect($response->json('reply'))->toBe($response->json('proposal_changes.assessment.rrl.study_check.summary'));
+    Http::assertNothingSent();
+})->with(['How many RRL does my proposal have?', 'Does my RRL meet the requirements?', 'How many studies did I cite in Section XI?', 'Do I need more studies in my literature review?']);
+
+test('RRL length questions still reach general guidance', function () {
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['choices' => [['message' => ['content' => 'The form specifies a study minimum.']]], 'model' => 'fixture-model'])]);
+    $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [['role' => 'user', 'content' => 'How many pages should my RRL be?']],
+        'context' => ['proposal_draft_id' => $this->draft->id],
+    ])->assertSuccessful()->assertJsonPath('model', 'fixture-model')
+        ->assertJsonMissingPath('proposal_changes.assessment.rrl.study_check');
+});
+
+test('the saved RRL check resolves manual citations without double counting or treating the bibliography as reviewed', function () {
+    $linked = $this->draft->literatureSources()->create([
+        'fingerprint' => hash('sha256', 'santos'), 'title' => 'Feedback in games', 'doi' => '10.1234/feedback', 'provider' => 'fixture',
+    ]);
+    $references = '<p data-proposal-managed-reference="'.$linked->id.'">[1] A. Santos, “Feedback in games,” 2023. https://doi.org/10.1234/feedback</p>'
+        .'<p>Santos, A. (2023). Feedback in games. https://doi.org/10.1234/feedback</p>';
+    $rrl = '<p>Santos (2023) reported that faster feedback improved student engagement.</p>'
+        .'<p>Game feedback reduced task abandonment among students.<span data-proposal-citation="'.$linked->id.'">[1]</span></p>';
+    foreach (range(2, 8) as $number) {
+        $references .= '<p>['.$number.'] Study '.$number.'.</p>';
+        $rrl .= '<p>Formative feedback increased completion rates among first-year students ['.$number.'].</p>';
+    }
+    $references .= '<p>Cruz, J. (2024). Classroom trials.</p><p>Cruz, J. (2024). Pilot trials.</p>'
+        .'<p>[9] Review-only citation.</p><p>[10] Bibliography-only citation.</p>';
+    $rrl .= '<p>Cruz (2024) found that feedback improved students’ confidence.</p><p>[9]</p><p>Reyes (2024) measured changes in student performance.</p>';
+    $before = ['introduction' => '', 'related_literature' => $rrl, 'references' => $references];
+    $this->document->update(['source_data' => $before]);
+
+    $message = ['role' => 'user', 'content' => 'In this project, is my RRL enough or do I need a certain amount before I submit it?'];
+    $context = ['proposal_draft_id' => $this->draft->id];
+    $response = $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [$message], 'context' => $context,
+    ])->assertSuccessful()->assertJsonPath('proposal_changes.assessment.rrl.known_count', 8)
+        ->assertJsonPath('proposal_changes.assessment.rrl.minimum_satisfied', null)
+        ->assertJsonPath('proposal_changes.assessment.rrl.shortfall', null);
+
+    $check = $response->json('proposal_changes.assessment.rrl.study_check');
+    expect($response->json('reply'))->toBe($check['summary'])->toContain('8 distinct studies', '3 citations to review');
+    $entries = collect($check['entries'])->groupBy('status');
+    expect($entries['supported'])->toHaveCount(8)
+        ->and($entries['needs_review'])->toHaveCount(3)
+        ->and($entries['references_only']->pluck('label')->all())->toContain('[10] Bibliography-only citation.')
+        ->and($entries['supported']->pluck('excerpt')->all())->toContain('Santos (2023) reported that faster feedback improved student engagement.');
+
+    $this->postJson(route('research-support.history.save'), [
+        'context' => $context, 'messages' => [$message, ['role' => 'assistant', 'content' => $response->json('reply'),
+            'proposal_changes' => $response->json('proposal_changes')]],
+    ])->assertSuccessful();
+    $saved = ResearchAssistantConversation::query()->where('user_id', $this->faculty->id)->latest('id')->firstOrFail();
+    expect($saved->messages[1]['proposal_changes']['assessment']['rrl']['study_check'])->toEqual($check)
+        ->and($this->document->fresh()->source_data)->toEqual($before);
+
+    $this->document->update(['source_data' => [...$before,
+        'related_literature' => $rrl.'<p>A classroom trial found that immediate feedback improved exam scores [9].</p>'
+            .'<p>An independent evaluation reported longer retention after feedback [10].</p>']]);
+    $this->postJson(route('research-support.chat'), [
+        'messages' => [$message], 'context' => $context, 'action' => ['type' => 'check_rrl'],
+    ])->assertSuccessful()->assertJsonPath('proposal_changes.assessment.rrl.known_count', 10)
+        ->assertJsonPath('proposal_changes.assessment.rrl.minimum_satisfied', true);
+
+    Http::assertNothingSent();
+});
+
+test('the RRL check flags conflicting citation numbers and protects saved draft evidence', function () {
+    $this->document->update(['source_data' => [
+        'related_literature' => '<p>Earlier trials reported an improvement in completion [1].</p>',
+        'references' => '<p>[1] Classroom trial.</p><p>[1] Follow-up trial.</p>',
+    ]]);
+    $payload = [
+        'messages' => [['role' => 'user', 'content' => 'Check my saved RRL.']],
+        'context' => ['proposal_draft_id' => $this->draft->id], 'action' => ['type' => 'check_rrl'],
+    ];
+    $this->actingAs($this->faculty)->postJson(route('research-support.chat'), $payload)->assertSuccessful()
+        ->assertJsonPath('proposal_changes.assessment.rrl.known_count', 0)
+        ->assertJsonPath('proposal_changes.assessment.rrl.study_check.entries.0.status', 'needs_review')
+        ->assertJsonPath('proposal_changes.assessment.rrl.study_check.entries.0.reason', 'More than one reference matches.');
+    $unrelated = TopicProposal::create([
+        'user_id' => $this->faculty->id, 'research_category_id' => ResearchCategory::create(['name' => 'Unrelated research'])->id,
+        'title' => 'Other project', 'description' => 'Unrelated to this draft.',
+        'estimated_budget' => 12000, 'estimated_duration_months' => 6, 'status' => 'pending',
+    ]);
+    $this->postJson(route('research-support.chat'), [...$payload, 'context' => [...$payload['context'], 'topic_id' => $unrelated->id]])
+        ->assertUnprocessable();
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty');
+    $this->actingAs($outsider)->postJson(route('research-support.chat'), $payload)->assertForbidden();
+    Http::assertNothingSent();
+});
+
+test('the RRL check merges bibliography variants and distinguishes planned work from prior findings', function () {
+    $this->document->update(['source_data' => [
+        'related_literature' => '<p>The trial reported that timely feedback improved retention [1].</p>'
+            .'<p>Immediate feedback reduced student absences in the same trial [2].</p>'
+            .'<p>Our proposed method will test whether feedback improved retention [3].</p>'
+            .'<p>A separate study found no significant change in &lt;ATP&gt; levels [4, p. 3].</p>'
+            .'<p>Prior trials reported improved completion (Daniels, 2020, 2021).</p>',
+        'references' => '<p>[1] Santos, A. (2023). Feedback in games. Journal A.</p>'
+            .'<p>[2] Santos, A. (2023). Feedback in games. Journal A, 2(1), 1–9.</p>'
+            .'<p>[3] Cruz, A. (2024). Classroom feedback. Journal B.</p>'
+            .'<ol start="4"><li>Reyes, A. (2024). Classroom attendance. Journal B.</li></ol>'
+            .'<p>Daniels, A. (2020). Early trial. Journal C.</p><p>Daniels, A. (2021). Later trial. Journal C.</p>',
+    ]]);
+    $this->actingAs($this->faculty)->postJson(route('research-support.chat'), [
+        'messages' => [['role' => 'user', 'content' => 'Check my saved RRL.']],
+        'context' => ['proposal_draft_id' => $this->draft->id], 'action' => ['type' => 'check_rrl'],
+    ])->assertSuccessful()->assertJsonPath('proposal_changes.assessment.rrl.known_count', 2)
+        ->assertJsonCount(5, 'proposal_changes.assessment.rrl.study_check.entries')
+        ->assertJsonPath('proposal_changes.assessment.rrl.study_check.entries.0.status', 'needs_review')
+        ->assertJsonPath('proposal_changes.assessment.rrl.study_check.entries.0.excerpt', 'Our proposed method will test whether feedback improved retention [3].')
+        ->assertJsonPath('proposal_changes.assessment.rrl.study_check.entries.4.excerpt', 'A separate study found no significant change in <ATP> levels [4, p. 3].');
 });
 
 test('resolve endpoint rejects a stale document expired token foreign draft and unauthorized account', function () {

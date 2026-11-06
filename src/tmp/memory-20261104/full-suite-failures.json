@@ -1,0 +1,764 @@
+[
+  {
+    "class": "Tests.Unit.AssistantActionIconTest",
+    "name": "AI assistance actions display the chatbot icon with data set \"dataset \"chat literature assistance\"\"",
+    "file": "tests/Unit/AssistantActionIconTest.php",
+    "message": "AI assistance actions display the chatbot icon with data set \"dataset \"chat literature assistance\"\"Failed asserting that actual size 0 matches expected size 1.\nat tests/Unit/AssistantActionIconTest.php:47"
+  },
+  {
+    "class": "Tests.Unit.FaviconTest",
+    "name": "every HTML page head renders the ATHENA icon with the application base path",
+    "file": "tests/Unit/FaviconTest.php",
+    "message": "every HTML page head renders the ATHENA icon with the application base pathIlluminate\\View\\ViewException: Undefined variable $year (View: /app/storage/framework/views/2a637c5e7c80312c4ed5012958b95ab5.blade.php)\nat vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:258\nat storage/framework/views/9d0795b267c2280489d3a97ac861ee92.php:4\nat vendor/laravel/framework/src/Illuminate/Filesystem/Filesystem.php:123\nat vendor/laravel/framework/src/Illuminate/Filesystem/Filesystem.php:124\nat vendor/laravel/framework/src/Illuminate/View/Engines/PhpEngine.php:57\nat vendor/livewire/livewire/src/Mechanisms/ExtendBlade/ExtendedCompilerEngine.php:22\nat vendor/laravel/framework/sr"
+  },
+  {
+    "class": "Tests.Unit.ProposalWritingToolbarViewTest",
+    "name": "every editable proposal paper has the same accessible close and reopen tools with data set \"('detailed-proposal')\"",
+    "file": "tests/Unit/ProposalWritingToolbarViewTest.php",
+    "message": "every editable proposal paper has the same accessible close and reopen tools with data set \"('detailed-proposal')\"Failed asserting that 0 is identical to 1.\nat tests/Unit/ProposalWritingToolbarViewTest.php:14"
+  },
+  {
+    "class": "Tests.Unit.ProposalWritingToolbarViewTest",
+    "name": "detailed proposal tools group secondary actions into labelled menus",
+    "file": "tests/Unit/ProposalWritingToolbarViewTest.php",
+    "message": "detailed proposal tools group secondary actions into labelled menusFailed asserting that 2 is identical to 3.\nat tests/Unit/ProposalWritingToolbarViewTest.php:25"
+  },
+  {
+    "class": "Tests.Unit.ResearchHeadLifecycleNavigationTest",
+    "name": "Research Head sidebar separates lifecycle destinations and exposes a report review badge",
+    "file": "tests/Unit/ResearchHeadLifecycleNavigationTest.php",
+    "message": "Research Head sidebar separates lifecycle destinations and exposes a report review badgeExpecting false not to be false .\nat tests/Unit/ResearchHeadLifecycleNavigationTest.php:17"
+  },
+  {
+    "class": "Tests.Unit.ResearchHeadOverviewLayoutTest",
+    "name": "Research Head overview shows truthful priority counts and scoped reporting links with data set \"(true)\"",
+    "file": "tests/Unit/ResearchHeadOverviewLayoutTest.php",
+    "message": "Research Head overview shows truthful priority counts and scoped reporting links with data set \"(true)\"Symfony\\Component\\HttpKernel\\Exception\\HttpException\nat vendor/laravel/framework/src/Illuminate/Foundation/Application.php:1440\nat vendor/laravel/framework/src/Illuminate/Foundation/helpers.php:67\nat vendor/laravel/framework/src/Illuminate/Foundation/helpers.php:104\nat app/Livewire/ResearchTargetBoard.php:32\nat vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php:36\nat vendor/laravel/framework/src/Illuminate/Container/Util.php:43\nat vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php:96\nat vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php:35\nat ven"
+  },
+  {
+    "class": "Tests.Unit.ResearchHeadOverviewLayoutTest",
+    "name": "Research Head overview shows truthful priority counts and scoped reporting links with data set \"(false)\"",
+    "file": "tests/Unit/ResearchHeadOverviewLayoutTest.php",
+    "message": "Research Head overview shows truthful priority counts and scoped reporting links with data set \"(false)\"Symfony\\Component\\HttpKernel\\Exception\\HttpException\nat vendor/laravel/framework/src/Illuminate/Foundation/Application.php:1440\nat vendor/laravel/framework/src/Illuminate/Foundation/helpers.php:67\nat vendor/laravel/framework/src/Illuminate/Foundation/helpers.php:104\nat app/Livewire/ResearchTargetBoard.php:32\nat vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php:36\nat vendor/laravel/framework/src/Illuminate/Container/Util.php:43\nat vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php:96\nat vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php:35\nat ve"
+  },
+  {
+    "class": "Tests.Unit.ResearchHeadReportQueueTest",
+    "name": "report queue excludes drafts, unissued projects and superseded submitted versions",
+    "file": "tests/Unit/ResearchHeadReportQueueTest.php",
+    "message": "report queue excludes drafts, unissued projects and superseded submitted versionsIlluminate\\Database\\QueryException: SQLSTATE[HY000]: General error: 1 no such column: project_narrative_reports.forwarded_at (Connection: report_queue_test, Database: :memory:, SQL: select count(*) as \"aggregate\" from (select * from (select project_progress_reports.id, topics.id as topic_id, topics.title, users.name as faculty_name, 'quarterly' as report_type, project_progress_reports.review_status, COALESCE(project_progress_reports.forwarded_at, project_progress_reports.submitted_at, project_progress_reports.created_at) as received_at, project_progress_reports.reporting_date as report_date from \"project_progres"
+  },
+  {
+    "class": "Tests.Unit.ResearchHeadReportQueueTest",
+    "name": "report queue filters status and faculty or project search before paginating",
+    "file": "tests/Unit/ResearchHeadReportQueueTest.php",
+    "message": "report queue filters status and faculty or project search before paginatingIlluminate\\Database\\QueryException: SQLSTATE[HY000]: General error: 1 no such column: project_narrative_reports.forwarded_at (Connection: report_queue_test, Database: :memory:, SQL: select count(*) as \"aggregate\" from (select * from (select project_progress_reports.id, topics.id as topic_id, topics.title, users.name as faculty_name, 'quarterly' as report_type, project_progress_reports.review_status, COALESCE(project_progress_reports.forwarded_at, project_progress_reports.submitted_at, project_progress_reports.created_at) as received_at, project_progress_reports.reporting_date as report_date from \"project_progress_repo"
+  },
+  {
+    "class": "Tests.Unit.RevisionWorkspaceViewTest",
+    "name": "requested documents keep the editor between the paper reference and collapsible feedback panel",
+    "file": "tests/Unit/RevisionWorkspaceViewTest.php",
+    "message": "requested documents keep the editor between the paper reference and collapsible feedback panelFailed asserting that '<form\\r\\n\n    id=\"submit-revision\"\\r\\n\n    action=\"http://localhost/faculty/topics/3/resubmit\"\\r\\n\n    method=\"POST\"\\r\\n\n    enctype=\"multipart/form-data\"\\r\\n\n    novalidate\\r\\n\n    aria-labelledby=\"faculty-revision-heading\"\\r\\n\n    data-faculty-revision-required\\r\\n\n    data-revision-workspace=\"3\"\\r\\n\n    data-assistant-report-type=\"comment-response\"\\r\\n\n    data-assistant-report-key=\"comment-response:topic:3\"\\r\\n\n    data-revision-start-step=\"1\"\\r\\n\n    data-confirm-title=\"Submit this revision to the Research Head?\"\\r\\n\n    data-confirm-text=\"Edited papers will generate PDFs"
+  },
+  {
+    "class": "Tests.Feature.AccessibleRecordSearchTest",
+    "name": "search requires authentication and validates bounded input without exposing records on an empty query",
+    "file": "tests/Feature/AccessibleRecordSearchTest.php",
+    "message": "search requires authentication and validates bounded input without exposing records on an empty queryHeader [Cache-Control] was found, but value [max-age=0, must-revalidate, no-cache, no-store, private] does not match [no-store, private].\nFailed asserting that two strings are equal.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:378\nat tests/Feature/AccessibleRecordSearchTest.php:81"
+  },
+  {
+    "class": "Tests.Feature.AssessmentFormVerificationTest",
+    "name": "assessment PDF and official DOCX uploads are checked and retain their review data with data set \"('gad_checklist') / ('pdf')\"",
+    "file": "tests/Feature/AssessmentFormVerificationTest.php",
+    "message": "assessment PDF and official DOCX uploads are checked and retain their review data with data set \"('gad_checklist') / ('pdf')\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"znJkyf2SOSgrzLZWFw9ETwF41HvSeMz7KwN2swnN\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const lega"
+  },
+  {
+    "class": "Tests.Feature.AssessmentFormVerificationTest",
+    "name": "assessment PDF and official DOCX uploads are checked and retain their review data with data set \"('gad_checklist') / ('docx')\"",
+    "file": "tests/Feature/AssessmentFormVerificationTest.php",
+    "message": "assessment PDF and official DOCX uploads are checked and retain their review data with data set \"('gad_checklist') / ('docx')\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"F6A4ZbT14daM4GMRBg0EbguKb51WKcnN8kcHkgAy\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const leg"
+  },
+  {
+    "class": "Tests.Feature.AssessmentFormVerificationTest",
+    "name": "a recognized GAD checklist can be uploaded when its title does not match exactly with data set \"dataset \"Minor wording change\"\"",
+    "file": "tests/Feature/AssessmentFormVerificationTest.php",
+    "message": "a recognized GAD checklist can be uploaded when its title does not match exactly with data set \"dataset \"Minor wording change\"\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"eTiTIDZKbjb6NvFemyF4KkcX9lPqi3UFXnCCUgXY\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const le"
+  },
+  {
+    "class": "Tests.Feature.AssessmentFormVerificationTest",
+    "name": "a recognized GAD checklist can be uploaded when its title does not match exactly with data set \"dataset \"OCR title error\"\"",
+    "file": "tests/Feature/AssessmentFormVerificationTest.php",
+    "message": "a recognized GAD checklist can be uploaded when its title does not match exactly with data set \"dataset \"OCR title error\"\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"gNygcVUJApFRfiTrX7OKHxgfn3uL2j469KcBDbBe\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyK"
+  },
+  {
+    "class": "Tests.Feature.AssessmentFormVerificationTest",
+    "name": "a recognized GAD checklist can be uploaded when its title does not match exactly with data set \"dataset \"Unrecognized title field\"\"",
+    "file": "tests/Feature/AssessmentFormVerificationTest.php",
+    "message": "a recognized GAD checklist can be uploaded when its title does not match exactly with data set \"dataset \"Unrecognized title field\"\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"6IO1HwY0HBWMBBbNLuGcG48ttPPJw0B1sDxCic5v\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        cons"
+  },
+  {
+    "class": "Tests.Feature.AssessmentFormVerificationTest",
+    "name": "unclear assessment scans require an explicit audited form check with data set \"('gad_checklist')\"",
+    "file": "tests/Feature/AssessmentFormVerificationTest.php",
+    "message": "unclear assessment scans require an explicit audited form check with data set \"('gad_checklist')\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"i721wvm5UZFuxhsJUbtUfsZmPbixd3CwJnVTVdQa\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme"
+  },
+  {
+    "class": "Tests.Feature.DashboardPrioritiesTest",
+    "name": "research head overview keeps reporting behind analytics links and exposes proposal review actions",
+    "file": "tests/Feature/DashboardPrioritiesTest.php",
+    "message": "research head overview keeps reporting behind analytics links and exposes proposal review actionsFailed asserting that '<div wire:key=\"lw-116193310-0\" wire:snapshot=\"\" wire:effects=\"\" wire:id=\"6FMtLvCpTYmh3ZZkhhve\" wire:name=\"research-head-dashboard\" class=\"space-y-5 text-slate-900 dark:text-slate-100\" data-research-head-overview>\\r\\n\n    \\r\\n\n    <section class=\"grid grid-cols-2 gap-3 md:grid-cols-4\" aria-label=\"Priority summary\" data-dashboard-priority-kpis>\\r\\n\n        <a href=\"#received-proposals\" wire:click=\"showReviewQueue\" class=\"flex flex-col items-start justify-between gap-4 rounded-xl bg-brand px-5 py-5 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-"
+  },
+  {
+    "class": "Tests.Feature.DashboardPrioritiesTest",
+    "name": "release queues do not present proposal creation as an unrecorded clearance date with data set \"('research_coordinator', 'research_office', 'research_coordinator.dashboard')\"",
+    "file": "tests/Feature/DashboardPrioritiesTest.php",
+    "message": "release queues do not present proposal creation as an unrecorded clearance date with data set \"('research_coordinator', 'research_office', 'research_coordinator.dashboard')\"Failed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"WVnOLj6iHhW3wTGFmb6XS1zBJu02U2uBgq69mZTm\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const s"
+  },
+  {
+    "class": "Tests.Feature.DashboardRoutingTest",
+    "name": "the faculty dashboard prioritizes revisions and links to dedicated submissions",
+    "file": "tests/Feature/DashboardRoutingTest.php",
+    "message": "the faculty dashboard prioritizes revisions and links to dedicated submissionsFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"OUqCIZVCJFd1tD3zjNnQKliLg7amsofiBxGobdW0\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];\\n\n\\n\n "
+  },
+  {
+    "class": "Tests.Feature.FacultyProjectCapacityTest",
+    "name": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"one project limit\"\"",
+    "file": "tests/Feature/FacultyProjectCapacityTest.php",
+    "message": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"one project limit\"\"Session is missing expected key [errors].\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1582\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1693\nat tests/Feature/FacultyProjectCapacityTest.php:223"
+  },
+  {
+    "class": "Tests.Feature.FacultyProjectCapacityTest",
+    "name": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"two project limit\"\"",
+    "file": "tests/Feature/FacultyProjectCapacityTest.php",
+    "message": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"two project limit\"\"Session is missing expected key [errors].\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1582\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1693\nat tests/Feature/FacultyProjectCapacityTest.php:223"
+  },
+  {
+    "class": "Tests.Feature.FacultyProjectCapacityTest",
+    "name": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"demo bypasses one project limit\"\"",
+    "file": "tests/Feature/FacultyProjectCapacityTest.php",
+    "message": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"demo bypasses one project limit\"\"Failed asserting that two strings are identical.\nat tests/Feature/FacultyProjectCapacityTest.php:230"
+  },
+  {
+    "class": "Tests.Feature.FacultyProjectCapacityTest",
+    "name": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"demo bypasses two project limit\"\"",
+    "file": "tests/Feature/FacultyProjectCapacityTest.php",
+    "message": "signed notice release enforces collaborator capacity only when enabled with data set \"dataset \"demo bypasses two project limit\"\"Failed asserting that two strings are identical.\nat tests/Feature/FacultyProjectCapacityTest.php:230"
+  },
+  {
+    "class": "Tests.Feature.FacultyResearcherWorkspaceTest",
+    "name": "faculty researcher workspace cannot access faculty proposal or research call functionality",
+    "file": "tests/Feature/FacultyResearcherWorkspaceTest.php",
+    "message": "faculty researcher workspace cannot access faculty proposal or research call functionalityExpected response status code [403] but received 200.\nFailed asserting that 200 is identical to 403.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:141\nat tests/Feature/FacultyResearcherWorkspaceTest.php:65"
+  },
+  {
+    "class": "Tests.Feature.FixedBackLinkTest",
+    "name": "faculty proposal pages consistently opt into the fixed back link",
+    "file": "tests/Feature/FixedBackLinkTest.php",
+    "message": "faculty proposal pages consistently opt into the fixed back linkFailed asserting that '<x-back-link href=\"{{ route('faculty.proposal-drafts.index') }}\">' [ASCII](length: 65) contains \" fixed \" [ASCII](length: 7).\nat tests/Feature/FixedBackLinkTest.php:21"
+  },
+  {
+    "class": "Tests.Feature.FixedBackLinkTest",
+    "name": "all fixed page actions share the audited components and retain their interaction hooks",
+    "file": "tests/Feature/FixedBackLinkTest.php",
+    "message": "all fixed page actions share the audited components and retain their interaction hooksFailed asserting that two arrays are identical.\nat tests/Feature/FixedBackLinkTest.php:50"
+  },
+  {
+    "class": "Tests.Feature.LineItemBudgetBuilderTest",
+    "name": "the line item budget saves optional structured inputs and resumes them",
+    "file": "tests/Feature/LineItemBudgetBuilderTest.php",
+    "message": "the line item budget saves optional structured inputs and resumes themFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"wXKu3zC1DLhPJE5elWUdwAzs0Fh9gCUvrqtaNdUf\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];\\n\n\\n\n        c"
+  },
+  {
+    "class": "Tests.Feature.LineItemBudgetBuilderTest",
+    "name": "the line-item budget uses short profile defaults and omits an empty project staff row",
+    "file": "tests/Feature/LineItemBudgetBuilderTest.php",
+    "message": "the line-item budget uses short profile defaults and omits an empty project staff rowFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"hmFo5OSmBOzvKM7MyCegHKKpIed5h1BYOI75ZaKP\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];"
+  },
+  {
+    "class": "Tests.Feature.LineItemBudgetBuilderTest",
+    "name": "matching over-budget papers show a shared warning and both need attention",
+    "file": "tests/Feature/LineItemBudgetBuilderTest.php",
+    "message": "matching over-budget papers show a shared warning and both need attentionFailed asserting that '<!DOCTYPE html>\n<html lang=\"en\">\n    <head>\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\n        <meta charset=\"utf-8\">\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n        <meta name=\"csrf-token\" content=\"H9PlzG8e7rEB2fGX2kPsMsuQV3UeeY5tMtYi8tGN\">\n        <meta name=\"app-url\" content=\"http://localhost\">\n\n        <title>AthenaCapacity</title>\n\n        <script>\n    (() => {\n        const storageKey = 'athena-theme';\n        const legacyKeys = ['athena-auth-theme', 'theme'];\n\n        const storedTheme = (() => {\n "
+  },
+  {
+    "class": "Tests.Feature.MonitoringReportIntegrityTest",
+    "name": "terminal review notifications identify the Terminal Report with data set \"('reviewed')\"",
+    "file": "tests/Feature/MonitoringReportIntegrityTest.php",
+    "message": "terminal review notifications identify the Terminal Report with data set \"('reviewed')\"The expected [App\\Notifications\\ProposalActivityNotification] notification was not sent.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Support/Testing/Fakes/NotificationFake.php:89\nat vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php:363\nat tests/Feature/MonitoringReportIntegrityTest.php:211"
+  },
+  {
+    "class": "Tests.Feature.MonitoringReportIntegrityTest",
+    "name": "terminal review notifications identify the Terminal Report with data set \"('revision_requested')\"",
+    "file": "tests/Feature/MonitoringReportIntegrityTest.php",
+    "message": "terminal review notifications identify the Terminal Report with data set \"('revision_requested')\"The expected [App\\Notifications\\ProposalActivityNotification] notification was not sent.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Support/Testing/Fakes/NotificationFake.php:89\nat vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php:363\nat tests/Feature/MonitoringReportIntegrityTest.php:211"
+  },
+  {
+    "class": "Tests.Feature.MultiRoleProfileAutoDetectTest",
+    "name": "issuing a Notice to Proceed promotes a faculty researcher without duplicating identity data",
+    "file": "tests/Feature/MultiRoleProfileAutoDetectTest.php",
+    "message": "issuing a Notice to Proceed promotes a faculty researcher without duplicating identity dataExpected response status code [201, 301, 302, 303, 307, 308] but received 403.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:201\nat tests/Feature/MultiRoleProfileAutoDetectTest.php:177"
+  },
+  {
+    "class": "Tests.Feature.PageHeaderViewTest",
+    "name": "page header standardizes workspace title subtitle and responsive actions",
+    "file": "tests/Feature/PageHeaderViewTest.php",
+    "message": "page header standardizes workspace title subtitle and responsive actionsFailed asserting that '<div data-page-header-variant=\"simple\" class=\"flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between\">\\n\n        <div class=\"min-w-0 sm:min-w-[min(100%,16rem)] sm:flex-1\">\\n\n            <h1 class=\"text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-white\">Research Calls</h1>\\n\n\\n\n                            <p class=\"mt-1 text-base leading-6 text-slate-500 dark:text-slate-400\">Manage published schedules.</p>\\n\n                    </div>\\n\n\\n\n                    <div class=\"flex w-full max-w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap s"
+  },
+  {
+    "class": "Tests.Feature.PageHeaderViewTest",
+    "name": "every workspace dashboard renders the reference hero style beneath the untouched topbar with data set \"dataset \"Faculty\"\"",
+    "file": "tests/Feature/PageHeaderViewTest.php",
+    "message": "every workspace dashboard renders the reference hero style beneath the untouched topbar with data set \"dataset \"Faculty\"\"Failed asserting that 0 is identical to 1.\nat tests/Feature/PageHeaderViewTest.php:88"
+  },
+  {
+    "class": "Tests.Feature.PageHeaderViewTest",
+    "name": "every workspace dashboard renders the reference hero style beneath the untouched topbar with data set \"dataset \"Faculty Researcher\"\"",
+    "file": "tests/Feature/PageHeaderViewTest.php",
+    "message": "every workspace dashboard renders the reference hero style beneath the untouched topbar with data set \"dataset \"Faculty Researcher\"\"Failed asserting that 0 is identical to 1.\nat tests/Feature/PageHeaderViewTest.php:88"
+  },
+  {
+    "class": "Tests.Feature.PageLoadingPerformanceTest",
+    "name": "shared pages avoid loading unrelated account histories",
+    "file": "tests/Feature/PageLoadingPerformanceTest.php",
+    "message": "shared pages avoid loading unrelated account historiesFailed asserting that false is true.\nat tests/Feature/PageLoadingPerformanceTest.php:49"
+  },
+  {
+    "class": "Tests.Feature.PostApprovalUiDemoSeederTest",
+    "name": "post approval UI demos provide accessible reports and completion stages without duplicates",
+    "file": "tests/Feature/PostApprovalUiDemoSeederTest.php",
+    "message": "post approval UI demos provide accessible reports and completion stages without duplicatesFailed asserting that an array contains '122'.\nat tests/Feature/PostApprovalUiDemoSeederTest.php:209"
+  },
+  {
+    "class": "Tests.Feature.ProjectDocumentLibraryTest",
+    "name": "faculty researcher files use an inline folder browser with the shared poster and report records",
+    "file": "tests/Feature/ProjectDocumentLibraryTest.php",
+    "message": "faculty researcher files use an inline folder browser with the shared poster and report recordsFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"U5wB8vPsjBFCkfNrRlaNs2UcsfuBtUqZHuFGS6P7\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme',"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "researchers can track review acceptance and publication after terminal reporting without marking submissions as publications",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "researchers can track review acceptance and publication after terminal reporting without marking submissions as publicationsExpected response status code [201, 301, 302, 303, 307, 308] but received 403.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:201\nat tests/Feature/ProjectJournalSubmissionTest.php:27"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "publication requires dated acceptance and a safe article link with chronological dates",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "publication requires dated acceptance and a safe article link with chronological datesSession is missing expected key [errors].\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1582\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1693\nat tests/Feature/ProjectJournalSubmissionTest.php:46"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "duplicate entries cannot reset an existing manuscript stage",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "duplicate entries cannot reset an existing manuscript stageSession is missing expected key [errors].\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1582\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1693\nat tests/Feature/ProjectJournalSubmissionTest.php:59"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "malformed journal fields receive validation errors instead of a server error",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "malformed journal fields receive validation errors instead of a server errorSession is missing expected key [errors].\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1582\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1693\nat tests/Feature/ProjectJournalSubmissionTest.php:86"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "confirmed assistant journal saves return the saved identifier and enforce duplicate validation",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "confirmed assistant journal saves return the saved identifier and enforce duplicate validationExpected response status code [201] but received 403.\nFailed asserting that 403 is identical to 201.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:26\nat tests/Feature/ProjectJournalSubmissionTest.php:92"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "assistant conference saves use the user and project bound candidate and report existing entries",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "assistant conference saves use the user and project bound candidate and report existing entriesExpected response status code [201] but received 403.\nFailed asserting that 403 is identical to 201.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:26\nat tests/Feature/ProjectJournalSubmissionTest.php:106"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "shared finder journal forms return to the authorized project tracker after adding and editing",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "shared finder journal forms return to the authorized project tracker after adding and editingExpected response status code [201, 301, 302, 303, 307, 308] but received 403.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:201\nat tests/Feature/ProjectJournalSubmissionTest.php:128"
+  },
+  {
+    "class": "Tests.Feature.ProjectJournalSubmissionTest",
+    "name": "saved assistant conference shortlist entries are visible in the authorized project workspace",
+    "file": "tests/Feature/ProjectJournalSubmissionTest.php",
+    "message": "saved assistant conference shortlist entries are visible in the authorized project workspaceExpected response status code [201] but received 403.\nFailed asserting that 403 is identical to 201.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:26\nat tests/Feature/ProjectJournalSubmissionTest.php:137"
+  },
+  {
+    "class": "Tests.Feature.ProjectMonitoringHealthPresentationTest",
+    "name": "monitoring budget settings stay collapsed unless an assignment needs correction",
+    "file": "tests/Feature/ProjectMonitoringHealthPresentationTest.php",
+    "message": "monitoring budget settings stay collapsed unless an assignment needs correctionFailed asserting that '\\n\n                \\n\n            \\n\n                Terminal Report\\n\n                                The Research Office Secretary checks the Terminal Report before forwarding it to the Research Head for acceptance.\\n\n                                    Submission is open after all quarterly reports are complete.\\n\n                                            \\n\n                            Start terminal report\\n\n                    \\n\n                    ' [ASCII](length: 443) contains \"Research Head review\" [ASCII](length: 20).\nat tests/Feature/ProjectMonitoringHealthPresentationTest.php:"
+  },
+  {
+    "class": "Tests.Feature.ProjectNarrativeReportTest",
+    "name": "the progress preview contains the same filled paper as the official template",
+    "file": "tests/Feature/ProjectNarrativeReportTest.php",
+    "message": "the progress preview contains the same filled paper as the official templateFailed asserting that two strings are identical.\nat tests/Feature/ProjectNarrativeReportTest.php:461"
+  },
+  {
+    "class": "Tests.Feature.ProjectNarrativeReportTest",
+    "name": "large report figure previews are private and smaller while downloads and generated documents retain original images",
+    "file": "tests/Feature/ProjectNarrativeReportTest.php",
+    "message": "large report figure previews are private and smaller while downloads and generated documents retain original imagesFailed asserting that an array contains Binary String: 0xffd8ffe000104a46494600010101006000600000fffe003e43524541544f523a2067642d6a7065672076312e3020287573696e6720494a47204a50454720763830292c2064656661756c74207175616c6974790affdb004300080606070605080707070909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffdb0043010909090c0b0c180d0d1832211c213232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232ffc00011080708096003012200021101031101ffc4001f00000105010101010101000000000000000001"
+  },
+  {
+    "class": "Tests.Feature.ProjectWorkspaceDocumentsTest",
+    "name": "activity badges identify only current reports awaiting head review and clear after acceptance",
+    "file": "tests/Feature/ProjectWorkspaceDocumentsTest.php",
+    "message": "activity badges identify only current reports awaiting head review and clear after acceptanceErrorException: Undefined array key \"narrative-report-343\"\nat vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:258\nat vendor/laravel/framework/src/Illuminate/Collections/Collection.php:1976\nat tests/Feature/ProjectWorkspaceDocumentsTest.php:64"
+  },
+  {
+    "class": "Tests.Feature.ProjectWorkspaceDocumentsTest",
+    "name": "submitted terminal posters appear once as private image files with their report",
+    "file": "tests/Feature/ProjectWorkspaceDocumentsTest.php",
+    "message": "submitted terminal posters appear once as private image files with their reportFailed asserting that 0 is identical to 1.\nat vendor/laravel/framework/src/Illuminate/Testing/AssertableJsonString.php:243\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:873\nat tests/Feature/ProjectWorkspaceDocumentsTest.php:288"
+  },
+  {
+    "class": "Tests.Feature.ProjectWorkspaceDocumentsTest",
+    "name": "project file summaries avoid loading report narratives and preserve evidence and signed downloads",
+    "file": "tests/Feature/ProjectWorkspaceDocumentsTest.php",
+    "message": "project file summaries avoid loading report narratives and preserve evidence and signed downloadsExpected response status code [>=200, <300] but received 404.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:105\nat tests/Feature/ProjectWorkspaceDocumentsTest.php:494"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('pending') / dataset \"current staff\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('pending') / dataset \"current staff\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('pending') / dataset \"removed from current roster\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('pending') / dataset \"removed from current roster\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('ongoing') / dataset \"current staff\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('ongoing') / dataset \"current staff\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('ongoing') / dataset \"removed from current roster\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('ongoing') / dataset \"removed from current roster\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('completed') / dataset \"current staff\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('completed') / dataset \"current staff\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('completed') / dataset \"removed from current roster\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"existing account\" / ('completed') / dataset \"removed from current roster\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('pending') / dataset \"current staff\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('pending') / dataset \"current staff\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('pending') / dataset \"removed from current roster\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('pending') / dataset \"removed from current roster\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('ongoing') / dataset \"current staff\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('ongoing') / dataset \"current staff\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('ongoing') / dataset \"removed from current roster\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('ongoing') / dataset \"removed from current roster\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('completed') / dataset \"current staff\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('completed') / dataset \"current staff\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftCollaborationTest",
+    "name": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('completed') / dataset \"removed from current roster\"\"",
+    "file": "tests/Feature/ProposalDraftCollaborationTest.php",
+    "message": "late invitation acceptance follows the current submitted project roster with data set \"dataset \"first sign-in\" / ('completed') / dataset \"removed from current roster\"\"Error: Undefined constant App\\Models\\ProposalDraft::STATUS_SUBMITTED\nat tests/Feature/ProposalDraftCollaborationTest.php:530"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "every logout form uses the shared SweetAlert confirmation",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "every logout form uses the shared SweetAlert confirmationFailed asserting that '<x-guest-layout>\\n\n    <x-workspace-selector\\n\n        :user=\"Auth::user()\"\\n\n        :workspaces=\"$workspaces\"\\n\n        :action=\"route('workspace.store')\"\\n\n        :current-workspace=\"Auth::user()->activeWorkspace()\"\\n\n    />\\n\n</x-guest-layout>\\r\\n\n' [ASCII](length: 236) contains \"data-proposal-confirm\" [ASCII](length: 21).\nat tests/Feature/ProposalDraftDialogTest.php:22"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "proposal draft action forms use SweetAlert2 confirmations",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "proposal draft action forms use SweetAlert2 confirmationsFailed asserting that '<x-app-layout>\\n\n    <x-slot name=\"header\">\\n\n        <x-page-header title=\"Draft proposals\">\\n\n            <x-slot:actions>\\n\n                <a wire:navigate href=\"{{ route('faculty.proposal-drafts.trash') }}\" class=\"inline-flex min-h-11 items-center px-4 text-base font-semibold text-slate-600 dark:text-slate-300\">Trash</a>\\n\n                <a wire:navigate href=\"{{ route('faculty.proposal-drafts.create') }}\" class=\"dashboard-action text-base\">New Proposal</a>\\n\n            </x-slot:actions>\\n\n        </x-page-header>\\n\n    </x-slot>\\n\n    <div class=\"space-y-5\">\\n\n        @if (session('success'))\\n\n          "
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "proposal draft dialogs are provided by the installed SweetAlert2 client",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "proposal draft dialogs are provided by the installed SweetAlert2 clientFailed asserting that '\\r\\n\nimport { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';\\r\\n\nimport registerLazyAlpineComponent from './lazy-alpine-component';\\r\\n\nimport Swal from './proposal-dialog';\\r\\n\nimport { researchAssistantHistory } from './research-assistant-history';\\r\\n\nimport { researchAssistantContexts } from './research-assistant-contexts';\\r\\n\nimport { researchAssistantCitations, researchAssistantSourcePreview } from './research-assistant-citations';\\r\\n\nimport { researchAssistantReview } from './research-assistant-review';\\r\\n\nimport { normalizeAssistantLiterature, researchAssistan"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "preparing submission PDFs shows a blocking progress screen",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "preparing submission PDFs shows a blocking progress screenFailed asserting that '@php\\n\n    $detailedProposalDocument = $checklist->get('detailed-proposal')['documents']->first();\\n\n    $detailedProposalSource = $detailedProposalDocument?->source_data;\\n\n    $workPlanDocument = $checklist->get('work-plan')['documents']->first();\\n\n    $workPlanSource = $workPlanDocument?->source_data;\\n\n    $lineItemBudgetDocument = $checklist->get('line-item-budget')['documents']->first();\\n\n    $lineItemBudgetSource = $lineItemBudgetDocument?->source_data;\\n\n    $expenseBreakdownDocument = $checklist->get('expense-breakdown')['documents']->first();\\n\n    $expenseBreakdownSource = $expenseBreakdownDocument?"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "proposal package preparation uses Livewire without closing the review modal",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "proposal package preparation uses Livewire without closing the review modalFailed asserting that '@php\\n\n    $detailedProposalDocument = $checklist->get('detailed-proposal')['documents']->first();\\n\n    $detailedProposalSource = $detailedProposalDocument?->source_data;\\n\n    $workPlanDocument = $checklist->get('work-plan')['documents']->first();\\n\n    $workPlanSource = $workPlanDocument?->source_data;\\n\n    $lineItemBudgetDocument = $checklist->get('line-item-budget')['documents']->first();\\n\n    $lineItemBudgetSource = $lineItemBudgetDocument?->source_data;\\n\n    $expenseBreakdownDocument = $checklist->get('expense-breakdown')['documents']->first();\\n\n    $expenseBreakdownSource = $expenseB"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "generated paper editors support partial drafts and gate download controls",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "generated paper editors support partial drafts and gate download controlsFailed asserting that '<x-app-layout>\\n\n    <x-slot name=\"header\">\\n\n        <x-page-header :title=\"$paper['label']\" :subtitle=\"$proposalDraft->project_title\">\\n\n            <x-slot name=\"actions\">\\n\n                <span data-detailed-proposal-completion-status class=\"text-base text-slate-700 dark:text-slate-200\">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>\\n\n                <x-back-link fixed data-paper-cancel-exit href=\"{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments\">Exit editor</x-back-link>\\n\n            </x-s"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "the detailed proposal exit saves partial changes while document actions still validate required fields",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "the detailed proposal exit saves partial changes while document actions still validate required fieldsFailed asserting that '\\r\\n\nimport { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';\\r\\n\nimport registerLazyAlpineComponent from './lazy-alpine-component';\\r\\n\nimport Swal from './proposal-dialog';\\r\\n\nimport { researchAssistantHistory } from './research-assistant-history';\\r\\n\nimport { researchAssistantContexts } from './research-assistant-contexts';\\r\\n\nimport { researchAssistantCitations, researchAssistantSourcePreview } from './research-assistant-citations';\\r\\n\nimport { researchAssistantReview } from './research-assistant-review';\\r\\n\nimport { normalizeAssist"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "revision-linked generated paper downloads can be staged in the matching revision attachment",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "revision-linked generated paper downloads can be staged in the matching revision attachmentFailed asserting that '\\r\\n\nimport { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';\\r\\n\nimport registerLazyAlpineComponent from './lazy-alpine-component';\\r\\n\nimport Swal from './proposal-dialog';\\r\\n\nimport { researchAssistantHistory } from './research-assistant-history';\\r\\n\nimport { researchAssistantContexts } from './research-assistant-contexts';\\r\\n\nimport { researchAssistantCitations, researchAssistantSourcePreview } from './research-assistant-citations';\\r\\n\nimport { researchAssistantReview } from './research-assistant-review';\\r\\n\nimport { normalizeAssistantLiteratu"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftDialogTest",
+    "name": "the collaboration monitor keeps a persistent save confirmation",
+    "file": "tests/Feature/ProposalDraftDialogTest.php",
+    "message": "the collaboration monitor keeps a persistent save confirmationFailed asserting that '<section\\r\\n\n     data-proposal-version-monitor     data-loaded-version=\"3\"\\r\\n\n    data-state-url=\"/state\"\\r\\n\n        data-document-label=\"Work Plan\"\\r\\n\n    class=\"contents\"\\r\\n\n    aria-label=\"Saved version\"\\r\\n\n>\\r\\n\n            <div data-proposal-save-confirmation role=\"status\" class=\"border-l-4 border-red-600 bg-gray-50 p-4 text-sm text-gray-950 dark:bg-slate-800/70 dark:text-white\">\\r\\n\n            <p class=\"font-black\">Attachment A: Work Plan saved.</p>\\r\\n\n            <p class=\"mt-1 text-xs leading-5\">Saved just now. You can continue editing.</p>\\r\\n\n        </div>\\r\\n\n    \\r\\n\n    <div data-propos"
+  },
+  {
+    "class": "Tests.Feature.ProposalDraftLiteratureSourceTest",
+    "name": "only papers linked to a proposal appear in that detailed proposal",
+    "file": "tests/Feature/ProposalDraftLiteratureSourceTest.php",
+    "message": "only papers linked to a proposal appear in that detailed proposalFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"j8qXaX21JQQqyS9WfVjt2uU5vgif9R3DyaA1J65x\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];\\n\n\\n\n        const "
+  },
+  {
+    "class": "Tests.Feature.ProposalFileAnnotationTest",
+    "name": "revision editors open inside the feedback page with no application navigation with data set \"('detailed_proposal', 'detailed-proposal')\"",
+    "file": "tests/Feature/ProposalFileAnnotationTest.php",
+    "message": "revision editors open inside the feedback page with no application navigation with data set \"('detailed_proposal', 'detailed-proposal')\"Failed asserting that '<!DOCTYPE html>\r\n<html lang=\"en\">\r\n    <head>\r\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\n        <meta charset=\"utf-8\">\r\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n        <meta name=\"csrf-token\" content=\"A8BvW5US0UBGfVictQfLmBLajkpxua2NkXswGvQ9\">\r\n        <meta name=\"app-url\" content=\"http://localhost\">\r\n        <title>Revision editor \u00b7 AthenaCapacity</title>\r\n        <script>\n    (() => {\n        const storageKey = 'athena-theme';\n        con"
+  },
+  {
+    "class": "Tests.Feature.QuarterlyReportWorkflowDemoSeederTest",
+    "name": "sample faculty evidence reaches the submitted college report and three RMS output categories",
+    "file": "tests/Feature/QuarterlyReportWorkflowDemoSeederTest.php",
+    "message": "sample faculty evidence reaches the submitted college report and three RMS output categoriesFailed asserting that the value at [reports] fulfills the expectations defined by the closure.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1343\nat tests/Feature/QuarterlyReportWorkflowDemoSeederTest.php:82"
+  },
+  {
+    "class": "Tests.Feature.ResearchAssistantUiTest",
+    "name": "assistant venue actions expose project routes only for accessible dissemination projects",
+    "file": "tests/Feature/ResearchAssistantUiTest.php",
+    "message": "assistant venue actions expose project routes only for accessible dissemination projectsErrorException: Trying to access array offset on null\nat vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:258\nat tests/Feature/ResearchAssistantUiTest.php:133"
+  },
+  {
+    "class": "Tests.Feature.ResearchAssistantUiTest",
+    "name": "assistant cites saved project records instead of unrelated field guides for a delay answer",
+    "file": "tests/Feature/ResearchAssistantUiTest.php",
+    "message": "assistant cites saved project records instead of unrelated field guides for a delay answerExpected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/ResearchAssistantUiTest.php:286"
+  },
+  {
+    "class": "Tests.Feature.ResearchAssistantUiTest",
+    "name": "assistant project selection includes older accessible projects beyond eight and readable privacy details with data set \"('faculty_researcher')\"",
+    "file": "tests/Feature/ResearchAssistantUiTest.php",
+    "message": "assistant project selection includes older accessible projects beyond eight and readable privacy details with data set \"('faculty_researcher')\"Failed asserting that an array contains 1525.\nat tests/Feature/ResearchAssistantUiTest.php:550"
+  },
+  {
+    "class": "Tests.Feature.ResearchAssistantUiTest",
+    "name": "the current authorized record stays selected while every accessible context remains available with data set \"dataset \"faculty researcher project\"\"",
+    "file": "tests/Feature/ResearchAssistantUiTest.php",
+    "message": "the current authorized record stays selected while every accessible context remains available with data set \"dataset \"faculty researcher project\"\"Expected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/ResearchAssistantUiTest.php:719"
+  },
+  {
+    "class": "Tests.Feature.ResearchAssistantUiTest",
+    "name": "assistant receives Notice to Proceed and post-approval reporting context",
+    "file": "tests/Feature/ResearchAssistantUiTest.php",
+    "message": "assistant receives Notice to Proceed and post-approval reporting contextAn expected request was not recorded.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Http/Client/Factory.php:395\nat vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php:363\nat tests/Feature/ResearchAssistantUiTest.php:1327"
+  },
+  {
+    "class": "Tests.Feature.ResearchAssistantUiTest",
+    "name": "assistant response copy controls have icons and accessible names in both chat surfaces",
+    "file": "tests/Feature/ResearchAssistantUiTest.php",
+    "message": "assistant response copy controls have icons and accessible names in both chat surfacesFailed asserting that actual size 4 matches expected size 2.\nat tests/Feature/ResearchAssistantUiTest.php:2385"
+  },
+  {
+    "class": "Tests.Feature.ResearchCallDeadlineBannerTest",
+    "name": "a header banner shows the nearest research call deadline within seven days",
+    "file": "tests/Feature/ResearchCallDeadlineBannerTest.php",
+    "message": "a header banner shows the nearest research call deadline within seven daysFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"T9HEI8kBfYeluHiG9TzsGwAcsn04J2rgzEcnJI7e\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];\\n\n\\n\n     "
+  },
+  {
+    "class": "Tests.Feature.ResearchCallDeadlineBannerTest",
+    "name": "faculty who did not submit see an ended-call message without a proposal creation shortcut",
+    "file": "tests/Feature/ResearchCallDeadlineBannerTest.php",
+    "message": "faculty who did not submit see an ended-call message without a proposal creation shortcutFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"FW8ahM4oYRMzTOLAJFD7Kys4bB8g6mnEY8E6qOmF\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'them"
+  },
+  {
+    "class": "Tests.Feature.ResearchCallDeadlineNotificationTest",
+    "name": "a faculty member can dismiss a deadline banner through the next Manila day",
+    "file": "tests/Feature/ResearchCallDeadlineNotificationTest.php",
+    "message": "a faculty member can dismiss a deadline banner through the next Manila dayFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"YETBIdIKTxCvOLEe6i4jPF8q48HK8ZOHWhLRilkz\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];\\n\n\\n\n     "
+  },
+  {
+    "class": "Tests.Feature.ResearchCallDeadlineNotificationTest",
+    "name": "changing a deadline makes its previously dismissed banner visible again",
+    "file": "tests/Feature/ResearchCallDeadlineNotificationTest.php",
+    "message": "changing a deadline makes its previously dismissed banner visible againExpected response status code [200] but received 404.\nFailed asserting that 404 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/ResearchCallDeadlineNotificationTest.php:76"
+  },
+  {
+    "class": "Tests.Feature.ResearchCallDeadlineNotificationTest",
+    "name": "a faculty member can dismiss an ended-call notice through the next Manila day",
+    "file": "tests/Feature/ResearchCallDeadlineNotificationTest.php",
+    "message": "a faculty member can dismiss an ended-call notice through the next Manila dayExpected response status code [200] but received 404.\nFailed asserting that 404 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/ResearchCallDeadlineNotificationTest.php:102"
+  },
+  {
+    "class": "Tests.Feature.ResearchCallWorkflowTest",
+    "name": "faculty research workload is limited to two concurrent approved projects across calls and academic years",
+    "file": "tests/Feature/ResearchCallWorkflowTest.php",
+    "message": "faculty research workload is limited to two concurrent approved projects across calls and academic yearsSession has unexpected errors: \n\n{\n    \"default\": [\n        \"The lrec clearance confirmed field must be accepted.\"\n    ]\n}\nFailed asserting that true is false.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1754\nat tests/Feature/ResearchCallWorkflowTest.php:806\nat tests/Feature/ResearchCallWorkflowTest.php:825"
+  },
+  {
+    "class": "Tests.Feature.ResearchCallWorkflowTest",
+    "name": "a revision snapshots the package and carries forward unchanged files",
+    "file": "tests/Feature/ResearchCallWorkflowTest.php",
+    "message": "a revision snapshots the package and carries forward unchanged filesSession is missing expected key [errors].\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1582\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1693\nat tests/Feature/ResearchCallWorkflowTest.php:907"
+  },
+  {
+    "class": "Tests.Feature.ResearchCoordinatorReportTest",
+    "name": "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"general evidence\"\"",
+    "file": "tests/Feature/ResearchCoordinatorReportTest.php",
+    "message": "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"general evidence\"\"Expected response status code [200] but received 500.\nFailed asserting that 500 is identical to 200.\n\nThe following exception occurred during the last request:\n\nRuntimeException: A report image is too large to process safely. Resize it before exporting. in /app/app/Services/DocumentImageService.php:49\nStack trace:\n#0 /app/app/Http/Controllers/ResearchCoordinatorReportController.php(63): App\\Services\\DocumentImageService->contents()\n#1 /app/vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\\Http\\Controllers\\ResearchCoordinatorReportCon"
+  },
+  {
+    "class": "Tests.Feature.ResearchCoordinatorReportTest",
+    "name": "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"row evidence\"\"",
+    "file": "tests/Feature/ResearchCoordinatorReportTest.php",
+    "message": "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"row evidence\"\"Expected response status code [200] but received 500.\nFailed asserting that 500 is identical to 200.\n\nThe following exception occurred during the last request:\n\nRuntimeException: A report image is too large to process safely. Resize it before exporting. in /app/app/Services/DocumentImageService.php:49\nStack trace:\n#0 /app/app/Http/Controllers/ResearchCoordinatorReportController.php(68): App\\Services\\DocumentImageService->contents()\n#1 /app/vendor/laravel/framework/src/Illuminate/Routing/ControllerDispatcher.php(46): App\\Http\\Controllers\\ResearchCoordinatorReportControl"
+  },
+  {
+    "class": "Tests.Feature.ResearchDisseminationTest",
+    "name": "dissemination validation recovery stays with its project and form with data set \"('journal') / ('other')\"",
+    "file": "tests/Feature/ResearchDisseminationTest.php",
+    "message": "dissemination validation recovery stays with its project and form with data set \"('journal') / ('other')\"Expected response status code [>=200, <300] but received 403.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:105\nat tests/Feature/ResearchDisseminationTest.php:115"
+  },
+  {
+    "class": "Tests.Feature.ResearchDisseminationTest",
+    "name": "dissemination validation recovery stays with its project and form with data set \"('conference') / ('other')\"",
+    "file": "tests/Feature/ResearchDisseminationTest.php",
+    "message": "dissemination validation recovery stays with its project and form with data set \"('conference') / ('other')\"Expected response status code [>=200, <300] but received 403.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:105\nat tests/Feature/ResearchDisseminationTest.php:115"
+  },
+  {
+    "class": "Tests.Feature.ResearchDisseminationTest",
+    "name": "DOI lookup supports confirmed imports and manual entries deduplicate without losing project links with data set \"('https://doi.org/10.1234/COASTAL')\"",
+    "file": "tests/Feature/ResearchDisseminationTest.php",
+    "message": "DOI lookup supports confirmed imports and manual entries deduplicate without losing project links with data set \"('https://doi.org/10.1234/COASTAL')\"Failed asserting that 0 is identical to 1.\nat tests/Feature/ResearchDisseminationTest.php:394"
+  },
+  {
+    "class": "Tests.Feature.ResearchDisseminationTest",
+    "name": "DOI lookup supports confirmed imports and manual entries deduplicate without losing project links with data set \"('https://dx.doi.org/10.1234/COASTAL')\"",
+    "file": "tests/Feature/ResearchDisseminationTest.php",
+    "message": "DOI lookup supports confirmed imports and manual entries deduplicate without losing project links with data set \"('https://dx.doi.org/10.1234/COASTAL')\"Failed asserting that 0 is identical to 1.\nat tests/Feature/ResearchDisseminationTest.php:394"
+  },
+  {
+    "class": "Tests.Feature.ResearchDisseminationTest",
+    "name": "DOI lookup supports confirmed imports and manual entries deduplicate without losing project links with data set \"('DOI: https://doi.org/10.1234/COASTAL')\"",
+    "file": "tests/Feature/ResearchDisseminationTest.php",
+    "message": "DOI lookup supports confirmed imports and manual entries deduplicate without losing project links with data set \"('DOI: https://doi.org/10.1234/COASTAL')\"Failed asserting that 0 is identical to 1.\nat tests/Feature/ResearchDisseminationTest.php:394"
+  },
+  {
+    "class": "Tests.Feature.ResearchHeadAnalyticsCorrectionsTest",
+    "name": "analytics omit report bodies while retaining progress budget and review evidence",
+    "file": "tests/Feature/ResearchHeadAnalyticsCorrectionsTest.php",
+    "message": "analytics omit report bodies while retaining progress budget and review evidenceFailed asserting that an array has a key 'status' with the value 'awaiting'.\nFailed asserting that two strings are equal.\nat tests/Feature/ResearchHeadAnalyticsCorrectionsTest.php:124"
+  },
+  {
+    "class": "Tests.Feature.ResearchHeadAnalyticsDashboardTest",
+    "name": "dashboard report reviews include older progress submissions and keep pagination and scope independent",
+    "file": "tests/Feature/ResearchHeadAnalyticsDashboardTest.php",
+    "message": "dashboard report reviews include older progress submissions and keep pagination and scope independentFailed asserting that the value at [reportItems] fulfills the expectations defined by the closure.\nFailed asserting that false is true.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:1343\nat vendor/livewire/livewire/src/Features/SupportTesting/Testable.php:417\nat tests/Feature/ResearchHeadAnalyticsDashboardTest.php:121"
+  },
+  {
+    "class": "Tests.Feature.ResearchHeadAnalyticsDashboardTest",
+    "name": "analytics presents readable project titles and accessible icon actions",
+    "file": "tests/Feature/ResearchHeadAnalyticsDashboardTest.php",
+    "message": "analytics presents readable project titles and accessible icon actionsFailed asserting that actual size 0 matches expected size 1.\nat tests/Feature/ResearchHeadAnalyticsDashboardTest.php:443"
+  },
+  {
+    "class": "Tests.Feature.ResearchHeadAnalyticsDashboardTest",
+    "name": "an old quarter revision cannot overwrite a newer milestone completion observation",
+    "file": "tests/Feature/ResearchHeadAnalyticsDashboardTest.php",
+    "message": "an old quarter revision cannot overwrite a newer milestone completion observationFailed asserting that 1 is identical to 0.\nat tests/Feature/ResearchHeadAnalyticsDashboardTest.php:575"
+  },
+  {
+    "class": "Tests.Feature.SharedNotificationPerformanceTest",
+    "name": "workspaces without sidebar badges skip unread notification queries with data set \"('research_coordinator', 'research_office')\"",
+    "file": "tests/Feature/SharedNotificationPerformanceTest.php",
+    "message": "workspaces without sidebar badges skip unread notification queries with data set \"('research_coordinator', 'research_office')\"Failed asserting that two arrays are identical.\nat tests/Feature/SharedNotificationPerformanceTest.php:26"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "form checks remain active without the local demo setting with data set \"dataset \"local demo disabled\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "form checks remain active without the local demo setting with data set \"dataset \"local demo disabled\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:137"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "form checks remain active without the local demo setting with data set \"dataset \"production\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "form checks remain active without the local demo setting with data set \"dataset \"production\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:137"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "form checks remain active without the local demo setting with data set \"dataset \"testing\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "form checks remain active without the local demo setting with data set \"dataset \"testing\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:137"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "demo uploads still require PDFs within the size limit with data set \"dataset \"text file\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "demo uploads still require PDFs within the size limit with data set \"dataset \"text file\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:151"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "demo uploads still require PDFs within the size limit with data set \"dataset \"oversize PDF\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "demo uploads still require PDFs within the size limit with data set \"dataset \"oversize PDF\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:151"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "final signed forms are matched by contents and audited before storage with data set \"('detailed_proposal') / dataset \"office\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "final signed forms are matched by contents and audited before storage with data set \"('detailed_proposal') / dataset \"office\"\"Expected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/SignedProposalFormVerificationTest.php:179"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "final signed forms are matched by contents and audited before storage with data set \"('work_plan') / dataset \"office\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "final signed forms are matched by contents and audited before storage with data set \"('work_plan') / dataset \"office\"\"Expected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/SignedProposalFormVerificationTest.php:179"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "final signed forms are matched by contents and audited before storage with data set \"('line_item_budget') / dataset \"office\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "final signed forms are matched by contents and audited before storage with data set \"('line_item_budget') / dataset \"office\"\"Expected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/SignedProposalFormVerificationTest.php:179"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a wrong form cannot replace an existing signed copy even with manual confirmation",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a wrong form cannot replace an existing signed copy even with manual confirmationExpected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:203"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a form for another project is rejected with data set \"('detailed_proposal') / ('Different Coastal Project')\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a form for another project is rejected with data set \"('detailed_proposal') / ('Different Coastal Project')\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:213"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a form for another project is rejected with data set \"('detailed_proposal') / ('Coastal Resilience Study and \u2026search')\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a form for another project is rejected with data set \"('detailed_proposal') / ('Coastal Resilience Study and \u2026search')\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:213"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a form for another project is rejected with data set \"('work_plan') / ('Different Coastal Project')\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a form for another project is rejected with data set \"('work_plan') / ('Different Coastal Project')\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:213"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a form for another project is rejected with data set \"('work_plan') / ('Coastal Resilience Study and \u2026search')\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a form for another project is rejected with data set \"('work_plan') / ('Coastal Resilience Study and \u2026search')\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:213"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a form for another project is rejected with data set \"('line_item_budget') / ('Different Coastal Project')\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a form for another project is rejected with data set \"('line_item_budget') / ('Different Coastal Project')\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:213"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a form for another project is rejected with data set \"('line_item_budget') / ('Coastal Resilience Study and \u2026search')\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a form for another project is rejected with data set \"('line_item_budget') / ('Coastal Resilience Study and \u2026search')\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:213"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "unreadable scans require an explicit manual check and record the checker",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "unreadable scans require an explicit manual check and record the checkerExpected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:221"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "malformed or password protected PDFs cannot bypass verification",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "malformed or password protected PDFs cannot bypass verificationExpected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:234"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "readable wet signature scans are identified using visible evidence with data set \"dataset \"correct form\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "readable wet signature scans are identified using visible evidence with data set \"dataset \"correct form\"\"Expected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/SignedProposalFormVerificationTest.php:257"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "readable wet signature scans are identified using visible evidence with data set \"dataset \"wrong project\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "readable wet signature scans are identified using visible evidence with data set \"dataset \"wrong project\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:261"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "readable wet signature scans are identified using visible evidence with data set \"dataset \"wrong form\"\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "readable wet signature scans are identified using visible evidence with data set \"dataset \"wrong form\"\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:261"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a scan reader outage or illegible response never silently verifies a file with data set \"(true)\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a scan reader outage or illegible response never silently verifies a file with data set \"(true)\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:286"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "a scan reader outage or illegible response never silently verifies a file with data set \"(false)\"",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "a scan reader outage or illegible response never silently verifies a file with data set \"(false)\"Expected response status code [422] but received 403.\nFailed asserting that 403 is identical to 422.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:221\nat tests/Feature/SignedProposalFormVerificationTest.php:286"
+  },
+  {
+    "class": "Tests.Feature.SignedProposalFormVerificationTest",
+    "name": "the local PDF tools render scanned pages for the configured reader",
+    "file": "tests/Feature/SignedProposalFormVerificationTest.php",
+    "message": "the local PDF tools render scanned pages for the configured readerExpected response status code [200] but received 403.\nFailed asserting that 403 is identical to 200.\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponseAssert.php:45\nat vendor/laravel/framework/src/Illuminate/Testing/TestResponse.php:176\nat vendor/laravel/framework/src/Illuminate/Testing/Concerns/AssertsStatusCodes.php:16\nat tests/Feature/SignedProposalFormVerificationTest.php:325"
+  },
+  {
+    "class": "Tests.Feature.ThemeTest",
+    "name": "the landing page uses the shared theme controller",
+    "file": "tests/Feature/ThemeTest.php",
+    "message": "the landing page uses the shared theme controllerFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n<head>\\n\n    <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n    <meta charset=\"utf-8\">\\n\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n    <meta name=\"description\" content=\"ATHENA is the research project management system for authorized BatStateU ARASOF\u2013Nasugbu users.\">\\n\n    <title>ATHENA | BatStateU ARASOF\u2013Nasugbu</title>\\n\n\\n\n    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\\n\n    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\\n\n    <link href=\"https://fonts.googleapis.co"
+  },
+  {
+    "class": "Tests.Feature.TopicReviewWorkflowTest",
+    "name": "faculty researchers can browse and open only their own approved research records",
+    "file": "tests/Feature/TopicReviewWorkflowTest.php",
+    "message": "faculty researchers can browse and open only their own approved research recordsFailed asserting that '<!DOCTYPE html>\\n\n<html lang=\"en\">\\n\n    <head>\\n\n        <link rel=\"icon\" type=\"image/png\" href=\"http://localhost/images/athena-favicon-circle.png\">\\n\n        <meta charset=\"utf-8\">\\n\n        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n\n        <meta name=\"csrf-token\" content=\"Neqpbe97BSye9xd6xRk546ZIFOyATvV7HE4ClQKp\">\\n\n        <meta name=\"app-url\" content=\"http://localhost\">\\n\n\\n\n        <title>AthenaCapacity</title>\\n\n\\n\n        <script>\\n\n    (() => {\\n\n        const storageKey = 'athena-theme';\\n\n        const legacyKeys = ['athena-auth-theme', 'theme'];\\n\n\\n"
+  }
+]

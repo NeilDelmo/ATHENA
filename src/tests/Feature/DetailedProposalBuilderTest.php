@@ -275,7 +275,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('leader@g.batstate-u.edu.ph')
         ->assertSee('x-ref="introductionSection"', false)
         ->assertDontSee('Sources for this proposal')
-        ->assertSee('Open Sources')
+        ->assertSee("openSourceWorkspace('search')", false)
         ->assertSee('Use AI')
         ->assertSee("requestRrlRevision('draft')", false)
         ->assertSee("requestRrlRevision('revise')", false)
@@ -304,7 +304,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Include at least ten relevant studies or literature sources.')
         ->assertDontSee('Literature Assistant')
         ->assertDontSee('Proposal-aware search')
-        ->assertSee('Add output')
+        ->assertSee('aria-label="Add Publication output"', false)
         ->assertDontSee('+ Add output')
         ->assertDontSee('Quantity and unit are optional.')
         ->assertDontSee('Quantity is optional for qualitative outcomes such as social and economic impact.')
@@ -312,6 +312,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
         ->assertSee('From your profile')
         ->assertSee('Leave blank if not applicable')
+        ->assertDontSeeText('The Proponent Agency line is intentionally left blank on the official form.')
         ->assertSee('III. Sustainable Development Goal')
         ->assertSee('SDG17:')
         ->assertSee('XIII. Duties and Responsibilities of each member:')
@@ -319,9 +320,9 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Add figures to any methodology part')
         ->assertSee('data-proposal-figure-section="rationale"', false)
         ->assertSee('data-proposal-figure-section="data_analysis"', false)
-        ->assertSee('Write each method heading in your own words')
-        ->assertSee('Write this method heading')
-        ->assertSee('Add method group')
+        ->assertSee('specific-methods-grid', false)
+        ->assertSee('Method heading')
+        ->assertSee('Add heading')
         ->assertSee('Add method')
         ->assertSee('XI. Review of Related Literature:')
         ->assertSee('Responsibility %')
@@ -331,7 +332,8 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Members already on the project staff list are hidden.')
         ->assertSee('External project staff')
         ->assertSee('No project staff added yet.')
-        ->assertSee('Names follow the official uppercase format.')
+        ->assertDontSeeText('Names follow the official uppercase format.')
+        ->assertSeeText('Add a professional title such as Asst Prof. or Dr. when applicable.')
         ->assertSee('Leave blank when no professional title applies.')
         ->assertSee('Changes also update Project Details and the prepared-by name.')
         ->assertSee('Asst Prof.')
@@ -980,9 +982,10 @@ test('detailed proposal headings and revision sections match the official templa
     expect($templateHeadings)->toHaveCount(17)->toBe(array_values(config('detailed_proposal.section_headings')));
     $sections = app(ProposalRevisionSectionCatalog::class)->forType(ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
     expect(array_column(array_slice($sections, 0, 17), 'label'))->toBe($templateHeadings);
+    $editorSections = array_map(fn (array $section): string => 'data-revision-section="'.$section['value'].'"', array_slice($sections, 0, 17));
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
-        ->assertOk()->assertSeeInOrder($templateHeadings)
+        ->assertOk()->assertSeeInOrder($editorSections, false)
         ->assertDontSee('XI. Introduction')->assertDontSee('V–VI.');
     $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
         ->assertOk()->assertSeeInOrder($templateHeadings)
@@ -1925,9 +1928,9 @@ test('draft saves keep missing requirements available without showing an initial
         ->assertSee('data-proposal-completion-checklist', false)
         ->assertSee('x-show="showCompletionChecklist"', false)
         ->assertSee('data-proposal-check-requirements', false)
-        ->assertSee('border-l-[#7A0019] bg-white p-5', false)
+        ->assertSee('Remaining requirements')
         ->assertSee('x-show="showDetailedProposalSaveStatus"', false)
-        ->assertSee('focusProposalRequirement(field)', false)
+        ->assertSee('focusProposalRequirement(requirement.field)', false)
         ->assertViewHas('completionErrors', fn (array $errors): bool => isset($errors['specific_objectives'], $errors['methodology.research_design']));
 });
 
@@ -1960,7 +1963,7 @@ test('a general objective alone explains the separate specific objective require
     $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
         ->assertSee('data-specific-objectives-fields', false)
-        ->assertSee('Required — at least one')
+        ->assertSee('Enter at least one specific objective in the required fields below.')
         ->assertViewHas('sourceData', fn (array $source): bool => $source['general_objective'] === '<p>samplee</p>');
 
     $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([

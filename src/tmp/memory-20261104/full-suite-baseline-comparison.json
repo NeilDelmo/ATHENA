@@ -1,0 +1,24 @@
+{
+  "current_failures": 127,
+  "baseline_failures_in_compared_files": 123,
+  "all_current_failures_reproduced_on_original": false,
+  "current_only": [
+    [
+      "Tests.Feature.AccessibleRecordSearchTest",
+      "search requires authentication and validates bounded input without exposing records on an empty query"
+    ],
+    [
+      "Tests.Feature.ProjectNarrativeReportTest",
+      "large report figure previews are private and smaller while downloads and generated documents retain original images"
+    ],
+    [
+      "Tests.Feature.ResearchCoordinatorReportTest",
+      "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"general evidence\"\""
+    ],
+    [
+      "Tests.Feature.ResearchCoordinatorReportTest",
+      "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"row evidence\"\""
+    ]
+  ],
+  "baseline_only": []
+}

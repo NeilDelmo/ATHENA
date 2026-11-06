@@ -37,11 +37,13 @@ beforeEach(function () {
     $this->token = $this->service->availableDocuments($this->owner, null, $this->draft->id)[0]['token'];
 });
 
-function readingDocx(string $path, array $paragraphs): void
+function readingDocx(string $path, array|string $paragraphs): void
 {
     $archive = new ZipArchive;
     expect($archive->open(Storage::disk('local')->path($path), ZipArchive::CREATE | ZipArchive::OVERWRITE))->toBeTrue();
-    $text = implode('', array_map(fn (string $paragraph): string => '<w:p><w:r><w:t>'.htmlspecialchars($paragraph, ENT_XML1 | ENT_QUOTES, 'UTF-8').'</w:t></w:r></w:p>', $paragraphs));
+    $text = is_array($paragraphs)
+        ? implode('', array_map(fn (string $paragraph): string => '<w:p><w:r><w:t>'.htmlspecialchars($paragraph, ENT_XML1 | ENT_QUOTES, 'UTF-8').'</w:t></w:r></w:p>', $paragraphs))
+        : $paragraphs;
     $archive->addFromString('word/document.xml', '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'.$text.'</w:body></w:document>');
     $archive->close();
 }
@@ -131,6 +133,60 @@ test('DOCX expanded XML limits still reject oversized archives', function () {
     config(['research_assistant.document.maximum_docx_xml_bytes' => 500]);
     $token = $this->service->availableDocuments($this->owner, null, $this->draft->id)[0]['token'];
     expect(fn () => $this->service->evidence($this->owner, $token))->toThrow(ResearchAssistantDocumentException::class, 'expands beyond');
+});
+
+test('large DOCX reading uses a bounded heap and reports that its text was truncated', function () {
+    $path = 'proposals/large-reading.docx';
+    $first = '<w:p><w:r><w:t>Coastal monitoring uses seven seasonal transects.</w:t></w:r></w:p>';
+    $body = '<w:p><w:r><w:t>'.str_repeat('General coastal research background. ', 15).'</w:t></w:r></w:p>';
+    readingDocx($path, $first.str_repeat($body, 20000));
+    $this->document->update(['file_path' => $path, 'original_filename' => 'large-reading.docx']);
+    config(['research_assistant.document.maximum_extracted_bytes' => 2000]);
+    $token = $this->service->availableDocuments($this->owner, null, $this->draft->id)[0]['token'];
+
+    memory_reset_peak_usage();
+    $initialMemory = memory_get_usage();
+    $evidence = $this->service->evidence($this->owner, $token, 'How many seasonal transects does coastal monitoring use?');
+    $peakIncrease = memory_get_peak_usage() - $initialMemory;
+
+    expect($evidence['prompt'])->toContain('seven seasonal transects')
+        ->and(implode(' ', $evidence['document']['coverage']['limitations']))->toContain('local extraction size limit');
+    if (method_exists(XMLReader::class, 'fromStream')) {
+        expect($peakIncrease)->toBeLessThan(8 * 1024 * 1024);
+    }
+});
+
+test('DOCX reading discards partial evidence when XML becomes malformed past the text limit', function () {
+    $path = 'proposals/malformed-reading.docx';
+    $paragraph = '<w:p><w:r><w:t>'.str_repeat('Coastal research uses seven transects. ', 14).'</w:t></w:r></w:p>';
+    readingDocx($path, str_repeat($paragraph, 100).'</w:wrong>');
+    $this->document->update(['file_path' => $path, 'original_filename' => 'malformed-reading.docx']);
+    config(['research_assistant.document.maximum_extracted_bytes' => 2000]);
+    $token = $this->service->availableDocuments($this->owner, null, $this->draft->id)[0]['token'];
+
+    expect(fn () => $this->service->evidence($this->owner, $token))
+        ->toThrow(ResearchAssistantDocumentException::class, 'does not contain enough readable text');
+});
+
+test('DOCX reading preserves breaks, text boxes, and paragraph references', function () {
+    $path = 'proposals/reading-layout.docx';
+    readingDocx($path, <<<'XML'
+        <w:p/>
+        <w:p><w:r><w:t>Coastal &amp; estuary</w:t><w:tab/><w:t>measurements</w:t><w:br/></w:r>
+            <w:r><w:pict><w:txbxContent><w:p><w:r><w:t>Sensor readings &amp; checks</w:t></w:r></w:p></w:txbxContent></w:pict></w:r>
+            <w:r><w:t xml:space="preserve"> continue</w:t></w:r>
+        </w:p>
+        <w:p><w:r><w:t>Final calibration record confirms the dates.</w:t></w:r></w:p>
+        XML);
+    $this->document->update(['file_path' => $path, 'original_filename' => 'reading-layout.docx']);
+    $token = $this->service->availableDocuments($this->owner, null, $this->draft->id)[0]['token'];
+    $evidence = $this->service->evidence($this->owner, $token);
+
+    expect(collect($evidence['sources'])->pluck('excerpt', 'section')->all())->toBe([
+        'Source paragraph 1' => "Coastal & estuary measurements\nSensor readings & checks continue",
+        'Source paragraph 2' => 'Sensor readings & checks',
+        'Source paragraph 3' => 'Final calibration record confirms the dates.',
+    ]);
 });
 
 test('query ranking handles research aliases and retains exact numeric rows', function () {

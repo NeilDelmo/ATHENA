@@ -191,7 +191,29 @@ test('chat falls back to the targeted saved objective when a browser snapshot co
 test('chat respects a requested study count within its search limit', function () {
     $sources = array_map(fn (int $number): array => [...$this->source, 'title' => 'Mangrove Monitoring Study '.$number], range(1, 5));
     mock(LiteratureSearchService::class)->shouldReceive('search')->once()->andReturn(literatureSearchPayload($sources));
-    $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Suggest three studies for my objectives'))->assertOk()->assertJsonCount(3, 'literature.results');
+    $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Suggest three studies for my objectives'))->assertOk()->assertJsonCount(3, 'literature.results')
+        ->assertJsonPath('reply', fn (string $reply): bool => ! str_contains($reply, 'Chat can show up to'));
+});
+
+test('chat explains the five-paper cap when asked for more studies', function (string $question, int $available, int $shown) {
+    $sources = array_map(fn (int $number): array => [...$this->source, 'title' => 'Mangrove Monitoring Study '.$number], range(1, $available));
+    mock(LiteratureSearchService::class)->shouldReceive('search')->once()->andReturn(literatureSearchPayload($sources));
+    $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, $question))->assertOk()
+        ->assertJsonCount($shown, 'literature.results')
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'You asked for 10 studies.')
+            && str_contains($reply, 'Chat can show up to 5 studies per search.')
+            && str_contains($reply, 'Sources tab'));
+})->with([
+    'number' => ['Find 10 RRL studies for my objectives', 8, 5],
+    'spelled out with fewer results' => ['Suggest ten papers for my objectives', 3, 3],
+]);
+
+test('chat does not present a publication year as the requested study count', function () {
+    $sources = array_map(fn (int $number): array => [...$this->source, 'title' => 'Mangrove Monitoring Study '.$number], range(1, 6));
+    mock(LiteratureSearchService::class)->shouldReceive('search')->once()->andReturn(literatureSearchPayload($sources));
+    $this->postJson(route('research-support.chat'), literatureChatPayload($this->draft, 'Find the 2024 studies about mangrove monitoring'))->assertOk()
+        ->assertJsonCount(5, 'literature.results')
+        ->assertJsonPath('reply', fn (string $reply): bool => ! str_contains($reply, 'Chat can show up to'));
 });
 
 test('batch drafting uses the end of a long RRL and retains the preceding generated paragraph', function () {

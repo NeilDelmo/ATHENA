@@ -1,0 +1,127 @@
+{
+  "checked": 24,
+  "all_original_user_changes_preserved": true,
+  "different": [],
+  "files": [
+    {
+      "path": "app/Actions/PrepareProjectProgressReport.php",
+      "baseline_sha256": "e9f9753c689fad23984129673973f39cf1e56343f88bae091a26ca5bb6131a87",
+      "current_sha256": "e9f9753c689fad23984129673973f39cf1e56343f88bae091a26ca5bb6131a87"
+    },
+    {
+      "path": "app/Actions/SaveProjectMonitoringDraft.php",
+      "baseline_sha256": "8f19358104a110b26a76ce110ee969b4ff951f38b639d804e9e2d2f64c4f0f5e",
+      "current_sha256": "8f19358104a110b26a76ce110ee969b4ff951f38b639d804e9e2d2f64c4f0f5e"
+    },
+    {
+      "path": "app/Http/Controllers/ProjectMonitoringController.php",
+      "baseline_sha256": "f206b461f22db0ede96eb630f6254aa3f0a7ad0488bf0bd64f2854f68fd803f6",
+      "current_sha256": "f206b461f22db0ede96eb630f6254aa3f0a7ad0488bf0bd64f2854f68fd803f6"
+    },
+    {
+      "path": "app/Http/Controllers/ResearchAssistantController.php",
+      "baseline_sha256": "6d1e4bc1a002e4c56ab5e584f956309d6e42ac80c1ec917667d8f5faf70a9bcf",
+      "current_sha256": "6d1e4bc1a002e4c56ab5e584f956309d6e42ac80c1ec917667d8f5faf70a9bcf"
+    },
+    {
+      "path": "app/Models/ProjectMonitoringDraft.php",
+      "baseline_sha256": "a1a34d01615349f59dfdb25aab70c829d119d86eaac0fd613ece1a554562dbcb",
+      "current_sha256": "a1a34d01615349f59dfdb25aab70c829d119d86eaac0fd613ece1a554562dbcb"
+    },
+    {
+      "path": "app/Services/MonitoringEvidenceService.php",
+      "baseline_sha256": "b9c6b4904f35e2eae6a568b0101c55946a150877bf1155cd41fb0ced31c74587",
+      "current_sha256": "b9c6b4904f35e2eae6a568b0101c55946a150877bf1155cd41fb0ced31c74587"
+    },
+    {
+      "path": "app/Services/ProjectMonitoringFormDataService.php",
+      "baseline_sha256": "225d3b286f417fba0bca9610abfc6861b47cb36819bbece1249090a94052f9c0",
+      "current_sha256": "225d3b286f417fba0bca9610abfc6861b47cb36819bbece1249090a94052f9c0"
+    },
+    {
+      "path": "app/Services/ProjectReportDraftState.php",
+      "baseline_sha256": "722dd2ef5f83803e43552d3f1db11f64505161d87d4d4d2c03443cb2355271f3",
+      "current_sha256": "722dd2ef5f83803e43552d3f1db11f64505161d87d4d4d2c03443cb2355271f3"
+    },
+    {
+      "path": "app/Services/ResearchAssistantDocumentService.php",
+      "baseline_sha256": "e1cb903f1eac24999f49fba3d42a675585e535677f8733ab9d62f35e0725b9ed",
+      "current_sha256": "e1cb903f1eac24999f49fba3d42a675585e535677f8733ab9d62f35e0725b9ed"
+    },
+    {
+      "path": "app/Services/ResearchAssistantPaperReader.php",
+      "baseline_sha256": "24679e3bc242fca78bc96eab431afc31188daee20aa7ecd177477df7a00b17ab",
+      "current_sha256": "24679e3bc242fca78bc96eab431afc31188daee20aa7ecd177477df7a00b17ab"
+    },
+    {
+      "path": "app/Services/ResearchAssistantProposalAssistanceService.php",
+      "baseline_sha256": "947bce483fec7ed5d3a32612b3439e0c649b9cb5cfbeefa601fdb3e09a84a9a3",
+      "current_sha256": "947bce483fec7ed5d3a32612b3439e0c649b9cb5cfbeefa601fdb3e09a84a9a3"
+    },
+    {
+      "path": "app/Services/ResearchAssistantReportAssistanceService.php",
+      "baseline_sha256": "fc4276b865e47d62b6d952dac655bb665c221173337fd1b0514d160711a26624",
+      "current_sha256": "fc4276b865e47d62b6d952dac655bb665c221173337fd1b0514d160711a26624"
+    },
+    {
+      "path": "app/Services/ResearchAssistantWorkflowContextService.php",
+      "baseline_sha256": "bfafbbeb88e7dad40ed5c9e97ce487664aa62ad17829070a1c5a03f928d1dccb",
+      "current_sha256": "bfafbbeb88e7dad40ed5c9e97ce487664aa62ad17829070a1c5a03f928d1dccb"
+    },
+    {
+      "path": "resources/css/proposal-paper-workspace.css",
+      "baseline_sha256": "8355c5a84a16e0a322974e3b5662dd3b8825c8ea7943e3cd72e5ff2ec4318610",
+      "current_sha256": "8355c5a84a16e0a322974e3b5662dd3b8825c8ea7943e3cd72e5ff2ec4318610"
+    },
+    {
+      "path": "resources/js/detailed-proposal-editor.js",
+      "baseline_sha256": "4b9c5fa9f488cfb62ae07ebd98097852685d999f514a0493592f9e911f657f57",
+      "current_sha256": "4b9c5fa9f488cfb62ae07ebd98097852685d999f514a0493592f9e911f657f57"
+    },
+    {
+      "path": "resources/views/components/monitoring-tool-form.blade.php",
+      "baseline_sha256": "a3765a348c6476f522ad1722c19d148100c5b0d58fecef9faa0541cf92140021",
+      "current_sha256": "a3765a348c6476f522ad1722c19d148100c5b0d58fecef9faa0541cf92140021"
+    },
+    {
+      "path": "resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php",
+      "baseline_sha256": "281360330b1ee68870827b7dfdccb1bb86b7c18a12f22d6857699edd4402a70c",
+      "current_sha256": "281360330b1ee68870827b7dfdccb1bb86b7c18a12f22d6857699edd4402a70c"
+    },
+    {
+      "path": "tests/Feature/DetailedProposalBuilderTest.php",
+      "baseline_sha256": "e7c6b6a52842d7da270b9653e251c20beda1d531dc2b49a6a9f4a33ac26d97d7",
+      "current_sha256": "e7c6b6a52842d7da270b9653e251c20beda1d531dc2b49a6a9f4a33ac26d97d7"
+    },
+    {
+      "path": "tests/Feature/MonitoringEvidenceTest.php",
+      "baseline_sha256": "012b124570d7742a17eb08ae17183c5549f3f250f231416022d6859a2a32668b",
+      "current_sha256": "012b124570d7742a17eb08ae17183c5549f3f250f231416022d6859a2a32668b"
+    },
+    {
+      "path": "tests/Feature/ProjectReportDraftRecoveryTest.php",
+      "baseline_sha256": "b1e8b5ed026115dec5b7af5af7b0445027847ee2234904ae6915b2d2c336e981",
+      "current_sha256": "b1e8b5ed026115dec5b7af5af7b0445027847ee2234904ae6915b2d2c336e981"
+    },
+    {
+      "path": "tests/Feature/ResearchAssistantProposalFigureTest.php",
+      "baseline_sha256": "6a89c448c22468d1e4983be9fa00670286e547512037263d07e56ecdd0b630f2",
+      "current_sha256": "6a89c448c22468d1e4983be9fa00670286e547512037263d07e56ecdd0b630f2"
+    },
+    {
+      "path": "tests/Feature/ResearchAssistantReportAssistanceTest.php",
+      "baseline_sha256": "68e3ca44801d814707abe5cb47acf23b768d6dff0b3ff3414628a0288e9664a2",
+      "current_sha256": "68e3ca44801d814707abe5cb47acf23b768d6dff0b3ff3414628a0288e9664a2"
+    },
+    {
+      "path": "tests/Frontend/detailed-proposal-editor.test.mjs",
+      "baseline_sha256": "3ce223c1e75744c0f0613aab3d5b77652b69b2f59b893342f13e2ec7ef5cceff",
+      "current_sha256": "3ce223c1e75744c0f0613aab3d5b77652b69b2f59b893342f13e2ec7ef5cceff"
+    },
+    {
+      "path": "tests/Frontend/specific-methods-editor.test.mjs",
+      "baseline_sha256": "35dd207454846af1f872e71a38ab37dcbe775f8653fe994bd09c9d2543d0c936",
+      "current_sha256": "35dd207454846af1f872e71a38ab37dcbe775f8653fe994bd09c9d2543d0c936"
+    }
+  ]
+}

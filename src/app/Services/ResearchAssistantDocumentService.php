@@ -13,8 +13,6 @@ use App\Models\ResearchManual;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Support\ProposalPaperCatalog;
-use DOMDocument;
-use DOMNode;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -26,6 +24,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use JsonException;
 use Throwable;
+use XMLReader;
 use ZipArchive;
 
 class ResearchAssistantDocumentService
@@ -369,6 +368,8 @@ PROMPT;
         return [
             'prompt' => $evidence['prompt'] ?? 'The selected paper has no readable saved fields. Do not invent its contents.',
             'sources' => $evidence['sources'],
+            ...(isset($evidence['images']) ? ['images' => $evidence['images']] : []),
+            ...(isset($evidence['clarification']) ? ['clarification' => $evidence['clarification']] : []),
             'research_manual' => $record->researchManual,
             'document' => [
                 'label' => $paper['label'], 'filename' => $paper['label'], 'format' => 'SAVED',
@@ -913,25 +914,14 @@ PROMPT;
             $remaining = $byteLimit;
             $truncated = false;
             foreach ($parts as $entry) {
-                $xml = $archive->getFromName($entry['name']);
-                if (! is_string($xml)) {
-                    continue;
+                $part = $this->wordXmlPassages($archive, $entry['name'], $remaining);
+                foreach ($part['passages'] as $passage) {
+                    $passages[] = $passage;
                 }
-                foreach ($this->wordXmlParagraphs($xml) as $index => $paragraph) {
-                    $paragraph = $this->normalizeText($paragraph);
-                    if ($paragraph === '') {
-                        continue;
-                    }
-                    if ($remaining <= 0) {
-                        $truncated = true;
-                        break 2;
-                    }
-                    $truncated = $truncated || strlen($paragraph) > $remaining;
-                    $text = mb_strcut($paragraph, 0, $remaining, 'UTF-8');
-                    $part = basename($entry['name'], '.xml');
-                    $passages[] = ['id' => $part.'-paragraph-'.($index + 1),
-                        'location' => ($part === 'document' ? 'Source' : Str::headline($part)).' paragraph '.($index + 1), 'text' => $text];
-                    $remaining -= strlen($text);
+                $remaining -= $part['bytes'];
+                if ($part['truncated']) {
+                    $truncated = true;
+                    break;
                 }
             }
 
@@ -941,50 +931,102 @@ PROMPT;
         }
     }
 
-    /** @return list<string> */
-    private function wordXmlParagraphs(string $xml): array
+    /** @return array{passages: list<array{id: string, location: string, text: string}>, bytes: int, truncated: bool} */
+    private function wordXmlPassages(ZipArchive $archive, string $entry, int $byteLimit): array
     {
-        $document = new DOMDocument;
+        $empty = ['passages' => [], 'bytes' => 0, 'truncated' => false];
+        $reader = new XMLReader;
+        $stream = null;
         $previous = libxml_use_internal_errors(true);
-        $loaded = $document->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
         libxml_clear_errors();
-        libxml_use_internal_errors($previous);
+        try {
+            if (method_exists(XMLReader::class, 'fromStream')) {
+                $stream = $archive->getStream($entry);
+                if ($stream === false) {
+                    return $empty;
+                }
+                $reader = XMLReader::fromStream($stream, flags: LIBXML_NONET);
+            } else {
+                // shortcut: PHP 8.3 loads the bounded XML string; remove this branch when 8.3 support ends.
+                $xml = $archive->getFromName($entry);
+                if (! is_string($xml) || $xml === '' || ! $reader->XML($xml, flags: LIBXML_NONET)) {
+                    return $empty;
+                }
+                unset($xml);
+            }
 
-        if (! $loaded) {
-            return [];
-        }
+            $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+            $part = basename($entry, '.xml');
+            $label = $part === 'document' ? 'Source' : Str::headline($part);
+            $passages = [];
+            $bytes = 0;
+            $truncated = false;
+            $text = '';
+            $starts = $ends = $open = [];
 
-        $paragraphs = $document->getElementsByTagNameNS(
-            'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
-            'p',
-        );
-        $lines = [];
-
-        foreach ($paragraphs as $paragraph) {
-            $line = '';
-
-            foreach ($paragraph->getElementsByTagNameNS(
-                'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
-                '*',
-            ) as $node) {
-                if (! $node instanceof DOMNode) {
+            // Share one text buffer for paragraphs nested in text boxes and keep their document order.
+            while ($reader->read()) {
+                if ($truncated) {
                     continue;
                 }
-
-                $line .= match ($node->localName) {
-                    't' => $node->textContent,
-                    'tab' => "\t",
-                    'br', 'cr' => "\n",
-                    default => '',
-                };
+                $type = $reader->nodeType;
+                if ($type === XMLReader::DOC_TYPE) {
+                    return $empty;
+                }
+                if ($type !== XMLReader::ELEMENT && $type !== XMLReader::END_ELEMENT) {
+                    continue;
+                }
+                $name = $reader->localName;
+                if ($type === XMLReader::ELEMENT) {
+                    if ($name === 'p' && $reader->namespaceURI === $namespace && ! $reader->isEmptyElement) {
+                        $open[] = count($starts);
+                        $starts[] = strlen($text);
+                    } elseif ($open !== [] && in_array($name, ['t', 'tab', 'br', 'cr'], true) && $reader->namespaceURI === $namespace) {
+                        $text .= match ($name) {
+                            't' => $reader->readString(),
+                            'tab' => "\t",
+                            'br', 'cr' => "\n",
+                        };
+                    }
+                } elseif ($name === 'p' && $reader->namespaceURI === $namespace) {
+                    $ends[array_pop($open)] = strlen($text);
+                    if ($open !== []) {
+                        continue;
+                    }
+                    foreach ($starts as $index => $start) {
+                        $paragraph = $this->normalizeText(substr($text, $start, $ends[$index] - $start));
+                        if ($paragraph === '') {
+                            continue;
+                        }
+                        $remaining = $byteLimit - $bytes;
+                        $truncated = strlen($paragraph) > $remaining;
+                        $paragraph = $truncated ? mb_strcut($paragraph, 0, $remaining, 'UTF-8') : $paragraph;
+                        if ($paragraph !== '') {
+                            $number = count($passages) + 1;
+                            $passages[] = ['id' => $part.'-paragraph-'.$number, 'location' => $label.' paragraph '.$number, 'text' => $paragraph];
+                            $bytes += strlen($paragraph);
+                        }
+                        if ($truncated) {
+                            break;
+                        }
+                    }
+                    $text = '';
+                    $starts = $ends = [];
+                }
             }
+            $error = libxml_get_last_error();
 
-            if (filled(trim($line))) {
-                $lines[] = trim($line);
+            return $error !== false && $error->level >= LIBXML_ERR_ERROR
+                ? $empty
+                : ['passages' => $passages, 'bytes' => $bytes, 'truncated' => $truncated];
+        } finally {
+            $reader->close();
+            if (is_resource($stream)) {
+                fclose($stream);
             }
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
         }
-
-        return $lines;
     }
 
     private function normalizeText(string $text): string

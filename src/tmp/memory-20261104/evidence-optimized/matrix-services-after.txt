@@ -1,0 +1,8 @@
+default-queue                    RUNNING   pid 4418, uptime 0:11:15
+fpm                              RUNNING   pid 4415, uptime 0:11:15
+mysql                            RUNNING   pid 4414, uptime 0:11:15
+nginx                            RUNNING   pid 4416, uptime 0:11:15
+pdf-queue                        RUNNING   pid 4419, uptime 0:11:15
+pdf-recovery                     RUNNING   pid 4417, uptime 0:11:15
+reverb                           RUNNING   pid 4422, uptime 0:11:15
+scheduler                        RUNNING   pid 4424, uptime 0:11:15

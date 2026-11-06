@@ -621,7 +621,7 @@ test('the owner and Research Head can download the official report as a PDF and 
     }
 });
 
-test('large report figure previews are private and smaller while downloads and generated documents retain original images', function () {
+test('large report figure previews and document copies are smaller while downloads retain original images', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)([
             'photo_1' => UploadedFile::fake()->image('large-original.jpg', 2400, 1800),
@@ -642,13 +642,17 @@ test('large report figure previews are private and smaller while downloads and g
     expect($zip->open($temporary))->toBeTrue();
     $images = [];
     for ($index = 0; $index < $zip->numFiles; $index++) {
-        if (str_starts_with($zip->getNameIndex($index), 'word/media/')) {
+        if (str_starts_with($zip->getNameIndex($index), 'word/media/progress-figure-')) {
             $images[] = $zip->getFromIndex($index);
         }
     }
     $zip->close();
     unlink($temporary);
-    expect($images)->toContain($original);
+    expect($images)->toHaveCount(1)
+        ->and(strlen($images[0]))->toBeLessThan(strlen($original))
+        ->and(getimagesizefromstring($images[0])[0])->toBe(1600)
+        ->and(getimagesizefromstring($images[0])[1])->toBe(1200)
+        ->and(Storage::disk('local')->get($report->photos[0]['path']))->toBe($original);
 
     $other = User::factory()->create();
     $other->assignRole('faculty_researcher');

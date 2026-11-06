@@ -1,0 +1,13 @@
+{
+    "case": "manual-long-paragraph",
+    "source_bytes": 983872,
+    "ocr_bytes": 1048654,
+    "page_count": 1,
+    "chunk_count": 594,
+    "indexed_characters": 1048023,
+    "unindexed_pages": [],
+    "index_bytes": 1129018,
+    "index_path": "\/app\/storage\/app\/private\/capacity-output\/manual-long-paragraph\/index.json",
+    "elapsed_seconds": 0.424860228,
+    "php_peak_mib": 12
+}

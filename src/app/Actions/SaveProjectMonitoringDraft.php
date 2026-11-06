@@ -28,9 +28,9 @@ class SaveProjectMonitoringDraft
 
         return DB::transaction(function () use ($topic, $user, $sourceReport, $expectedVersion, $normalizedSourceData, $expectedScope, $expectedDraftId): ProjectMonitoringDraft {
             $topic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+            abort_unless($topic->isAccessibleTo($user), 403);
             $draft = ProjectMonitoringDraft::query()
                 ->whereBelongsTo($topic, 'topic')
-                ->whereBelongsTo($user, 'user')
                 ->forSource($sourceReport)
                 ->lockForUpdate()
                 ->first();
@@ -63,6 +63,8 @@ class SaveProjectMonitoringDraft
                     'lock_version' => 1,
                 ]);
             }
+
+            ProjectMonitoringDraft::archiveOtherCopies($topic, $sourceReport, $draft->id);
 
             if ($this->normalizeSourceData($draft->source_data ?? []) === $normalizedSourceData) {
                 return $draft;

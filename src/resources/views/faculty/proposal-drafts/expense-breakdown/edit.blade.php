@@ -98,7 +98,7 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Shared project information</h3>
-                    <p class="mt-1 text-xs leading-5 text-gray-500">The Project Title is taken from Project Details and printed above the official expense table.</p>
+                    <p class="mt-1 text-xs leading-5 text-gray-500">The project title comes from Project Details.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">View official sample</a>@endif

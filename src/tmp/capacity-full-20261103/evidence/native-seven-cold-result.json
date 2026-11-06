@@ -1,0 +1,35 @@
+{
+    "case": "native-seven-cold",
+    "files": {
+        "work_plan": {
+            "bytes": 101663,
+            "sections": 3
+        },
+        "line_item_budget": {
+            "bytes": 100219,
+            "sections": 6
+        },
+        "expense_breakdown": {
+            "bytes": 92882,
+            "sections": 4
+        },
+        "curriculum_vitae": {
+            "bytes": 234504,
+            "sections": 10
+        },
+        "gad_checklist": {
+            "bytes": 256441,
+            "sections": 0
+        },
+        "initial_screening_form": {
+            "bytes": 108930,
+            "sections": 0
+        },
+        "detailed_proposal": {
+            "bytes": 161730,
+            "sections": 18
+        }
+    },
+    "elapsed_seconds": 6.073640965,
+    "php_peak_mib": 6
+}

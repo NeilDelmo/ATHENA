@@ -1,0 +1,9 @@
+{
+    "case": "archive-complete",
+    "files": 23,
+    "generated_pdfs": 1,
+    "archive_bytes": 38106412,
+    "sha256": "f82bd8d43f8617224d09b0207df60c617664966143fb2f07345af45495c719bc",
+    "elapsed_seconds": 2.137505627,
+    "php_peak_mib": 40.26953125
+}

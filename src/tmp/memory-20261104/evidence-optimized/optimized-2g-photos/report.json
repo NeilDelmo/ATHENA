@@ -1,0 +1,669 @@
+{
+  "name": "optimized-2g-photos",
+  "mode": "matrix",
+  "started_at": 1793773406.3214808,
+  "cgroup": "/system.slice/athena-memory-2g.service",
+  "limits": {
+    "memory.max": "1879048192",
+    "memory.swap.max": "0",
+    "cpu.max": "100000 100000"
+  },
+  "phases": [
+    {
+      "phase": "idle",
+      "seconds": 15.500697674999856,
+      "result": {
+        "ok": true
+      },
+      "resources": {
+        "samples": 56,
+        "peak_mib": 649.5,
+        "peak_anon_mib": 608.9765625,
+        "peak_pss_mib": 848.8623046875,
+        "peak_rss_mib": 1101.44921875,
+        "peak_file_mib": 30.62890625,
+        "minimum_mib": 648.72265625,
+        "last_mib": 649.47265625,
+        "cpu_usage_seconds": 0.695514,
+        "cpu_throttled_seconds": 0.0,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 20373,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 292096,
+            "pss_kib": 284007,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9940,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2397,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 77620,
+            "pss_kib": 53085,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 47044,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 47407,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2128,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 78352,
+            "pss_kib": 52766,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 71052,
+            "pss_kib": 46389,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 51176,
+            "pss_kib": 24125,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 47176,
+            "pss_kib": 20374,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 7429,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1174,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 267832,
+            "pss_kib": 250529,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          }
+        ]
+      }
+    },
+    {
+      "phase": "progress-highres-6",
+      "seconds": 12.744268841000121,
+      "result": {
+        "status": 200,
+        "seconds": 12.2437387760001,
+        "bytes": 839,
+        "result": {
+          "case": "progress-highres-6",
+          "conversion_seconds": 7.468864625,
+          "source_path": "/app/storage/app/private/capacity-output/progress-highres-6-a20bee25/progress-images.docx",
+          "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-6-a20bee25/progress-images.pdf",
+          "text_path": "/app/storage/app/private/capacity-output/progress-highres-6-a20bee25/progress-images.txt",
+          "pages": 44,
+          "docx_or_xlsx_bytes": 7046994,
+          "pdf_bytes": 6939367,
+          "input_counts": {
+            "images": 6,
+            "image_bytes": 30706235,
+            "accomplishments": 30,
+            "serialized_data_bytes": 144248
+          },
+          "verified_markers": [
+            "ACCOMPLISHMENT30END",
+            "REPORTFIGURE6END",
+            "RESULTSEND"
+          ],
+          "marker_extraction_fallbacks": [],
+          "source_generation_seconds": 4.055422068,
+          "fixture_and_validation_seconds": 0.399050714,
+          "total_image_pixels": 120000000,
+          "elapsed_seconds": 12.183211017,
+          "php_peak_mib": 34.73046875
+        },
+        "body_excerpt": null
+      },
+      "resources": {
+        "samples": 46,
+        "peak_mib": 793.66015625,
+        "peak_anon_mib": 730.47265625,
+        "peak_pss_mib": 976.5751953125,
+        "peak_rss_mib": 1244.609375,
+        "peak_file_mib": 52.29296875,
+        "minimum_mib": 649.70703125,
+        "last_mib": 752.40625,
+        "cpu_usage_seconds": 12.19233,
+        "cpu_throttled_seconds": 0.778774,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 19491,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 292224,
+            "pss_kib": 284012,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9744,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2382,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 77620,
+            "pss_kib": 52988,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 46982,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 47343,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2121,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 79760,
+            "pss_kib": 54109,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 71052,
+            "pss_kib": 46309,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 51176,
+            "pss_kib": 23981,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 65268,
+            "pss_kib": 36973,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 6687,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1057,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 367668,
+            "pss_kib": 348185,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          },
+          {
+            "pid": 4672,
+            "name": "python3",
+            "rss_kib": 27260,
+            "pss_kib": 17649,
+            "command": "/usr/bin/python3 /app/scripts/convert-office-pdf.py athena-pdf-339bb404-e6c1-4448-a4b4-bfe42486d1c5 /app/storage/app/private/pdf-conversions/athena-pdf-7b279b4f-06e9-442a-b597-eb73f2c851e1 pdf:writer_pdf_Export /app/stor"
+          }
+        ]
+      }
+    },
+    {
+      "phase": "progress-highres-12",
+      "seconds": 21.09986334900009,
+      "result": {
+        "status": 200,
+        "seconds": 20.599539511000103,
+        "bytes": 848,
+        "result": {
+          "case": "progress-highres-12",
+          "conversion_seconds": 9.009124546,
+          "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-7b1f3f07/progress-images.docx",
+          "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-7b1f3f07/progress-images.pdf",
+          "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-7b1f3f07/progress-images.txt",
+          "pages": 47,
+          "docx_or_xlsx_bytes": 13836678,
+          "pdf_bytes": 13503273,
+          "input_counts": {
+            "images": 12,
+            "image_bytes": 61411049,
+            "accomplishments": 30,
+            "serialized_data_bytes": 145139
+          },
+          "verified_markers": [
+            "ACCOMPLISHMENT30END",
+            "REPORTFIGURE12END",
+            "RESULTSEND"
+          ],
+          "marker_extraction_fallbacks": [],
+          "source_generation_seconds": 10.890046549,
+          "fixture_and_validation_seconds": 0.386021885,
+          "total_image_pixels": 240000000,
+          "elapsed_seconds": 20.538314816,
+          "php_peak_mib": 65.20703125
+        },
+        "body_excerpt": null
+      },
+      "resources": {
+        "samples": 75,
+        "peak_mib": 932.828125,
+        "peak_anon_mib": 872.6484375,
+        "peak_pss_mib": 1117.896484375,
+        "peak_rss_mib": 1438.41015625,
+        "peak_file_mib": 87.50390625,
+        "minimum_mib": 752.40625,
+        "last_mib": 868.66796875,
+        "cpu_usage_seconds": 20.526099,
+        "cpu_throttled_seconds": 7.572121,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 20271,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 292608,
+            "pss_kib": 284158,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9163,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2310,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 77620,
+            "pss_kib": 52063,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 46088,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 46381,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2105,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 79760,
+            "pss_kib": 52764,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 72588,
+            "pss_kib": 45821,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 150356,
+            "pss_kib": 121077,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 58656,
+            "pss_kib": 28768,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 7386,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1096,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 348452,
+            "pss_kib": 330069,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          },
+          {
+            "pid": 4716,
+            "name": "sh",
+            "rss_kib": 1792,
+            "pss_kib": 258,
+            "command": "sh -c '/usr/bin/php8.5' 'artisan' schedule:run "
+          },
+          {
+            "pid": 4717,
+            "name": "php8.5",
+            "rss_kib": 74508,
+            "pss_kib": 47558,
+            "command": "/usr/bin/php8.5 artisan schedule:run "
+          },
+          {
+            "pid": 4728,
+            "name": "sh",
+            "rss_kib": 1792,
+            "pss_kib": 254,
+            "command": "sh -c '/usr/bin/php8.5' 'artisan' proposal-pdfs:recover > '/dev/null' 2>&1 "
+          },
+          {
+            "pid": 4729,
+            "name": "php8.5",
+            "rss_kib": 72348,
+            "pss_kib": 47136,
+            "command": "/usr/bin/php8.5 artisan proposal-pdfs:recover "
+          }
+        ]
+      }
+    },
+    {
+      "phase": "after-idle",
+      "seconds": 15.500962746999903,
+      "result": {
+        "ok": true
+      },
+      "resources": {
+        "samples": 56,
+        "peak_mib": 868.796875,
+        "peak_anon_mib": 782.78515625,
+        "peak_pss_mib": 1027.0771484375,
+        "peak_rss_mib": 1289.1953125,
+        "peak_file_mib": 74.60546875,
+        "minimum_mib": 868.23046875,
+        "last_mib": 868.796875,
+        "cpu_usage_seconds": 0.853491,
+        "cpu_throttled_seconds": 0.0,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 4407,
+            "name": "supervisord",
+            "rss_kib": 28996,
+            "pss_kib": 20372,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 4414,
+            "name": "mysqld",
+            "rss_kib": 292608,
+            "pss_kib": 284425,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 4415,
+            "name": "php-fpm8.5",
+            "rss_kib": 38768,
+            "pss_kib": 9758,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 4416,
+            "name": "nginx",
+            "rss_kib": 9472,
+            "pss_kib": 2396,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 4417,
+            "name": "php",
+            "rss_kib": 77620,
+            "pss_kib": 53051,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 4418,
+            "name": "php",
+            "rss_kib": 71176,
+            "pss_kib": 46997,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4419,
+            "name": "php",
+            "rss_kib": 71812,
+            "pss_kib": 47356,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 4421,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2133,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 4422,
+            "name": "php",
+            "rss_kib": 79888,
+            "pss_kib": 53980,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 4424,
+            "name": "php",
+            "rss_kib": 72588,
+            "pss_kib": 46920,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 4432,
+            "name": "php-fpm8.5",
+            "rss_kib": 60964,
+            "pss_kib": 30293,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4433,
+            "name": "php-fpm8.5",
+            "rss_kib": 58656,
+            "pss_kib": 28142,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 4506,
+            "name": "python3",
+            "rss_kib": 11776,
+            "pss_kib": 7428,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,nam"
+          },
+          {
+            "pid": 4508,
+            "name": "oosplash",
+            "rss_kib": 5348,
+            "pss_kib": 1172,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --accept=pipe,name=athena-pdf-339bb404-e6c1-4448"
+          },
+          {
+            "pid": 4529,
+            "name": "soffice.bin",
+            "rss_kib": 435360,
+            "pss_kib": 417304,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/zNIMbMAk4yJ8 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-339bb404-e6c1-4"
+          }
+        ]
+      }
+    }
+  ],
+  "server_config": {
+    "projects": 100,
+    "php_fpm_children": 2,
+    "php_worker_memory_limit_mib": 256,
+    "mysql_buffer_pool_mib": 128,
+    "pdf_queue_workers": 1,
+    "default_queue_workers": 1,
+    "persistent_libreoffice": true
+  },
+  "reverb_connections": 20,
+  "finished_at": 1793773472.631929,
+  "reverb_heartbeat_errors": [],
+  "memory_events_end": {
+    "low": 0,
+    "high": 0,
+    "max": 0,
+    "oom": 0,
+    "oom_kill": 0,
+    "oom_group_kill": 0
+  },
+  "cgroup_peak_mib": 941.3984375
+}

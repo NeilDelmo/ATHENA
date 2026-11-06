@@ -52,13 +52,14 @@ class RmsQuarterlyReportDocument
                 $rows = $reportData[$section] ?? [];
                 $extraRows = max(0, count($rows) - 10);
                 $this->expandRows($xpath, $firstRow, $extraRows);
+                $cells = $this->indexCells($xpath);
 
                 for ($index = 0; $index < max(10, count($rows)); $index++) {
                     $rowNumber = $firstRow + $index;
                     $lines = 1;
-                    $this->setCell($this->cell($xpath, 'A'.$rowNumber), isset($rows[$index]) ? $index + 1 : '');
+                    $this->setCell($this->cell($cells, 'A'.$rowNumber), isset($rows[$index]) ? $index + 1 : '');
                     foreach (array_keys(RmsQuarterlyReportData::FIELDS[$section]) as $column => $field) {
-                        $cell = $this->cell($xpath, chr(ord('B') + $column).$rowNumber);
+                        $cell = $this->cell($cells, chr(ord('B') + $column).$rowNumber);
                         $value = $rows[$index]['values'][$field] ?? '';
                         $date = $field === 'date' ? $this->date($value) : null;
                         $this->setCell($cell, $date ?? $value);
@@ -71,12 +72,12 @@ class RmsQuarterlyReportDocument
                             explode("\n", $value),
                         )));
                     }
-                    $this->cell($xpath, 'A'.$rowNumber)->parentNode->setAttribute('ht', (string) (18 * $lines));
+                    $this->cell($cells, 'A'.$rowNumber)->parentNode->setAttribute('ht', (string) (18 * $lines));
                 }
 
-                $this->setCell($this->cell($xpath, 'C'.($firstRow + 10 + $extraRows)), count($rows));
-                $this->setCell($this->cell($xpath, 'A5'), 'Fiscal Year: '.$metadata['year'].' Quarter: '.$metadata['quarter']);
-                $this->setCell($this->cell($xpath, 'A6'), 'Constituent Campus: '.$metadata['campus']);
+                $this->setCell($this->cell($cells, 'C'.($firstRow + 10 + $extraRows)), count($rows));
+                $this->setCell($this->cell($cells, 'A5'), 'Fiscal Year: '.$metadata['year'].' Quarter: '.$metadata['quarter']);
+                $this->setCell($this->cell($cells, 'A6'), 'Constituent Campus: '.$metadata['campus']);
                 foreach (['name' => 30, 'position' => 31, 'office' => 32] as $field => $baseRow) {
                     $row = $baseRow + $extraRows;
                     $lines = 1;
@@ -87,7 +88,7 @@ class RmsQuarterlyReportDocument
                         }
                     }
                     foreach (['prepared' => ['A', 'C'], 'reviewed' => ['D', 'E'], 'approved' => ['F', 'H']] as $role => [$first, $last]) {
-                        $cell = $this->cell($xpath, $first.$row);
+                        $cell = $this->cell($cells, $first.$row);
                         $value = $metadata['signatories'][$role][$field] ?? '';
                         $this->setCell($cell, $value);
                         $cell->setAttribute('s', (string) $this->signatureStyle($styleXPath, (int) $cell->getAttribute('s'), $signatureStyles));
@@ -104,7 +105,7 @@ class RmsQuarterlyReportDocument
                             explode("\n", $value),
                         )));
                     }
-                    $this->cell($xpath, 'A'.$row)->parentNode->setAttribute('ht', (string) (18 * $lines));
+                    $this->cell($cells, 'A'.$row)->parentNode->setAttribute('ht', (string) (18 * $lines));
                     $merges->setAttribute('count', (string) $xpath->query('./s:mergeCell', $merges)->length);
                 }
 
@@ -150,9 +151,10 @@ class RmsQuarterlyReportDocument
             return;
         }
 
+        $cells = $this->indexCells($xpath);
         $totalRow = $firstRow + 10;
-        $blankRow = $this->cell($xpath, 'A'.$firstRow)->parentNode;
-        $total = $this->cell($xpath, 'A'.$totalRow)->parentNode;
+        $blankRow = $this->cell($cells, 'A'.$firstRow)->parentNode;
+        $total = $this->cell($cells, 'A'.$totalRow)->parentNode;
         foreach ($xpath->query('/s:worksheet/s:sheetData/s:row') as $row) {
             $number = (int) $row->getAttribute('r');
             if ($number >= $totalRow) {
@@ -186,9 +188,21 @@ class RmsQuarterlyReportDocument
         return preg_replace_callback('/(\$?[A-Z]+\$?)(\d+)/', fn (array $match): string => $match[1].((int) $match[2] >= $from ? (int) $match[2] + $offset : $match[2]), $reference);
     }
 
-    private function cell(DOMXPath $xpath, string $reference): DOMElement
+    /** @return array<string, DOMElement> */
+    private function indexCells(DOMXPath $xpath): array
     {
-        $cell = $xpath->query('//s:c[@r="'.$reference.'"]')->item(0);
+        $cells = [];
+        foreach ($xpath->query('/s:worksheet/s:sheetData/s:row/s:c') as $cell) {
+            $cells[$cell->getAttribute('r')] = $cell;
+        }
+
+        return $cells;
+    }
+
+    /** @param array<string, DOMElement> $cells */
+    private function cell(array $cells, string $reference): DOMElement
+    {
+        $cell = $cells[$reference] ?? null;
         if (! $cell instanceof DOMElement) {
             throw new RuntimeException('An RMS report cell is missing: '.$reference.'.');
         }

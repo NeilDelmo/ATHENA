@@ -19,9 +19,7 @@ class DetailedProposalMethodologyImageService
         $uploadedImage = $image['image'] ?? null;
 
         if ($uploadedImage instanceof UploadedFile && $uploadedImage->isValid()) {
-            $contents = file_get_contents($uploadedImage->getRealPath());
-
-            return $contents === false ? null : $contents;
+            return app(DocumentImageService::class)->contents($uploadedImage->getRealPath());
         }
 
         $storedPath = $image['stored_path'] ?? null;
@@ -30,7 +28,7 @@ class DetailedProposalMethodologyImageService
             return null;
         }
 
-        return Storage::disk('local')->get($storedPath);
+        return app(DocumentImageService::class)->contents(Storage::disk('local')->path($storedPath));
     }
 
     /** @param array<string, mixed> $image */

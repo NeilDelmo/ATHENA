@@ -1,0 +1,27 @@
+{
+    "case": "progress-highres-12",
+    "conversion_seconds": 40.499214651,
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/progress-highres-12\/progress-images.docx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/progress-highres-12\/progress-images.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/progress-highres-12\/progress-images.txt",
+    "pages": 47,
+    "docx_or_xlsx_bytes": 61580353,
+    "pdf_bytes": 18711762,
+    "input_counts": {
+        "images": 12,
+        "image_bytes": 61411049,
+        "accomplishments": 30,
+        "serialized_data_bytes": 145139
+    },
+    "verified_markers": [
+        "ACCOMPLISHMENT30END",
+        "REPORTFIGURE12END",
+        "RESULTSEND"
+    ],
+    "marker_extraction_fallbacks": [],
+    "source_generation_seconds": 3.463193802,
+    "fixture_and_validation_seconds": 0.34198055,
+    "total_image_pixels": 240000000,
+    "elapsed_seconds": 44.63149824,
+    "php_peak_mib": 179.92578125
+}

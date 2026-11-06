@@ -1113,6 +1113,43 @@ test('assistant rejects a malformed successful provider response', function () {
         ->assertJsonPath('message', 'The assistant returned an empty response. Please try rephrasing your question.');
 });
 
+test('assistant flags a reply that reaches the length limit', function (string $finishReason, bool $truncated) {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'Start by defining the study population.'],
+                'finish_reason' => $finishReason,
+            ]],
+        ]),
+    ]);
+
+    $user = User::factory()->create();
+    $user->assignRole('faculty');
+
+    $response = $this->actingAs($user)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'Help me plan a study.']],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'Start by defining the study population.');
+
+    if ($truncated) {
+        $response->assertJsonPath('reply_truncated', true);
+    } else {
+        $response->assertJsonMissingPath('reply_truncated');
+    }
+})->with([
+    'length' => ['length', true],
+    'max tokens' => ['MAX_TOKENS', true],
+    'completed' => ['stop', false],
+]);
+
 test('users can attach their own proposal context to a chat request', function () {
     config([
         'services.gemini.key' => 'test-key',
@@ -2304,7 +2341,7 @@ test('users can save, search, and reopen their assistant chat history', function
         ->postJson(route('research-support.history.save'), [
             'messages' => [
                 ['role' => 'user', 'content' => 'How can I improve my mangrove sampling plan?', 'sources' => []],
-                ['role' => 'assistant', 'content' => 'Define the population, sampling frame, and selection procedure.', 'sources' => []],
+                ['role' => 'assistant', 'content' => 'Define the population, sampling frame, and selection procedure.', 'sources' => [], 'reply_truncated' => true],
             ],
         ])
         ->assertOk()
@@ -2321,7 +2358,8 @@ test('users can save, search, and reopen their assistant chat history', function
     $this->actingAs($researcher)
         ->getJson(route('research-support.history.show', $conversationId))
         ->assertOk()
-        ->assertJsonPath('conversation.messages.1.content', 'Define the population, sampling frame, and selection procedure.');
+        ->assertJsonPath('conversation.messages.1.content', 'Define the population, sampling frame, and selection procedure.')
+        ->assertJsonPath('conversation.messages.1.reply_truncated', true);
 });
 
 test('assistant history is private to its owner', function () {

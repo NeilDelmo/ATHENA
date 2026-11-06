@@ -1,0 +1,7 @@
+wsl: Failed to translate 'D:\laragon\bin\php\php-8.4.13-Win32-vs17-x64'
+wsl: Failed to translate 'D:\ComposerSetup'
+your 131072x1 screen size is bogus. expect trouble
+    PID    PPID %CPU   RSS ELAPSED COMMAND
+   1777       1 30.5 837748   1916 /usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/gfxXLmt8kAFq --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-a7ea82f6-f81b-4fb4-93f2-6614c5f1be7c;urp;
+   3636    1672  0.1  5464     414 /usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/CWaa0JPne2R0 --accept=pipe,name=athena-pdf-d08f3b79-d56f-4dff-b15a-89072e7d2df2;urp;
+   3658    3636  2.9 334412    409 /usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/CWaa0JPne2R0 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-d08f3b79-d56f-4dff-b15a-89072e7d2df2;urp;

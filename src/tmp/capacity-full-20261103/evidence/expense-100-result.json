@@ -1,0 +1,22 @@
+{
+    "case": "expense-100",
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/expense-100.xlsx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/expense-100.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/expense-100.txt",
+    "pages": 21,
+    "docx_or_xlsx_bytes": 16121,
+    "pdf_bytes": 305902,
+    "input_counts": {
+        "images": 0,
+        "image_bytes": 0,
+        "items": 100,
+        "serialized_data_bytes": 116033
+    },
+    "verified_markers": [
+        "EXPENSE100END",
+        "DETAIL100END",
+        "PURPOSE100END"
+    ],
+    "elapsed_seconds": 0.587347454,
+    "php_peak_mib": 14
+}

@@ -1,0 +1,26 @@
+{
+  "kind": "Illustrative capacity budget; not a measured Linux deployment or 2-GiB-capped simulation",
+  "measured_windows_pdf_test_peak_mib": 491.5,
+  "target_ram_mib": 2048,
+  "assumed_component_allowances": {
+    "linux_os_and_web_server_mib": 250,
+    "mysql_with_small_memory_settings_mib": 350,
+    "web_workers_and_non_pdf_background_services_mib": 450,
+    "single_pdf_pipeline_mib": 600
+  },
+  "modeled_single_conversion_total_mib": 1650,
+  "modeled_single_conversion_headroom_mib": 398,
+  "modeled_two_independent_conversions_total_mib": 2250,
+  "assumptions": [
+    "Small PHP web worker pool; one PDF conversion pipeline at a time",
+    "MySQL memory configuration kept small",
+    "Production deployment with prebuilt frontend assets and no development servers",
+    "Seven official document templates were converted; large filled or image-heavy submissions were not tested"
+  ],
+  "limitations": [
+    "Windows memory measurements do not predict Linux RSS exactly",
+    "MySQL, normal authenticated web requests and Reverb were not load-tested",
+    "Docker was unavailable, so no actual 2-GiB Linux memory cap was enforced",
+    "Default MySQL or web-worker settings can exceed this illustrative allowance"
+  ]
+}

@@ -38,7 +38,42 @@ class ResearchAssistantProposalAssistanceService
         private ProposalBudgetConsistency $budget,
         private ProposalDraftReadiness $readiness,
         private ResearchAssistantRrlRevisionService $rrlRevision,
+        private ResearchAssistantRrlCheck $rrlCheck,
     ) {}
+
+    public function wantsRrlCheck(string $question, ?string $field = null): bool
+    {
+        $rrl = '(?:rrl|(?:review of )?related literature|literature review|section\s+(?:xi|11))';
+
+        return (preg_match('/\b'.$rrl.'\b/i', $question) === 1
+            || ($field === 'related_literature' && preg_match('/\b(?:studies|sources|citations|references)\b/i', $question) === 1))
+            && preg_match('/^\s*(?:find|search|suggest|recommend|draft|write|add|revise|rewrite)\b/i', $question) !== 1
+            && preg_match('/\b(?:how long|(?:many|minimum)\s+(?:pages|words|paragraphs|sentences)|(?:page|word|paragraph|sentence)\s+(?:count|limit))\b/i', $question) !== 1
+            && preg_match('/\b(?:how many|minimum|enough|sufficient|at least|need more|required (?:count|number)|certain amount|shortfall|meet (?:the )?requirements?|check (?:my |this |the |saved )*'.$rrl.')\b/i', $question) === 1;
+    }
+
+    public function checkRrl(ProposalDraft $draft): array
+    {
+        $document = $draft->documents->first(fn (ProposalDraftDocument $document): bool => $document->document_type === 'detailed_proposal' && $document->position === 0);
+        $requirements = $this->manualRequirements($draft);
+        $coverage = $this->rrlCheck->assess(
+            $document ? $document->source_data : [],
+            $draft->literatureSources()->get(['id', 'title', 'authors', 'doi', 'publication_year']),
+            $requirements['minimum'],
+        );
+
+        return [
+            'reply' => $coverage['study_check']['summary'],
+            'proposal_changes' => $this->historyPacket([
+                'proposal_draft_id' => $draft->id,
+                'proposal_title' => $draft->project_title,
+                'assessment' => ['rrl' => [...$requirements, ...$coverage]],
+            ]),
+            'sources' => $requirements['sources'],
+            'model' => 'athena-saved-rrl',
+            'usage' => ['prompt_tokens' => 0, 'completion_tokens' => 0],
+        ];
+    }
 
     public function assessment(ProposalDraft $draft): array
     {
@@ -134,6 +169,9 @@ class ResearchAssistantProposalAssistanceService
     public function wantsSuggestions(array $action, array $context, string $question): bool
     {
         if (! filled($context['proposal_draft_id'] ?? null)) {
+            return false;
+        }
+        if (preg_match('/\b(?:how|where|can\s+I)\b.{0,80}\b(?:upload|add|insert|attach|replace|remove|delete|resize|move)\b.{0,50}\b(?:images?|diagrams?|figures?|charts?|pictures?)\b/i', $question)) {
             return false;
         }
         if (($action['type'] ?? null) === 'suggest_proposal_changes') {
@@ -357,6 +395,23 @@ class ResearchAssistantProposalAssistanceService
         $coverage['sources'] = collect(is_array($rrl['sources'] ?? null) ? $rrl['sources'] : [])->filter(fn (mixed $source): bool => is_array($source))
             ->take(5)->map(fn (array $source): array => collect(Arr::only($source, ['reference', 'title', 'type', 'category', 'section', 'document_version', 'page_start', 'page_end']))
             ->filter(fn (mixed $value): bool => is_scalar($value))->map(fn (mixed $value): string|int => is_int($value) ? $value : Str::limit($this->plain((string) $value), 500, ''))->all())->all();
+        if (is_array($rrl['study_check'] ?? null)) {
+            $check = $rrl['study_check'];
+            $text = fn (mixed $value, int $limit): string => is_string($value) ? Str::limit(trim($value), $limit, '') : '';
+            $coverage['study_check'] = [
+                'summary' => $text($check['summary'] ?? null, 600),
+                'entries' => collect(is_array($check['entries'] ?? null) ? $check['entries'] : [])
+                    ->take(ResearchAssistantRrlCheck::MAX_ENTRIES)
+                    ->filter(fn (mixed $entry): bool => is_array($entry) && in_array($entry['status'] ?? null, ['supported', 'needs_review', 'references_only'], true))
+                    ->map(fn (array $entry): array => [
+                        'status' => $entry['status'],
+                        'label' => $text($entry['label'] ?? null, 230),
+                        'excerpt' => $text($entry['excerpt'] ?? null, 430),
+                        'reason' => $text($entry['reason'] ?? null, 180),
+                    ])->filter(fn (array $entry): bool => $entry['label'] !== '')->values()->all(),
+                'more' => is_int($check['more'] ?? null) ? max(0, min(100000, $check['more'])) : 0,
+            ];
+        }
 
         return ['proposal_draft_id' => $packet['proposal_draft_id'], 'proposal_title' => Str::limit($this->plain((string) ($packet['proposal_title'] ?? '')), 500, ''),
             'editor_url' => route('faculty.proposal-drafts.'.($suggestions[0]['paper_slug'] ?? 'detailed-proposal').'.edit', $packet['proposal_draft_id']),

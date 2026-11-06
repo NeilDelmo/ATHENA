@@ -1,0 +1,29 @@
+{
+    "case": "proposal-large",
+    "conversion_seconds": 13.416488319,
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/proposal-large.docx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/proposal-large.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/proposal-large.txt",
+    "pages": 59,
+    "docx_or_xlsx_bytes": 5870165,
+    "pdf_bytes": 16031797,
+    "input_counts": {
+        "images": 12,
+        "image_bytes": 5639834,
+        "objectives": 20,
+        "method_groups": 20,
+        "methods_per_group": 10,
+        "serialized_data_bytes": 338283
+    },
+    "verified_markers": [
+        "OBJECTIVE20END",
+        "METHOD20X10END",
+        "PROPOSALFIGURE12END",
+        "REFERENCESEND"
+    ],
+    "marker_extraction_fallbacks": [],
+    "source_generation_seconds": 0.331184042,
+    "fixture_and_validation_seconds": 0.042305275,
+    "elapsed_seconds": 14.209876676,
+    "php_peak_mib": 40.90234375
+}

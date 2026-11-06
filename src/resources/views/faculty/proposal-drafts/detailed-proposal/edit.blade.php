@@ -183,7 +183,7 @@
             <section data-revision-section="section-project-team" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
                 <div>
                     <h3 class="text-base font-black text-gray-900 dark:text-white">{{ $sectionHeadings['project-team'] }}</h3>
-                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Names follow the official uppercase format. Add a professional title such as Asst Prof. or Dr. when applicable.</p>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Add a professional title such as Asst Prof. or Dr. when applicable.</p>
                 </div>
 
                 <div class="mt-5 grid gap-4 border-t border-gray-100 pt-5 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_17rem]">
@@ -278,7 +278,6 @@
 
             <section data-revision-section="section-proponent" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['proponent'] }}</h3>
-                <p class="mt-1 text-xs text-gray-500">The Proponent Agency line is intentionally left blank on the official form.</p>
                 <div class="mt-5 grid gap-4 sm:grid-cols-2">
                     <div><label for="proponent-department" class="block text-xs font-black uppercase tracking-wider text-gray-600">Department <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="proponent-department" name="proponent_department" type="text" maxlength="255" x-model="proponentDepartment" placeholder="Leave blank if not applicable" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="proponent-college" class="block text-xs font-black uppercase tracking-wider text-gray-600">College <x-required-mark /> <span class="font-normal normal-case text-gray-400">From your profile</span></label><input id="proponent-college" name="proponent_college" type="text" required maxlength="255" x-model="proponentCollege" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
@@ -387,6 +386,7 @@
                             <x-slot name="content">
                                 <div id="rrl-assistance-actions" role="group" aria-label="RRL assistance" @keydown.escape.stop.prevent="open = false; $refs.rrlAssistanceTrigger.focus()">
                                     <button type="button" @click="openRrlChat()" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-white dark:hover:bg-slate-800"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" /></svg><span>Open chat</span></button>
+                                    <button type="button" @click="requestRrlRevision('check')" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:opacity-50 dark:text-white dark:hover:bg-slate-800"><x-assistant-icon class="h-4 w-4" /><span>Check my RRL</span></button>
                                     <button type="button" @click="requestRrlRevision('draft')" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:opacity-50 dark:text-white dark:hover:bg-slate-800"><x-assistant-icon class="h-4 w-4" /><span>Draft RRL</span></button>
                                     <button type="button" @click="requestRrlRevision('revise')" :disabled="rrlRevisionPending || proposalChangeApplying || autoSaveBlocked" class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-base text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:opacity-50 dark:text-white dark:hover:bg-slate-800"><x-assistant-icon class="h-4 w-4" /><span>Revise RRL</span></button>
                                 </div>
@@ -398,68 +398,67 @@
                 <textarea id="related-literature" name="related_literature" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') * 2 + 2 }}" x-model="relatedLiterature" data-semantic-editor class="mt-3 block w-full scroll-mt-36 rounded-lg border-gray-300 text-sm leading-6 shadow-sm focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
             </section>
 
-            <section data-revision-section="section-methodology" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-methodology" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['methodology'] }}</h3>
-                        <p class="mt-1 text-xs leading-5 text-gray-500">Add figures to any methodology part. Data Analysis is optional and is omitted from the output when blank.</p>
+                        <h3 class="text-base font-black text-gray-900 dark:text-white">{{ $sectionHeadings['methodology'] }}</h3>
+                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Add figures to any methodology part. Data Analysis is optional and is omitted from the output when blank.</p>
                     </div>
                 </div>
                 <div class="mt-5 space-y-5">
                     @foreach ($methodologyFields as $key => $label)
-                        <div @if ($key === 'specific_methods') data-specific-methods-editor @endif>
+                        <div @if ($key === 'specific_methods') data-specific-methods-editor class="specific-methods-editor" @endif>
                             @if ($key === 'specific_methods')
-                                <div class="flex items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
                                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Specific methods <x-required-mark /></h4>
-                                    <button type="button" x-on:click="addSpecificMethodGroup()" aria-label="Add method group" title="Add method group" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#800020] text-white transition hover:bg-[#600018] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600">
-                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                    <button type="button" x-on:click="addSpecificMethodGroup()" :disabled="specificMethodGroups.length >= 20" class="inline-flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-[#800020] transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-300 dark:hover:bg-slate-800">
+                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                        Add heading
                                     </button>
                                 </div>
                             @else
-                                <label for="methodology-{{ $key }}" class="block text-xs font-black uppercase tracking-wider text-gray-600">&bull; {{ $label }} @if ($key !== 'data_analysis')<x-required-mark />@else<span class="font-normal normal-case text-gray-400">Optional</span>@endif</label>
+                                <label for="methodology-{{ $key }}" class="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">&bull; {{ $label }} @if ($key !== 'data_analysis')<x-required-mark />@else<span class="font-normal normal-case text-gray-400">Optional</span>@endif</label>
                             @endif
                             <x-proposal-figure-input :section="$key" compact />
                             @if ($key === 'specific_methods')
-                                <div id="methodology-specific-methods" class="mt-3">
+                                <div id="methodology-specific-methods" class="mt-2">
                                     <input type="hidden" name="methodology[specific_methods]" x-bind:value="specificMethodsDocumentText()">
-                                    <div class="grid items-start gap-2 sm:grid-cols-2">
+                                    <div class="specific-methods-grid grid items-start gap-2">
                                         <template x-for="(group, groupIndex) in specificMethodGroups" :key="`specific-method-group-${group.id}`">
-                                            <article data-specific-method-group :class="specificMethodGroups.length === 1 ? 'sm:col-span-2' : ''" class="min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-white dark:border-slate-600 dark:bg-slate-900">
-                                                <header class="flex items-center justify-between gap-3 bg-gray-50 px-3 py-1.5 dark:bg-slate-800">
-                                                    <div class="flex min-w-0 items-center gap-2.5">
-                                                        <x-proposal-writing-icon name="numbered-list" class="h-4 w-4 shrink-0 text-[#800020] dark:text-red-300" />
-                                                        <label :for="`method-heading-${group.id}`" class="text-xs font-semibold text-gray-900 dark:text-slate-100"><span class="text-[#800020] dark:text-red-300" x-text="`${specificMethodGroupLetter(groupIndex)}. `"></span>Method heading <x-required-mark /></label>
-                                                    </div>
-                                                    <div class="flex shrink-0 items-center gap-1">
-                                                        <button type="button" x-on:click="addSpecificMethod(group)" :aria-label="`Add method to group ${specificMethodGroupLetter(groupIndex)}`" title="Add method" class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#800020] text-white transition hover:bg-[#600018] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600">
-                                                            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
-                                                        </button>
-                                                        <button x-show="specificMethodGroups.length > 1" type="button" x-on:click="removeSpecificMethodGroup(groupIndex)" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 transition hover:bg-gray-100 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-red-400" :aria-label="`Remove method group ${specificMethodGroupLetter(groupIndex)}`" title="Remove method group">
-                                                            <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                                        </button>
-                                                    </div>
+                                            <article data-specific-method-group class="min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-white dark:border-slate-600 dark:bg-slate-900" :aria-label="`Methods: ${group.heading || 'Untitled heading'}`">
+                                                <header class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 dark:bg-slate-800">
+                                                    <span class="shrink-0 text-xs font-semibold text-[#800020] dark:text-red-300" aria-hidden="true" x-text="`${specificMethodGroupLetter(groupIndex)}.`"></span>
+                                                    <label :for="`method-heading-${group.id}`" class="sr-only">Method heading <x-required-mark /></label>
+                                                    <textarea :id="`method-heading-${group.id}`" :name="`specific_method_objectives[${groupIndex}][heading]`" rows="1" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="group.heading" :aria-label="`Method heading ${specificMethodGroupLetter(groupIndex)}`" placeholder="Method heading" class="specific-method-heading block min-w-0 flex-1 rounded border-0 bg-transparent px-0 py-3 text-base font-semibold leading-6 text-gray-900 placeholder:text-gray-500 focus:ring-red-700 dark:text-white dark:placeholder:text-slate-400"></textarea>
+                                                    <button type="button" x-on:click="addSpecificMethod(group)" :disabled="group.methods.length >= 20" :aria-label="`Add method to group ${specificMethodGroupLetter(groupIndex)}`" title="Add method" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#800020] text-white transition hover:bg-[#600018] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600">
+                                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                                    </button>
+                                                    <button x-show="specificMethodGroups.length > 1" type="button" x-on:click="removeSpecificMethodGroup(groupIndex)" :aria-label="`Remove method group ${specificMethodGroupLetter(groupIndex)}`" title="Remove heading" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-red-300">
+                                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                    </button>
                                                 </header>
                                                 <div class="flex flex-col gap-2 border-t border-gray-200 p-2.5 dark:border-slate-700">
-                                                    <textarea :id="`method-heading-${group.id}`" :name="`specific_method_objectives[${groupIndex}][heading]`" rows="2" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="group.heading" :aria-label="`Method heading ${specificMethodGroupLetter(groupIndex)}`" class="block w-full rounded-md border-gray-300 text-sm leading-5 focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
                                                     <template x-for="(method, methodIndex) in group.methods" :key="method.id">
-                                                        <div class="grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-1">
-                                                            <label :for="`method-${group.id}-${method.id}`" class="inline-flex items-center gap-0.5 pt-2.5 text-xs font-semibold text-gray-600 dark:text-slate-300"><span class="sr-only">Method </span><span x-text="`${methodIndex + 1}.`"></span> <x-required-mark /></label>
+                                                        <div class="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-1">
+                                                            <label :for="`method-${group.id}-${method.id}`" class="pt-2 text-xs font-semibold text-gray-500 dark:text-slate-400"><span class="sr-only">Method </span><span x-text="`${methodIndex + 1}.`"></span></label>
                                                             <div class="relative min-w-0">
-                                                                <textarea :id="`method-${group.id}-${method.id}`" :name="`specific_method_objectives[${groupIndex}][methods][${methodIndex}][description]`" rows="2" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="method.description" :aria-label="`Method ${methodIndex + 1} for group ${specificMethodGroupLetter(groupIndex)}`" class="block w-full rounded-md border-gray-300 pr-10 text-sm leading-5 focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
-                                                                <button x-show="group.methods.length > 1" type="button" x-on:click="removeSpecificMethod(group, methodIndex)" class="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 transition hover:bg-gray-100 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-red-400" :aria-label="`Remove method ${methodIndex + 1} from group ${specificMethodGroupLetter(groupIndex)}`" title="Remove method">
-                                                                    <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                                <textarea :id="`method-${group.id}-${method.id}`" :name="`specific_method_objectives[${groupIndex}][methods][${methodIndex}][description]`" rows="2" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="method.description" :aria-label="`Method ${methodIndex + 1} for group ${specificMethodGroupLetter(groupIndex)}`" placeholder="Describe this method" class="specific-method-description block w-full rounded-md border-gray-300 pr-12 text-base leading-6 focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"></textarea>
+                                                                <button x-show="group.methods.length > 1" type="button" x-on:click="removeSpecificMethod(group, methodIndex)" :aria-label="`Remove method ${methodIndex + 1} from group ${specificMethodGroupLetter(groupIndex)}`" title="Remove method" class="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-red-300">
+                                                                    <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                                                 </button>
                                                             </div>
                                                         </div>
                                                     </template>
                                                     <template x-if="!group.methods.length"><input type="hidden" :name="`specific_method_objectives[${groupIndex}][methods][0][description]`" value=""></template>
+                                                    <p x-show="group.methods.length >= 20" x-cloak class="text-xs text-gray-500 dark:text-slate-400">Each heading can contain up to 20 methods.</p>
                                                 </div>
                                             </article>
                                         </template>
                                     </div>
+                                    <p x-show="specificMethodGroups.length >= 20" x-cloak class="mt-2 text-xs text-gray-500 dark:text-slate-400">You can add up to 20 headings.</p>
                                 </div>
                             @else
-                                <textarea id="methodology-{{ $key }}" name="methodology[{{ $key }}]" rows="7" @required($key !== 'data_analysis') maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="methodology.{{ $key }}" aria-label="{{ $label }} narrative" data-semantic-editor class="mt-3 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                <textarea id="methodology-{{ $key }}" name="methodology[{{ $key }}]" rows="7" @required($key !== 'data_analysis') maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="methodology.{{ $key }}" aria-label="{{ $label }} narrative" data-semantic-editor class="mt-3 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
                             @endif
                         </div>
                     @endforeach

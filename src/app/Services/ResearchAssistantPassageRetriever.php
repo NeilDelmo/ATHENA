@@ -28,53 +28,15 @@ class ResearchAssistantPassageRetriever
             $query .= ' '.Str::limit($previous->join(' '), 1200, '');
         }
         $terms = $this->terms($query);
-        $frequencies = [];
-        $documents = [];
-
-        foreach ($passages as $index => $passage) {
-            $heading = implode(' ', array_filter([
-                $passage['title'] ?? null, $passage['label'] ?? null,
-                $passage['location'] ?? null, $passage['field'] ?? null,
-            ], 'is_string'));
-            $documents[$index] = [
-                'frequencies' => array_count_values($this->terms($heading.' '.$passage['text'])),
-                'heading_terms' => $this->terms($heading),
-            ];
-            foreach (array_keys($documents[$index]['frequencies']) as $term) {
-                $frequencies[$term] = ($frequencies[$term] ?? 0) + 1;
-            }
-        }
-
-        preg_match_all('/\b(?:pages?|p\.?|pp\.?)\s*(\d{1,3})\b/i', $question, $pageMatches);
-        $requestedPages = array_map('intval', $pageMatches[1]);
-        $scores = [];
-        foreach ($passages as $index => $passage) {
-            $score = 0.0;
-            foreach ($terms as $term) {
-                $frequency = $documents[$index]['frequencies'][$term] ?? 0;
-                if ($frequency === 0) {
-                    continue;
-                }
-                $weight = log(1 + ($total + 1) / (($frequencies[$term] ?? 0) + 1));
-                $score += $weight * (1 + log($frequency));
-                if (in_array($term, $documents[$index]['heading_terms'], true)) {
-                    $score += $weight * 2;
-                }
-            }
-            if (in_array($passage['page'] ?? null, $requestedPages, true)) {
-                $score += 100;
-            }
-            $scores[$index] = $score;
-        }
-        arsort($scores, SORT_NUMERIC);
-
         $overview = $this->isOverview($question, $terms);
-        if (reset($scores) <= 0.0 && ! $overview) {
-            return ['passages' => [], 'total_passages' => $total, 'omitted_passages' => $total, 'truncated' => true, 'no_match' => true];
-        }
+        $frequencies = [];
         if ($overview) {
             $indices = $this->spreadIndices($total, $maxPassages);
         } else {
+            ['scores' => $scores, 'frequencies' => $frequencies] = $this->rank($passages, $question, $terms);
+            if (reset($scores) <= 0.0) {
+                return ['passages' => [], 'total_passages' => $total, 'omitted_passages' => $total, 'truncated' => true, 'no_match' => true];
+            }
             $indices = array_slice(array_keys(array_filter($scores, fn (float $score): bool => $score > 0)), 0, max(1, $maxPassages - 2));
             foreach (array_slice($indices, 0, 2) as $index) {
                 foreach ([$index - 1, $index + 1] as $neighbor) {
@@ -128,6 +90,61 @@ class ResearchAssistantPassageRetriever
             'omitted_passages' => $total - count($selected),
             'truncated' => $trimmed || count($selected) < $total,
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $passages
+     * @param  list<string>  $terms
+     * @return array{scores: array<int, float>, frequencies: array<int|string, int>}
+     */
+    private function rank(array $passages, string $question, array $terms): array
+    {
+        $total = count($passages);
+        $queryTerms = array_fill_keys($terms, true);
+        $frequencies = [];
+        $documents = [];
+        foreach ($passages as $index => $passage) {
+            $heading = implode(' ', array_filter([
+                $passage['title'] ?? null, $passage['label'] ?? null,
+                $passage['location'] ?? null, $passage['field'] ?? null,
+            ], 'is_string'));
+            $matches = array_intersect_key(array_count_values($this->terms($heading.' '.$passage['text'])), $queryTerms);
+            if ($matches === []) {
+                continue;
+            }
+            $documents[$index] = [
+                'frequencies' => $matches,
+                'heading_terms' => array_intersect($this->terms($heading), $terms),
+            ];
+            foreach (array_keys($matches) as $term) {
+                $frequencies[$term] = ($frequencies[$term] ?? 0) + 1;
+            }
+        }
+
+        preg_match_all('/\b(?:pages?|p\.?|pp\.?)\s*(\d{1,3})\b/i', $question, $pageMatches);
+        $requestedPages = array_map('intval', $pageMatches[1]);
+        $scores = [];
+        foreach ($passages as $index => $passage) {
+            $score = 0.0;
+            foreach ($terms as $term) {
+                $frequency = $documents[$index]['frequencies'][$term] ?? 0;
+                if ($frequency === 0) {
+                    continue;
+                }
+                $weight = log(1 + ($total + 1) / (($frequencies[$term] ?? 0) + 1));
+                $score += $weight * (1 + log($frequency));
+                if (in_array($term, $documents[$index]['heading_terms'], true)) {
+                    $score += $weight * 2;
+                }
+            }
+            if (in_array($passage['page'] ?? null, $requestedPages, true)) {
+                $score += 100;
+            }
+            $scores[$index] = $score;
+        }
+        arsort($scores, SORT_NUMERIC);
+
+        return ['scores' => $scores, 'frequencies' => $frequencies];
     }
 
     /** @param list<array<string, mixed>> $passages @return list<array<string, mixed>> */

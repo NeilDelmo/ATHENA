@@ -60,6 +60,7 @@ function assistant(fetchReply = async () => response({ reply: 'The work plan inc
         historyUrl: () => '', historyConversationUrl: (id) => `/history/${id}`,
         hasConversation() { return this.messages.length > 0; },
         scrollToLatest() {}, resetComposers() {}, syncPageScroll() {}, restoreReviewContext() {}, upsertHistory() {},
+        async restoreLiteratureRequest() {},
         async loadContextOptions() { return true; }, resetContextOptions() {},
         setError(title, message) { this.error = `${title}: ${message}`; },
         ...overrides,
@@ -257,6 +258,75 @@ test('history persists bounded reading coverage without extraction text or selec
     assert.equal(store.documentReadingMetadata({ ...reading, format: 'HTML' }), null);
 });
 
+test('a reply length notice survives saving and reopening the chat', async () => {
+    const store = assistant(async () => response({ reply: 'Start by defining the study population.', reply_truncated: true }));
+    store.draft = 'Help me plan a study.';
+
+    await store.send();
+    const transcript = store.conversationTranscript();
+    assert.equal(transcript.messages[1].reply_truncated, true);
+
+    store.hydrateConversation({ ...transcript, id: 7 }, true);
+    assert.equal(store.messages[1].reply_truncated, true);
+    assert.equal(store.messages[1].content, 'Start by defining the study population.');
+});
+
+test('composer and reply length notices work on mobile and desktop in light and dark mode', async () => {
+    const composer = readFileSync(resolve('resources/views/components/research-assistant-composer.blade.php'), 'utf8')
+        .match(/<form\b[\s\S]*?<\/form>/)[0]
+        .replaceAll('{{ $inputId }}', 'message').replaceAll('{{ $id }}', 'test');
+    const notice = readFileSync(resolve('resources/views/components/research-assistant-reply-notice.blade.php'), 'utf8');
+    for (const surface of ['drawer', 'workspace']) {
+        const view = readFileSync(resolve(`resources/views/components/research-assistant-${surface}.blade.php`), 'utf8');
+        assert.ok(view.includes('<x-research-assistant-reply-notice />'));
+    }
+
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const [width, dark] of [[320, true], [1280, false]]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            const errors = [];
+            page.on('pageerror', (error) => errors.push(error.message));
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${styles.css}[x-cloak]{display:none!important}</style></head><body class="bg-white p-3 dark:bg-stone-950"><main class="mx-auto max-w-2xl" x-data="{ message: {} }">${notice}<button id="flag" @click="message.reply_truncated = true">Flag</button>${composer}</main></body></html>`);
+            await page.addScriptTag({ content: `const researchAssistantMessageLimit = ${app.match(/const researchAssistantMessageLimit = (\d+);/)[1]};
+                document.addEventListener('alpine:init', () => Alpine.store('researchAssistant', {
+                    draft: '', conversationReady: true, retryAfter: 0,
+                    resizeComposer() {}, handleComposerKeydown() {},
+                    ${methodSource('messageLengthNotice')}
+                }));` });
+            await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.js') });
+
+            const composerNotice = page.locator('[data-assistant-message-limit]');
+            const replyNotice = page.locator('[data-assistant-reply-notice]');
+            const input = page.getByRole('textbox');
+            await expect(composerNotice).toBeHidden();
+            await expect(replyNotice).toBeHidden();
+            await input.fill('a'.repeat(7499));
+            await expect(composerNotice).toBeHidden();
+            await input.fill('a'.repeat(7500));
+            await expect(composerNotice).toContainText('500 characters left');
+            await input.fill('a'.repeat(7999));
+            await expect(composerNotice).toContainText('1 character left');
+            await input.fill('a'.repeat(8000));
+            await expect(composerNotice).toContainText('8,000-character limit');
+            await expect(composerNotice).toBeVisible();
+            await expect(input).toHaveAccessibleDescription(/8,000-character limit/);
+            await page.locator('#flag').click();
+            await expect(replyNotice).toBeVisible();
+            await expect(replyNotice).toContainText('Ask me to continue');
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+            await input.fill('Short question');
+            await expect(composerNotice).toBeHidden();
+            assert.deepEqual(errors, []);
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('selected-document controls and coverage remain readable, safe, and clearable on mobile and dark mode', async () => {
     const composer = readFileSync(resolve('resources/views/components/research-assistant-composer.blade.php'), 'utf8')
         .replace(/^@props[^\n]*\n/, '').replace(/<x-research-assistant[^>]+\/>/g, '');
@@ -275,6 +345,7 @@ test('selected-document controls and coverage remain readable, safe, and clearab
                     activeDocument: { token: 'ephemeral-token', format: 'SAVED', label: 'Work plan <img src=x onerror=alert(1)> with a very long saved paper title' },
                     messages: [{ document_reading: ${JSON.stringify(reading)} }], draft: '', reviewContext: null,
                     conversationReady: true, isLoading: false, retryAfter: 0, proposalHelpOptions() { return []; },
+                    messageLengthNotice() { return ''; }, literatureBusy() { return false; },
                     hasContextOptions() { return false; }, reviewTargetLabel() { return ''; }, reviewFocusLabel() { return ''; },
                     clearActiveDocument() { this.activeDocument = null; },
                 }));` });

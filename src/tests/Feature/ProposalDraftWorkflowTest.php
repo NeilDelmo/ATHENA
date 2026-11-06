@@ -5,6 +5,7 @@ use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Actions\SaveProposalDraftDetails;
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
+use App\Contracts\BatchDocumentPdfConverter;
 use App\Contracts\DocumentPdfConverter;
 use App\Jobs\PrepareProposalDraftPdfs;
 use App\Livewire\ProposalDraftReviewPackage;
@@ -1453,6 +1454,34 @@ test('PDF generation lock contention releases the job without spending a convers
         $lock->release();
     }
 });
+
+test('proposal preparation stays exclusive through both conversion phases', function (int $timeout) {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    config(['document_pdf.timeout_seconds' => $timeout]);
+    $key = 'proposal-pdf-generation:'.$draft->id;
+    $advance = function () use ($timeout, $key): void {
+        $this->travel(2 * $timeout - 1)->seconds();
+        expect(Cache::lock($key)->get())->toBeFalse();
+    };
+    $converter = Mockery::mock(BatchDocumentPdfConverter::class);
+    $converter->shouldReceive('convertDocuments')->once()->andReturnUsing(function (array $documents) use ($advance): array {
+        $advance();
+
+        return array_map(fn (array $document): string => "%PDF-1.7\n".hash('sha256', $document['contents']), $documents);
+    });
+    $converter->shouldReceive('convertDocx')->once()->andReturnUsing(function (string $contents) use ($advance): string {
+        $advance();
+
+        return "%PDF-1.7\n".hash('sha256', $contents);
+    });
+    app()->instance(DocumentPdfConverter::class, $converter);
+
+    app(SubmitProposalDraft::class)->prepare($draft->fresh(), $this->faculty);
+
+    $lock = Cache::lock($key);
+    expect($lock->get())->toBeTrue();
+    $lock->release();
+})->with(['direct request allowance' => 240, 'queued allowance' => 120]);
 
 test('a missing working PDF cannot be reported ready from persisted preparation state', function () {
     Queue::fake();

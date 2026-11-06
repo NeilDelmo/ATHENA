@@ -247,8 +247,8 @@ test('a GAD checklist with a different title still requires the project and sign
 test('GAD scan identification does not require the reader to transcribe the project title', function (?string $detectedTitle) {
     config(['services.openrouter.key' => 'test-key']);
     Process::fake(function (PendingProcess $process) {
-        if (str_contains(implode(' ', $process->command), '-png')) {
-            File::put(end($process->command).'-1.png', 'scan page');
+        if (in_array('-jpeg', $process->command, true)) {
+            File::put(end($process->command).'-1.jpg', 'scan page');
         }
 
         return Process::result(output: '');
@@ -297,8 +297,8 @@ test('the scan reader identifies GAD and Initial Screening forms from visible ev
     }
     config(['services.openrouter.key' => 'test-key']);
     Process::fake(function (PendingProcess $process) {
-        if (str_contains(implode(' ', $process->command), '-png')) {
-            File::put(end($process->command).'-1.png', 'scan page');
+        if (in_array('-jpeg', $process->command, true)) {
+            File::put(end($process->command).'-1.jpg', 'scan page');
         }
 
         return Process::result(output: '');

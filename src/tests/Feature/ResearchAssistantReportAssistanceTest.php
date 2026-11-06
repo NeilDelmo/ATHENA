@@ -469,3 +469,15 @@ test('an RRL request in a research head report offers the authorized proposal wo
     ])->assertSuccessful()->assertJsonPath('literature.kind', 'choose_proposal')->assertJsonPath('literature.workspace_required', true);
     Http::assertNothingSent();
 });
+
+test('project members can request suggestions for the shared Monitoring Tool', function () {
+    $member = User::factory()->create();
+    $member->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create(['user_id' => $member->id, 'name' => $member->name, 'email' => $member->email, 'accepted_at' => now()]);
+    ($this->selectWorkspace)($member, User::WORKSPACE_FACULTY_RESEARCHER);
+    ($this->fakeChanges)([['field' => 'work_plan.0.actual_accomplishment', 'before' => 'Interviewed 12 participants.',
+        'value' => 'Completed interviews with 12 participants.', 'reason' => 'Clarifies wording.']]);
+    $this->postJson(route('research-support.chat'), ($this->payload)('monitoring-tool', ['topic_id' => $this->topic->id]))
+        ->assertSuccessful()->assertJsonPath('report_changes.suggestions.0.field', 'work_plan.0.actual_accomplishment');
+    expect($this->monitoring->fresh()->lock_version)->toBe(3);
+});

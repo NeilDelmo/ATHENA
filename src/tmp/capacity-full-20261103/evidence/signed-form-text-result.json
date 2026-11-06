@@ -1,0 +1,14 @@
+{
+    "case": "signed-form-text",
+    "input_bytes": 1651,
+    "verification": {
+        "status": "matched",
+        "message": "Form and project title matched",
+        "reason": null,
+        "method": "pdf_text"
+    },
+    "prepared_image_bytes": [],
+    "external_ai": "never_called",
+    "elapsed_seconds": 0.035693307,
+    "php_peak_mib": 14
+}

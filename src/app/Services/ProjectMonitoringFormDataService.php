@@ -46,7 +46,6 @@ class ProjectMonitoringFormDataService
             'revisionReport' => $revisionReport,
             'monitoringDraft' => ProjectMonitoringDraft::query()
                 ->whereBelongsTo($topic, 'topic')
-                ->whereBelongsTo($user, 'user')
                 ->forSource($revisionReport)
                 ->first(),
         ];

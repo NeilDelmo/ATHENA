@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Closure;
 use Illuminate\Contracts\Process\InvokedProcess;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Cache;
@@ -9,12 +10,16 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\InputStream;
 use Throwable;
 
 class LibreOfficePdfWorker
 {
     private ?InvokedProcess $process = null;
+
+    private ?InputStream $input = null;
 
     private ?string $pipe = null;
 
@@ -30,9 +35,22 @@ class LibreOfficePdfWorker
 
     public function start(): bool
     {
-        if ($this->pipe !== null && Cache::pull(self::cacheKey().':restart') === $this->pipe) {
+        if ($this->pipe !== null && Cache::get(self::cacheKey().':restart') === $this->pipe) {
             $this->stop();
+            Cache::forget(self::cacheKey().':restart');
         }
+        if ($this->process?->running()) {
+            $this->heartbeat();
+
+            return true;
+        }
+
+        return Cache::lock(self::cacheKey().':export', config('document_pdf.timeout_seconds') + 10)
+            ->block(config('document_pdf.timeout_seconds'), fn (): bool => $this->startWorker());
+    }
+
+    private function startWorker(): bool
+    {
         if ($this->process?->running()) {
             $this->heartbeat();
 
@@ -56,11 +74,17 @@ class LibreOfficePdfWorker
         File::ensureDirectoryExists($this->profile, 0700);
         $this->pipe = 'athena-pdf-'.Str::uuid();
         try {
-            $this->process = Process::forever()->start([
+            $command = [
                 app(LibreOfficeProcess::class)->binary(), '--headless', '--nologo', '--nodefault', '--norestore',
                 '-env:UserInstallation=file:///'.ltrim(str_replace('\\', '/', $this->profile), '/'),
                 '--accept=pipe,name='.$this->pipe.';urp;',
-            ]);
+            ];
+            $process = Process::forever();
+            if (PHP_OS_FAMILY !== 'Windows') {
+                $process->input($this->input = new InputStream);
+                array_unshift($command, $python, base_path('scripts/libreoffice-worker.py'));
+            }
+            $this->process = $process->start($command);
             $templates = array_map(fn (string $type): string => config($type.'.template_path'), [
                 'work_plan', 'line_item_budget', 'expense_breakdown', 'curriculum_vitae',
                 'gad_checklist', 'initial_screening_form', 'detailed_proposal',
@@ -89,16 +113,19 @@ class LibreOfficePdfWorker
     }
 
     /** @param list<string> $sources */
-    public function convert(array $sources, string $directory, string $filter): ?ProcessResult
+    public function convert(array $sources, string $directory, string $filter, ?Closure $fallback = null): ?ProcessResult
     {
-        $worker = Cache::get(self::cacheKey());
-        $python = $this->python();
-        if ($python === null || ! is_array($worker) || ($worker['updated_at'] ?? 0) < now()->timestamp - 90) {
-            return null;
-        }
-
         return Cache::lock(self::cacheKey().':export', config('document_pdf.timeout_seconds') + 10)
-            ->block(config('document_pdf.timeout_seconds'), function () use ($python, $worker, $sources, $directory, $filter): ?ProcessResult {
+            ->block(config('document_pdf.timeout_seconds'), function () use ($sources, $directory, $filter, $fallback): ?ProcessResult {
+                $worker = Cache::get(self::cacheKey());
+                if (is_array($worker) && Cache::get(self::cacheKey().':restart') === $worker['pipe']) {
+                    Cache::forget(self::cacheKey());
+                    $worker = null;
+                }
+                $python = $this->python();
+                if ($python === null || ! is_array($worker) || ($worker['updated_at'] ?? 0) < now()->timestamp - 90) {
+                    return $fallback ? $fallback() : null;
+                }
                 try {
                     $result = $this->export($python, $worker['pipe'], $sources, $directory, $filter);
                 } catch (Throwable $exception) {
@@ -110,7 +137,7 @@ class LibreOfficePdfWorker
                     $this->restart($worker['pipe']);
                 }
 
-                return $result->exitCode() === 75 ? null : $result;
+                return $result->exitCode() === 75 ? ($fallback ? $fallback() : null) : $result;
             });
     }
 
@@ -131,8 +158,19 @@ class LibreOfficePdfWorker
                 }
             } finally {
                 if ($this->process?->running()) {
-                    $this->process->signal(9);
-                    $this->process->wait();
+                    if ($this->input !== null) {
+                        $this->input->close();
+                    } else {
+                        $this->process->signal(9);
+                    }
+                    try {
+                        $this->process->wait();
+                    } catch (ProcessSignaledException $exception) {
+                        // The POSIX supervisor kills its entire owned group, including itself.
+                        if ($this->input === null || $exception->getSignal() !== 9) {
+                            throw $exception;
+                        }
+                    }
                 }
                 if ($this->profile !== null) {
                     File::deleteDirectory($this->profile);
@@ -140,6 +178,7 @@ class LibreOfficePdfWorker
             }
         } finally {
             $this->process = null;
+            $this->input = null;
             $this->pipe = null;
             $this->profile = null;
             if (is_resource($this->lock)) {

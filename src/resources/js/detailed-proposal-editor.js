@@ -389,12 +389,17 @@ export default function registerDetailedProposalEditor(Alpine, {
                 }
                 assistant.activePaperField = { field: 'related_literature', label: 'Review of related literature' };
                 assistant.openDrawer();
+                const context = { proposal_draft_id: config.proposalDraftId, paper_slug: 'detailed-proposal', field: 'related_literature' };
+                if (mode === 'check') {
+                    await assistant.sendPrompt('Check my saved RRL.', { type: 'check_rrl' }, context);
+                    return true;
+                }
                 const draftRrl = mode === 'draft' || (mode !== 'revise' && !this.plainText(this.relatedLiterature));
                 await assistant.sendPrompt(draftRrl
                     ? 'Draft an RRL for my proposal using complete source papers. Use the project title and objectives. Show the draft for my review.'
                     : 'Revise and organize my saved RRL for clarity and paragraph flow. Preserve its claims and citations. Show the revision for my review.',
                 draftRrl ? { type: 'draft_rrl' } : { type: 'suggest_proposal_changes' },
-                { proposal_draft_id: config.proposalDraftId, paper_slug: 'detailed-proposal', field: 'related_literature' });
+                context);
                 return true;
             } catch (error) {
                 this.proposalChangeError = error instanceof Error ? error.message : 'RRL assistance could not be requested.';
@@ -1836,22 +1841,34 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         addSpecificMethodGroup() {
-            this.specificMethodGroups.push(this.newSpecificMethodGroup());
+            if (this.specificMethodGroups.length >= 20) return;
+
+            const group = this.newSpecificMethodGroup();
+            this.specificMethodGroups.push(group);
+            this.$nextTick(() => document.getElementById(`method-heading-${group.id}`)?.focus());
             this.triggerDetailedProposalAutoSave();
         },
 
         removeSpecificMethodGroup(index) {
             this.specificMethodGroups.splice(index, 1);
+            const group = this.specificMethodGroups[Math.min(index, this.specificMethodGroups.length - 1)];
+            if (group) this.$nextTick(() => document.getElementById(`method-heading-${group.id}`)?.focus());
             this.triggerDetailedProposalAutoSave();
         },
 
-        addSpecificMethod(objective) {
-            objective.methods.push(this.newSpecificMethod());
+        addSpecificMethod(group) {
+            if (group.methods.length >= 20) return;
+
+            const method = this.newSpecificMethod();
+            group.methods.push(method);
+            this.$nextTick(() => document.getElementById(`method-${group.id}-${method.id}`)?.focus());
             this.triggerDetailedProposalAutoSave();
         },
 
-        removeSpecificMethod(objective, index) {
-            objective.methods.splice(index, 1);
+        removeSpecificMethod(group, index) {
+            group.methods.splice(index, 1);
+            const method = group.methods[Math.min(index, group.methods.length - 1)];
+            if (method) this.$nextTick(() => document.getElementById(`method-${group.id}-${method.id}`)?.focus());
             this.triggerDetailedProposalAutoSave();
         },
 

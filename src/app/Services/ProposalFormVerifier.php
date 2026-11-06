@@ -125,13 +125,13 @@ class ProposalFormVerifier
             File::ensureDirectoryExists($directory);
             $render = Process::timeout((int) config('research_assistant.document.extraction_timeout'))->run([
                 (string) config('research_assistant.document.pdftoppm_binary'),
-                '-f', '1', '-l', '2', '-scale-to', '1800', '-png', $path, $directory.'/page',
+                '-f', '1', '-l', '2', '-scale-to', '1800', '-jpeg', '-jpegopt', 'quality=95', $path, $directory.'/page',
             ]);
             if ($render->failed()) {
                 return null;
             }
 
-            $pages = File::glob($directory.'/page-*.png');
+            $pages = File::glob($directory.'/page-*.jpg');
             sort($pages, SORT_NATURAL);
             if ($pages === []) {
                 return null;
@@ -145,7 +145,7 @@ class ProposalFormVerifier
                 if (File::size($page) > 8 * 1024 * 1024) {
                     return null;
                 }
-                $content[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/png;base64,'.base64_encode(File::get($page))]];
+                $content[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,'.base64_encode(File::get($page))]];
             }
 
             $response = $this->ai->complete([

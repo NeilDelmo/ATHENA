@@ -1,0 +1,16 @@
+{
+  "exit_code": 0,
+  "elapsed_seconds": 51.21,
+  "samples": 117,
+  "sampled_peak_all_children_mib": 491.5,
+  "per_process_group_sampled_peak_mib": {
+    "python": 38.6,
+    "cmd": 27.3,
+    "node": 102.1,
+    "conhost": 10.2,
+    "soffice.bin": 281.1,
+    "soffice.com": 7.9,
+    "php": 127.5
+  },
+  "scope": "Windows PHP test harness plus real LibreOffice/Node child processes; transaction-only in-memory SQLite; excludes MySQL and Linux OS"
+}

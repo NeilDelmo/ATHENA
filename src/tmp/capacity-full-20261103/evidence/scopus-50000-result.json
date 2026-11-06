@@ -1,0 +1,14 @@
+{
+    "case": "scopus-50000",
+    "journals": 50000,
+    "issns": 100000,
+    "registry_bytes": 11800171,
+    "metadata": {
+        "edition": "Scopus Sources Nov 2026",
+        "as_of": "2026-11-01",
+        "synced_at": "2026-11-04T09:00:14+08:00",
+        "source_url": "https:\/\/example.test\/synthetic-scopus.xlsx"
+    },
+    "elapsed_seconds": 2.220346647,
+    "php_peak_mib": 113.25390625
+}

@@ -1,0 +1,39 @@
+{
+    "case": "quarterly-evidence",
+    "conversion_seconds": 8.424241627,
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/quarterly-evidence.docx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/quarterly-evidence.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/quarterly-evidence.txt",
+    "pages": 25,
+    "docx_or_xlsx_bytes": 5700967,
+    "pdf_bytes": 16173251,
+    "input_counts": {
+        "images": 12,
+        "image_bytes": 5639834,
+        "presentations": 100,
+        "publications": 100,
+        "research": 100,
+        "serialized_data_bytes": 36901
+    },
+    "verified_markers": [
+        "PRESENTATION100END",
+        "PUBLICATION100END",
+        "RESEARCH100END",
+        "QUARTERLYFIGURE12END"
+    ],
+    "marker_extraction_fallbacks": {
+        "PRESENTATION100END": {
+            "method": "exact_reading_order_text"
+        },
+        "PUBLICATION100END": {
+            "method": "exact_reading_order_text"
+        },
+        "RESEARCH100END": {
+            "method": "exact_reading_order_text"
+        }
+    },
+    "source_generation_seconds": 0.23144923,
+    "fixture_and_validation_seconds": 0.270502214,
+    "elapsed_seconds": 9.092799783,
+    "php_peak_mib": 26.87109375
+}

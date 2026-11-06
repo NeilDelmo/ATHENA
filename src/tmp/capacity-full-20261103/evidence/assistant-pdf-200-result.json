@@ -1,0 +1,22 @@
+{
+    "case": "assistant-pdf-200",
+    "input_bytes": 130652,
+    "prompt_bytes": 5565,
+    "source_count": 8,
+    "coverage": {
+        "selected_passages": 8,
+        "total_passages": 200,
+        "omitted_passages": 192,
+        "truncated": true,
+        "limitations": [
+            "Extraction stopped at the 200-page safety limit. Additional pages may exist and were not read.",
+            "The document exceeded the local extraction size limit; later content was not indexed.",
+            "Only selected excerpts were supplied; omitted passages and cropped text were not reviewed."
+        ],
+        "extracted_pages": 200,
+        "page_limit": 200
+    },
+    "images": [],
+    "elapsed_seconds": 0.111654319,
+    "php_peak_mib": 6
+}

@@ -199,6 +199,20 @@ test('assessment retains safe manual metadata without retaining source content',
     assert.equal('malicious' in rrl.sources[0], false);
 });
 
+test('saved RRL evidence survives history with only display fields', () => {
+    const value = packet({ assessment: { rrl: { count_status: 'partial', known_count: 10, minimum: 10, minimum_satisfied: true,
+        study_check: { summary: 'Section XI has ten supported studies.', more: 2, entries: [
+            { status: 'supported', label: 'Study title', excerpt: 'The study found a difference [1].', reason: '', hidden: 'private' },
+            { status: 'unknown status', label: 'Invalid entry' },
+        ] },
+    } } });
+    const rrl = serializeAssistantProposalChanges(value).assessment.rrl;
+    assert.equal(rrl.minimum_satisfied, true);
+    assert.deepEqual(rrl.study_check, { summary: 'Section XI has ten supported studies.', more: 2, entries: [
+        { status: 'supported', label: 'Study title', excerpt: 'The study found a difference [1].', reason: '' },
+    ] });
+});
+
 test('source document versions stay bounded in history metadata', () => {
     const rrl = serializeAssistantProposalChanges(packet({ assessment: { rrl: {
         count_status: 'unknown', sources: [{ document_version: 'b'.repeat(100) }, { document_version: {} }],

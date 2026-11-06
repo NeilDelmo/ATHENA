@@ -2,7 +2,7 @@
     <template x-if="message.proposal_changes">
         <div>
             <header class="border-b border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800">
-                <h4 class="font-semibold text-stone-950 dark:text-stone-100" x-text="message.proposal_changes.suggestions.length ? 'Review proposal changes' : 'Saved proposal check'"></h4>
+                <h4 class="font-semibold text-stone-950 dark:text-stone-100" x-text="message.proposal_changes.assessment?.rrl?.study_check ? 'Saved RRL check' : (message.proposal_changes.suggestions.length ? 'Review proposal changes' : 'Saved proposal check')"></h4>
                 <p class="mt-1 break-words text-xs text-stone-600 dark:text-stone-300" x-text="message.proposal_changes.proposal_title"></p>
                 <p x-show="message.proposal_changes.suggestions.length" class="mt-1 text-xs text-stone-600 dark:text-stone-300">Revisions change written content only. Names, dates, amounts, signatures, and approvals stay unchanged. Review each suggestion before applying it to your proposal document.</p>
             </header>
@@ -10,7 +10,26 @@
                 <p class="text-stone-800 dark:text-stone-200" x-text="$store.researchAssistant.proposalRrlAssessmentText(message)"></p>
                 <p class="mt-1 text-xs text-stone-600 dark:text-stone-300">A source count does not verify quality or guarantee approval.</p>
                 <p x-show="$store.researchAssistant.proposalRrlRequirementSource(message)" class="mt-1 break-words text-xs text-stone-600 dark:text-stone-300" x-text="'Manual basis: ' + ($store.researchAssistant.proposalRrlRequirementSource(message)?.title || '')"></p>
-                <button type="button" @click="$store.researchAssistant.findProposalStudies(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="gap-2 mt-2 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><x-assistant-icon />Find additional studies</button>
+                <template x-if="message.proposal_changes.assessment?.rrl?.study_check?.entries.length">
+                    <details class="mt-3 rounded-lg border border-stone-200 dark:border-stone-700">
+                        <summary class="disclosure-summary cursor-pointer px-3 py-2 text-xs font-semibold text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-100">See studies and citations</summary>
+                        <ul class="divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-700 dark:border-stone-700">
+                            <template x-for="(entry, index) in message.proposal_changes.assessment.rrl.study_check.entries" :key="index">
+                                <li class="break-words px-3 py-2.5">
+                                    <span class="text-xs font-semibold text-stone-600 dark:text-stone-300" x-text="({supported: 'Discussion found', needs_review: 'Needs review', references_only: 'No matching citation in Section XI'})[entry.status]"></span>
+                                    <p class="font-medium text-stone-900 dark:text-stone-100" x-text="entry.label"></p>
+                                    <p x-show="entry.reason" class="text-xs text-stone-600 dark:text-stone-300" x-text="entry.reason"></p>
+                                    <blockquote x-show="entry.excerpt" class="mt-1 border-l-2 border-stone-300 pl-2 text-xs text-stone-700 dark:border-stone-600 dark:text-stone-200" x-text="entry.excerpt"></blockquote>
+                                </li>
+                            </template>
+                        </ul>
+                        <p x-show="message.proposal_changes.assessment.rrl.study_check.more" class="px-3 py-2 text-xs text-stone-600 dark:text-stone-300" x-text="`${message.proposal_changes.assessment.rrl.study_check.more} more entries in the saved paper`"></p>
+                    </details>
+                </template>
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" @click="$store.researchAssistant.checkProposalRrl(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><x-assistant-icon /><span x-text="message.proposal_changes.assessment?.rrl?.study_check ? 'Run RRL check again' : 'Check my RRL'"></span></button>
+                    <button type="button" x-show="!message.proposal_changes.assessment?.rrl?.study_check || message.proposal_changes.assessment.rrl.minimum_satisfied !== true" @click="$store.researchAssistant.findProposalStudies(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><x-assistant-icon />Find additional studies</button>
+                </div>
             </div>
             <div class="divide-y divide-stone-200 dark:divide-stone-700">
                 <template x-for="suggestion in message.proposal_changes.suggestions" :key="suggestion.id">

@@ -1,0 +1,19 @@
+{
+    "case": "literature-dense-200",
+    "input_bytes": 226812,
+    "coverage": {
+        "total_pages": 200,
+        "extracted_pages": 15,
+        "characters": 120000,
+        "page_limit": 200,
+        "character_limit": 120000,
+        "truncated": true,
+        "unreadable_pages": [],
+        "complete": false,
+        "limited": true,
+        "partial_or_unknown": true,
+        "reason": "The PDF exceeds the 120000-character extraction limit."
+    },
+    "elapsed_seconds": 0.325514934,
+    "php_peak_mib": 8
+}

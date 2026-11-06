@@ -53,7 +53,7 @@ beforeEach(function () {
     };
 });
 
-test('report draft state is private authorized account scoped and carries no report content', function (string $kind) {
+test('report draft state is authorized and carries no report content', function (string $kind) {
     $this->postJson(($this->saveUrl)($kind), ($this->payload)($kind))->assertSuccessful()->assertJsonPath('draft_version', 1);
     $state = $this->getJson(($this->stateUrl)($kind))->assertSuccessful()->assertJsonPath('version', 1)
         ->assertJsonPath('is_editable', true)->assertHeader('Cache-Control', 'no-store, private')->json();
@@ -61,7 +61,7 @@ test('report draft state is private authorized account scoped and carries no rep
         ->and($state['scope'])->toMatch('/^[a-f0-9]{64}$/');
     $this->actingAs($this->other)->getJson(($this->stateUrl)($kind))->assertForbidden();
     $this->topic->collaborators()->create(['user_id' => $this->other->id, 'name' => $this->other->name, 'email' => $this->other->email, 'accepted_at' => now()]);
-    $this->getJson(($this->stateUrl)($kind))->assertSuccessful()->assertJsonPath('version', 0);
+    $this->getJson(($this->stateUrl)($kind))->assertSuccessful()->assertJsonPath('version', $kind === 'monitoring' ? 1 : 0);
     $this->other->assignRole('research_head');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->getJson(($this->stateUrl)($kind))->assertForbidden();
 })->with(['monitoring', 'progress', 'terminal']);

@@ -1,0 +1,172 @@
+{
+  "run": "optimized-2g-concurrent-photos",
+  "original_photos_verified": 42,
+  "all_original_sha256_unchanged": true,
+  "validated_exports": [
+    {
+      "case": "progress-highres-12",
+      "source": "/app/storage/app/private/capacity-output/progress-highres-12-0aac1cfe/progress-images.docx",
+      "pdf": "/app/storage/app/private/capacity-output/progress-highres-12-0aac1cfe/progress-images.pdf",
+      "pages": 47,
+      "all_captions_preserved": true,
+      "input_bytes": 61411049,
+      "exported_images": [
+        {
+          "name": "word/media/progress-figure-1.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134976
+        },
+        {
+          "name": "word/media/progress-figure-2.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135614
+        },
+        {
+          "name": "word/media/progress-figure-3.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134891
+        },
+        {
+          "name": "word/media/progress-figure-4.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134339
+        },
+        {
+          "name": "word/media/progress-figure-5.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1136000
+        },
+        {
+          "name": "word/media/progress-figure-6.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135005
+        },
+        {
+          "name": "word/media/progress-figure-7.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135405
+        },
+        {
+          "name": "word/media/progress-figure-8.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135276
+        },
+        {
+          "name": "word/media/progress-figure-9.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134773
+        },
+        {
+          "name": "word/media/progress-figure-10.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135125
+        },
+        {
+          "name": "word/media/progress-figure-11.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134259
+        },
+        {
+          "name": "word/media/progress-figure-12.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135026
+        }
+      ]
+    },
+    {
+      "case": "progress-highres-12",
+      "source": "/app/storage/app/private/capacity-output/progress-highres-12-5d6c1f5d/progress-images.docx",
+      "pdf": "/app/storage/app/private/capacity-output/progress-highres-12-5d6c1f5d/progress-images.pdf",
+      "pages": 47,
+      "all_captions_preserved": true,
+      "input_bytes": 61411049,
+      "exported_images": [
+        {
+          "name": "word/media/progress-figure-1.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134976
+        },
+        {
+          "name": "word/media/progress-figure-2.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135614
+        },
+        {
+          "name": "word/media/progress-figure-3.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134891
+        },
+        {
+          "name": "word/media/progress-figure-4.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134339
+        },
+        {
+          "name": "word/media/progress-figure-5.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1136000
+        },
+        {
+          "name": "word/media/progress-figure-6.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135005
+        },
+        {
+          "name": "word/media/progress-figure-7.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135405
+        },
+        {
+          "name": "word/media/progress-figure-8.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135276
+        },
+        {
+          "name": "word/media/progress-figure-9.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134773
+        },
+        {
+          "name": "word/media/progress-figure-10.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135125
+        },
+        {
+          "name": "word/media/progress-figure-11.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1134259
+        },
+        {
+          "name": "word/media/progress-figure-12.jpg",
+          "width": 1600,
+          "height": 1280,
+          "bytes": 1135026
+        }
+      ]
+    }
+  ],
+  "oom_kills": 0
+}

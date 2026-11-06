@@ -1,0 +1,10 @@
+{
+  "app/Services/DocumentImageService.php": "2b6586c349bda0caed1176d274a09848fbe3f19d7ea930a0bc2fc45d242d15e5",
+  "app/Services/ProgressReportDocumentService.php": "6dea812b2d9fab8568d2f97ea6d76a0031a27817a3c3d65947a0a3d0dd111897",
+  "app/Services/CollegeQuarterlyReportDocument.php": "5e5e51a2b9e93282828a1752cbae34558a09928555a579336123a478df2c454c",
+  "app/Services/DetailedProposalMethodologyImageService.php": "11f171ccc1e66bf565f53a7bb5061185e1a46445ebc5d8b3b306fce0abeb44bf",
+  "app/Services/DetailedProposalDocumentService.php": "ea39bc13372839e0a35ee8f72f118f5fe478d4f7e31161f08e1c2505ee0f1814",
+  "app/Http/Controllers/ResearchCoordinatorReportController.php": "ef3a4d6bd8f6e514af87538c823cb387a7c95941882eb5adac6e1cf8cbb292f2",
+  "tests/Unit/DocumentImageServiceTest.php": "e9665d7fec1063a4ae0728d0c967532b01947dd27bd814adc0437853db052033",
+  "tests/Unit/ReportImageOptimizationTest.php": "8e7778ff112cb63eb6f6bfac52ab8cc2b46b28aa007460c28c83e516e6539033"
+}

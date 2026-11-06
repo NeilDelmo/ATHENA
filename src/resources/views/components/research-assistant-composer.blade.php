@@ -16,7 +16,8 @@
     </div>
     <form id="assistant-send-{{ $id }}" @submit.prevent="$store.researchAssistant.send()">
         <label for="{{ $inputId }}" class="sr-only">Message Athena Research Assistant</label>
-        <textarea id="{{ $inputId }}" data-assistant-composer :disabled="$store.researchAssistant.historyRestoring || !$store.researchAssistant.conversationReady" x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Ask Athena about your research…" class="block max-h-44 min-h-12 w-full resize-none border-0 bg-white px-3 py-3 text-base leading-6 text-stone-950 shadow-none placeholder:text-stone-500 focus:border-0 focus:ring-0 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400"></textarea>
+        <textarea id="{{ $inputId }}" data-assistant-composer aria-describedby="{{ $inputId }}-limit" :disabled="$store.researchAssistant.historyRestoring || !$store.researchAssistant.conversationReady" x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Ask Athena about your research…" class="block max-h-44 min-h-12 w-full resize-none border-0 bg-white px-3 py-3 text-base leading-6 text-stone-950 shadow-none placeholder:text-stone-500 focus:border-0 focus:ring-0 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-400"></textarea>
+        <p id="{{ $inputId }}-limit" data-assistant-message-limit x-show="$store.researchAssistant.messageLengthNotice()" x-text="$store.researchAssistant.messageLengthNotice()" x-cloak class="mx-3 mb-2 text-sm leading-5 text-amber-900 dark:text-amber-200"></p>
     </form>
     <div class="flex items-end justify-between gap-2">
         <div class="flex min-w-0 flex-1 items-center gap-1">

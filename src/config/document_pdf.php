@@ -25,5 +25,5 @@ return [
         'PHP_CLI_TEMP_PATH',
         storage_path('app/private/php-cli-temp'),
     ),
-    'timeout_seconds' => (int) env('PDF_CONVERSION_TIMEOUT', 120),
+    'timeout_seconds' => (int) env('PDF_CONVERSION_TIMEOUT', 240),
 ];

@@ -1,0 +1,205 @@
+{
+  "seconds": 1202.4034592530006,
+  "projects": 1000,
+  "fpm_children": 4,
+  "limits": {
+    "memory.max": "1879048192",
+    "memory.swap.max": "0",
+    "cpu.max": "100000 100000"
+  },
+  "heavy_count": 96,
+  "heavy_passed": 94,
+  "heavy_failures": [
+    {
+      "case": "terminal-images-tables",
+      "status": 500,
+      "seconds": 247.85776591100057
+    },
+    {
+      "case": "signed-form-scan",
+      "status": 500,
+      "seconds": 20.297468380999817
+    }
+  ],
+  "per_case": {
+    "native-seven-cold": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "native-seven": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "proposal-large": {
+      "count": 13,
+      "statuses": {
+        "200": 13
+      }
+    },
+    "progress-images": {
+      "count": 13,
+      "statuses": {
+        "200": 13
+      }
+    },
+    "terminal-images-tables": {
+      "count": 1,
+      "statuses": {
+        "500": 1
+      }
+    },
+    "quarterly-evidence": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "expense-100": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "rms-500": {
+      "count": 13,
+      "statuses": {
+        "200": 13
+      }
+    },
+    "rms-1500": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "image-preview-12mp": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "image-preview-20mp": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "image-guard": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "literature-200": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "literature-dense-200": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "assistant-pdf-200": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "assistant-docx-5m": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "assistant-docx-12m": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "assistant-vision-2pages": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "signed-form-text": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "signed-form-scan": {
+      "count": 1,
+      "statuses": {
+        "500": 1
+      }
+    },
+    "manual-1000pages": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "manual-ocr-json": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "manual-long-paragraph": {
+      "count": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "progress-highres-12": {
+      "count": 13,
+      "statuses": {
+        "200": 13
+      }
+    },
+    "queue-request": {
+      "count": 12,
+      "statuses": {
+        "200": 12
+      }
+    },
+    "queue-status": {
+      "count": 12,
+      "statuses": {
+        "200": 12
+      }
+    }
+  },
+  "missing_original_matrix_cases": [],
+  "browser_count": 2163,
+  "browser_errors": 0,
+  "browser_p50_seconds": 0.4448539499999242,
+  "browser_p95_seconds": 1.9582054050006263,
+  "browser_max_seconds": 46.53001349399983,
+  "sampled_charged_peak_mib": 1792.0,
+  "sampled_pss_peak_mib": 1698.08203125,
+  "sampled_anon_peak_mib": 1442.00390625,
+  "sampled_file_peak_mib": 495.453125,
+  "cgroup_lifetime_peak_mib": 1792.05078125,
+  "memory_events": {
+    "low": 0,
+    "high": 0,
+    "max": 2099,
+    "oom": 0,
+    "oom_kill": 0,
+    "oom_group_kill": 0
+  },
+  "cpu_seconds": 1178.986147,
+  "cpu_throttled_seconds": 3187.215554,
+  "reverb_connections": 20,
+  "reverb_errors": []
+}

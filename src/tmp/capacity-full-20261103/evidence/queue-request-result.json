@@ -1,0 +1,13 @@
+{
+    "case": "queue-request",
+    "state": {
+        "run_id": "8a8687e1-9be5-417b-aadc-fd151c9fe40f",
+        "status": "ready",
+        "attempts": 1,
+        "recoveries": 0,
+        "updated_at": 1793706185,
+        "fingerprint": "bd4e9c1f46414d51f6f7b067e389866e3f867f5fcc95667f0686a77fbdb01f6b"
+    },
+    "elapsed_seconds": 0.041610716,
+    "php_peak_mib": 4
+}

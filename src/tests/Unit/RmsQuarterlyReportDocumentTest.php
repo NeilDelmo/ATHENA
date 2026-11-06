@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\RmsQuarterlyReportData;
 use App\Services\RmsQuarterlyReportDocument;
 use Tests\TestCase;
 
@@ -178,6 +179,49 @@ test('RMS exports grow beyond ten records and move the total notes signatures an
     expect($workbook->evaluate('string(//s:definedName[@name="_xlnm.Print_Area"][@localSheetId="0"])'))->toBe("'RMS-Presentation'!\$A\$1:\$R\$35")
         ->and($workbook->evaluate('string(//s:definedName[@name="_xlnm.Print_Area"][@localSheetId="2"])'))->toBe("'RMS-IP Assets'!\$A\$1:\$H\$35");
 });
+
+test('RMS exports large reports promptly without losing the last rows or their formatting', function (int $records, int $lastLongRow, int $lastIpRow, int $signatureRow, int $printLastRow) {
+    $report = [];
+    foreach (RmsQuarterlyReportData::FIELDS as $section => $fields) {
+        foreach (range(1, $records) as $number) {
+            $values = array_fill_keys(array_keys($fields), 'Record '.$number);
+            $values['date'] = '2026-04-08';
+            $values['evidence_url'] = 'https://example.com/evidence/'.$number;
+            $report[$section][] = ['values' => $values];
+        }
+    }
+
+    $start = hrtime(true);
+    $contents = app(RmsQuarterlyReportDocument::class)->generate($report, rmsXlsxMetadata());
+    $seconds = (hrtime(true) - $start) / 1_000_000_000;
+    if (getenv('ATHENA_PDF_BENCHMARK') === '1') {
+        fwrite(STDERR, sprintf("\nRMS regression fixture: %d rows per sheet, %.3fs.\n", $records, $seconds));
+    }
+    $parts = rmsXlsxParts($contents);
+    $styles = rmsXlsxXPath($parts['xl/styles.xml']);
+    $workbook = rmsXlsxXPath($parts['xl/workbook.xml']);
+    foreach ([1 => [$lastLongRow, 'M', 'R'], 2 => [$lastLongRow, 'N', 'R'], 3 => [$lastIpRow, 'F', 'H']] as $sheet => [$lastRow, $dateColumn, $lastColumn]) {
+        $xpath = rmsXlsxXPath($parts['xl/worksheets/sheet'.$sheet.'.xml']);
+        $dateStyle = (int) $xpath->evaluate('string(//s:c[@r="'.$dateColumn.$lastRow.'"]/@s)') + 1;
+        $format = $styles->evaluate('string(/s:styleSheet/s:cellXfs/s:xf['.$dateStyle.']/@numFmtId)');
+        expect(rmsXlsxText($xpath, 'B'.$lastRow))->toBe('Record '.$records)
+            ->and(rmsXlsxText($xpath, $lastColumn.$lastRow))->toBe('https://example.com/evidence/'.$records)
+            ->and($xpath->evaluate('string(//s:c[@r="A'.$lastRow.'"]/s:v)'))->toBe((string) $records)
+            ->and($xpath->evaluate('string(//s:c[@r="C'.($lastRow + 1).'"]/s:v)'))->toBe((string) $records)
+            ->and((int) $xpath->evaluate('count(//s:row[@r >= '.($sheet === 3 ? 12 : 13).' and @r <= '.$lastRow.'])'))->toBe($records)
+            ->and($xpath->evaluate('string(//s:c[@r="'.$dateColumn.$lastRow.'"]/s:v)'))->toBe('46120')
+            ->and($styles->evaluate('string(/s:styleSheet/s:numFmts/s:numFmt[@numFmtId="'.$format.'"]/@formatCode)'))->toBe('mm/dd/yyyy')
+            ->and(rmsXlsxText($xpath, 'A'.$signatureRow))->toBe('Research Head')
+            ->and((int) $xpath->evaluate('count(//s:mergeCell[@ref="F'.$signatureRow.':H'.$signatureRow.'"])'))->toBe(1)
+            ->and($xpath->evaluate('string(//s:c[@r="B'.$lastRow.'"]/@s)'))->toBe($xpath->evaluate('string(//s:c[@r="B'.($sheet === 3 ? 12 : 13).'"]/@s)'))
+            ->and($workbook->evaluate('string(//s:definedName[@name="_xlnm.Print_Area"][@localSheetId="'.($sheet - 1).'"])'))->toEndWith('$'.$lastColumn.'$'.$printLastRow);
+    }
+
+    expect($seconds)->toBeLessThan(30);
+})->with([
+    '500 rows per sheet' => [500, 512, 511, 520, 523],
+    '1500 rows per sheet' => [1500, 1512, 1511, 1520, 1523],
+]);
 
 test('RMS exports leave empty form rows blank and write zero totals', function () {
     $parts = rmsXlsxParts(app(RmsQuarterlyReportDocument::class)->generate([

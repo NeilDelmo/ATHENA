@@ -1,0 +1,22 @@
+{
+    "case": "progress-images",
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/progress-images.docx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/progress-images.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/progress-images.txt",
+    "pages": 47,
+    "docx_or_xlsx_bytes": 5893491,
+    "pdf_bytes": 15775108,
+    "input_counts": {
+        "images": 12,
+        "image_bytes": 5639834,
+        "accomplishments": 30,
+        "serialized_data_bytes": 145043
+    },
+    "verified_markers": [
+        "ACCOMPLISHMENT30END",
+        "REPORTFIGURE12END",
+        "RESULTSEND"
+    ],
+    "elapsed_seconds": 8.478435537,
+    "php_peak_mib": 26.67578125
+}

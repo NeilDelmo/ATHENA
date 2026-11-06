@@ -5,6 +5,8 @@ namespace App\Services;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\InputStream;
 
 class LibreOfficeProcess
 {
@@ -24,10 +26,15 @@ class LibreOfficeProcess
         string $profilePath,
         string $filter,
     ): ProcessResult {
-        $native = app(LibreOfficePdfWorker::class)->convert($sourcePaths, $outputDirectory, $filter);
-        if ($native !== null) {
-            return $native;
-        }
+        return app(LibreOfficePdfWorker::class)->convert(
+            $sourcePaths, $outputDirectory, $filter,
+            fn (): ProcessResult => $this->runStandalone($sourcePaths, $outputDirectory, $profilePath, $filter),
+        );
+    }
+
+    /** @param list<string> $sourcePaths */
+    private function runStandalone(array $sourcePaths, string $outputDirectory, string $profilePath, string $filter): ProcessResult
+    {
         $binary = $this->binary();
         $process = Process::timeout((int) config('document_pdf.timeout_seconds'));
 
@@ -35,7 +42,7 @@ class LibreOfficeProcess
             $process->path(dirname($binary));
         }
 
-        return $process->run([
+        $command = [
             $binary,
             '--headless',
             '--nologo',
@@ -47,7 +54,22 @@ class LibreOfficeProcess
             '--outdir',
             $outputDirectory,
             ...array_map(fn (string $path): string => $this->fileUri($path), $sourcePaths),
-        ]);
+        ];
+        if (PHP_OS_FAMILY === 'Linux') {
+            $python = config('document_pdf.libreoffice_python_binary');
+            if (! is_string($python) || ! is_file($python)) {
+                $finder = new ExecutableFinder;
+                $python = $finder->find('python3') ?? $finder->find('python');
+            }
+            // shortcut: hosts without Python keep launcher-only cleanup; install Python for process-group cleanup.
+            if ($python !== null) {
+                // Symfony's timeout force-kills after 1ms; let the supervisor clean its group before returning.
+                $process->forever()->input(new InputStream);
+                array_unshift($command, $python, base_path('scripts/libreoffice-worker.py'), '--once', (string) config('document_pdf.timeout_seconds'));
+            }
+        }
+
+        return $process->run($command);
     }
 
     public function binary(): string

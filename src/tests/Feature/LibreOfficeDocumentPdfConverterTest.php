@@ -2,6 +2,8 @@
 
 use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\LibreOfficePdfWorker;
+use App\Services\LibreOfficeProcess;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
@@ -15,9 +17,14 @@ test('conversion uses the ready native worker and only falls back when the worke
     File::put($python, '');
     config(['document_pdf.libreoffice_python_binary' => $python, 'document_pdf.delegate_to_php_cli' => false]);
     Cache::put(LibreOfficePdfWorker::cacheKey(), ['pipe' => 'test-worker', 'updated_at' => now()->timestamp], 120);
+    if ($state === 'restarting') {
+        Cache::put(LibreOfficePdfWorker::cacheKey().':restart', 'test-worker', 120);
+    }
     Process::preventStrayProcesses();
     Process::fake(function (PendingProcess $process) use ($python, $state) {
-        if ($process->command[0] === $python) {
+        expect(Cache::lock(LibreOfficePdfWorker::cacheKey().':export')->isLocked())->toBeTrue();
+        if ($process->command[1] === base_path('scripts/convert-office-pdf.py')) {
+            expect($process->command[0])->toBe($python);
             expect($process->command[1])->toBe(base_path('scripts/convert-office-pdf.py'));
             expect($process->command[2])->toBe('test-worker');
             if ($state !== 'ready') {
@@ -25,7 +32,7 @@ test('conversion uses the ready native worker and only falls back when the worke
             }
             $output = $process->command[3];
         } else {
-            expect($state)->toBe('disconnected');
+            expect($state)->toBeIn(['disconnected', 'restarting']);
             $output = $process->command[array_search('--outdir', $process->command, true) + 1];
         }
         foreach ([...glob($output.'/*.docx'), ...glob($output.'/*.xlsx')] as $source) {
@@ -49,10 +56,11 @@ test('conversion uses the ready native worker and only falls back when the worke
         if ($state !== 'ready') {
             expect(Cache::get(LibreOfficePdfWorker::cacheKey().':restart'))->toBe('test-worker');
         }
+        expect(Cache::lock(LibreOfficePdfWorker::cacheKey().':export')->isLocked())->toBeFalse();
     } finally {
         File::deleteDirectory($root);
     }
-})->with(['ready', 'disconnected', 'export failure']);
+})->with(['ready', 'disconnected', 'export failure', 'restarting']);
 
 test('it converts supported office documents to PDF through an isolated LibreOffice process', function (
     string $method,
@@ -62,9 +70,10 @@ test('it converts supported office documents to PDF through an isolated LibreOff
     $conversionDirectory = null;
     $temporaryRoot = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
         .DIRECTORY_SEPARATOR.'athena-pdf-conversions-'.Str::uuid();
-    config(['document_pdf.temporary_directory' => $temporaryRoot]);
+    config(['document_pdf.temporary_directory' => $temporaryRoot, 'document_pdf.timeout_seconds' => 120]);
     Process::preventStrayProcesses();
     Process::fake(function (PendingProcess $process) use (&$conversionDirectory, $extension) {
+        expect(Cache::lock(LibreOfficePdfWorker::cacheKey().':export')->isLocked())->toBeTrue();
         expect($process->command)->toBeArray();
 
         $outDirectoryIndex = array_search('--outdir', $process->command, true);
@@ -85,7 +94,7 @@ test('it converts supported office documents to PDF through an isolated LibreOff
 
     File::deleteDirectory($temporaryRoot);
 
-    Process::assertRan(fn (PendingProcess $process): bool => $process->timeout === 120
+    Process::assertRan(fn (PendingProcess $process): bool => $process->timeout === (in_array('--once', $process->command, true) ? null : 120)
         && is_array($process->command)
         && in_array('--headless', $process->command, true)
         && in_array($filter, $process->command, true));
@@ -137,16 +146,30 @@ test('only one native worker owns its profile and shutdown releases ownership', 
     File::ensureDirectoryExists($root);
     File::put($root.'/soffice.com', '');
     File::put($root.'/python.exe', '');
-    config(['document_pdf.libreoffice_binary' => $root.'/soffice.com', 'document_pdf.temporary_directory' => $root]);
+    config(['document_pdf.libreoffice_binary' => $root.'/soffice.com',
+        'document_pdf.libreoffice_python_binary' => $root.'/python.exe', 'document_pdf.temporary_directory' => $root]);
     Process::preventStrayProcesses();
-    Process::fake(fn (PendingProcess $process) => $process->command[0] === $root.'/soffice.com'
-        ? Process::describe()->iterations(100)
-        : Process::result());
+    Process::fake(function (PendingProcess $process) {
+        expect(Cache::lock(LibreOfficePdfWorker::cacheKey().':export')->isLocked())->toBeTrue();
+
+        return in_array('--headless', $process->command, true)
+            ? Process::describe()->iterations(100)
+            : Process::result();
+    });
     $first = new LibreOfficePdfWorker;
     $second = new LibreOfficePdfWorker;
     try {
         expect($first->start())->toBeTrue();
         $pipe = Cache::get(LibreOfficePdfWorker::cacheKey())['pipe'];
+        $exportLock = Cache::lock(LibreOfficePdfWorker::cacheKey().':export', 130);
+        expect($exportLock->get())->toBeTrue();
+        try {
+            Cache::forget(LibreOfficePdfWorker::cacheKey());
+            expect($first->start())->toBeTrue()
+                ->and(Cache::get(LibreOfficePdfWorker::cacheKey())['pipe'])->toBe($pipe);
+        } finally {
+            $exportLock->release();
+        }
         expect($second->start())->toBeFalse()
             ->and(Cache::get(LibreOfficePdfWorker::cacheKey())['pipe'])->toBe($pipe);
         $first->stop();
@@ -156,6 +179,65 @@ test('only one native worker owns its profile and shutdown releases ownership', 
     } finally {
         $first->stop();
         $second->stop();
+        File::deleteDirectory($root);
+    }
+});
+
+test('busy exports prevent cold conversion and worker startup while failed worker cleanup remains available', function (string $operation) {
+    $root = storage_path('framework/testing/office-gate-'.Str::random(8));
+    File::ensureDirectoryExists($root);
+    File::put($root.'/python', '');
+    config(['document_pdf.libreoffice_python_binary' => $root.'/python',
+        'document_pdf.temporary_directory' => $root, 'document_pdf.timeout_seconds' => 0]);
+    Process::preventStrayProcesses();
+    Process::fake(fn (PendingProcess $process) => in_array('--headless', $process->command, true)
+        ? Process::describe()->iterations(100)
+        : Process::result());
+    $worker = new LibreOfficePdfWorker;
+    $lock = Cache::lock(LibreOfficePdfWorker::cacheKey().':export', 10);
+    try {
+        if ($operation === 'restart') {
+            expect($worker->start())->toBeTrue();
+            $pipe = Cache::get(LibreOfficePdfWorker::cacheKey())['pipe'];
+            Cache::put(LibreOfficePdfWorker::cacheKey().':restart', $pipe, 120);
+        }
+        expect($lock->get())->toBeTrue();
+        $convert = fn () => app(LibreOfficeProcess::class)->runMany([$root.'/source.docx'], $root, $root.'/profile', 'pdf');
+        expect($operation === 'cold' ? $convert : fn () => $worker->start())->toThrow(LockTimeoutException::class);
+        if ($operation === 'restart') {
+            expect(Cache::has(LibreOfficePdfWorker::cacheKey().':restart'))->toBeFalse()
+                ->and(Cache::has(LibreOfficePdfWorker::cacheKey()))->toBeFalse();
+            $ownership = fopen($root.'/worker/worker.lock', 'c');
+            expect(flock($ownership, LOCK_EX | LOCK_NB))->toBeTrue();
+            fclose($ownership);
+        } else {
+            Process::assertNothingRan();
+        }
+    } finally {
+        $lock->release();
+        $worker->stop();
+        File::deleteDirectory($root);
+    }
+})->with(['cold', 'startup', 'restart']);
+
+test('startup failure releases the shared export gate and worker ownership', function () {
+    $root = storage_path('framework/testing/office-start-failure-'.Str::random(8));
+    File::ensureDirectoryExists($root);
+    File::put($root.'/python', '');
+    config(['document_pdf.libreoffice_python_binary' => $root.'/python', 'document_pdf.temporary_directory' => $root]);
+    Process::preventStrayProcesses();
+    Process::fake(fn (PendingProcess $process) => in_array('--headless', $process->command, true)
+        ? Process::describe()->iterations(100)
+        : Process::result(exitCode: 1));
+    $worker = new LibreOfficePdfWorker;
+    try {
+        expect(fn () => $worker->start())->toThrow(RuntimeException::class, 'could not initialize');
+        expect(Cache::lock(LibreOfficePdfWorker::cacheKey().':export')->isLocked())->toBeFalse();
+        $ownership = fopen($root.'/worker/worker.lock', 'c');
+        expect(flock($ownership, LOCK_EX | LOCK_NB))->toBeTrue();
+        fclose($ownership);
+    } finally {
+        $worker->stop();
         File::deleteDirectory($root);
     }
 });
@@ -212,6 +294,7 @@ test('it delegates web-runtime conversion to the PHP CLI with an application-own
             ->and($process->command[0])->toBe($phpBinary)
             ->and($process->command[1])->toBe(base_path('artisan'))
             ->and($process->command[2])->toBe('document-pdf:convert')
+            ->and($process->timeout)->toBeGreaterThanOrEqual(250)
             ->and($process->path)->toBe(base_path())
             ->and($process->options)->not->toHaveKey('create_new_console')
             ->and($process->environment)->toMatchArray([

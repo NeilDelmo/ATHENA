@@ -70,7 +70,8 @@ class SubmitProposalDraft
 
     public function prepare(ProposalDraft $draft, User $user, bool $onlyMissing = false): void
     {
-        $lock = Cache::lock('proposal-pdf-generation:'.$draft->id, 600);
+        // Each of the two conversion phases can wait for the export gate before converting.
+        $lock = Cache::lock('proposal-pdf-generation:'.$draft->id, max(600, 4 * (int) config('document_pdf.timeout_seconds') + 120));
         if (! $lock->get()) {
             throw ProposalPdfPreparationBusy::withMessages(['preparation' => 'The latest PDFs are already being prepared. Wait for preparation to finish.']);
         }

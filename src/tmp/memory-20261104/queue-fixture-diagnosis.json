@@ -1,0 +1,428 @@
+{
+    "draft": {
+        "id": 1,
+        "user_id": 2,
+        "research_call_id": 1,
+        "topic_id": null,
+        "project_title": "Capacity Coastal Habitat Restoration",
+        "duration_months": 12,
+        "planned_start": "2026-08-01",
+        "planned_end": "2027-07-31",
+        "project_leader": "Capacity Faculty",
+        "status": "draft",
+        "lock_version": 0,
+        "created_at": "2026-11-04 14:12:31",
+        "updated_at": "2026-11-04 14:12:31",
+        "signatory_selections": null,
+        "research_manual_id": null,
+        "pdf_preparation_state": "{\"run_id\": \"90cee3ad-d398-44a3-b36c-c0cf0024c4b4\", \"status\": \"ready\", \"attempts\": 1, \"recoveries\": 0, \"updated_at\": 1793772764, \"fingerprint\": \"bd4e9c1f46414d51f6f7b067e389866e3f867f5fcc95667f0686a77fbdb01f6b\"}",
+        "deleted_at": null
+    },
+    "errors": {
+        "papers.detailed-proposal": "Detailed Research Proposal is incomplete or its staged file is unavailable.",
+        "papers.work-plan": "Attachment A: Work Plan is incomplete or its staged file is unavailable."
+    },
+    "blockers": [
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "research_agenda",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The BatStateU research agenda field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "sdgs",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The Sustainable Development Goals field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "leader_email",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The project leader email address field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "leader_contact",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The project leader contact number field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "proponent_college",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The proponent college field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "proponent_campus",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The proponent campus field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "executive_brief",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The executive brief field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "rationale",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The rationale field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "specific_objectives",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "Add at least one Specific Objective below the optional General Objective."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "expected_outputs",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The expected outputs field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "related_literature",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The XI. Review of Related Literature: field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "methodology",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The methodology field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "methodology.research_design",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The research design field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "methodology.specific_methods",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The specific methods field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "responsibilities",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The responsibilities field is required."
+        },
+        {
+            "key": "papers.detailed-proposal",
+            "paper": "detailed-proposal",
+            "field": "references",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "The references field is required."
+        },
+        {
+            "key": "papers.work-plan",
+            "paper": "detailed-proposal",
+            "field": "specific_objectives",
+            "owner": "faculty",
+            "reason": "validation",
+            "message": "Save the specific objectives in the Detailed Proposal before completing the Work Plan."
+        }
+    ],
+    "current_sources": {
+        "curriculum_vitae": {
+            "people": [
+                {
+                    "email": "",
+                    "agency": "",
+                    "awards": [],
+                    "gender": "",
+                    "street": "",
+                    "barangay": "",
+                    "birthday": "",
+                    "landline": "",
+                    "projects": [],
+                    "province": "",
+                    "cellphone": "",
+                    "last_name": "Owner",
+                    "employment": [],
+                    "first_name": "Capacity",
+                    "middle_name": "",
+                    "municipality": "",
+                    "publications": [],
+                    "scholarships": [],
+                    "presentations": [],
+                    "specializations": [],
+                    "academic_background": []
+                }
+            ]
+        },
+        "detailed_proposal": null,
+        "expense_breakdown": {
+            "items": [
+                {
+                    "unit": "pc",
+                    "account": "Communication Expenses",
+                    "details": "Prepaid Call Card",
+                    "purpose": "For project communication",
+                    "category": "mooe",
+                    "quantity": 12,
+                    "unit_cost": 300,
+                    "particulars": "Prepaid Card",
+                    "sub_account": "Telephone Expenses"
+                }
+            ],
+            "project_title": "Capacity Coastal Habitat Restoration",
+            "pdf_layout_version": 2
+        },
+        "gad_checklist": {
+            "project_title": "Capacity Coastal Habitat Restoration",
+            "verifier_name": "Capacity Signatory",
+            "verifier_role": "GAD Checklist \u2014 verified by",
+            "project_leader": "Capacity Faculty"
+        },
+        "initial_screening_form": {
+            "level_of_call": "constituent_campus",
+            "project_title": "Capacity Coastal Habitat Restoration",
+            "project_leader": "Capacity Faculty",
+            "screening_head": "Capacity Signatory",
+            "screening_center": "Capacity Signatory",
+            "screening_verifier": "Capacity Signatory",
+            "order_of_submission": "first_submission"
+        },
+        "line_item_budget": {
+            "amounts": {
+                "other_mooe": null,
+                "rent_lease": null,
+                "contingency": null,
+                "ict_equipment": null,
+                "office_supplies": null,
+                "postage_courier": null,
+                "general_services": null,
+                "office_equipment": null,
+                "travelling_local": null,
+                "supplies_materials": null,
+                "telephone_expenses": 3600,
+                "other_mooe_expenses": null,
+                "repairs_maintenance": null,
+                "travelling_expenses": null,
+                "printing_publication": null,
+                "training_scholarship": null,
+                "professional_services": null,
+                "subscription_expenses": null,
+                "communication_expenses": null,
+                "other_general_services": null,
+                "representation_expenses": null,
+                "other_supplies_materials": null,
+                "other_machinery_equipment": null,
+                "semi_expendable_equipment": null,
+                "machinery_equipment_outlay": null,
+                "other_professional_services": null,
+                "technical_scientific_equipment": null
+            },
+            "co_total": 0,
+            "mooe_total": 3600,
+            "planned_end": "2027-07-31",
+            "certified_by": "Capacity Signatory",
+            "planned_start": "2026-08-01",
+            "project_title": "Capacity Coastal Habitat Restoration",
+            "project_total": 3600,
+            "certified_role": "Budget \u2014 certified correct by",
+            "project_leader": "Capacity Faculty",
+            "computed_co_total": 0,
+            "computed_mooe_total": 3600,
+            "computed_project_total": 3600
+        },
+        "work_plan": {
+            "entries": [
+                {
+                    "months": [
+                        1,
+                        2,
+                        3
+                    ],
+                    "activity": "Conduct field survey\nComplete community mapping",
+                    "objective": "Document baseline conditions and validate a community restoration model.",
+                    "expected_output": "Validated baseline habitat profile"
+                }
+            ],
+            "planned_end": "2027-07-31",
+            "prepared_by": "Capacity Faculty",
+            "verified_by": "Capacity Signatory",
+            "planned_start": "2026-08-01",
+            "project_title": "Capacity Coastal Habitat Restoration",
+            "verified_role": "Work Plan \u2014 checked and verified by",
+            "total_duration_months": 12
+        }
+    },
+    "seed_sources": {
+        "detailed_proposal": {
+            "research_agenda": "Environment and Climate Change",
+            "sdgs": [
+                13,
+                14,
+                17
+            ],
+            "leader_email": "capacity-faculty@example.test",
+            "leader_contact": "09171234567",
+            "staff": [],
+            "proponent_department": "Research Department",
+            "proponent_college": "College of Informatics and Computing Sciences",
+            "proponent_campus": "ARASOF-Nasugbu",
+            "cooperating_agency": "",
+            "executive_brief": "This project restores priority coastal habitats through evidence-based community action.",
+            "rationale": "Coastal habitat degradation threatens biodiversity and local livelihoods.",
+            "general_objective": "Document baseline conditions and validate a community restoration model.",
+            "specific_objectives": [
+                {
+                    "description": "Document baseline conditions and validate a community restoration model."
+                }
+            ],
+            "expected_outputs": {
+                "publication": [
+                    {
+                        "description": "One peer-reviewed publication"
+                    }
+                ],
+                "patent": [],
+                "product": [
+                    {
+                        "description": "Validated restoration model"
+                    }
+                ],
+                "people_service": [
+                    {
+                        "description": "Community training"
+                    }
+                ],
+                "place_partnership": [
+                    {
+                        "description": "University-LGU partnership"
+                    }
+                ],
+                "policy": [
+                    {
+                        "description": "Restoration protocol"
+                    }
+                ],
+                "social_impact": [
+                    {
+                        "description": "Improved participation"
+                    }
+                ],
+                "economic_impact": [
+                    {
+                        "description": "Protected livelihoods"
+                    }
+                ]
+            },
+            "introduction": "The project responds to coastal habitat degradation through community research.",
+            "related_literature": "Recent literature supports participatory coastal habitat restoration.",
+            "methodology": {
+                "research_design": "The project uses a mixed-method design.",
+                "specific_methods": "The team will conduct surveys, transects, and stakeholder workshops.",
+                "data_analysis": "Data will be analyzed with descriptive statistics and thematic analysis."
+            },
+            "responsibilities": [
+                {
+                    "name": "Capacity Faculty",
+                    "percentage": 100,
+                    "duties": "Leads implementation, quality assurance, and reporting."
+                }
+            ],
+            "references": "Synthetic Author, A. (2025). Coastal habitat restoration. Synthetic Journal, 1(1), 1-10."
+        },
+        "work_plan": {
+            "entries": [
+                {
+                    "objective": "Document the baseline habitat condition",
+                    "expected_output": "Validated baseline habitat profile",
+                    "activity": "Conduct field survey\nComplete community mapping",
+                    "months": [
+                        1,
+                        2,
+                        3
+                    ]
+                }
+            ]
+        },
+        "line_item_budget": {
+            "amounts": {
+                "telephone_expenses": 3600
+            }
+        },
+        "expense_breakdown": {
+            "items": [
+                {
+                    "category": "mooe",
+                    "account": "Communication Expenses",
+                    "sub_account": "Telephone Expenses",
+                    "particulars": "Prepaid Card",
+                    "details": "Prepaid Call Card",
+                    "purpose": "For project communication",
+                    "unit": "pc",
+                    "quantity": 12,
+                    "unit_cost": 300
+                }
+            ]
+        },
+        "curriculum_vitae": {
+            "people": [
+                {
+                    "last_name": "Owner",
+                    "first_name": "Capacity",
+                    "middle_name": "",
+                    "agency": "",
+                    "gender": "",
+                    "birthday": "",
+                    "street": "",
+                    "barangay": "",
+                    "municipality": "",
+                    "province": "",
+                    "landline": "",
+                    "cellphone": "",
+                    "email": "",
+                    "academic_background": [],
+                    "scholarships": [],
+                    "employment": [],
+                    "specializations": [],
+                    "awards": [],
+                    "projects": [],
+                    "publications": [],
+                    "presentations": []
+                }
+            ]
+        }
+    }
+}

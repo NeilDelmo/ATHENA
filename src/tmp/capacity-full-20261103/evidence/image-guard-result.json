@@ -1,0 +1,8 @@
+{
+    "case": "image-guard",
+    "status": "guarded",
+    "input_bytes": 5118090,
+    "pixels": 20004000,
+    "elapsed_seconds": 0.024428786,
+    "php_peak_mib": 4
+}

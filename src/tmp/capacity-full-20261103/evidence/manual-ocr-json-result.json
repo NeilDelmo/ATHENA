@@ -1,0 +1,13 @@
+{
+    "case": "manual-ocr-json",
+    "source_bytes": 983872,
+    "ocr_bytes": 10312690,
+    "page_count": 1000,
+    "chunk_count": 6000,
+    "indexed_characters": 10278786,
+    "unindexed_pages": [],
+    "index_bytes": 11133070,
+    "index_path": "\/app\/storage\/app\/private\/capacity-output\/manual-ocr-json\/index.json",
+    "elapsed_seconds": 1.457573726,
+    "php_peak_mib": 64.00390625
+}

@@ -1,0 +1,28 @@
+{
+    "case": "rms-500",
+    "conversion_seconds": 5.903714772,
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/rms-500.xlsx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/rms-500.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/rms-500.txt",
+    "pages": 128,
+    "docx_or_xlsx_bytes": 227864,
+    "pdf_bytes": 5935227,
+    "input_counts": {
+        "images": 0,
+        "image_bytes": 0,
+        "presentations": 500,
+        "publications": 500,
+        "ip_assets": 500,
+        "serialized_data_bytes": 1678242
+    },
+    "verified_markers": [
+        "presentations500END",
+        "publications500END",
+        "ip_assets500END"
+    ],
+    "marker_extraction_fallbacks": [],
+    "source_generation_seconds": 307.903936259,
+    "fixture_and_validation_seconds": 0.014354263,
+    "elapsed_seconds": 314.886285126,
+    "php_peak_mib": 19.671875
+}

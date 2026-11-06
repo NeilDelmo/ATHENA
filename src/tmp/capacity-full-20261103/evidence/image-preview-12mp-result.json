@@ -1,0 +1,11 @@
+{
+    "case": "image-preview-12mp",
+    "status": "converted",
+    "input_bytes": 3581218,
+    "preview_bytes": 941998,
+    "width": 1600,
+    "height": 1200,
+    "preview_path": "image-previews\/v1\/capacity-fixtures\/image_12mp.jpg.ccbc9ace26b040b570a22e79c6a673b2223f607da8de31910253a8de8514050f.webp",
+    "elapsed_seconds": 0.755278137,
+    "php_peak_mib": 4
+}

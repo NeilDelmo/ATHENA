@@ -1,0 +1,39 @@
+{
+    "case": "assistant-vision-2pages",
+    "input_bytes": 3997519,
+    "prompt_bytes": 1394,
+    "source_count": 2,
+    "coverage": {
+        "selected_passages": 2,
+        "total_passages": 2,
+        "omitted_passages": 0,
+        "truncated": false,
+        "extracted_pages": 0,
+        "page_limit": 200,
+        "visual_pages": [
+            1,
+            2
+        ],
+        "total_pdf_pages": 2,
+        "visual_page_limit": 2,
+        "limitations": [
+            "Only PDF page images 1, 2 were supplied for visual inspection. Other pages were not inspected. Unclear details and signatures cannot be authenticated."
+        ]
+    },
+    "images": [
+        {
+            "bytes": 1692025,
+            "width": 1391,
+            "height": 1800,
+            "sha256": "e1f103ed5329937e802c67ec166466fb6fcb78c2dcfe7ab6cd9e631ef22159f1"
+        },
+        {
+            "bytes": 1691410,
+            "width": 1391,
+            "height": 1800,
+            "sha256": "76e66caab9ea50a0a2f4c34e0228a11855523f0f157c4c9d72144754144535b4"
+        }
+    ],
+    "elapsed_seconds": 13.53026971,
+    "php_peak_mib": 34.76171875
+}

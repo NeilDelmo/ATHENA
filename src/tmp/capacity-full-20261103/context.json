@@ -1,0 +1,286 @@
+{
+    "faculty_id": 2,
+    "head_id": 1,
+    "coordinator_id": 3,
+    "secretary_id": 4,
+    "draft_id": 1,
+    "topic_id": 1,
+    "call_id": 1,
+    "report_ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "project_count": 1000,
+    "users": {
+        "head": {
+            "id": 1,
+            "workspace": "research_head"
+        },
+        "faculty": {
+            "id": 2,
+            "workspace": "faculty"
+        },
+        "coordinator": {
+            "id": 3,
+            "workspace": "research_office"
+        },
+        "secretary": {
+            "id": 4,
+            "workspace": "research_secretary"
+        },
+        "vcrdes": {
+            "id": 5,
+            "workspace": "vcrdes"
+        }
+    },
+    "paths": {
+        "faculty_dashboard": "\/faculty\/dashboard",
+        "faculty_submissions": "\/faculty\/submissions",
+        "faculty_draft": "\/faculty\/proposal-drafts\/1",
+        "faculty_draft_review": "\/faculty\/proposal-drafts\/1\/review",
+        "draft_pdf": "\/faculty\/proposal-drafts\/1\/submission-files\/detailed-proposal",
+        "head_dashboard": "\/research-head\/dashboard",
+        "head_analytics": "\/research-head\/analytics",
+        "head_proposals": "\/research-head\/proposal-submissions",
+        "head_projects": "\/research-head\/projects",
+        "head_report_reviews": "\/research-head\/report-reviews",
+        "coordinator_dashboard": "\/research-coordinator\/dashboard",
+        "quarterly_docx": "\/research-coordinator\/reports\/download?year=2026&quarter=3",
+        "quarterly_print": "\/research-coordinator\/reports\/print?year=2026&quarter=3",
+        "rms_pdf": "\/research-head\/rms-quarterly-reports\/preview?year=2026&quarter=3",
+        "rms_xlsx": "\/research-head\/rms-quarterly-reports\/download?year=2026&quarter=3",
+        "notifications": "\/notifications",
+        "topic": "\/topics\/1"
+    },
+    "pdf_content_ready": true,
+    "pdf_files_prepared": false,
+    "fixture_directory": "\/app\/storage\/app\/private\/capacity-fixtures",
+    "fixtures": {
+        "schema_version": 1,
+        "fixtures": {
+            "report_image_01": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-01.jpg",
+                "filename": "report-01.jpg",
+                "bytes": 470300,
+                "sha256": "3370228b4101c1bf059a80a8403f59adbb68ab5142ac5bcc7d42a82eef5464b8",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_02": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-02.jpg",
+                "filename": "report-02.jpg",
+                "bytes": 470194,
+                "sha256": "b5f1e53183f6917e4e8ee08d018e1dba223eb3ed543bcfbe1caef1aadb826122",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_03": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-03.jpg",
+                "filename": "report-03.jpg",
+                "bytes": 470032,
+                "sha256": "fe4c0b88135a1f9ae843a0966b01497cdc317428c71869ab21f3c09c00fe2597",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_04": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-04.jpg",
+                "filename": "report-04.jpg",
+                "bytes": 470369,
+                "sha256": "5d268da394edc1fa31be85f340b8e896f38d6af131fd7aa3e5a79fbe6b1ded25",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_05": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-05.jpg",
+                "filename": "report-05.jpg",
+                "bytes": 469348,
+                "sha256": "9c420cc8c152a86e51f733fa3444f668eeb1cd9d9c6466f1313a136dd1a1dcef",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_06": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-06.jpg",
+                "filename": "report-06.jpg",
+                "bytes": 469891,
+                "sha256": "e16850e4e19caeffcad3e0d7050eb91daa2d706301b5a297099e0b7da22461fc",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_07": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-07.jpg",
+                "filename": "report-07.jpg",
+                "bytes": 470200,
+                "sha256": "bb38f2d65798d441cdc3ca98a192437018e1cbfb6b96d0a158a2f3e5e145b657",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_08": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-08.jpg",
+                "filename": "report-08.jpg",
+                "bytes": 469993,
+                "sha256": "0c2a39a2049580eb6912a16b13c707f06cea38564a0b1a39c0ecd3b5fd7d0049",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_09": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-09.jpg",
+                "filename": "report-09.jpg",
+                "bytes": 469799,
+                "sha256": "5149f8910f65a5bffac5fbe14e71a3fef52e79b9764a7cc2b944d4f24e1a3b81",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_10": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-10.jpg",
+                "filename": "report-10.jpg",
+                "bytes": 469860,
+                "sha256": "83e95c4f83fe82f8c1d2eff5a647e2f0380fd5a9baf15c4d31daef3d04ea9334",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_11": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-11.jpg",
+                "filename": "report-11.jpg",
+                "bytes": 469641,
+                "sha256": "8c9cf314cd8b75bfc812cf80e93c7d6c96390b80e64d0f06aafaff8a2bad7d0b",
+                "width": 2400,
+                "height": 1600
+            },
+            "report_image_12": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/report-12.jpg",
+                "filename": "report-12.jpg",
+                "bytes": 470207,
+                "sha256": "c0561f7a965c75eb35c6a3e3ada198c4b417752c38b280a390a9995e881a4f7e",
+                "width": 2400,
+                "height": 1600
+            },
+            "image_12mp": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/image_12mp.jpg",
+                "filename": "image_12mp.jpg",
+                "bytes": 3581218,
+                "sha256": "ccbc9ace26b040b570a22e79c6a673b2223f607da8de31910253a8de8514050f",
+                "width": 4000,
+                "height": 3000
+            },
+            "image_20mp": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/image_20mp.jpg",
+                "filename": "image_20mp.jpg",
+                "bytes": 5115527,
+                "sha256": "e3c255289d03c439a0556af6d8aeb7609186d15472e8dfd8da37b9b4d3d02ca3",
+                "width": 5000,
+                "height": 4000
+            },
+            "image_guard": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/image_guard.jpg",
+                "filename": "image_guard.jpg",
+                "bytes": 5118090,
+                "sha256": "3e71be9007afb454958ce9338b848d471061c7b9f3054068cb242dc264596037",
+                "width": 5001,
+                "height": 4000
+            },
+            "pdf_200": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/pdf_200.pdf",
+                "filename": "pdf_200.pdf",
+                "bytes": 130652,
+                "sha256": "9b0e5dda9b2d439ac4788641169282cc89180317ded8351cdb225bf790134e77",
+                "pages": 200
+            },
+            "pdf_dense_200": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/pdf_dense_200.pdf",
+                "filename": "pdf_dense_200.pdf",
+                "bytes": 226812,
+                "sha256": "b93118fb1785fb3c17470ac07fbaa9ab1333ae0f708a09b459226efe56603482",
+                "pages": 200
+            },
+            "manual_1000": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/manual_1000.pdf",
+                "filename": "manual_1000.pdf",
+                "bytes": 983872,
+                "sha256": "bec6db75f49da68ab5ac2f78e111d81d8c93ff71472d17e4d4f73b2657d946d0",
+                "pages": 1000
+            },
+            "work_plan": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/work_plan.pdf",
+                "filename": "work_plan.pdf",
+                "bytes": 1651,
+                "sha256": "ae2c7d84b8703084ccbd9946c1723c36333e6ed4323f836211555280fdeb84da",
+                "pages": 1
+            },
+            "scan_2pages": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/scan_2pages.pdf",
+                "filename": "scan_2pages.pdf",
+                "bytes": 3997519,
+                "sha256": "f833a5c5f5070f8e24827029471c11c9a3af305840e8c3c3b75228204920604e",
+                "pages": 2,
+                "raster_width": 2480,
+                "raster_height": 3508
+            },
+            "docx_5m": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/docx_5m.docx",
+                "filename": "docx_5m.docx",
+                "bytes": 26190,
+                "sha256": "790f3b2436a8e3f6f428281b0c7b941c11d248b002b293f91def09f4a98a276e",
+                "selected_xml_bytes": 5242880,
+                "paragraphs": 9481
+            },
+            "docx_12m": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/docx_12m.docx",
+                "filename": "docx_12m.docx",
+                "bytes": 59653,
+                "sha256": "e65169ea620afc46feaf8df2acc5d80c6ecf05b3c326a5607cc109034299b956",
+                "selected_xml_bytes": 12581888,
+                "paragraphs": 22752
+            },
+            "ocr_pages": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/ocr_pages.json",
+                "filename": "ocr_pages.json",
+                "bytes": 10312690,
+                "sha256": "fbe429f018beb892b1e3f030c87e83840348d5aa6b20fa315a96c77a88a0fb8e",
+                "pages": 1000,
+                "paragraph_characters": 10240
+            },
+            "ocr_long_paragraph": {
+                "path": "\/app\/storage\/app\/private\/capacity-fixtures\/ocr_long_paragraph.json",
+                "filename": "ocr_long_paragraph.json",
+                "bytes": 1048654,
+                "sha256": "e09156fd950abce6d6f3c5573564e2adb987e71119449fd8391357945e51f875",
+                "pages": 1,
+                "paragraph_characters": 1048576
+            }
+        },
+        "image_paths": [
+            "report-01.jpg",
+            "report-02.jpg",
+            "report-03.jpg",
+            "report-04.jpg",
+            "report-05.jpg",
+            "report-06.jpg",
+            "report-07.jpg",
+            "report-08.jpg",
+            "report-09.jpg",
+            "report-10.jpg",
+            "report-11.jpg",
+            "report-12.jpg"
+        ],
+        "report_image_bytes": 5639834,
+        "project_title": "Coastal Resilience Study"
+    },
+    "image_paths": [
+        "capacity-fixtures\/report-01.jpg",
+        "capacity-fixtures\/report-02.jpg",
+        "capacity-fixtures\/report-03.jpg",
+        "capacity-fixtures\/report-04.jpg",
+        "capacity-fixtures\/report-05.jpg",
+        "capacity-fixtures\/report-06.jpg",
+        "capacity-fixtures\/report-07.jpg",
+        "capacity-fixtures\/report-08.jpg",
+        "capacity-fixtures\/report-09.jpg",
+        "capacity-fixtures\/report-10.jpg",
+        "capacity-fixtures\/report-11.jpg",
+        "capacity-fixtures\/report-12.jpg"
+    ]
+}

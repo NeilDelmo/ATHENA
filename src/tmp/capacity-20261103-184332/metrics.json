@@ -1,0 +1,10 @@
+{
+  "exit_code": 2,
+  "elapsed_seconds": 2.06,
+  "samples": 18,
+  "sampled_peak_all_children_mib": 96.7,
+  "per_process_peak_mib": {
+    "php": 58.1
+  },
+  "scope": "Windows PHP test harness plus real LibreOffice/Node child processes; excludes MySQL and Linux OS"
+}

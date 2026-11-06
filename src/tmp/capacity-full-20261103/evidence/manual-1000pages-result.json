@@ -1,0 +1,13 @@
+{
+    "case": "manual-1000pages",
+    "source_bytes": 983872,
+    "ocr_bytes": null,
+    "page_count": 1000,
+    "chunk_count": 4000,
+    "indexed_characters": 5049506,
+    "unindexed_pages": [],
+    "index_bytes": 5699539,
+    "index_path": "\/app\/storage\/app\/private\/capacity-output\/manual-1000pages\/index.json",
+    "elapsed_seconds": 1.304861218,
+    "php_peak_mib": 26.00390625
+}

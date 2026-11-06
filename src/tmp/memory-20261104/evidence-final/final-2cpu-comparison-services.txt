@@ -1,0 +1,8 @@
+default-queue                    RUNNING   pid 23631, uptime 0:03:09
+fpm                              RUNNING   pid 23628, uptime 0:03:09
+mysql                            RUNNING   pid 23627, uptime 0:03:09
+nginx                            RUNNING   pid 23629, uptime 0:03:09
+pdf-queue                        RUNNING   pid 23632, uptime 0:03:09
+pdf-recovery                     RUNNING   pid 23630, uptime 0:03:09
+reverb                           RUNNING   pid 23635, uptime 0:03:09
+scheduler                        RUNNING   pid 23637, uptime 0:03:09

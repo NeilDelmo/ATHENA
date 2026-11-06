@@ -1,0 +1,9 @@
+{
+  "completed_at_utc": "2026-11-04T22:30:54.160894+08:00",
+  "runtime_rootfs_removed": true,
+  "owned_processes_remaining": 0,
+  "owned_mounts_remaining": 0,
+  "source_vendor_and_sync_archives_removed": 15,
+  "archive_bytes_removed": 139683840.0,
+  "disposable_copied_harnesses_removed": true
+}

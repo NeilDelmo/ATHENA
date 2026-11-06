@@ -457,7 +457,7 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-slate-200">Tracking Number<input name="tracking_number" maxlength="100" autocomplete="off" value="{{ $old('tracking_number', $defaultTrackingNumber) }}" class="mt-2 block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Example: REC-2026-001…"></label>
         </details>
 
-        <p class="border-t border-gray-100 pt-5 text-sm text-gray-500">Your draft stays private until you prepare the PDF and submit it.</p>
+        <p class="border-t border-gray-100 pt-5 text-sm text-gray-500">Saved drafts are shared with your project team. Reports reach reviewers after submission.</p>
         <p x-show="!submissionOpen" class="text-sm font-semibold text-amber-900 dark:text-amber-200">Official PDF preparation opens <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>. Save or preview your draft now.</p>
 
     </form>

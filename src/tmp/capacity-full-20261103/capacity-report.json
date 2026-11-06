@@ -1,0 +1,3753 @@
+{
+  "completed_at_utc": "2026-11-04T01:52:03.524037+00:00",
+  "scope": "Local synthetic Linux capacity assessment; no production application files changed and no cloud resources created.",
+  "assessment": {
+    "recommended_start": "4GiB/2vCPU for the current heavy workloads;2GiB only for controlled lighter use or after image optimization.",
+    "soak_seconds_including_final_job_drain": 1325.645151545,
+    "soak_browsing_requests": 2987,
+    "soak_browsing_errors": 0,
+    "soak_heavy_jobs": 21,
+    "soak_heavy_failures": 1,
+    "soak_oom_kills": 0,
+    "pdf_timeout_retry_seconds": 155.1651073930002,
+    "pdf_timeout_retry_passed": true,
+    "remaining_application_issues": [
+      "LargeRMS repeatedwhole-documentXMLlookups",
+      "LibreOfficeprocess-treecleanup aftertimeout"
+    ],
+    "validated_pdf_timeout_adjustment_seconds": 240
+  },
+  "runtime": {
+    "system": "Ubuntu26.04 chroot in WSL2, cgroupv2 CPU/RAM limits, private network namespace",
+    "php": "Ubuntu8.5.4-0ubuntu1.5 security package",
+    "framework": "Laravel13.12.0",
+    "mysql": "8.4.11",
+    "libreoffice": "26.2.6.3",
+    "node": "22.22.1",
+    "poppler": "26.01.0"
+  },
+  "method": {
+    "reserved_os_mib": 256,
+    "swap_mib": 0,
+    "sampling_interval_seconds": 0.25,
+    "server_processes": [
+      "Nginx",
+      "PHP-FPM",
+      "MySQL128MiBbuffer",
+      "PDFqueueworker",
+      "defaultqueueworker",
+      "Reverb20WebSockets",
+      "PDFrecovery/persistentLibreOffice",
+      "scheduler"
+    ],
+    "clients_and_sampler": "Outside the limited server cgroup",
+    "peak_pss": "Sum of proportional resident memory; shared pages counted proportionally",
+    "cgroup_memory": "Includes charged file cache and kernel memory; cache ownership can differ across service restarts"
+  },
+  "findings": [
+    {
+      "id": "2g-photo-oom",
+      "outcome": "Twelve distinct20MPJPEGs totaling61411049bytes caused one LinuxOOMkill and HTTP500 on the2GiB simulation; the identical input passed on4GiB.",
+      "evidence": [
+        "2g-highres",
+        "4g-highres"
+      ]
+    },
+    {
+      "id": "large-rms-cpu",
+      "outcome": "1500rows on each of3sheets exceeded540seconds of PHPexecution time in RmsQuarterlyReportDocument::cell atDOMXPathquery,line191; noOOM in that run.",
+      "evidence": [
+        "2g-matrix",
+        "linux-logs/capacity-php.log"
+      ]
+    },
+    {
+      "id": "marker-checks",
+      "outcome": "Initial terminal/quarterly marker failures came from extracted-text reading order. Complete markers were verified and both workloads rerun successfully.",
+      "evidence": [
+        "2g-additional",
+        "evidence/marker-recheck.json"
+      ]
+    },
+    {
+      "id": "fixture-corrections",
+      "outcome": "Initial additional archive/retrieval failures were synthetic fixture issues: a required summary field and a nondiscriminating repeated query. Corrected cases passed.",
+      "evidence": [
+        "2g-additional-fixed"
+      ]
+    },
+    {
+      "id": "huge-pdf-timeout",
+      "outcome": "One415page terminalPDFhit the existing120second conversion timeout during the4GiB soak, withoutOOM. The separately labelled240second retry tests a deployment timeout adjustment; no application source change.",
+      "evidence": [
+        "4g-soak-20m",
+        "4g-terminal-240",
+        "linux-logs/laravel.log"
+      ]
+    },
+    {
+      "id": "worker-recovery-process",
+      "outcome": "After the timeout, the oldLibreOfficebinary remained withPPID1 using837748KiBRSS, while recovery started anotherworker on a differentUNOpipeline. The oldpipeline matches the timeoutlog. LibreOfficePdfWorker::stop signals the launcher atline134; Linuxprocess-treecleanup needs review.",
+      "evidence": [
+        "worker-process-snapshot.txt",
+        "linux-logs/laravel.log",
+        "app/Services/LibreOfficePdfWorker.php:134"
+      ]
+    }
+  ],
+  "limitations": [
+    "LocalWSLCPU and disk performance are not a DigitalOcean benchmark; cloud latency and sharedCPUvariation were not measured.",
+    "PHP8.5.4 Ubuntu backport differs from the project Composerpatch requirement; deploy with a compatible patchedPHPversion and smoke-test there.",
+    "Only remoteAIHTTPwas mocked; localGD,Poppler,LibreOffice,Node and MySQLwork were real. PaidAIlatency/usage was not tested.",
+    "Finite synthetic workloads do not prove capacity for unbounded report rows, tables, image counts, or future traffic.",
+    "Production built assets were served; frontend builds,Composerinstallation and development servers were not part of runtime memory measurements."
+  ],
+  "runs": [
+    {
+      "name": "2g-probe-clean",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793706206.8436284,
+      "finished_at": 1793706254.6976326,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1155.015625,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500302524000062,
+          "resources": {
+            "samples": 62,
+            "peak_mib": 1027.0859375,
+            "peak_anon_mib": 620.49609375,
+            "peak_file_mib": 388.38671875,
+            "minimum_mib": 1026.00390625,
+            "last_mib": 1026.6328125,
+            "cpu_usage_seconds": 0.288412,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "head_dashboard",
+          "seconds": 1.5620489499999621,
+          "resources": {
+            "samples": 6,
+            "peak_mib": 1039.9609375,
+            "peak_anon_mib": 627.25,
+            "peak_file_mib": 395.33203125,
+            "minimum_mib": 1034.88671875,
+            "last_mib": 1039.41796875,
+            "cpu_usage_seconds": 0.860178,
+            "cpu_throttled_seconds": 0.031365,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 1.0618156709999766,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "head_analytics",
+          "seconds": 1.0001940709998962,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1041.97265625,
+            "peak_anon_mib": 628.296875,
+            "peak_file_mib": 395.59375,
+            "minimum_mib": 1039.62890625,
+            "last_mib": 1041.97265625,
+            "cpu_usage_seconds": 0.366819,
+            "cpu_throttled_seconds": 0.009526,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.4999243209999804,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "head_proposals",
+          "seconds": 0.7674101499999324,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1043.4375,
+            "peak_anon_mib": 628.41796875,
+            "peak_file_mib": 396.45703125,
+            "minimum_mib": 1043.16796875,
+            "last_mib": 1043.16796875,
+            "cpu_usage_seconds": 0.09986,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.2671950829999332,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "head_projects",
+          "seconds": 0.8529576670000552,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1043.890625,
+            "peak_anon_mib": 628.5234375,
+            "peak_file_mib": 397.53125,
+            "minimum_mib": 1043.31640625,
+            "last_mib": 1043.31640625,
+            "cpu_usage_seconds": 0.215463,
+            "cpu_throttled_seconds": 0.003212,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.3526540919999661,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "head_report_reviews",
+          "seconds": 0.6769372449998627,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1043.65625,
+            "peak_anon_mib": 627.68359375,
+            "peak_file_mib": 397.609375,
+            "minimum_mib": 1043.40625,
+            "last_mib": 1043.40625,
+            "cpu_usage_seconds": 0.160838,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.17672457499998018,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "faculty_dashboard",
+          "seconds": 0.7355158379998556,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1046.23046875,
+            "peak_anon_mib": 628.046875,
+            "peak_file_mib": 399.38671875,
+            "minimum_mib": 1045.6171875,
+            "last_mib": 1046.23046875,
+            "cpu_usage_seconds": 0.121106,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.2353430919999937,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "faculty_submissions",
+          "seconds": 0.6215592810001453,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1044.60546875,
+            "peak_anon_mib": 626.203125,
+            "peak_file_mib": 399.4453125,
+            "minimum_mib": 1044.60546875,
+            "last_mib": 1044.60546875,
+            "cpu_usage_seconds": 0.007278,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.12132298100004846,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "faculty_draft",
+          "seconds": 0.7933087839999189,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1047.1015625,
+            "peak_anon_mib": 627.23046875,
+            "peak_file_mib": 401.17578125,
+            "minimum_mib": 1044.6640625,
+            "last_mib": 1047.09765625,
+            "cpu_usage_seconds": 0.263085,
+            "cpu_throttled_seconds": 0.009005,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.2931201300000339,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "faculty_draft_review",
+          "seconds": 0.8127131539999937,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1047.6875,
+            "peak_anon_mib": 627.33984375,
+            "peak_file_mib": 401.41015625,
+            "minimum_mib": 1046.1328125,
+            "last_mib": 1046.1328125,
+            "cpu_usage_seconds": 0.090158,
+            "cpu_throttled_seconds": 0.000766,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.3124708069999542,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "coordinator_dashboard",
+          "seconds": 0.6526058289998673,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1044.15234375,
+            "peak_anon_mib": 624.19140625,
+            "peak_file_mib": 401.5390625,
+            "minimum_mib": 1044.15234375,
+            "last_mib": 1044.15234375,
+            "cpu_usage_seconds": 0.008636,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.1524147330001142,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "quarterly_docx",
+          "seconds": 0.7254362479998235,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1047.484375,
+            "peak_anon_mib": 626.828125,
+            "peak_file_mib": 402.02734375,
+            "minimum_mib": 1044.69140625,
+            "last_mib": 1047.484375,
+            "cpu_usage_seconds": 0.180678,
+            "cpu_throttled_seconds": 0.014445,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.22522591500001,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "quarterly_print",
+          "seconds": 0.6778589129999091,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1047.8828125,
+            "peak_anon_mib": 626.859375,
+            "peak_file_mib": 402.109375,
+            "minimum_mib": 1047.45703125,
+            "last_mib": 1047.8828125,
+            "cpu_usage_seconds": 0.055912,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.17765199800010123,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "rms_pdf",
+          "seconds": 5.396025419000125,
+          "resources": {
+            "samples": 21,
+            "peak_mib": 1076.69140625,
+            "peak_anon_mib": 652.4296875,
+            "peak_file_mib": 405.140625,
+            "minimum_mib": 1048.88671875,
+            "last_mib": 1064.44921875,
+            "cpu_usage_seconds": 4.614401,
+            "cpu_throttled_seconds": 0.44807,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 4.89580772599993,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "queue-request",
+          "seconds": 0.5729855939998743,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1064.921875,
+            "peak_anon_mib": 640.7265625,
+            "peak_file_mib": 405.109375,
+            "minimum_mib": 1064.2578125,
+            "last_mib": 1064.2578125,
+            "cpu_usage_seconds": 0.040623,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.0722189680000156,
+            "case": "queue-request",
+            "php_peak_mib": 4,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "queue-wait",
+          "seconds": 0.5784959530001288,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1064.5546875,
+            "peak_anon_mib": 640.8828125,
+            "peak_file_mib": 405.1953125,
+            "minimum_mib": 1064.4140625,
+            "last_mib": 1064.5546875,
+            "cpu_usage_seconds": 0.016637,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.07823516099983863,
+            "case": "queue-status",
+            "php_peak_mib": 4,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.50074724000001,
+          "resources": {
+            "samples": 61,
+            "peak_mib": 1143.5703125,
+            "peak_anon_mib": 718.24609375,
+            "peak_file_mib": 405.23828125,
+            "minimum_mib": 1064.2734375,
+            "last_mib": 1066.0,
+            "cpu_usage_seconds": 1.69421,
+            "cpu_throttled_seconds": 0.012344,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "2g-matrix",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793706252.0540562,
+      "finished_at": 1793707190.3676558,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1763.8359375,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500432158999956,
+          "resources": {
+            "samples": 62,
+            "peak_mib": 1066.0,
+            "peak_anon_mib": 642.390625,
+            "peak_file_mib": 405.2578125,
+            "minimum_mib": 1065.02734375,
+            "last_mib": 1065.02734375,
+            "cpu_usage_seconds": 0.439043,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "native-seven-cold",
+          "seconds": 6.609722892000036,
+          "resources": {
+            "samples": 26,
+            "peak_mib": 1209.61328125,
+            "peak_anon_mib": 741.55078125,
+            "peak_file_mib": 477.96875,
+            "minimum_mib": 1067.73046875,
+            "last_mib": 1140.23046875,
+            "cpu_usage_seconds": 5.813395,
+            "cpu_throttled_seconds": 1.671872,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 6.109462502999804,
+            "case": "native-seven-cold",
+            "php_peak_mib": 6,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "native-seven",
+          "seconds": 5.39100289199996,
+          "resources": {
+            "samples": 22,
+            "peak_mib": 1232.015625,
+            "peak_anon_mib": 731.5234375,
+            "peak_file_mib": 479.73828125,
+            "minimum_mib": 1149.45703125,
+            "last_mib": 1165.92578125,
+            "cpu_usage_seconds": 4.846444,
+            "cpu_throttled_seconds": 1.932987,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 4.890809345999969,
+            "case": "native-seven",
+            "php_peak_mib": 6,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "proposal-large",
+          "seconds": 6.8093953200000215,
+          "resources": {
+            "samples": 27,
+            "peak_mib": 1440.87890625,
+            "peak_anon_mib": 896.265625,
+            "peak_file_mib": 522.28125,
+            "minimum_mib": 1196.25,
+            "last_mib": 1287.2421875,
+            "cpu_usage_seconds": 6.071458,
+            "cpu_throttled_seconds": 0.213958,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 6.309224535999874,
+            "case": "proposal-large",
+            "pages": 59,
+            "input_counts": {
+              "images": 12,
+              "image_bytes": 5639834,
+              "objectives": 20,
+              "method_groups": 20,
+              "methods_per_group": 10,
+              "serialized_data_bytes": 338283
+            },
+            "php_peak_mib": 28.90234375,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-images",
+          "seconds": 9.001564088999885,
+          "resources": {
+            "samples": 35,
+            "peak_mib": 1551.69921875,
+            "peak_anon_mib": 994.11328125,
+            "peak_file_mib": 537.42578125,
+            "minimum_mib": 1290.7421875,
+            "last_mib": 1320.7421875,
+            "cpu_usage_seconds": 8.279009,
+            "cpu_throttled_seconds": 0.253132,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 8.501400174000082,
+            "case": "progress-images",
+            "pages": 47,
+            "input_counts": {
+              "images": 12,
+              "image_bytes": 5639834,
+              "accomplishments": 30,
+              "serialized_data_bytes": 145043
+            },
+            "php_peak_mib": 26.67578125,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "terminal-images-tables",
+          "seconds": 91.79591834000007,
+          "resources": {
+            "samples": 363,
+            "peak_mib": 1659.34765625,
+            "peak_anon_mib": 1073.4921875,
+            "peak_file_mib": 563.234375,
+            "minimum_mib": 1320.9921875,
+            "last_mib": 1509.046875,
+            "cpu_usage_seconds": 91.254271,
+            "cpu_throttled_seconds": 11.207517,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 91.29574259200012,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "quarterly-evidence",
+          "seconds": 7.236366436000026,
+          "resources": {
+            "samples": 29,
+            "peak_mib": 1642.1484375,
+            "peak_anon_mib": 1036.390625,
+            "peak_file_mib": 585.9921875,
+            "minimum_mib": 1509.546875,
+            "last_mib": 1552.9609375,
+            "cpu_usage_seconds": 6.655977,
+            "cpu_throttled_seconds": 0.26342,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 6.736202947000038,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "expense-100",
+          "seconds": 1.121260846000041,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1565.29296875,
+            "peak_anon_mib": 961.21484375,
+            "peak_file_mib": 581.23828125,
+            "minimum_mib": 1549.59375,
+            "last_mib": 1549.59375,
+            "cpu_usage_seconds": 0.477062,
+            "cpu_throttled_seconds": 0.021423,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.6210649629999807,
+            "case": "expense-100",
+            "pages": 21,
+            "input_counts": {
+              "images": 0,
+              "image_bytes": 0,
+              "items": 100,
+              "serialized_data_bytes": 116033
+            },
+            "php_peak_mib": 14,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "rms-500",
+          "seconds": 162.52385715399987,
+          "resources": {
+            "samples": 646,
+            "peak_mib": 1665.90625,
+            "peak_anon_mib": 1060.453125,
+            "peak_file_mib": 591.36328125,
+            "minimum_mib": 1550.2421875,
+            "last_mib": 1605.83984375,
+            "cpu_usage_seconds": 161.989279,
+            "cpu_throttled_seconds": 14.110634,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 162.02363676100003,
+            "case": "rms-500",
+            "pages": 128,
+            "input_counts": {
+              "images": 0,
+              "image_bytes": 0,
+              "presentations": 500,
+              "publications": 500,
+              "ip_assets": 500,
+              "serialized_data_bytes": 1678242
+            },
+            "php_peak_mib": 17.671875,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "rms-1500",
+          "seconds": 591.6159032760002,
+          "resources": {
+            "samples": 2349,
+            "peak_mib": 1753.80078125,
+            "peak_anon_mib": 1135.82421875,
+            "peak_file_mib": 593.26171875,
+            "minimum_mib": 1613.26171875,
+            "last_mib": 1670.74609375,
+            "cpu_usage_seconds": 591.078563,
+            "cpu_throttled_seconds": 141.063025,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 591.1157266999999,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "image-preview-12mp",
+          "seconds": 1.3048195009998835,
+          "resources": {
+            "samples": 5,
+            "peak_mib": 1713.99609375,
+            "peak_anon_mib": 1092.58984375,
+            "peak_file_mib": 598.0078125,
+            "minimum_mib": 1684.49609375,
+            "last_mib": 1685.9921875,
+            "cpu_usage_seconds": 0.590852,
+            "cpu_throttled_seconds": 0.014886,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.8045035380000627,
+            "case": "image-preview-12mp",
+            "php_peak_mib": 4,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "image-preview-20mp",
+          "seconds": 1.2115190570000323,
+          "resources": {
+            "samples": 5,
+            "peak_mib": 1743.7421875,
+            "peak_anon_mib": 1116.46875,
+            "peak_file_mib": 603.83203125,
+            "minimum_mib": 1684.19140625,
+            "last_mib": 1684.19140625,
+            "cpu_usage_seconds": 0.536759,
+            "cpu_throttled_seconds": 0.020597,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.7112461499998517,
+            "case": "image-preview-20mp",
+            "php_peak_mib": 14,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "image-guard",
+          "seconds": 0.5629899919999843,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1688.53125,
+            "peak_anon_mib": 1056.23828125,
+            "peak_file_mib": 608.71875,
+            "minimum_mib": 1688.33984375,
+            "last_mib": 1688.33984375,
+            "cpu_usage_seconds": 0.013032,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.0628107600000476,
+            "case": "image-guard",
+            "php_peak_mib": 4,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "literature-200",
+          "seconds": 0.5797278019999794,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1686.875,
+            "peak_anon_mib": 1054.40234375,
+            "peak_file_mib": 608.94140625,
+            "minimum_mib": 1686.875,
+            "last_mib": 1686.875,
+            "cpu_usage_seconds": 0.003869,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.07952899899987642,
+            "case": "literature-200",
+            "php_peak_mib": 8,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "literature-dense-200",
+          "seconds": 0.8554477889999816,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1691.63671875,
+            "peak_anon_mib": 1058.5625,
+            "peak_file_mib": 609.1796875,
+            "minimum_mib": 1687.9765625,
+            "last_mib": 1687.9765625,
+            "cpu_usage_seconds": 0.277167,
+            "cpu_throttled_seconds": 0.023361,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.3551560400001108,
+            "case": "literature-dense-200",
+            "php_peak_mib": 8,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "assistant-pdf-200",
+          "seconds": 0.6401405219999106,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1686.1015625,
+            "peak_anon_mib": 1052.98828125,
+            "peak_file_mib": 609.7109375,
+            "minimum_mib": 1686.09765625,
+            "last_mib": 1686.09765625,
+            "cpu_usage_seconds": 0.013186,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.13990287000001445,
+            "case": "assistant-pdf-200",
+            "php_peak_mib": 6,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "assistant-docx-5m",
+          "seconds": 0.7189915110000129,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1697.84765625,
+            "peak_anon_mib": 1064.20703125,
+            "peak_file_mib": 609.75390625,
+            "minimum_mib": 1692.125,
+            "last_mib": 1692.125,
+            "cpu_usage_seconds": 0.127305,
+            "cpu_throttled_seconds": 0.001706,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.2187386719999722,
+            "case": "assistant-docx-5m",
+            "php_peak_mib": 20.04296875,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "assistant-docx-12m",
+          "seconds": 0.7171290339999814,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1711.9375,
+            "peak_anon_mib": 1078.33203125,
+            "peak_file_mib": 609.83203125,
+            "minimum_mib": 1700.62890625,
+            "last_mib": 1700.62890625,
+            "cpu_usage_seconds": 0.091617,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.21687541300002522,
+            "case": "assistant-docx-12m",
+            "php_peak_mib": 32,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "assistant-vision-2pages",
+          "seconds": 6.912139670999977,
+          "resources": {
+            "samples": 27,
+            "peak_mib": 1725.1875,
+            "peak_anon_mib": 1087.15625,
+            "peak_file_mib": 616.9375,
+            "minimum_mib": 1701.23046875,
+            "last_mib": 1701.23046875,
+            "cpu_usage_seconds": 6.250111,
+            "cpu_throttled_seconds": 0.198159,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 6.411808749000102,
+            "case": "assistant-vision-2pages",
+            "php_peak_mib": 22.76171875,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "signed-form-text",
+          "seconds": 0.5875121209999179,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1701.9765625,
+            "peak_anon_mib": 1063.55859375,
+            "peak_file_mib": 614.03515625,
+            "minimum_mib": 1697.5078125,
+            "last_mib": 1697.5078125,
+            "cpu_usage_seconds": 0.061138,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.08727259700003742,
+            "case": "signed-form-text",
+            "php_peak_mib": 14,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "signed-form-scan",
+          "seconds": 6.719077521999907,
+          "resources": {
+            "samples": 26,
+            "peak_mib": 1720.9375,
+            "peak_anon_mib": 1079.1953125,
+            "peak_file_mib": 617.3671875,
+            "minimum_mib": 1696.21484375,
+            "last_mib": 1696.21484375,
+            "cpu_usage_seconds": 6.007049,
+            "cpu_throttled_seconds": 0.186135,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 6.218880322000132,
+            "case": "signed-form-scan",
+            "php_peak_mib": 18.83203125,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-1000pages",
+          "seconds": 1.8518404569999802,
+          "resources": {
+            "samples": 8,
+            "peak_mib": 1707.60546875,
+            "peak_anon_mib": 1066.7109375,
+            "peak_file_mib": 622.47265625,
+            "minimum_mib": 1700.453125,
+            "last_mib": 1707.60546875,
+            "cpu_usage_seconds": 1.306361,
+            "cpu_throttled_seconds": 0.189404,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 1.3514815559999533,
+            "case": "manual-1000pages",
+            "php_peak_mib": 26.00390625,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-ocr-json",
+          "seconds": 1.1248245060000954,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1742.8046875,
+            "peak_anon_mib": 1080.21875,
+            "peak_file_mib": 643.8828125,
+            "minimum_mib": 1727.88671875,
+            "last_mib": 1742.8046875,
+            "cpu_usage_seconds": 0.427726,
+            "cpu_throttled_seconds": 0.01303,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.6245363929999712,
+            "case": "manual-ocr-json",
+            "php_peak_mib": 48.00390625,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-long-paragraph",
+          "seconds": 0.960173468999983,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1745.80859375,
+            "peak_anon_mib": 1074.5703125,
+            "peak_file_mib": 646.9140625,
+            "minimum_mib": 1744.05859375,
+            "last_mib": 1745.80859375,
+            "cpu_usage_seconds": 0.386608,
+            "cpu_throttled_seconds": 0.018479,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.45993541300003926,
+            "case": "manual-long-paragraph",
+            "php_peak_mib": 12,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500411887000155,
+          "resources": {
+            "samples": 62,
+            "peak_mib": 1746.12890625,
+            "peak_anon_mib": 1074.5703125,
+            "peak_file_mib": 646.9375,
+            "minimum_mib": 1745.62890625,
+            "last_mib": 1746.12890625,
+            "cpu_usage_seconds": 0.566797,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "2g-browse-during-rms",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793706654.2147672,
+      "finished_at": 1793706748.2358782,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1740.09375,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500457709999864,
+          "resources": {
+            "samples": 62,
+            "peak_mib": 1730.12890625,
+            "peak_anon_mib": 1113.6640625,
+            "peak_file_mib": 591.6015625,
+            "minimum_mib": 1639.6640625,
+            "last_mib": 1640.59765625,
+            "cpu_usage_seconds": 15.335113,
+            "cpu_throttled_seconds": 3.230151,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-1",
+          "seconds": 5.782138914999905,
+          "resources": {
+            "samples": 23,
+            "peak_mib": 1645.2265625,
+            "peak_anon_mib": 1029.640625,
+            "peak_file_mib": 591.94921875,
+            "minimum_mib": 1640.79296875,
+            "last_mib": 1644.92578125,
+            "cpu_usage_seconds": 5.519398,
+            "cpu_throttled_seconds": 7.458247,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 8,
+            "errors": 0,
+            "p50_seconds": 0.5978253729999778,
+            "p95_seconds": 1.3327119380001022,
+            "maximum_seconds": 1.3327119380001022,
+            "statuses": {
+              "200": 8
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-3",
+          "seconds": 8.725154847000113,
+          "resources": {
+            "samples": 34,
+            "peak_mib": 1647.265625,
+            "peak_anon_mib": 1031.30078125,
+            "peak_file_mib": 592.05859375,
+            "minimum_mib": 1641.921875,
+            "last_mib": 1645.90625,
+            "cpu_usage_seconds": 8.29711,
+            "cpu_throttled_seconds": 11.688024,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 24,
+            "errors": 0,
+            "p50_seconds": 0.9271569340000951,
+            "p95_seconds": 1.5379598199999691,
+            "maximum_seconds": 1.5641010960000585,
+            "statuses": {
+              "200": 24
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-5",
+          "seconds": 15.593344588000036,
+          "resources": {
+            "samples": 62,
+            "peak_mib": 1648.6796875,
+            "peak_anon_mib": 1032.69140625,
+            "peak_file_mib": 592.23828125,
+            "minimum_mib": 1644.08203125,
+            "last_mib": 1646.328125,
+            "cpu_usage_seconds": 15.361001,
+            "cpu_throttled_seconds": 21.980527,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 40,
+            "errors": 0,
+            "p50_seconds": 1.7049364150000201,
+            "p95_seconds": 2.6817215620001207,
+            "maximum_seconds": 2.798726477999935,
+            "statuses": {
+              "200": 40
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-10",
+          "seconds": 32.593472449000046,
+          "resources": {
+            "samples": 130,
+            "peak_mib": 1737.57421875,
+            "peak_anon_mib": 1120.0859375,
+            "peak_file_mib": 592.671875,
+            "minimum_mib": 1644.79296875,
+            "last_mib": 1649.94921875,
+            "cpu_usage_seconds": 32.49283,
+            "cpu_throttled_seconds": 52.981514,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 80,
+            "errors": 0,
+            "p50_seconds": 3.4038467425000363,
+            "p95_seconds": 5.89462900400008,
+            "maximum_seconds": 6.66957909100006,
+            "statuses": {
+              "200": 80
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500404913000011,
+          "resources": {
+            "samples": 61,
+            "peak_mib": 1650.84765625,
+            "peak_anon_mib": 1034.8203125,
+            "peak_file_mib": 592.65234375,
+            "minimum_mib": 1649.578125,
+            "last_mib": 1650.84765625,
+            "cpu_usage_seconds": 15.159968,
+            "cpu_throttled_seconds": 0.808649,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "2g-additional",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793753919.5363815,
+      "finished_at": 1793754048.148135,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1533.65625,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500508649000004,
+          "resources": {
+            "samples": 61,
+            "peak_mib": 992.42578125,
+            "peak_anon_mib": 593.55078125,
+            "peak_file_mib": 381.11328125,
+            "minimum_mib": 990.9375,
+            "last_mib": 991.93359375,
+            "cpu_usage_seconds": 0.477233,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "terminal-images-tables",
+          "seconds": 63.46713263299999,
+          "resources": {
+            "samples": 252,
+            "peak_mib": 1427.765625,
+            "peak_anon_mib": 977.671875,
+            "peak_file_mib": 431.2109375,
+            "minimum_mib": 992.4375,
+            "last_mib": 1265.828125,
+            "cpu_usage_seconds": 62.824288,
+            "cpu_throttled_seconds": 4.98083,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 62.96650797500001,
+            "case": "terminal-images-tables",
+            "pages": 415,
+            "input_counts": {
+              "images": 12,
+              "image_bytes": 5639834,
+              "accomplishments": 30,
+              "tables": 6,
+              "rows_per_table": 100,
+              "columns_per_table": 6,
+              "serialized_data_bytes": 1341912
+            },
+            "php_peak_mib": 40.87109375,
+            "conversion_seconds": 59.828811738,
+            "source_generation_seconds": 0.362131081,
+            "fixture_and_validation_seconds": 0.774159128,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "quarterly-evidence",
+          "seconds": 9.641105199999998,
+          "resources": {
+            "samples": 38,
+            "peak_mib": 1474.71875,
+            "peak_anon_mib": 1000.2421875,
+            "peak_file_mib": 457.58984375,
+            "minimum_mib": 1266.07421875,
+            "last_mib": 1314.125,
+            "cpu_usage_seconds": 9.028552,
+            "cpu_throttled_seconds": 4.435874,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 9.140642850000006,
+            "case": "quarterly-evidence",
+            "pages": 25,
+            "input_counts": {
+              "images": 12,
+              "image_bytes": 5639834,
+              "presentations": 100,
+              "publications": 100,
+              "research": 100,
+              "serialized_data_bytes": 36901
+            },
+            "php_peak_mib": 26.87109375,
+            "conversion_seconds": 8.424241627,
+            "source_generation_seconds": 0.23144923,
+            "fixture_and_validation_seconds": 0.270502214,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "archive-complete",
+          "seconds": 0.7219226320000018,
+          "resources": {
+            "samples": 3,
+            "peak_mib": 1328.84765625,
+            "peak_anon_mib": 842.0859375,
+            "peak_file_mib": 470.23046875,
+            "minimum_mib": 1314.375,
+            "last_mib": 1328.83984375,
+            "cpu_usage_seconds": 0.14222,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 0.2213909509999894,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-retrieve-cold",
+          "seconds": 1.1629921889999935,
+          "resources": {
+            "samples": 5,
+            "peak_mib": 1411.890625,
+            "peak_anon_mib": 903.76953125,
+            "peak_file_mib": 493.89453125,
+            "minimum_mib": 1343.58984375,
+            "last_mib": 1411.828125,
+            "cpu_usage_seconds": 0.61553,
+            "cpu_throttled_seconds": 0.020066,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 0.6624206600000093,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-retrieve-warm",
+          "seconds": 0.5555879519999962,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1409.91796875,
+            "peak_anon_mib": 895.5546875,
+            "peak_file_mib": 493.84375,
+            "minimum_mib": 1409.66796875,
+            "last_mib": 1409.91796875,
+            "cpu_usage_seconds": 0.028707,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 0.055244539999989684,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "scopus-10000",
+          "seconds": 0.8723253510000006,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1415.41796875,
+            "peak_anon_mib": 898.03125,
+            "peak_file_mib": 496.6328125,
+            "minimum_mib": 1410.671875,
+            "last_mib": 1414.8828125,
+            "cpu_usage_seconds": 0.293534,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.37205943500001126,
+            "case": "scopus-10000",
+            "php_peak_mib": 26.25390625,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "scopus-50000",
+          "seconds": 2.7651209670000014,
+          "resources": {
+            "samples": 11,
+            "peak_mib": 1528.15625,
+            "peak_anon_mib": 997.27734375,
+            "peak_file_mib": 509.71484375,
+            "minimum_mib": 1416.5859375,
+            "last_mib": 1469.40625,
+            "cpu_usage_seconds": 2.060586,
+            "cpu_throttled_seconds": 0.037748,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 2.2649321909999856,
+            "case": "scopus-50000",
+            "php_peak_mib": 113.25390625,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "grow-1000",
+          "seconds": 17.733415570999995,
+          "resources": {
+            "samples": 70,
+            "peak_mib": 1476.984375,
+            "peak_anon_mib": 941.11328125,
+            "peak_file_mib": 514.3671875,
+            "minimum_mib": 1470.05859375,
+            "last_mib": 1472.39453125,
+            "cpu_usage_seconds": 8.077806,
+            "cpu_throttled_seconds": 0.001882,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 17.233270721000025,
+            "case": "grow-1000",
+            "php_peak_mib": 20,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500291183999991,
+          "resources": {
+            "samples": 61,
+            "peak_mib": 1473.24609375,
+            "peak_anon_mib": 937.23046875,
+            "peak_file_mib": 514.3359375,
+            "minimum_mib": 1472.32421875,
+            "last_mib": 1472.6796875,
+            "cpu_usage_seconds": 0.628691,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "2g-additional-fixed",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793754139.3099833,
+      "finished_at": 1793754175.063762,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1562.5390625,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500435788999994,
+          "resources": {
+            "samples": 59,
+            "peak_mib": 1375.76171875,
+            "peak_anon_mib": 847.1875,
+            "peak_pss_mib": 1087.7685546875,
+            "peak_rss_mib": 1330.5859375,
+            "peak_file_mib": 507.52734375,
+            "minimum_mib": 1374.4140625,
+            "last_mib": 1375.76171875,
+            "cpu_usage_seconds": 0.504866,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "archive-complete",
+          "seconds": 2.6928980239999873,
+          "resources": {
+            "samples": 10,
+            "peak_mib": 1423.70703125,
+            "peak_anon_mib": 862.87109375,
+            "peak_pss_mib": 1109.3603515625,
+            "peak_rss_mib": 1367.47265625,
+            "peak_file_mib": 548.14453125,
+            "minimum_mib": 1379.484375,
+            "last_mib": 1421.98046875,
+            "cpu_usage_seconds": 2.054403,
+            "cpu_throttled_seconds": 0.091122,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 2.1920211330000257,
+            "case": "archive-complete",
+            "php_peak_mib": 40.26953125,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-retrieve-cold",
+          "seconds": 0.985840985999971,
+          "resources": {
+            "samples": 4,
+            "peak_mib": 1466.30078125,
+            "peak_anon_mib": 889.53515625,
+            "peak_pss_mib": 1143.609375,
+            "peak_rss_mib": 1388.41015625,
+            "peak_file_mib": 567.21875,
+            "minimum_mib": 1435.80078125,
+            "last_mib": 1460.12109375,
+            "cpu_usage_seconds": 0.451854,
+            "cpu_throttled_seconds": 0.007645,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.4854651219999937,
+            "case": "manual-retrieve-cold",
+            "php_peak_mib": 53.2890625,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "manual-retrieve-warm",
+          "seconds": 0.5365011499999923,
+          "resources": {
+            "samples": 2,
+            "peak_mib": 1459.98046875,
+            "peak_anon_mib": 870.03515625,
+            "peak_pss_mib": 1114.5654296875,
+            "peak_rss_mib": 1360.265625,
+            "peak_file_mib": 567.23046875,
+            "minimum_mib": 1459.765625,
+            "last_mib": 1459.765625,
+            "cpu_usage_seconds": 0.010629,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 0.03606333799996264,
+            "case": "manual-retrieve-warm",
+            "php_peak_mib": 14.62890625,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500501869999994,
+          "resources": {
+            "samples": 58,
+            "peak_mib": 1460.01171875,
+            "peak_anon_mib": 870.0390625,
+            "peak_pss_mib": 1114.5693359375,
+            "peak_rss_mib": 1360.265625,
+            "peak_file_mib": 567.25390625,
+            "minimum_mib": 1459.56640625,
+            "last_mib": 1459.56640625,
+            "cpu_usage_seconds": 0.560991,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "2g-browse-1000",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793754206.3404522,
+      "finished_at": 1793754396.327775,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1574.3515625,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500591154000006,
+          "resources": {
+            "samples": 57,
+            "peak_mib": 1452.671875,
+            "peak_anon_mib": 862.14453125,
+            "peak_pss_mib": 1106.6748046875,
+            "peak_rss_mib": 1352.3984375,
+            "peak_file_mib": 567.34375,
+            "minimum_mib": 1451.05078125,
+            "last_mib": 1451.05859375,
+            "cpu_usage_seconds": 0.745776,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-1",
+          "seconds": 14.708095033000006,
+          "resources": {
+            "samples": 55,
+            "peak_mib": 1487.9375,
+            "peak_anon_mib": 889.71875,
+            "peak_pss_mib": 1139.8359375,
+            "peak_rss_mib": 1395.08984375,
+            "peak_file_mib": 574.828125,
+            "minimum_mib": 1452.0625,
+            "last_mib": 1486.2421875,
+            "cpu_usage_seconds": 14.009493,
+            "cpu_throttled_seconds": 0.394308,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 8,
+            "errors": 0,
+            "p50_seconds": 1.3956455480000045,
+            "p95_seconds": 5.562691696000002,
+            "maximum_seconds": 5.562691696000002,
+            "statuses": {
+              "200": 8
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-3",
+          "seconds": 15.589108540999973,
+          "resources": {
+            "samples": 59,
+            "peak_mib": 1557.6875,
+            "peak_anon_mib": 954.890625,
+            "peak_pss_mib": 1209.58203125,
+            "peak_rss_mib": 1526.15234375,
+            "peak_file_mib": 578.34375,
+            "minimum_mib": 1464.4140625,
+            "last_mib": 1490.57421875,
+            "cpu_usage_seconds": 14.973759,
+            "cpu_throttled_seconds": 6.781803,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 24,
+            "errors": 0,
+            "p50_seconds": 0.39847473550000245,
+            "p95_seconds": 3.216833471999962,
+            "maximum_seconds": 6.485491695000007,
+            "statuses": {
+              "200": 24
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-5",
+          "seconds": 32.41992644000004,
+          "resources": {
+            "samples": 122,
+            "peak_mib": 1498.33203125,
+            "peak_anon_mib": 896.0859375,
+            "peak_pss_mib": 1148.5341796875,
+            "peak_rss_mib": 1411.78515625,
+            "peak_file_mib": 578.5546875,
+            "minimum_mib": 1468.109375,
+            "last_mib": 1476.87109375,
+            "cpu_usage_seconds": 31.875726,
+            "cpu_throttled_seconds": 40.130597,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 40,
+            "errors": 0,
+            "p50_seconds": 3.367580333999996,
+            "p95_seconds": 8.914637708999976,
+            "maximum_seconds": 9.007947899000044,
+            "statuses": {
+              "200": 40
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-10",
+          "seconds": 95.94709209300004,
+          "resources": {
+            "samples": 352,
+            "peak_mib": 1567.61328125,
+            "peak_anon_mib": 963.875,
+            "peak_pss_mib": 1216.47265625,
+            "peak_rss_mib": 1540.27734375,
+            "peak_file_mib": 579.0546875,
+            "minimum_mib": 1467.12890625,
+            "last_mib": 1485.2578125,
+            "cpu_usage_seconds": 95.365966,
+            "cpu_throttled_seconds": 141.087828,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 80,
+            "errors": 0,
+            "p50_seconds": 9.153161844999971,
+            "p95_seconds": 33.87768624299997,
+            "maximum_seconds": 34.40341957100003,
+            "statuses": {
+              "200": 80
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500288683999997,
+          "resources": {
+            "samples": 58,
+            "peak_mib": 1486.21484375,
+            "peak_anon_mib": 883.44921875,
+            "peak_pss_mib": 1135.8935546875,
+            "peak_rss_mib": 1399.30078125,
+            "peak_file_mib": 579.078125,
+            "minimum_mib": 1485.13671875,
+            "last_mib": 1485.56640625,
+            "cpu_usage_seconds": 0.5226,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "2g-highres",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "100000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793754557.8742836,
+      "finished_at": 1793754648.4190931,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 4380,
+        "oom": 1,
+        "oom_kill": 1,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1792.0,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500521344999925,
+          "resources": {
+            "samples": 59,
+            "peak_mib": 1449.60546875,
+            "peak_anon_mib": 857.58203125,
+            "peak_pss_mib": 1098.4091796875,
+            "peak_rss_mib": 1341.9296875,
+            "peak_file_mib": 568.37109375,
+            "minimum_mib": 1447.8203125,
+            "last_mib": 1448.58203125,
+            "cpu_usage_seconds": 0.526116,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-highres-6",
+          "seconds": 21.037559428999998,
+          "resources": {
+            "samples": 76,
+            "peak_mib": 1791.94921875,
+            "peak_anon_mib": 1310.8046875,
+            "peak_pss_mib": 1557.5302734375,
+            "peak_rss_mib": 1816.1328125,
+            "peak_file_mib": 636.43359375,
+            "minimum_mib": 1305.9296875,
+            "last_mib": 1305.9296875,
+            "cpu_usage_seconds": 20.248958,
+            "cpu_throttled_seconds": 0.930443,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 1081,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 20.53734001099997,
+            "case": "progress-highres-6",
+            "pages": 44,
+            "input_counts": {
+              "images": 6,
+              "image_bytes": 30706235,
+              "accomplishments": 30,
+              "serialized_data_bytes": 144248
+            },
+            "php_peak_mib": 94.09765625,
+            "conversion_seconds": 18.060696659,
+            "source_generation_seconds": 1.934704731,
+            "fixture_and_validation_seconds": 0.338919832,
+            "total_image_pixels": 120000000,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-highres-12",
+          "seconds": 19.814425643999925,
+          "resources": {
+            "samples": 74,
+            "peak_mib": 1792.0,
+            "peak_anon_mib": 1726.08203125,
+            "peak_pss_mib": 1770.74609375,
+            "peak_rss_mib": 2001.953125,
+            "peak_file_mib": 544.1796875,
+            "minimum_mib": 642.3828125,
+            "last_mib": 649.0078125,
+            "cpu_usage_seconds": 19.047231,
+            "cpu_throttled_seconds": 3.545344,
+            "oom_kills_delta": 1,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 4380,
+              "oom": 1,
+              "oom_kill": 1,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 500,
+            "seconds": 19.314191615000027,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-30photos",
+          "seconds": 18.24830139400001,
+          "resources": {
+            "samples": 70,
+            "peak_mib": 1438.375,
+            "peak_anon_mib": 1073.79296875,
+            "peak_pss_mib": 1256.1357421875,
+            "peak_rss_mib": 1334.75390625,
+            "peak_file_mib": 347.39453125,
+            "minimum_mib": 648.76171875,
+            "last_mib": 912.10546875,
+            "cpu_usage_seconds": 17.355598,
+            "cpu_throttled_seconds": 0.47607,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 4380,
+              "oom": 1,
+              "oom_kill": 1,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 17.748116299999992,
+            "case": "progress-30photos",
+            "pages": 56,
+            "input_counts": {
+              "images": 30,
+              "image_bytes": 14102808,
+              "accomplishments": 30,
+              "serialized_data_bytes": 147791
+            },
+            "php_peak_mib": 56.76953125,
+            "conversion_seconds": 16.804765736,
+            "source_generation_seconds": 0.413751762,
+            "fixture_and_validation_seconds": 0.242684933,
+            "total_image_pixels": 115200000,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500300687000049,
+          "resources": {
+            "samples": 58,
+            "peak_mib": 1074.48046875,
+            "peak_anon_mib": 680.40234375,
+            "peak_pss_mib": 895.2958984375,
+            "peak_rss_mib": 990.3203125,
+            "peak_file_mib": 377.34375,
+            "minimum_mib": 911.7265625,
+            "last_mib": 1062.42578125,
+            "cpu_usage_seconds": 2.498514,
+            "cpu_throttled_seconds": 0.262263,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 4380,
+              "oom": 1,
+              "oom_kill": 1,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "4g-highres",
+      "limits": {
+        "memory.max": "4026531840",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "server_config": null,
+      "started_at": 1793754710.1600602,
+      "finished_at": 1793754794.5729132,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1902.359375,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500650783000083,
+          "resources": {
+            "samples": 57,
+            "peak_mib": 743.73046875,
+            "peak_anon_mib": 649.359375,
+            "peak_pss_mib": 893.11328125,
+            "peak_rss_mib": 1198.54296875,
+            "peak_file_mib": 81.64453125,
+            "minimum_mib": 690.38671875,
+            "last_mib": 691.15625,
+            "cpu_usage_seconds": 1.232057,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-highres-6",
+          "seconds": 16.870343249999905,
+          "resources": {
+            "samples": 61,
+            "peak_mib": 1294.609375,
+            "peak_anon_mib": 1120.03515625,
+            "peak_pss_mib": 1365.6025390625,
+            "peak_rss_mib": 1626.21875,
+            "peak_file_mib": 159.87109375,
+            "minimum_mib": 696.90625,
+            "last_mib": 821.19140625,
+            "cpu_usage_seconds": 16.679622,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 16.3701356360001,
+            "case": "progress-highres-6",
+            "pages": 44,
+            "input_counts": {
+              "images": 6,
+              "image_bytes": 30706235,
+              "accomplishments": 30,
+              "serialized_data_bytes": 144248
+            },
+            "php_peak_mib": 94.09765625,
+            "conversion_seconds": 13.431622777,
+            "source_generation_seconds": 2.028946253,
+            "fixture_and_validation_seconds": 0.595538044,
+            "total_image_pixels": 120000000,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-highres-12",
+          "seconds": 18.844774151000024,
+          "resources": {
+            "samples": 71,
+            "peak_mib": 1880.859375,
+            "peak_anon_mib": 1599.25390625,
+            "peak_pss_mib": 1844.7236328125,
+            "peak_rss_mib": 2110.61328125,
+            "peak_file_mib": 266.32421875,
+            "minimum_mib": 820.9453125,
+            "last_mib": 1013.33203125,
+            "cpu_usage_seconds": 18.683047,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 18.344252211000025,
+            "case": "progress-highres-12",
+            "pages": 47,
+            "input_counts": {
+              "images": 12,
+              "image_bytes": 61411049,
+              "accomplishments": 30,
+              "serialized_data_bytes": 145139
+            },
+            "php_peak_mib": 179.92578125,
+            "conversion_seconds": 16.400469261,
+            "source_generation_seconds": 1.54295544,
+            "fixture_and_validation_seconds": 0.2073975,
+            "total_image_pixels": 240000000,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "progress-30photos",
+          "seconds": 16.955659094999987,
+          "resources": {
+            "samples": 63,
+            "peak_mib": 1542.94140625,
+            "peak_anon_mib": 1220.03125,
+            "peak_pss_mib": 1465.5234375,
+            "peak_rss_mib": 1731.72265625,
+            "peak_file_mib": 303.62890625,
+            "minimum_mib": 1013.57421875,
+            "last_mib": 1142.82421875,
+            "cpu_usage_seconds": 16.71357,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "status": 200,
+            "seconds": 16.455189580000024,
+            "case": "progress-30photos",
+            "pages": 56,
+            "input_counts": {
+              "images": 30,
+              "image_bytes": 14102808,
+              "accomplishments": 30,
+              "serialized_data_bytes": 147791
+            },
+            "php_peak_mib": 56.76953125,
+            "conversion_seconds": 15.562251377,
+            "source_generation_seconds": 0.442408024,
+            "fixture_and_validation_seconds": 0.231504719,
+            "total_image_pixels": 115200000,
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500975692999987,
+          "resources": {
+            "samples": 58,
+            "peak_mib": 1186.5390625,
+            "peak_anon_mib": 909.81640625,
+            "peak_pss_mib": 1154.466796875,
+            "peak_rss_mib": 1438.3203125,
+            "peak_file_mib": 258.9140625,
+            "minimum_mib": 1141.79296875,
+            "last_mib": 1142.32421875,
+            "cpu_usage_seconds": 1.33642,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "4g-browse-1000",
+      "limits": {
+        "memory.max": "4026531840",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "server_config": {
+        "projects": 1000,
+        "php_fpm_children": 2,
+        "php_worker_memory_limit_mib": 256,
+        "mysql_buffer_pool_mib": 128,
+        "pdf_queue_workers": 1,
+        "default_queue_workers": 1,
+        "persistent_libreoffice": true
+      },
+      "started_at": 1793754822.8771455,
+      "finished_at": 1793754916.4960792,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1902.359375,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500532436999947,
+          "resources": {
+            "samples": 56,
+            "peak_mib": 1143.44921875,
+            "peak_anon_mib": 867.671875,
+            "peak_pss_mib": 1111.3037109375,
+            "peak_rss_mib": 1364.05859375,
+            "peak_file_mib": 258.984375,
+            "minimum_mib": 1142.4375,
+            "last_mib": 1143.4453125,
+            "cpu_usage_seconds": 0.653397,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-1",
+          "seconds": 13.318611595999982,
+          "resources": {
+            "samples": 50,
+            "peak_mib": 1221.0703125,
+            "peak_anon_mib": 940.66015625,
+            "peak_pss_mib": 1189.9326171875,
+            "peak_rss_mib": 1501.3125,
+            "peak_file_mib": 267.50390625,
+            "minimum_mib": 1142.984375,
+            "last_mib": 1177.75,
+            "cpu_usage_seconds": 14.452066,
+            "cpu_throttled_seconds": 0.052205,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 8,
+            "errors": 0,
+            "p50_seconds": 1.124652482999977,
+            "p95_seconds": 4.984775625999987,
+            "maximum_seconds": 4.984775625999987,
+            "statuses": {
+              "200": 8
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-3",
+          "seconds": 11.39996351100001,
+          "resources": {
+            "samples": 42,
+            "peak_mib": 1187.05859375,
+            "peak_anon_mib": 899.359375,
+            "peak_pss_mib": 1154.7802734375,
+            "peak_rss_mib": 1420.52734375,
+            "peak_file_mib": 270.94921875,
+            "minimum_mib": 1159.703125,
+            "last_mib": 1185.97265625,
+            "cpu_usage_seconds": 11.978399,
+            "cpu_throttled_seconds": 0.013794,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 24,
+            "errors": 0,
+            "p50_seconds": 0.17978124600000456,
+            "p95_seconds": 2.939174610000009,
+            "maximum_seconds": 2.9947699379999904,
+            "statuses": {
+              "200": 24
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-5",
+          "seconds": 12.480256886999996,
+          "resources": {
+            "samples": 47,
+            "peak_mib": 1193.4296875,
+            "peak_anon_mib": 905.63671875,
+            "peak_pss_mib": 1158.0380859375,
+            "peak_rss_mib": 1426.6640625,
+            "peak_file_mib": 271.18359375,
+            "minimum_mib": 1162.3203125,
+            "last_mib": 1172.69140625,
+            "cpu_usage_seconds": 23.662819,
+            "cpu_throttled_seconds": 0.31684,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 40,
+            "errors": 0,
+            "p50_seconds": 1.2977032484999995,
+            "p95_seconds": 3.077610567000079,
+            "maximum_seconds": 3.110797324000032,
+            "statuses": {
+              "200": 40
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "browse-10",
+          "seconds": 25.043214127000056,
+          "resources": {
+            "samples": 94,
+            "peak_mib": 1251.1171875,
+            "peak_anon_mib": 961.9375,
+            "peak_pss_mib": 1215.748046875,
+            "peak_rss_mib": 1544.3125,
+            "peak_file_mib": 271.69140625,
+            "minimum_mib": 1164.7890625,
+            "last_mib": 1251.1171875,
+            "cpu_usage_seconds": 49.038283,
+            "cpu_throttled_seconds": 0.787223,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 80,
+            "errors": 0,
+            "p50_seconds": 2.2071223364999923,
+            "p95_seconds": 6.246816971999806,
+            "maximum_seconds": 6.6181150070000285,
+            "statuses": {
+              "200": 80
+            },
+            "heavy": []
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500596470000119,
+          "resources": {
+            "samples": 57,
+            "peak_mib": 1268.36328125,
+            "peak_anon_mib": 979.2890625,
+            "peak_pss_mib": 1234.00390625,
+            "peak_rss_mib": 1563.0625,
+            "peak_file_mib": 271.55078125,
+            "minimum_mib": 1187.0078125,
+            "last_mib": 1187.9453125,
+            "cpu_usage_seconds": 0.704751,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "4g-burst-1000",
+      "limits": {
+        "memory.max": "4026531840",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "server_config": {
+        "projects": 1000,
+        "php_fpm_children": 4,
+        "php_worker_memory_limit_mib": 256,
+        "mysql_buffer_pool_mib": 128,
+        "pdf_queue_workers": 1,
+        "default_queue_workers": 1,
+        "persistent_libreoffice": true
+      },
+      "started_at": 1793754967.8072176,
+      "finished_at": 1793755170.0325816,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 2404.57421875,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.50118508799983,
+          "resources": {
+            "samples": 58,
+            "peak_mib": 1151.53515625,
+            "peak_anon_mib": 874.5703125,
+            "peak_pss_mib": 1115.0009765625,
+            "peak_rss_mib": 1414.546875,
+            "peak_file_mib": 259.62109375,
+            "minimum_mib": 1150.51171875,
+            "last_mib": 1151.03125,
+            "cpu_usage_seconds": 0.628449,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "burst-three-exports",
+          "seconds": 170.548008212,
+          "resources": {
+            "samples": 624,
+            "peak_mib": 2382.82421875,
+            "peak_anon_mib": 1981.0234375,
+            "peak_pss_mib": 2235.9345703125,
+            "peak_rss_mib": 2608.25,
+            "peak_file_mib": 381.2421875,
+            "minimum_mib": 1159.80078125,
+            "last_mib": 1525.01171875,
+            "cpu_usage_seconds": 284.301466,
+            "cpu_throttled_seconds": 67.158393,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 36,
+            "errors": 0,
+            "p50_seconds": 1.6022613600000568,
+            "p95_seconds": 8.675212701999953,
+            "maximum_seconds": 9.005423342999848,
+            "statuses": {
+              "200": 36
+            },
+            "heavy": [
+              {
+                "status": 200,
+                "seconds": 112.41437020000012,
+                "case": "progress-highres-12",
+                "pages": 47,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "php_peak_mib": 179.92578125,
+                "conversion_seconds": 105.184279874,
+                "source_generation_seconds": 5.825341319,
+                "fixture_and_validation_seconds": 0.59887516,
+                "total_image_pixels": 240000000,
+                "heavy": []
+              },
+              {
+                "status": 200,
+                "seconds": 93.8629724870002,
+                "case": "terminal-images-tables",
+                "pages": 415,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "accomplishments": 30,
+                  "tables": 6,
+                  "rows_per_table": 100,
+                  "columns_per_table": 6,
+                  "serialized_data_bytes": 1341912
+                },
+                "php_peak_mib": 40.87109375,
+                "conversion_seconds": 86.375221578,
+                "source_generation_seconds": 1.312662143,
+                "fixture_and_validation_seconds": 1.508871136,
+                "heavy": []
+              },
+              {
+                "status": 200,
+                "seconds": 169.8674700030001,
+                "case": "rms-500",
+                "pages": 128,
+                "input_counts": {
+                  "images": 0,
+                  "image_bytes": 0,
+                  "presentations": 500,
+                  "publications": 500,
+                  "ip_assets": 500,
+                  "serialized_data_bytes": 1678242
+                },
+                "php_peak_mib": 16,
+                "conversion_seconds": 3.896205183,
+                "source_generation_seconds": 164.660413638,
+                "fixture_and_validation_seconds": 0.013408692,
+                "heavy": []
+              }
+            ]
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500539777999848,
+          "resources": {
+            "samples": 57,
+            "peak_mib": 1525.88671875,
+            "peak_anon_mib": 1190.78515625,
+            "peak_pss_mib": 1444.822265625,
+            "peak_rss_mib": 1805.203125,
+            "peak_file_mib": 315.8671875,
+            "minimum_mib": 1524.89453125,
+            "last_mib": 1525.390625,
+            "cpu_usage_seconds": 0.488083,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "4g-soak-20m",
+      "limits": {
+        "memory.max": "4026531840",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "server_config": {
+        "projects": 1000,
+        "php_fpm_children": 4,
+        "php_worker_memory_limit_mib": 256,
+        "mysql_buffer_pool_mib": 128,
+        "pdf_queue_workers": 1,
+        "default_queue_workers": 1,
+        "persistent_libreoffice": true
+      },
+      "started_at": 1793755170.248019,
+      "finished_at": 1793756527.1946774,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 2488.484375,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500311067999974,
+          "resources": {
+            "samples": 57,
+            "peak_mib": 1514.640625,
+            "peak_anon_mib": 1179.20703125,
+            "peak_pss_mib": 1433.2431640625,
+            "peak_rss_mib": 1793.6484375,
+            "peak_file_mib": 315.91015625,
+            "minimum_mib": 1513.14453125,
+            "last_mib": 1514.2109375,
+            "cpu_usage_seconds": 0.520207,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "soak",
+          "seconds": 1325.645151545,
+          "resources": {
+            "samples": 4719,
+            "peak_mib": 2471.89453125,
+            "peak_anon_mib": 2000.28515625,
+            "peak_pss_mib": 2255.6982421875,
+            "peak_rss_mib": 2643.88671875,
+            "peak_file_mib": 453.67578125,
+            "minimum_mib": 1490.17578125,
+            "last_mib": 1858.875,
+            "cpu_usage_seconds": 2283.598659,
+            "cpu_throttled_seconds": 665.244463,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 2987,
+            "errors": 0,
+            "p50_seconds": 0.16076621699994575,
+            "p95_seconds": 2.2445785499999147,
+            "maximum_seconds": 22.844540167000105,
+            "statuses": {
+              "200": 2987
+            },
+            "heavy": [
+              {
+                "case": "progress-highres-12",
+                "status": 200,
+                "seconds": 22.408321756000078,
+                "pages": 47,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "php_peak_mib": 185.92578125,
+                "conversion_seconds": 19.783503072,
+                "source_generation_seconds": 1.905752622,
+                "fixture_and_validation_seconds": 0.482694315,
+                "total_image_pixels": 240000000,
+                "heavy": []
+              },
+              {
+                "case": "terminal-images-tables",
+                "status": 200,
+                "seconds": 68.86251772499986,
+                "pages": 415,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "accomplishments": 30,
+                  "tables": 6,
+                  "rows_per_table": 100,
+                  "columns_per_table": 6,
+                  "serialized_data_bytes": 1341912
+                },
+                "php_peak_mib": 40.87109375,
+                "conversion_seconds": 65.651129831,
+                "source_generation_seconds": 0.285984289,
+                "fixture_and_validation_seconds": 0.638556439,
+                "heavy": []
+              },
+              {
+                "case": "rms-500",
+                "status": 200,
+                "seconds": 148.4074686729998,
+                "pages": 128,
+                "input_counts": {
+                  "images": 0,
+                  "image_bytes": 0,
+                  "presentations": 500,
+                  "publications": 500,
+                  "ip_assets": 500,
+                  "serialized_data_bytes": 1678242
+                },
+                "php_peak_mib": 19.66796875,
+                "conversion_seconds": 4.130964261,
+                "source_generation_seconds": 143.573779663,
+                "fixture_and_validation_seconds": 0.005832957,
+                "heavy": []
+              },
+              {
+                "case": "manual-ocr-json",
+                "status": 200,
+                "seconds": 0.5810935510000945,
+                "php_peak_mib": 64.00390625,
+                "heavy": []
+              },
+              {
+                "case": "assistant-vision-2pages",
+                "status": 200,
+                "seconds": 6.802287933999878,
+                "php_peak_mib": 18.76171875,
+                "heavy": []
+              },
+              {
+                "case": "proposal-large",
+                "status": 200,
+                "seconds": 7.38911701699999,
+                "pages": 59,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "objectives": 20,
+                  "method_groups": 20,
+                  "methods_per_group": 10,
+                  "serialized_data_bytes": 338283
+                },
+                "php_peak_mib": 40.90234375,
+                "conversion_seconds": 6.924102393,
+                "source_generation_seconds": 0.213286455,
+                "fixture_and_validation_seconds": 0.038574664,
+                "heavy": []
+              },
+              {
+                "case": "progress-highres-12",
+                "status": 200,
+                "seconds": 22.643182812000077,
+                "pages": 47,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "php_peak_mib": 191.92578125,
+                "conversion_seconds": 20.213080434,
+                "source_generation_seconds": 1.884165976,
+                "fixture_and_validation_seconds": 0.294585294,
+                "total_image_pixels": 240000000,
+                "heavy": []
+              },
+              {
+                "case": "terminal-images-tables",
+                "status": 200,
+                "seconds": 66.95019583600015,
+                "pages": 415,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "accomplishments": 30,
+                  "tables": 6,
+                  "rows_per_table": 100,
+                  "columns_per_table": 6,
+                  "serialized_data_bytes": 1341912
+                },
+                "php_peak_mib": 34.87109375,
+                "conversion_seconds": 63.479519554,
+                "source_generation_seconds": 0.253209636,
+                "fixture_and_validation_seconds": 0.633639609,
+                "heavy": []
+              },
+              {
+                "case": "rms-500",
+                "status": 200,
+                "seconds": 151.41113867000013,
+                "pages": 128,
+                "input_counts": {
+                  "images": 0,
+                  "image_bytes": 0,
+                  "presentations": 500,
+                  "publications": 500,
+                  "ip_assets": 500,
+                  "serialized_data_bytes": 1678242
+                },
+                "php_peak_mib": 19.671875,
+                "conversion_seconds": 4.388501631,
+                "source_generation_seconds": 145.985410416,
+                "fixture_and_validation_seconds": 0.00419509,
+                "heavy": []
+              },
+              {
+                "case": "manual-ocr-json",
+                "status": 200,
+                "seconds": 0.8170416110001497,
+                "php_peak_mib": 64.00390625,
+                "heavy": []
+              },
+              {
+                "case": "assistant-vision-2pages",
+                "status": 200,
+                "seconds": 7.052409288000035,
+                "php_peak_mib": 40.76171875,
+                "heavy": []
+              },
+              {
+                "case": "proposal-large",
+                "status": 200,
+                "seconds": 7.541352034000056,
+                "pages": 59,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "objectives": 20,
+                  "method_groups": 20,
+                  "methods_per_group": 10,
+                  "serialized_data_bytes": 338283
+                },
+                "php_peak_mib": 26.90234375,
+                "conversion_seconds": 7.086447571,
+                "source_generation_seconds": 0.224344365,
+                "fixture_and_validation_seconds": 0.030233196,
+                "heavy": []
+              },
+              {
+                "case": "progress-highres-12",
+                "status": 200,
+                "seconds": 22.67062695300001,
+                "pages": 47,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "php_peak_mib": 179.92578125,
+                "conversion_seconds": 20.31322465,
+                "source_generation_seconds": 1.947988532,
+                "fixture_and_validation_seconds": 0.220355089,
+                "total_image_pixels": 240000000,
+                "heavy": []
+              },
+              {
+                "case": "terminal-images-tables",
+                "status": 200,
+                "seconds": 72.12593301400011,
+                "pages": 415,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "accomplishments": 30,
+                  "tables": 6,
+                  "rows_per_table": 100,
+                  "columns_per_table": 6,
+                  "serialized_data_bytes": 1341912
+                },
+                "php_peak_mib": 40.87109375,
+                "conversion_seconds": 68.70195492,
+                "source_generation_seconds": 0.321918953,
+                "fixture_and_validation_seconds": 0.554297811,
+                "heavy": []
+              },
+              {
+                "case": "rms-500",
+                "status": 200,
+                "seconds": 187.39310613299972,
+                "pages": 128,
+                "input_counts": {
+                  "images": 0,
+                  "image_bytes": 0,
+                  "presentations": 500,
+                  "publications": 500,
+                  "ip_assets": 500,
+                  "serialized_data_bytes": 1678242
+                },
+                "php_peak_mib": 19.671875,
+                "conversion_seconds": 12.600668676,
+                "source_generation_seconds": 173.133999266,
+                "fixture_and_validation_seconds": 0.006974164,
+                "heavy": []
+              },
+              {
+                "case": "manual-ocr-json",
+                "status": 200,
+                "seconds": 1.5063874679999572,
+                "php_peak_mib": 64.00390625,
+                "heavy": []
+              },
+              {
+                "case": "assistant-vision-2pages",
+                "status": 200,
+                "seconds": 13.572013943999991,
+                "php_peak_mib": 34.76171875,
+                "heavy": []
+              },
+              {
+                "case": "proposal-large",
+                "status": 200,
+                "seconds": 14.255476146999627,
+                "pages": 59,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "objectives": 20,
+                  "method_groups": 20,
+                  "methods_per_group": 10,
+                  "serialized_data_bytes": 338283
+                },
+                "php_peak_mib": 40.90234375,
+                "conversion_seconds": 13.416488319,
+                "source_generation_seconds": 0.331184042,
+                "fixture_and_validation_seconds": 0.042305275,
+                "heavy": []
+              },
+              {
+                "case": "progress-highres-12",
+                "status": 200,
+                "seconds": 44.728870173999894,
+                "pages": 47,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "php_peak_mib": 179.92578125,
+                "conversion_seconds": 40.499214651,
+                "source_generation_seconds": 3.463193802,
+                "fixture_and_validation_seconds": 0.34198055,
+                "total_image_pixels": 240000000,
+                "heavy": []
+              },
+              {
+                "case": "terminal-images-tables",
+                "status": 500,
+                "seconds": 122.03869487300017,
+                "heavy": []
+              },
+              {
+                "case": "rms-500",
+                "status": 200,
+                "seconds": 314.95466829199995,
+                "pages": 128,
+                "input_counts": {
+                  "images": 0,
+                  "image_bytes": 0,
+                  "presentations": 500,
+                  "publications": 500,
+                  "ip_assets": 500,
+                  "serialized_data_bytes": 1678242
+                },
+                "php_peak_mib": 19.671875,
+                "conversion_seconds": 5.903714772,
+                "source_generation_seconds": 307.903936259,
+                "fixture_and_validation_seconds": 0.014354263,
+                "heavy": []
+              }
+            ]
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.50051068699986,
+          "resources": {
+            "samples": 52,
+            "peak_mib": 1932.13671875,
+            "peak_anon_mib": 1521.14453125,
+            "peak_pss_mib": 1778.5625,
+            "peak_rss_mib": 2362.24609375,
+            "peak_file_mib": 386.25,
+            "minimum_mib": 1858.11328125,
+            "last_mib": 1859.0546875,
+            "cpu_usage_seconds": 2.126143,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "4g-terminal-240",
+      "limits": {
+        "memory.max": "4026531840",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "server_config": {
+        "projects": 1000,
+        "php_fpm_children": 4,
+        "php_worker_memory_limit_mib": 256,
+        "mysql_buffer_pool_mib": 128,
+        "pdf_queue_workers": 1,
+        "default_queue_workers": 1,
+        "persistent_libreoffice": true
+      },
+      "started_at": 1793756729.1377702,
+      "finished_at": 1793756918.562635,
+      "memory_events_end": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "cgroup_peak_mib": 1129.31640625,
+      "fatal": null,
+      "reverb_heartbeat_errors": [],
+      "phases": [
+        {
+          "phase": "idle",
+          "seconds": 15.500620165999862,
+          "resources": {
+            "samples": 54,
+            "peak_mib": 643.10546875,
+            "peak_anon_mib": 603.0234375,
+            "peak_pss_mib": 843.0859375,
+            "peak_rss_mib": 1141.81640625,
+            "peak_file_mib": 29.3125,
+            "minimum_mib": 642.3671875,
+            "last_mib": 643.1015625,
+            "cpu_usage_seconds": 0.583732,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        },
+        {
+          "phase": "combined",
+          "seconds": 157.37210686699973,
+          "resources": {
+            "samples": 543,
+            "peak_mib": 1109.5625,
+            "peak_anon_mib": 1024.73046875,
+            "peak_pss_mib": 1280.162109375,
+            "peak_rss_mib": 1701.51171875,
+            "peak_file_mib": 73.63671875,
+            "minimum_mib": 644.1171875,
+            "last_mib": 942.41015625,
+            "cpu_usage_seconds": 296.9996,
+            "cpu_throttled_seconds": 107.839776,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "count": 337,
+            "errors": 0,
+            "p50_seconds": 0.27363833899971723,
+            "p95_seconds": 1.658071863999794,
+            "maximum_seconds": 11.106416661000367,
+            "statuses": {
+              "200": 337
+            },
+            "heavy": [
+              {
+                "case": "terminal-240",
+                "status": 200,
+                "seconds": 155.1651073930002,
+                "pages": 415,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "accomplishments": 30,
+                  "tables": 6,
+                  "rows_per_table": 100,
+                  "columns_per_table": 6,
+                  "serialized_data_bytes": 1341912
+                },
+                "php_peak_mib": 40.87109375,
+                "conversion_seconds": 147.785778965,
+                "source_generation_seconds": 0.807385888,
+                "fixture_and_validation_seconds": 1.233781112,
+                "converter_timeout_seconds": 240,
+                "heavy": []
+              }
+            ]
+          }
+        },
+        {
+          "phase": "after-idle",
+          "seconds": 15.500542128000234,
+          "resources": {
+            "samples": 52,
+            "peak_mib": 942.58203125,
+            "peak_anon_mib": 860.34765625,
+            "peak_pss_mib": 1113.732421875,
+            "peak_rss_mib": 1470.12890625,
+            "peak_file_mib": 69.88671875,
+            "minimum_mib": 941.8359375,
+            "last_mib": 941.84375,
+            "cpu_usage_seconds": 0.823817,
+            "cpu_throttled_seconds": 0.0,
+            "oom_kills_delta": 0,
+            "memory_events_end": {
+              "low": 0,
+              "high": 0,
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0,
+              "oom_group_kill": 0
+            }
+          },
+          "result": {
+            "heavy": []
+          }
+        }
+      ]
+    }
+  ],
+  "snapshot_sha256": {
+    "source.tar": "734f6aa4836fc4551d0433d48b27f429e8919fc9421045820eb026023791fd43",
+    "vendor.tar": "4fbd71c18430e33b0254ad350b3ed705feed9e986e982d3b7a53fe34a372729d"
+  }
+}

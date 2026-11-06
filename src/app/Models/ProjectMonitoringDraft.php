@@ -46,7 +46,19 @@ class ProjectMonitoringDraft extends Model
 
     public function scopeForSource(Builder $query, ?ProjectProgressReport $sourceReport): Builder
     {
-        return $query->where('source_key', self::sourceKey($sourceReport));
+        return $query->forSourceKey(self::sourceKey($sourceReport));
+    }
+
+    public function scopeForSourceKey(Builder $query, string $sourceKey): Builder
+    {
+        return $query->where('source_key', $sourceKey)->latest('updated_at')->latest('id');
+    }
+
+    /** Preserve older account copies while the caller holds the project lock. */
+    public static function archiveOtherCopies(TopicProposal $topic, ?ProjectProgressReport $sourceReport, int $keepId): void
+    {
+        static::query()->whereBelongsTo($topic, 'topic')->forSource($sourceReport)->whereKeyNot($keepId)
+            ->get()->each(fn (self $draft): bool => $draft->update(['source_key' => 'archived:'.$draft->id.':'.$draft->source_key]));
     }
 
     public static function sourceKey(?ProjectProgressReport $sourceReport): string

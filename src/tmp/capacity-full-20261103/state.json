@@ -1,0 +1,23 @@
+{
+  "status": "complete",
+  "linux_root": "/var/tmp/athena-capacity-20261103/rootfs",
+  "results": "/var/tmp/athena-capacity-20261103/results",
+  "runtime_unit": "athena-capacity-4g-retry.service",
+  "runtime_session": 75595,
+  "matrix_session": null,
+  "progress_session": null,
+  "memory_max_bytes": 4026531840,
+  "swap_max_bytes": 0,
+  "cpu_quota_percent": 200,
+  "note": "Disposable synthetic data. All application processes share the runtime cgroup; driver and sampler are outside. PHP 8.5.4 Ubuntu security package differs from Composer patch constraint. Production source unchanged.",
+  "completed": ["23case original matrix; no kernelOOM", "RMS1500 failed540secondCPUlimit atDOMXPathquery", "terminal415pages and quarterly revalidated and rerunpass", "23file realarchive inclgeneratedmonitoringPDF", "11MBmanual cold/warmretrieval", "50k journalimport100kISSNs", "1000syntheticprojects", "browse1/3/5/10 at1000projects; zeroerrors; tenclientp95=33.88sec"],
+  "key_findings": ["2g highres12=HTTP500 and exactly1kernelOOMkill; highres6and30normalphotospassed", "4g same12highresinputs passed at1880.86MiBcgroup/1844.72MiBPSSpeak, noOOM", "1000project10clientp95:2g1CPU33.88s vs4g2CPU6.25s; both2PHPchildren", "4g sustainedtestsuse4PHPchildren and12highresphotosinmixedload"],
+  "burst_result": "Passed3simultaneousrealexportsplus36browsingrequests; peak2382.82MiBcharged/2235.93MiBPSS; noOOM",
+  "soak_result": "2987browsingrequests0errors;21heavyjobs20passed;terminal415pagePDFtimeout120sec;noOOM;oldLOpipeprocess837748KiBRSSremainedafterrecovery; capturedworker-process-snapshot.txt",
+  "final_retry": "415pagePDFpassed155.17secwith240secondallowance;337concurrentbrowsingrequests0errors",
+  "report": "capacity-report.json",
+  "evidence": "measurement-evidence.zip",
+  "services_stopped": true,
+  "disposable_linux_filesystem_removed": true,
+  "pending": []
+}

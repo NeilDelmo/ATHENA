@@ -1,0 +1,47 @@
+{
+    "terminal-images-tables": {
+        "valid": true,
+        "pages": 415,
+        "sha256": "18ae42a6a9521b30b33097b004a7eda2953fcd58e20fda985c5c314ff1c9e173",
+        "checks": {
+            "REPORTFIGURE12END": {
+                "method": "exact_layout_text"
+            },
+            "T6R100C6END": {
+                "method": "exact_column_text",
+                "pages": [
+                    398,
+                    399
+                ],
+                "crop": [
+                    467,
+                    50,
+                    77,
+                    814
+                ]
+            },
+            "BIBLIOGRAPHYEND": {
+                "method": "exact_layout_text"
+            }
+        }
+    },
+    "quarterly-evidence": {
+        "valid": true,
+        "pages": 25,
+        "sha256": "45b2a41949843c5c40ee928e8a19087ee422d072670a650acd888a348c94daac",
+        "checks": {
+            "PRESENTATION100END": {
+                "method": "exact_reading_order_text"
+            },
+            "PUBLICATION100END": {
+                "method": "exact_reading_order_text"
+            },
+            "RESEARCH100END": {
+                "method": "exact_reading_order_text"
+            },
+            "QUARTERLYFIGURE12END": {
+                "method": "exact_layout_text"
+            }
+        }
+    }
+}

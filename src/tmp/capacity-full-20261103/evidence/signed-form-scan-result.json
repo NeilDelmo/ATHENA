@@ -1,0 +1,17 @@
+{
+    "case": "signed-form-scan",
+    "input_bytes": 3997519,
+    "verification": {
+        "status": "matched",
+        "message": "Form and project title matched",
+        "reason": null,
+        "method": "scan_reader"
+    },
+    "prepared_image_bytes": [
+        1692025,
+        1691410
+    ],
+    "external_ai": "never_called",
+    "elapsed_seconds": 6.187935445,
+    "php_peak_mib": 18.83203125
+}

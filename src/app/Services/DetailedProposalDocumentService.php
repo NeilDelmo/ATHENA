@@ -283,7 +283,7 @@ class DetailedProposalDocumentService
             $dimensions = $contents === null ? false : getimagesizefromstring($contents);
 
             if ($contents === null || $extension === null || $dimensions === false) {
-                continue;
+                throw new RuntimeException('A proposal figure is unavailable or invalid. Reattach the image before exporting.');
             }
 
             $imageId = preg_replace('/[^A-Za-z0-9-]/', '', (string) ($image['id'] ?? '')) ?: ($index + 1);

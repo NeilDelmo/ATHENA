@@ -271,7 +271,7 @@ class ResearchAssistantReportAssistanceService
                         $sourceReport = ProjectProgressReport::query()->where('topic_id', $topic->id)->findOrFail((int) substr($source, 9));
                         abort_unless($sourceReport->isSubmitted() && $sourceReport->review_status === 'revision_requested' && ! $sourceReport->nextVersion()->exists(), 409, 'This Monitoring Tool revision is no longer editable.');
                     }
-                    $draft = ProjectMonitoringDraft::query()->where('topic_id', $topic->id)->where('user_id', $user->id)->where('source_key', $source)->first();
+                    $draft = ProjectMonitoringDraft::query()->where('topic_id', $topic->id)->forSourceKey($source)->first();
                     $url = route('project-progress.create', ['topic' => $topic, ...($source !== 'new' ? ['revise_monitoring_report' => (int) substr($source, 9)] : [])]);
                     $title = 'Monitoring Tool';
                 } else {

@@ -35,7 +35,7 @@ class ProjectReportDraftState
             return $report->reporting_date?->betweenIncluded($period['start'], $period['end']) ?? false;
         })->sortByDesc('id')->first();
         $draftQuery = $kind === 'monitoring'
-            ? ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($user, 'user')->where('source_key', $source ? 'revision:'.$source : 'new')
+            ? ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->forSourceKey($source ? 'revision:'.$source : 'new')
             : ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($user, 'user')->where('report_type', $kind);
         $draft = $draftQuery->first(['lock_version', 'source_data->reporting_date as saved_reporting_date']);
         $savedDate = $draft?->saved_reporting_date;

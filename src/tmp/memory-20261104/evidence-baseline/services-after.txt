@@ -1,0 +1,8 @@
+default-queue                    RUNNING   pid 1406, uptime 0:02:30
+fpm                              RUNNING   pid 1403, uptime 0:02:30
+mysql                            RUNNING   pid 1402, uptime 0:02:30
+nginx                            RUNNING   pid 1404, uptime 0:02:30
+pdf-queue                        RUNNING   pid 1408, uptime 0:02:30
+pdf-recovery                     RUNNING   pid 1405, uptime 0:02:30
+reverb                           RUNNING   pid 1411, uptime 0:02:30
+scheduler                        RUNNING   pid 1415, uptime 0:02:30

@@ -1,0 +1,12 @@
+{
+  "exit_code": 2,
+  "elapsed_seconds": 3.0,
+  "samples": 8,
+  "sampled_peak_all_children_mib": 154.3,
+  "per_process_group_sampled_peak_mib": {
+    "conhost": 10.2,
+    "php": 135.0,
+    "cmd": 9.1
+  },
+  "scope": "Windows PHP test harness plus real LibreOffice/Node child processes; in-memory SQLite; excludes MySQL and Linux OS"
+}

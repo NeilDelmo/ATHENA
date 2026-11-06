@@ -7,6 +7,7 @@ use App\Services\ProposalPdfPreparation;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Support\Sleep;
 use Throwable;
 
 #[Signature('proposal-pdfs:recover {--watch : Check for interrupted preparation every minute}')]
@@ -18,6 +19,7 @@ class RecoverProposalPdfs extends Command
      */
     public function handle(ProposalPdfPreparation $preparation, LibreOfficePdfWorker $office): int
     {
+        $nextRecovery = 0;
         try {
             do {
                 if ($this->option('watch')) {
@@ -28,18 +30,21 @@ class RecoverProposalPdfs extends Command
                         $this->warn('Fast PDF conversion is unavailable. Standard conversion remains available.');
                     }
                 }
-                try {
-                    $checked = $preparation->reconcile();
-                    $this->info('Checked '.$checked.' proposal drafts for interrupted PDF preparation.');
-                } catch (Throwable $exception) {
-                    report($exception);
-                    $this->error('PDF recovery is temporarily unavailable. Saved proposal content is unchanged.');
-                    if (! $this->option('watch')) {
-                        return self::FAILURE;
+                if (now()->timestamp >= $nextRecovery) {
+                    $nextRecovery = now()->timestamp + 60;
+                    try {
+                        $checked = $preparation->reconcile();
+                        $this->info('Checked '.$checked.' proposal drafts for interrupted PDF preparation.');
+                    } catch (Throwable $exception) {
+                        report($exception);
+                        $this->error('PDF recovery is temporarily unavailable. Saved proposal content is unchanged.');
+                        if (! $this->option('watch')) {
+                            return self::FAILURE;
+                        }
                     }
                 }
                 if ($this->option('watch')) {
-                    sleep(60);
+                    Sleep::for(1)->second();
                 }
             } while ($this->option('watch'));
         } finally {

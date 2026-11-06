@@ -2,7 +2,10 @@
 <aside x-show="previewPaneOpen" x-cloak class="proposal-preview-dock" :class="{ 'proposal-preview-dock-expanded': previewFullscreen }" aria-label="{{ $previewLabel }}" @keydown.escape.stop="returnToProposalPaperEditor()" @keydown.stop="trapProposalPaperPreviewFocus($event)">
     <section id="{{ $panelId }}" x-ref="previewPanel" :role="previewFullscreen ? 'dialog' : 'region'" :aria-modal="previewFullscreen ? 'true' : null" aria-labelledby="{{ $panelId }}-heading">
         <header class="proposal-preview-dock-heading">
-            <div><h3 id="{{ $panelId }}-heading" x-text="previewTitle">Paper preview</h3><p x-text="previewLoading ? 'Updating…' : previewReadOnly ? 'Read-only form' : previewError || validationMessage ? 'Check preview errors' : previewStale ? 'Updating soon…' : previewReady ? 'Up to date · Automatic' : 'Updates automatically'"></p></div>
+            <div>
+                <h3 id="{{ $panelId }}-heading" x-text="previewTitle">Paper preview</h3>
+                <p x-show="previewLoading || previewReadOnly || (previewStale && !previewError && !validationMessage)" x-cloak role="status" x-text="!previewLoading && previewReadOnly ? 'Read-only form' : 'Updating preview…'"></p>
+            </div>
             <button type="button" x-ref="previewClose" @click="previewFullscreen ? returnToProposalPaperEditor() : closeProposalPreview()" :aria-label="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize preview' : 'Collapse preview'"><span x-text="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize' : 'Hide'"></span></button>
         </header>
         <div class="proposal-preview-dock-actions">

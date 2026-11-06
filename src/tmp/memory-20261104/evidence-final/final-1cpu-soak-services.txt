@@ -1,0 +1,8 @@
+default-queue                    RUNNING   pid 18041, uptime 0:27:19
+fpm                              RUNNING   pid 18038, uptime 0:27:19
+mysql                            RUNNING   pid 18037, uptime 0:27:19
+nginx                            RUNNING   pid 18039, uptime 0:27:19
+pdf-queue                        RUNNING   pid 18044, uptime 0:27:19
+pdf-recovery                     RUNNING   pid 18040, uptime 0:27:19
+reverb                           RUNNING   pid 18045, uptime 0:27:19
+scheduler                        RUNNING   pid 18049, uptime 0:27:19

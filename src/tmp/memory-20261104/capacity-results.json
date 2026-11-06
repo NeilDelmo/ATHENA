@@ -1,0 +1,1242 @@
+{
+  "recorded_at_utc": "2026-11-04T22:30:42.19932+08:00",
+  "conclusion": "2GB fits the tested workload but sustained one-CPU load is tight and hits CPU deadlines. Keep the planned 4GB deployment with CPU headroom; RAM alone does not guarantee fast exports.",
+  "method": {
+    "platform": "Local WSL Ubuntu 26.04 disposable chroot, not DigitalOcean hardware",
+    "memory_budget": "1792MiB cgroup + 256MiB reserved OS = 2GiB, swap disabled",
+    "projects_final": 1000,
+    "fpm_children_final": 4,
+    "php_fpm_memory_limit_mib": 256,
+    "mysql_buffer_pool_mib": 128,
+    "services": [
+      "MySQL",
+      "PHP-FPM",
+      "Nginx",
+      "PDF recovery",
+      "PDF queue",
+      "default queue",
+      "Reverb",
+      "scheduler"
+    ],
+    "real_local_dependencies": [
+      "GD",
+      "LibreOffice",
+      "Poppler",
+      "Node",
+      "MySQL"
+    ],
+    "remote_AI": "HTTP calls mocked; local extraction and image work real"
+  },
+  "changes": [
+    "Resize document JPEG/PNG copies to a 1600px longest edge; retain uploaded originals and EXIF orientation/PNG alpha",
+    "Cache private derivative copies with content invalidation and existing daily preview pruning",
+    "Serialize native and cold Office exports through one gate",
+    "Clean failed worker before replacement and terminate owned cold conversion groups on timeout or parent EOF",
+    "Check Office health every second while keeping reconciliation every minute",
+    "Use 240s report conversion allowance; preserve queue540s/retry600s budget via120s phase cap and no nested CLI delegation",
+    "Scale proposal preparation lock for both conversion phases (added after capacity capture; regression-tested)"
+  ],
+  "earlier_completed_fixes": [
+    "RMS worksheet generation avoids repeated quadratic cell searches",
+    "Persistent Office supervisor cleans owned process tree"
+  ],
+  "photo_comparison": {
+    "baseline": [
+      {
+        "case": "progress-highres-6",
+        "status": 200,
+        "seconds": 8.29521320699996,
+        "charged_peak_mib": 1424.01953125,
+        "pss_peak_mib": 1388.474609375,
+        "anon_peak_mib": 1142.4375,
+        "php_peak_mib": 94.09765625,
+        "max_events": 0,
+        "oom_kills": 0
+      },
+      {
+        "case": "progress-highres-12",
+        "status": 200,
+        "seconds": 14.271120171000007,
+        "charged_peak_mib": 1791.99609375,
+        "pss_peak_mib": 1862.5205078125,
+        "anon_peak_mib": 1620.421875,
+        "php_peak_mib": 179.92578125,
+        "max_events": 1276,
+        "oom_kills": 0
+      }
+    ],
+    "optimized": [
+      {
+        "case": "progress-highres-6",
+        "status": 200,
+        "seconds": 12.2437387760001,
+        "charged_peak_mib": 793.66015625,
+        "pss_peak_mib": 976.5751953125,
+        "anon_peak_mib": 730.47265625,
+        "php_peak_mib": 34.73046875,
+        "max_events": 0,
+        "oom_kills": 0
+      },
+      {
+        "case": "progress-highres-12",
+        "status": 200,
+        "seconds": 20.599539511000103,
+        "charged_peak_mib": 932.828125,
+        "pss_peak_mib": 1117.896484375,
+        "anon_peak_mib": 872.6484375,
+        "php_peak_mib": 65.20703125,
+        "max_events": 0,
+        "oom_kills": 0
+      }
+    ]
+  },
+  "final_cache_cold": {
+    "name": "final-2g-cache-cold12",
+    "limits": {
+      "memory.max": "1879048192",
+      "memory.swap.max": "0",
+      "cpu.max": "100000 100000"
+    },
+    "phases": [
+      {
+        "phase": "progress-highres-12",
+        "seconds": 17.420050701000036,
+        "charged_peak_mib": 1149.66796875,
+        "pss_peak_mib": 1248.1376953125,
+        "memory_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "browsing": {},
+        "heavy": [
+          {
+            "status": 200,
+            "seconds": 16.91903932399964,
+            "result": {
+              "case": "progress-highres-12",
+              "conversion_seconds": 7.814031288,
+              "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-c3eb3ea3/progress-images.docx",
+              "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-c3eb3ea3/progress-images.pdf",
+              "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-c3eb3ea3/progress-images.txt",
+              "pages": 47,
+              "docx_or_xlsx_bytes": 13836678,
+              "pdf_bytes": 13503273,
+              "input_counts": {
+                "images": 12,
+                "image_bytes": 61411049,
+                "accomplishments": 30,
+                "serialized_data_bytes": 145139
+              },
+              "verified_markers": [
+                "ACCOMPLISHMENT30END",
+                "REPORTFIGURE12END",
+                "RESULTSEND"
+              ],
+              "marker_extraction_fallbacks": [],
+              "source_generation_seconds": 8.479933618,
+              "fixture_and_validation_seconds": 0.319951824,
+              "total_image_pixels": 240000000,
+              "elapsed_seconds": 16.871280428,
+              "php_peak_mib": 65.20703125
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "final_cache_warm": {
+    "name": "final-2g-cache-warm12",
+    "limits": {
+      "memory.max": "1879048192",
+      "memory.swap.max": "0",
+      "cpu.max": "100000 100000"
+    },
+    "phases": [
+      {
+        "phase": "progress-highres-12",
+        "seconds": 8.824967556999582,
+        "charged_peak_mib": 1173.125,
+        "pss_peak_mib": 1245.7119140625,
+        "memory_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "browsing": {},
+        "heavy": [
+          {
+            "status": 200,
+            "seconds": 8.323950810000497,
+            "result": {
+              "case": "progress-highres-12",
+              "conversion_seconds": 7.048682385,
+              "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-a4961c52/progress-images.docx",
+              "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-a4961c52/progress-images.pdf",
+              "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-a4961c52/progress-images.txt",
+              "pages": 47,
+              "docx_or_xlsx_bytes": 13836678,
+              "pdf_bytes": 13503273,
+              "input_counts": {
+                "images": 12,
+                "image_bytes": 61411049,
+                "accomplishments": 30,
+                "serialized_data_bytes": 145139
+              },
+              "verified_markers": [
+                "ACCOMPLISHMENT30END",
+                "REPORTFIGURE12END",
+                "RESULTSEND"
+              ],
+              "marker_extraction_fallbacks": [],
+              "source_generation_seconds": 0.704710126,
+              "fixture_and_validation_seconds": 0.328433459,
+              "total_image_pixels": 240000000,
+              "elapsed_seconds": 8.280885714,
+              "php_peak_mib": 63.20703125
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "fpm_profile_comparison": [
+    {
+      "children": 2,
+      "projects": 1000,
+      "charged_peak_mib": 1281.484375,
+      "pss_peak_mib": 1232.6513671875,
+      "browser_count": 36,
+      "browser_errors": 0,
+      "browser_p50_seconds": 1.4578953340001135,
+      "browser_p95_seconds": 16.42427035899982,
+      "heavy": [
+        {
+          "status": 200,
+          "seconds": 16.578598208000585,
+          "pages": 47
+        },
+        {
+          "status": 200,
+          "seconds": 32.8230995619997,
+          "pages": 47
+        }
+      ],
+      "events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    },
+    {
+      "children": 4,
+      "projects": 1000,
+      "charged_peak_mib": 1062.01171875,
+      "pss_peak_mib": 1193.43359375,
+      "browser_count": 36,
+      "browser_errors": 0,
+      "browser_p50_seconds": 1.2909189639999568,
+      "browser_p95_seconds": 9.361292395999953,
+      "heavy": [
+        {
+          "status": 200,
+          "seconds": 26.011389981999855,
+          "pages": 47
+        },
+        {
+          "status": 200,
+          "seconds": 40.79439614100011,
+          "pages": 47
+        }
+      ],
+      "events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    }
+  ],
+  "one_cpu_soak": {
+    "seconds": 1202.4034592530006,
+    "projects": 1000,
+    "fpm_children": 4,
+    "limits": {
+      "memory.max": "1879048192",
+      "memory.swap.max": "0",
+      "cpu.max": "100000 100000"
+    },
+    "heavy_count": 96,
+    "heavy_passed": 94,
+    "heavy_failures": [
+      {
+        "case": "terminal-images-tables",
+        "status": 500,
+        "seconds": 247.85776591100057
+      },
+      {
+        "case": "signed-form-scan",
+        "status": 500,
+        "seconds": 20.297468380999817
+      }
+    ],
+    "per_case": {
+      "native-seven-cold": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "native-seven": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "proposal-large": {
+        "count": 13,
+        "statuses": {
+          "200": 13
+        }
+      },
+      "progress-images": {
+        "count": 13,
+        "statuses": {
+          "200": 13
+        }
+      },
+      "terminal-images-tables": {
+        "count": 1,
+        "statuses": {
+          "500": 1
+        }
+      },
+      "quarterly-evidence": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "expense-100": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "rms-500": {
+        "count": 13,
+        "statuses": {
+          "200": 13
+        }
+      },
+      "rms-1500": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "image-preview-12mp": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "image-preview-20mp": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "image-guard": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "literature-200": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "literature-dense-200": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "assistant-pdf-200": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "assistant-docx-5m": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "assistant-docx-12m": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "assistant-vision-2pages": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "signed-form-text": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "signed-form-scan": {
+        "count": 1,
+        "statuses": {
+          "500": 1
+        }
+      },
+      "manual-1000pages": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "manual-ocr-json": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "manual-long-paragraph": {
+        "count": 1,
+        "statuses": {
+          "200": 1
+        }
+      },
+      "progress-highres-12": {
+        "count": 13,
+        "statuses": {
+          "200": 13
+        }
+      },
+      "queue-request": {
+        "count": 12,
+        "statuses": {
+          "200": 12
+        }
+      },
+      "queue-status": {
+        "count": 12,
+        "statuses": {
+          "200": 12
+        }
+      }
+    },
+    "missing_original_matrix_cases": [],
+    "browser_count": 2163,
+    "browser_errors": 0,
+    "browser_p50_seconds": 0.4448539499999242,
+    "browser_p95_seconds": 1.9582054050006263,
+    "browser_max_seconds": 46.53001349399983,
+    "sampled_charged_peak_mib": 1792.0,
+    "sampled_pss_peak_mib": 1698.08203125,
+    "sampled_anon_peak_mib": 1442.00390625,
+    "sampled_file_peak_mib": 495.453125,
+    "cgroup_lifetime_peak_mib": 1792.05078125,
+    "memory_events": {
+      "low": 0,
+      "high": 0,
+      "max": 2099,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    },
+    "cpu_seconds": 1178.986147,
+    "cpu_throttled_seconds": 3187.215554,
+    "reverb_connections": 20,
+    "reverb_errors": []
+  },
+  "two_cpu_short_comparison": {
+    "terminal_and_scan": {
+      "name": "final-2cpu-terminal-scan-browse",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "phases": [
+        {
+          "phase": "combined",
+          "seconds": 51.69446047499878,
+          "charged_peak_mib": 1298.3125,
+          "pss_peak_mib": 1399.271484375,
+          "memory_events": {
+            "low": 0,
+            "high": 0,
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0,
+            "oom_group_kill": 0
+          },
+          "browsing": {
+            "count": 151,
+            "errors": 0,
+            "p50_seconds": 0.08431326099889702,
+            "p95_seconds": 1.710825019999902,
+            "maximum_seconds": 3.1954658499998914
+          },
+          "heavy": [
+            {
+              "status": 200,
+              "seconds": 41.94357103599941,
+              "result": {
+                "case": "terminal-images-tables",
+                "conversion_seconds": 39.235800118,
+                "source_path": "/app/storage/app/private/capacity-output/terminal-images-tables.docx",
+                "pdf_path": "/app/storage/app/private/capacity-output/terminal-images-tables.pdf",
+                "text_path": "/app/storage/app/private/capacity-output/terminal-images-tables.txt",
+                "pages": 415,
+                "docx_or_xlsx_bytes": 11229338,
+                "pdf_bytes": 15844873,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 5639834,
+                  "accomplishments": 30,
+                  "tables": 6,
+                  "rows_per_table": 100,
+                  "columns_per_table": 6,
+                  "serialized_data_bytes": 1341912
+                },
+                "verified_markers": [
+                  "ACCOMPLISHMENT30END",
+                  "REPORTFIGURE12END",
+                  "RESULTSEND",
+                  "T6R100C6END",
+                  "BIBLIOGRAPHYEND"
+                ],
+                "marker_extraction_fallbacks": {
+                  "T6R100C6END": {
+                    "method": "exact_column_text",
+                    "pages": [
+                      398,
+                      399
+                    ],
+                    "crop": [
+                      467,
+                      50,
+                      77,
+                      814
+                    ]
+                  }
+                },
+                "source_generation_seconds": 0.311601252,
+                "fixture_and_validation_seconds": 0.43440746,
+                "elapsed_seconds": 41.902085608,
+                "php_peak_mib": 46.87890625
+              }
+            },
+            {
+              "status": 200,
+              "seconds": 6.4753661710001325,
+              "result": {
+                "case": "signed-form-scan",
+                "input_bytes": 3997519,
+                "verification": {
+                  "status": "matched",
+                  "message": "Form and project title matched",
+                  "reason": null,
+                  "method": "scan_reader"
+                },
+                "prepared_image_bytes": [
+                  1692025,
+                  1691410
+                ],
+                "external_ai": "never_called",
+                "elapsed_seconds": 6.444108816,
+                "php_peak_mib": 30.83203125
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "photo_burst": {
+      "name": "final-2cpu-4fpm-burst-1000",
+      "limits": {
+        "memory.max": "1879048192",
+        "memory.swap.max": "0",
+        "cpu.max": "200000 100000"
+      },
+      "phases": [
+        {
+          "phase": "burst-three-exports",
+          "seconds": 13.940892898999664,
+          "charged_peak_mib": 1064.67578125,
+          "pss_peak_mib": 1195.287109375,
+          "memory_events": {
+            "low": 0,
+            "high": 0,
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0,
+            "oom_group_kill": 0
+          },
+          "browsing": {
+            "count": 36,
+            "errors": 0,
+            "p50_seconds": 0.19920244049990288,
+            "p95_seconds": 2.1358450719999382,
+            "maximum_seconds": 3.5656314110001404
+          },
+          "heavy": [
+            {
+              "status": 200,
+              "seconds": 4.720678763999786,
+              "result": {
+                "case": "progress-highres-12",
+                "conversion_seconds": 3.361714873,
+                "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-7aadf80b/progress-images.docx",
+                "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-7aadf80b/progress-images.pdf",
+                "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-7aadf80b/progress-images.txt",
+                "pages": 47,
+                "docx_or_xlsx_bytes": 13836678,
+                "pdf_bytes": 13503273,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "verified_markers": [
+                  "ACCOMPLISHMENT30END",
+                  "REPORTFIGURE12END",
+                  "RESULTSEND"
+                ],
+                "marker_extraction_fallbacks": [],
+                "source_generation_seconds": 0.817092901,
+                "fixture_and_validation_seconds": 0.359972495,
+                "total_image_pixels": 240000000,
+                "elapsed_seconds": 4.697895991,
+                "php_peak_mib": 65.20703125
+              }
+            },
+            {
+              "status": 200,
+              "seconds": 7.482646798999667,
+              "result": {
+                "case": "progress-highres-12",
+                "conversion_seconds": 5.951035047,
+                "source_path": "/app/storage/app/private/capacity-output/progress-highres-12-7e71e5ec/progress-images.docx",
+                "pdf_path": "/app/storage/app/private/capacity-output/progress-highres-12-7e71e5ec/progress-images.pdf",
+                "text_path": "/app/storage/app/private/capacity-output/progress-highres-12-7e71e5ec/progress-images.txt",
+                "pages": 47,
+                "docx_or_xlsx_bytes": 13836678,
+                "pdf_bytes": 13503273,
+                "input_counts": {
+                  "images": 12,
+                  "image_bytes": 61411049,
+                  "accomplishments": 30,
+                  "serialized_data_bytes": 145139
+                },
+                "verified_markers": [
+                  "ACCOMPLISHMENT30END",
+                  "REPORTFIGURE12END",
+                  "RESULTSEND"
+                ],
+                "marker_extraction_fallbacks": [],
+                "source_generation_seconds": 0.958283125,
+                "fixture_and_validation_seconds": 0.397773671,
+                "total_image_pixels": 240000000,
+                "elapsed_seconds": 7.391654997,
+                "php_peak_mib": 63.20703125
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "limitation": "Short warmed comparison, not a second 20-minute soak. Different run history/cache/recovery timing; do not interpret timings as a controlled CPU-only speedup ratio."
+  },
+  "preservation": {
+    "user_changes": {
+      "checked": 24,
+      "all_original_user_changes_preserved": true,
+      "different": [],
+      "files": [
+        {
+          "path": "app/Actions/PrepareProjectProgressReport.php",
+          "baseline_sha256": "e9f9753c689fad23984129673973f39cf1e56343f88bae091a26ca5bb6131a87",
+          "current_sha256": "e9f9753c689fad23984129673973f39cf1e56343f88bae091a26ca5bb6131a87"
+        },
+        {
+          "path": "app/Actions/SaveProjectMonitoringDraft.php",
+          "baseline_sha256": "8f19358104a110b26a76ce110ee969b4ff951f38b639d804e9e2d2f64c4f0f5e",
+          "current_sha256": "8f19358104a110b26a76ce110ee969b4ff951f38b639d804e9e2d2f64c4f0f5e"
+        },
+        {
+          "path": "app/Http/Controllers/ProjectMonitoringController.php",
+          "baseline_sha256": "f206b461f22db0ede96eb630f6254aa3f0a7ad0488bf0bd64f2854f68fd803f6",
+          "current_sha256": "f206b461f22db0ede96eb630f6254aa3f0a7ad0488bf0bd64f2854f68fd803f6"
+        },
+        {
+          "path": "app/Http/Controllers/ResearchAssistantController.php",
+          "baseline_sha256": "6d1e4bc1a002e4c56ab5e584f956309d6e42ac80c1ec917667d8f5faf70a9bcf",
+          "current_sha256": "6d1e4bc1a002e4c56ab5e584f956309d6e42ac80c1ec917667d8f5faf70a9bcf"
+        },
+        {
+          "path": "app/Models/ProjectMonitoringDraft.php",
+          "baseline_sha256": "a1a34d01615349f59dfdb25aab70c829d119d86eaac0fd613ece1a554562dbcb",
+          "current_sha256": "a1a34d01615349f59dfdb25aab70c829d119d86eaac0fd613ece1a554562dbcb"
+        },
+        {
+          "path": "app/Services/MonitoringEvidenceService.php",
+          "baseline_sha256": "b9c6b4904f35e2eae6a568b0101c55946a150877bf1155cd41fb0ced31c74587",
+          "current_sha256": "b9c6b4904f35e2eae6a568b0101c55946a150877bf1155cd41fb0ced31c74587"
+        },
+        {
+          "path": "app/Services/ProjectMonitoringFormDataService.php",
+          "baseline_sha256": "225d3b286f417fba0bca9610abfc6861b47cb36819bbece1249090a94052f9c0",
+          "current_sha256": "225d3b286f417fba0bca9610abfc6861b47cb36819bbece1249090a94052f9c0"
+        },
+        {
+          "path": "app/Services/ProjectReportDraftState.php",
+          "baseline_sha256": "722dd2ef5f83803e43552d3f1db11f64505161d87d4d4d2c03443cb2355271f3",
+          "current_sha256": "722dd2ef5f83803e43552d3f1db11f64505161d87d4d4d2c03443cb2355271f3"
+        },
+        {
+          "path": "app/Services/ResearchAssistantDocumentService.php",
+          "baseline_sha256": "e1cb903f1eac24999f49fba3d42a675585e535677f8733ab9d62f35e0725b9ed",
+          "current_sha256": "e1cb903f1eac24999f49fba3d42a675585e535677f8733ab9d62f35e0725b9ed"
+        },
+        {
+          "path": "app/Services/ResearchAssistantPaperReader.php",
+          "baseline_sha256": "24679e3bc242fca78bc96eab431afc31188daee20aa7ecd177477df7a00b17ab",
+          "current_sha256": "24679e3bc242fca78bc96eab431afc31188daee20aa7ecd177477df7a00b17ab"
+        },
+        {
+          "path": "app/Services/ResearchAssistantProposalAssistanceService.php",
+          "baseline_sha256": "947bce483fec7ed5d3a32612b3439e0c649b9cb5cfbeefa601fdb3e09a84a9a3",
+          "current_sha256": "947bce483fec7ed5d3a32612b3439e0c649b9cb5cfbeefa601fdb3e09a84a9a3"
+        },
+        {
+          "path": "app/Services/ResearchAssistantReportAssistanceService.php",
+          "baseline_sha256": "fc4276b865e47d62b6d952dac655bb665c221173337fd1b0514d160711a26624",
+          "current_sha256": "fc4276b865e47d62b6d952dac655bb665c221173337fd1b0514d160711a26624"
+        },
+        {
+          "path": "app/Services/ResearchAssistantWorkflowContextService.php",
+          "baseline_sha256": "bfafbbeb88e7dad40ed5c9e97ce487664aa62ad17829070a1c5a03f928d1dccb",
+          "current_sha256": "bfafbbeb88e7dad40ed5c9e97ce487664aa62ad17829070a1c5a03f928d1dccb"
+        },
+        {
+          "path": "resources/css/proposal-paper-workspace.css",
+          "baseline_sha256": "8355c5a84a16e0a322974e3b5662dd3b8825c8ea7943e3cd72e5ff2ec4318610",
+          "current_sha256": "8355c5a84a16e0a322974e3b5662dd3b8825c8ea7943e3cd72e5ff2ec4318610"
+        },
+        {
+          "path": "resources/js/detailed-proposal-editor.js",
+          "baseline_sha256": "4b9c5fa9f488cfb62ae07ebd98097852685d999f514a0493592f9e911f657f57",
+          "current_sha256": "4b9c5fa9f488cfb62ae07ebd98097852685d999f514a0493592f9e911f657f57"
+        },
+        {
+          "path": "resources/views/components/monitoring-tool-form.blade.php",
+          "baseline_sha256": "a3765a348c6476f522ad1722c19d148100c5b0d58fecef9faa0541cf92140021",
+          "current_sha256": "a3765a348c6476f522ad1722c19d148100c5b0d58fecef9faa0541cf92140021"
+        },
+        {
+          "path": "resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php",
+          "baseline_sha256": "281360330b1ee68870827b7dfdccb1bb86b7c18a12f22d6857699edd4402a70c",
+          "current_sha256": "281360330b1ee68870827b7dfdccb1bb86b7c18a12f22d6857699edd4402a70c"
+        },
+        {
+          "path": "tests/Feature/DetailedProposalBuilderTest.php",
+          "baseline_sha256": "e7c6b6a52842d7da270b9653e251c20beda1d531dc2b49a6a9f4a33ac26d97d7",
+          "current_sha256": "e7c6b6a52842d7da270b9653e251c20beda1d531dc2b49a6a9f4a33ac26d97d7"
+        },
+        {
+          "path": "tests/Feature/MonitoringEvidenceTest.php",
+          "baseline_sha256": "012b124570d7742a17eb08ae17183c5549f3f250f231416022d6859a2a32668b",
+          "current_sha256": "012b124570d7742a17eb08ae17183c5549f3f250f231416022d6859a2a32668b"
+        },
+        {
+          "path": "tests/Feature/ProjectReportDraftRecoveryTest.php",
+          "baseline_sha256": "b1e8b5ed026115dec5b7af5af7b0445027847ee2234904ae6915b2d2c336e981",
+          "current_sha256": "b1e8b5ed026115dec5b7af5af7b0445027847ee2234904ae6915b2d2c336e981"
+        },
+        {
+          "path": "tests/Feature/ResearchAssistantProposalFigureTest.php",
+          "baseline_sha256": "6a89c448c22468d1e4983be9fa00670286e547512037263d07e56ecdd0b630f2",
+          "current_sha256": "6a89c448c22468d1e4983be9fa00670286e547512037263d07e56ecdd0b630f2"
+        },
+        {
+          "path": "tests/Feature/ResearchAssistantReportAssistanceTest.php",
+          "baseline_sha256": "68e3ca44801d814707abe5cb47acf23b768d6dff0b3ff3414628a0288e9664a2",
+          "current_sha256": "68e3ca44801d814707abe5cb47acf23b768d6dff0b3ff3414628a0288e9664a2"
+        },
+        {
+          "path": "tests/Frontend/detailed-proposal-editor.test.mjs",
+          "baseline_sha256": "3ce223c1e75744c0f0613aab3d5b77652b69b2f59b893342f13e2ec7ef5cceff",
+          "current_sha256": "3ce223c1e75744c0f0613aab3d5b77652b69b2f59b893342f13e2ec7ef5cceff"
+        },
+        {
+          "path": "tests/Frontend/specific-methods-editor.test.mjs",
+          "baseline_sha256": "35dd207454846af1f872e71a38ab37dcbe775f8653fe994bd09c9d2543d0c936",
+          "current_sha256": "35dd207454846af1f872e71a38ab37dcbe775f8653fe994bd09c9d2543d0c936"
+        }
+      ]
+    },
+    "export_validation": {
+      "original_fixture_sha256_unchanged": true,
+      "fixture_files_verified": 24,
+      "original_photo_sha256_unchanged": true,
+      "photo_files_verified": 42,
+      "embedded_image_count": 12,
+      "all_embedded_images_bounded_1600": true,
+      "images": [
+        {
+          "name": "word/media/progress-figure-1.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 915093
+        },
+        {
+          "name": "word/media/progress-figure-2.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914345
+        },
+        {
+          "name": "word/media/progress-figure-3.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 913804
+        },
+        {
+          "name": "word/media/progress-figure-4.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 915755
+        },
+        {
+          "name": "word/media/progress-figure-5.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914103
+        },
+        {
+          "name": "word/media/progress-figure-6.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914715
+        },
+        {
+          "name": "word/media/progress-figure-7.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914787
+        },
+        {
+          "name": "word/media/progress-figure-8.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914993
+        },
+        {
+          "name": "word/media/progress-figure-9.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 913866
+        },
+        {
+          "name": "word/media/progress-figure-10.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914885
+        },
+        {
+          "name": "word/media/progress-figure-11.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 913882
+        },
+        {
+          "name": "word/media/progress-figure-12.jpg",
+          "width": 1600,
+          "height": 1067,
+          "bytes": 914538
+        }
+      ],
+      "case": {
+        "case": "terminal-images-tables",
+        "conversion_seconds": 39.235800118,
+        "source_path": "/app/storage/app/private/capacity-output/terminal-images-tables.docx",
+        "pdf_path": "/app/storage/app/private/capacity-output/terminal-images-tables.pdf",
+        "text_path": "/app/storage/app/private/capacity-output/terminal-images-tables.txt",
+        "pages": 415,
+        "docx_or_xlsx_bytes": 11229338,
+        "pdf_bytes": 15844873,
+        "input_counts": {
+          "images": 12,
+          "image_bytes": 5639834,
+          "accomplishments": 30,
+          "tables": 6,
+          "rows_per_table": 100,
+          "columns_per_table": 6,
+          "serialized_data_bytes": 1341912
+        },
+        "verified_markers": [
+          "ACCOMPLISHMENT30END",
+          "REPORTFIGURE12END",
+          "RESULTSEND",
+          "T6R100C6END",
+          "BIBLIOGRAPHYEND"
+        ],
+        "marker_extraction_fallbacks": {
+          "T6R100C6END": {
+            "method": "exact_column_text",
+            "pages": [
+              398,
+              399
+            ],
+            "crop": [
+              467,
+              50,
+              77,
+              814
+            ]
+          }
+        },
+        "source_generation_seconds": 0.311601252,
+        "fixture_and_validation_seconds": 0.43440746,
+        "elapsed_seconds": 41.902085608,
+        "php_peak_mib": 46.87890625
+      },
+      "resources": {
+        "samples": 193,
+        "peak_mib": 1298.3125,
+        "peak_anon_mib": 1144.19140625,
+        "peak_pss_mib": 1399.271484375,
+        "peak_rss_mib": 1862.22265625,
+        "peak_file_mib": 138.94921875,
+        "minimum_mib": 1000.75390625,
+        "last_mib": 1196.7578125,
+        "cpu_usage_seconds": 81.437537,
+        "cpu_throttled_seconds": 8.994877,
+        "oom_kills_delta": 0,
+        "memory_events_end": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "processes_at_peak": [
+          {
+            "pid": 23620,
+            "name": "supervisord",
+            "rss_kib": 29016,
+            "pss_kib": 19357,
+            "command": "/usr/bin/python3 /usr/bin/supervisord -c /app/benchmark/supervisord.conf "
+          },
+          {
+            "pid": 23627,
+            "name": "mysqld",
+            "rss_kib": 300720,
+            "pss_kib": 292009,
+            "command": "/usr/sbin/mysqld --defaults-file=/app/benchmark/mysql.cnf "
+          },
+          {
+            "pid": 23628,
+            "name": "php-fpm8.5",
+            "rss_kib": 38640,
+            "pss_kib": 7709,
+            "command": "php-fpm: master process (/app/benchmark/php-fpm.conf)  "
+          },
+          {
+            "pid": 23629,
+            "name": "nginx",
+            "rss_kib": 9600,
+            "pss_kib": 2343,
+            "command": "nginx: master process /usr/sbin/nginx -c /app/benchmark/nginx.conf -g daemon off; "
+          },
+          {
+            "pid": 23630,
+            "name": "php",
+            "rss_kib": 78600,
+            "pss_kib": 53536,
+            "command": "/usr/bin/php -d memory_limit=256M artisan proposal-pdfs:recover --watch --no-interaction "
+          },
+          {
+            "pid": 23631,
+            "name": "php",
+            "rss_kib": 71560,
+            "pss_kib": 46855,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work --queue=default,research-manual-checks,literature-harvest --sleep=1 --tries=1 --timeout=180 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23632,
+            "name": "php",
+            "rss_kib": 90452,
+            "pss_kib": 65568,
+            "command": "/usr/bin/php -d memory_limit=256M artisan queue:work proposal-pdfs --sleep=1 --tries=3 --timeout=540 --memory=192 --no-interaction "
+          },
+          {
+            "pid": 23635,
+            "name": "php",
+            "rss_kib": 79752,
+            "pss_kib": 53660,
+            "command": "/usr/bin/php -d memory_limit=256M artisan reverb:start --no-interaction "
+          },
+          {
+            "pid": 23637,
+            "name": "php",
+            "rss_kib": 72580,
+            "pss_kib": 46434,
+            "command": "/usr/bin/php -d memory_limit=256M artisan schedule:work --no-interaction "
+          },
+          {
+            "pid": 23638,
+            "name": "nginx",
+            "rss_kib": 5104,
+            "pss_kib": 2195,
+            "command": "nginx: worker process                                       "
+          },
+          {
+            "pid": 23645,
+            "name": "php-fpm8.5",
+            "rss_kib": 100092,
+            "pss_kib": 51425,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23646,
+            "name": "php-fpm8.5",
+            "rss_kib": 69996,
+            "pss_kib": 21272,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23647,
+            "name": "php-fpm8.5",
+            "rss_kib": 68172,
+            "pss_kib": 21116,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23648,
+            "name": "php-fpm8.5",
+            "rss_kib": 88224,
+            "pss_kib": 39568,
+            "command": "php-fpm: pool www                                      "
+          },
+          {
+            "pid": 23709,
+            "name": "python3",
+            "rss_kib": 12032,
+            "pss_kib": 6692,
+            "command": "/usr/bin/python3 /app/scripts/libreoffice-worker.py /usr/bin/soffice --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,nam"
+          },
+          {
+            "pid": 23711,
+            "name": "oosplash",
+            "rss_kib": 5352,
+            "pss_kib": 1003,
+            "command": "/usr/lib/libreoffice/program/oosplash --headless --nologo --nodefault --norestore -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4248"
+          },
+          {
+            "pid": 23732,
+            "name": "soffice.bin",
+            "rss_kib": 706716,
+            "pss_kib": 684562,
+            "command": "/usr/lib/libreoffice/program/soffice.bin -env:UserInstallation=file:///app/storage/app/private/pdf-conversions/worker/ReqJoyJEW391 --headless --nologo --nodefault --norestore --accept=pipe,name=athena-pdf-f54ccf7b-ce47-4"
+          },
+          {
+            "pid": 24175,
+            "name": "python3",
+            "rss_kib": 27080,
+            "pss_kib": 17550,
+            "command": "/usr/bin/python3 /app/scripts/convert-office-pdf.py athena-pdf-f54ccf7b-ce47-4248-9d0d-f6a1ebc6020e /app/storage/app/private/pdf-conversions/athena-pdf-abe3e5fd-9590-495c-9015-ec92acf5088b pdf:writer_pdf_Export /app/stor"
+          }
+        ]
+      },
+      "request_seconds": 41.94357103599941
+    }
+  },
+  "drained_health": {
+    "projects": 1000,
+    "queue_draft_id": 1,
+    "extraction_draft_id": 2,
+    "queue_state": {
+      "run_id": "8ee23e8e-4dc9-43d6-ae71-7b0dd349af00",
+      "status": "ready",
+      "attempts": 1,
+      "recoveries": 0,
+      "updated_at": 1793780227,
+      "fingerprint": "bd4e9c1f46414d51f6f7b067e389866e3f867f5fcc95667f0686a77fbdb01f6b"
+    },
+    "queue_status": {
+      "status": "ready",
+      "message": "Submission PDFs are up to date.",
+      "prepared": 7,
+      "total": 7
+    },
+    "queue_readiness_errors": [],
+    "pending_jobs": 0,
+    "failed_jobs": 0,
+    "report_timeout_seconds": 240,
+    "delegate_to_php_cli": false
+  },
+  "capacity_source_hashes": {
+    "app/Services/DocumentImageService.php": "5ba5ebbca881280abec2e6dd4c865597f00a91adb7fd6136d873df822b5b9b90",
+    "app/Services/ProgressReportDocumentService.php": "6dea812b2d9fab8568d2f97ea6d76a0031a27817a3c3d65947a0a3d0dd111897",
+    "app/Services/CollegeQuarterlyReportDocument.php": "5e5e51a2b9e93282828a1752cbae34558a09928555a579336123a478df2c454c",
+    "app/Services/DetailedProposalMethodologyImageService.php": "11f171ccc1e66bf565f53a7bb5061185e1a46445ebc5d8b3b306fce0abeb44bf",
+    "app/Services/DetailedProposalDocumentService.php": "ea39bc13372839e0a35ee8f72f118f5fe478d4f7e31161f08e1c2505ee0f1814",
+    "app/Http/Controllers/ResearchCoordinatorReportController.php": "ef3a4d6bd8f6e514af87538c823cb387a7c95941882eb5adac6e1cf8cbb292f2",
+    "app/Services/LibreOfficeProcess.php": "23c2c9924f39069935952a5a31ef7deb6285d682c44f51cef887d741663459b8",
+    "app/Services/LibreOfficePdfWorker.php": "bb52263b13bf4f8781b01ae9e164d362fd10fede3d45499f388e696da1797aaf",
+    "app/Services/LibreOfficeDocumentPdfConverter.php": "cb8c7ff48dd9296a329575d9d61bcab665c844f92e7367bc21ab385b8c6d1324",
+    "app/Console/Commands/RecoverProposalPdfs.php": "4815dbc018640a94ee89b2abcd875a3222fe12cf63f8d78c7d6165b1a68bbdc0",
+    "scripts/libreoffice-worker.py": "7233734819d3ac97e2c2440f7dbc0348aec2ae85373b3b32136b698b1d675836",
+    "config/document_pdf.php": "adb1500bae2a6e06caa05c15a602de45444d965f49c7a4640eca5eed6de9795d",
+    "app/Jobs/PrepareProposalDraftPdfs.php": "046e399dd4af623c1114d48910507112edfdb751aeee566a4c9394d1b53d95e8",
+    ".env.example": "124501c507e7e63a675f7b3fcfb619e52c5e1474d72b88b4109881fb90efc5b9"
+  },
+  "final_test_source_hashes": {
+    "app/Services/DocumentImageService.php": "5ba5ebbca881280abec2e6dd4c865597f00a91adb7fd6136d873df822b5b9b90",
+    "app/Services/ProgressReportDocumentService.php": "6dea812b2d9fab8568d2f97ea6d76a0031a27817a3c3d65947a0a3d0dd111897",
+    "app/Services/CollegeQuarterlyReportDocument.php": "5e5e51a2b9e93282828a1752cbae34558a09928555a579336123a478df2c454c",
+    "app/Services/DetailedProposalMethodologyImageService.php": "11f171ccc1e66bf565f53a7bb5061185e1a46445ebc5d8b3b306fce0abeb44bf",
+    "app/Services/DetailedProposalDocumentService.php": "ea39bc13372839e0a35ee8f72f118f5fe478d4f7e31161f08e1c2505ee0f1814",
+    "app/Http/Controllers/ResearchCoordinatorReportController.php": "ef3a4d6bd8f6e514af87538c823cb387a7c95941882eb5adac6e1cf8cbb292f2",
+    "app/Services/LibreOfficeProcess.php": "23c2c9924f39069935952a5a31ef7deb6285d682c44f51cef887d741663459b8",
+    "app/Services/LibreOfficePdfWorker.php": "bb52263b13bf4f8781b01ae9e164d362fd10fede3d45499f388e696da1797aaf",
+    "app/Services/LibreOfficeDocumentPdfConverter.php": "cb8c7ff48dd9296a329575d9d61bcab665c844f92e7367bc21ab385b8c6d1324",
+    "app/Console/Commands/RecoverProposalPdfs.php": "4815dbc018640a94ee89b2abcd875a3222fe12cf63f8d78c7d6165b1a68bbdc0",
+    "scripts/libreoffice-worker.py": "7233734819d3ac97e2c2440f7dbc0348aec2ae85373b3b32136b698b1d675836",
+    "config/document_pdf.php": "adb1500bae2a6e06caa05c15a602de45444d965f49c7a4640eca5eed6de9795d",
+    "app/Jobs/PrepareProposalDraftPdfs.php": "046e399dd4af623c1114d48910507112edfdb751aeee566a4c9394d1b53d95e8",
+    ".env.example": "124501c507e7e63a675f7b3fcfb619e52c5e1474d72b88b4109881fb90efc5b9",
+    "app/Actions/SubmitProposalDraft.php": "a01e41ae3ef1789d15161102e219a9ba0299927a93e2445b532d7adfe90a795b",
+    "tests/Feature/ProposalDraftWorkflowTest.php": "cb2b9ffb4f0c29f671dd6bdff3adace5ed646cc6350ad160fdbe7bb7105eade5",
+    "tests/Feature/LibreOfficeDocumentPdfConverterTest.php": "a21828da445b75bb1aaef6899fb7bf6d82e68b34d83f7a2cc4722d40f91cc45a",
+    "tests/Feature/ResearchCoordinatorReportTest.php": "c520db8ecd30ff9d064f96dd56b271ac6236faa792b1060746940b7905cab173",
+    "tests/Unit/DocumentImageServiceTest.php": "712b14a44cf6b85896162cea87c0c67c6c5afbdad8f8881c20ec16fca3bdb6ca",
+    "tests/Unit/ReportImageOptimizationTest.php": "8e7778ff112cb63eb6f6bfac52ab8cc2b46b28aa007460c28c83e516e6539033",
+    "tests/Unit/LibreOfficeProcessTreeTest.php": "6e0b21dfb321ee4b909a2e8aa87f214b2a76727d3dc2266146572926e9c95530",
+    "tests/Unit/RecoverProposalPdfsTest.php": "2b49c119dd149ce5434d056e1e25095094ce26f5fdc6782e86f64c3442337a0c",
+    "tests/Unit/QueuedPdfConversionBudgetTest.php": "0a06f512235c27bfb857a8428b2cc1efd6b69ec9efd251bb4cd16d30a69335d3",
+    "tests/Unit/LibreOfficePdfWorkerProcessTest.php": "ff32804caccbfe6bc5eb5f387dd2be9da85f8ff3cfd5ad66945cf8193f490b8e",
+    "tests/Feature/ProjectNarrativeReportTest.php": "595936e0f88e615874a8af42683ef741917f8b38360f9d43335eaa3cffcb751c"
+  },
+  "verification": {
+    "targeted_office_recovery_converter": "33 passed, 1 Windows-only skipped, 237 assertions",
+    "targeted_images_exporters_controller": "30 passed, 198 assertions",
+    "fixture_publication": "4 passed, 35 assertions",
+    "queue_scope": "4 passed, 22 assertions",
+    "proposal_lock": "2 passed, 10 assertions; 240s regression failed before fix",
+    "formatter": "Scoped Pint passed",
+    "initial_full_suite": {
+      "total": 3799,
+      "passed": 3648,
+      "failed": 127,
+      "skipped": 24,
+      "assertions": 32555,
+      "baseline_comparison": "running",
+      "new_test_issues_corrected": [
+        "Two request image tests need memory above the retained full-suite heap; production request allowance stayed256MiB",
+        "Existing generated-image assertion updated to validate reduced document copies while preserving original storage/downloads"
+      ]
+    },
+    "initial_baseline_comparison": {
+      "current_failures": 127,
+      "baseline_failures_in_compared_files": 123,
+      "all_current_failures_reproduced_on_original": false,
+      "current_only": [
+        [
+          "Tests.Feature.AccessibleRecordSearchTest",
+          "search requires authentication and validates bounded input without exposing records on an empty query"
+        ],
+        [
+          "Tests.Feature.ProjectNarrativeReportTest",
+          "large report figure previews are private and smaller while downloads and generated documents retain original images"
+        ],
+        [
+          "Tests.Feature.ResearchCoordinatorReportTest",
+          "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"general evidence\"\""
+        ],
+        [
+          "Tests.Feature.ResearchCoordinatorReportTest",
+          "unsaved coordinator evidence previews bound photo dimensions without replacing uploads with data set \"dataset \"row evidence\"\""
+        ]
+      ],
+      "baseline_only": []
+    },
+    "historical_cache_header_failure": {
+      "source": "tmp/optimization-20261104/baseline-failures.log:362",
+      "case": "Tests.Feature.AccessibleRecordSearchTest: search requires authentication and validates bounded input without exposing records on an empty query",
+      "message": "Exact Cache-Control string includes stronger Livewire cache directives; same failure reproduced on original code in previous pass."
+    },
+    "image_integration_after_corrections": "3 passed,31 assertions",
+    "final_full_suite": {
+      "total": 3799,
+      "passed": 3651,
+      "failed": 124,
+      "skipped": 24,
+      "assertions": 32572,
+      "test_exit_status": 2,
+      "runner": "PHP/Pest, no swap,1536MiB cgroup,2CPU; not part of capacity measurements",
+      "baseline_comparison": {
+        "final_current_failures": 124,
+        "reproduced_in_fresh_original_source_comparison": 123,
+        "reproduced_in_earlier_original_source_comparison": 1,
+        "earlier_original_log": "tmp\\optimization-20261104\\baseline-failures.log",
+        "earlier_original_log_sha256": "ad7658e58ffbf7f6163dc5cfa618c2a2b2244ade548d073a76b91d30cfa07a97",
+        "all_current_failures_accounted_for": true,
+        "unexplained_current_failures": [],
+        "historical_order_dependent_case": [
+          "Tests.Feature.AccessibleRecordSearchTest",
+          "search requires authentication and validates bounded input without exposing records on an empty query"
+        ]
+      }
+    },
+    "all_final_source_hashes_match": true,
+    "all_24_original_user_changes_preserved": true
+  },
+  "limits": [
+    "Finite synthetic workloads; real production load and remote AI latency not benchmarked",
+    "One-CPU soak reached memory.max with 2099 reclaim pressure events, zero OOM; two of96heavy requests timed out",
+    "Final cold derivative build adds CPU; warm cache avoids repeated decoding but daily pruning causes rebuilds",
+    "GD rejects an image that cannot fit the configured PHP memory allowance",
+    "Linux PHP8.5.4 security-backport runtime differs from composer required patch floor^8.5.12; deployment needs a compatible runtime",
+    "No cloud deployment, new dependencies, or production database changes",
+    "Linux process-group supervision uses Python3; hosts without Python retain the legacy direct cold-conversion cleanup boundary. Install the tested Python/LibreOffice runtime for deployment."
+  ],
+  "cleanup": {
+    "completed_at_utc": "2026-11-04T22:30:54.160894+08:00",
+    "runtime_rootfs_removed": true,
+    "owned_processes_remaining": 0,
+    "owned_mounts_remaining": 0,
+    "source_vendor_and_sync_archives_removed": 15,
+    "archive_bytes_removed": 139683840.0,
+    "disposable_copied_harnesses_removed": true
+  }
+}

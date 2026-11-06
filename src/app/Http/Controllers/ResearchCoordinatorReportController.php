@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\CollegeQuarterlyReportData;
 use App\Services\CollegeQuarterlyReportDocument;
 use App\Services\CollegeQuarterlyReportFacultyEvidence;
+use App\Services\DocumentImageService;
 use App\Services\ImagePreviewService;
 use App\Services\MonitoringQuarterService;
 use App\Support\ProposalRichText;
@@ -45,7 +46,7 @@ class ResearchCoordinatorReportController extends Controller
         return view('research_coordinator.report-print', $this->viewData($request, $data, $quarters));
     }
 
-    public function preview(PreviewCollegeQuarterlyReportRequest $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters): View
+    public function preview(PreviewCollegeQuarterlyReportRequest $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters, DocumentImageService $documentImages): View
     {
         $validated = $request->validated();
         $request->merge(['year' => $validated['reporting_year'], 'quarter' => $validated['reporting_quarter']]);
@@ -59,12 +60,12 @@ class ResearchCoordinatorReportController extends Controller
             || (isset($image['section']) && ! collect($report->{$image['section']} ?? [])->contains('id', $image['row_id'] ?? null)))
             ->map(fn (array $image): array => [...$image, 'caption' => $validated['saved_evidence_captions'][hash('sha256', $image['path'])] ?? $image['caption'] ?? ''])->values()->all();
         foreach ($request->file('evidence_images', []) as $index => $image) {
-            $evidence[] = ['url' => 'data:'.$image->getMimeType().';base64,'.base64_encode($image->getContent()), 'mime_type' => $image->getMimeType(), 'caption' => $validated['evidence_captions'][$index] ?? ''];
+            $evidence[] = ['url' => 'data:'.$image->getMimeType().';base64,'.base64_encode($documentImages->contents($image->getRealPath())), 'mime_type' => $image->getMimeType(), 'caption' => $validated['evidence_captions'][$index] ?? ''];
         }
         foreach ($request->file('row_evidence', []) as $section => $rows) {
             foreach ($rows as $rowId => $images) {
                 foreach ($images as $image) {
-                    $evidence[] = ['url' => 'data:'.$image->getMimeType().';base64,'.base64_encode($image->getContent()), 'mime_type' => $image->getMimeType(), 'section' => $section, 'row_id' => $rowId];
+                    $evidence[] = ['url' => 'data:'.$image->getMimeType().';base64,'.base64_encode($documentImages->contents($image->getRealPath())), 'mime_type' => $image->getMimeType(), 'section' => $section, 'row_id' => $rowId];
                 }
             }
         }

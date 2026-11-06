@@ -1,0 +1,5 @@
+MainPID=23620
+ControlGroup=/system.slice/athena-memory-2g.service
+CPUQuotaPerSecUSec=2s
+MemoryMax=1879048192
+MemorySwapMax=0

@@ -1,0 +1,27 @@
+{
+  "recorded_at_utc": "2026-11-04T14:30:42.199320+00:00",
+  "suite": {
+    "total": 3799,
+    "passed": 3651,
+    "failed": 124,
+    "skipped": 24,
+    "assertions": 32572
+  },
+  "baseline_comparison": {
+    "final_current_failures": 124,
+    "reproduced_in_fresh_original_source_comparison": 123,
+    "reproduced_in_earlier_original_source_comparison": 1,
+    "earlier_original_log": "tmp\\optimization-20261104\\baseline-failures.log",
+    "earlier_original_log_sha256": "ad7658e58ffbf7f6163dc5cfa618c2a2b2244ade548d073a76b91d30cfa07a97",
+    "all_current_failures_accounted_for": true,
+    "unexplained_current_failures": [],
+    "historical_order_dependent_case": [
+      "Tests.Feature.AccessibleRecordSearchTest",
+      "search requires authentication and validates bounded input without exposing records on an empty query"
+    ]
+  },
+  "source_hashes_match": true,
+  "user_changes_preserved": 24,
+  "pint": "passed scoped changed PHP files",
+  "diff_check": "passed"
+}

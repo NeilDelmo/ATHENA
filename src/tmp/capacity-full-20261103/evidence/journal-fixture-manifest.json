@@ -1,0 +1,14 @@
+{
+  "10000": {
+    "path": "/app/storage/app/private/capacity-fixtures/scopus-10000.xlsx",
+    "rows": 10000,
+    "bytes": 376358,
+    "sha256": "c5f0361cb4922f99b81289022662448d858774357005311a14db880b9a1a1612"
+  },
+  "50000": {
+    "path": "/app/storage/app/private/capacity-fixtures/scopus-50000.xlsx",
+    "rows": 50000,
+    "bytes": 1905052,
+    "sha256": "60d1daad41cb84d523be9f1f5963ca7ed0c64ec2ccc052341e709f9e5898de4b"
+  }
+}

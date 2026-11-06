@@ -236,10 +236,12 @@ test('malformed or password protected PDFs cannot bypass verification', function
 });
 
 test('readable wet signature scans are identified using visible evidence', function (string $detectedTitle, string $detectedHeading, string $status) {
+    $this->staff->assignRole('research_secretary');
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     config(['services.openrouter.key' => 'test-key']);
     Process::fake(function (PendingProcess $process) {
-        if (str_contains(implode(' ', $process->command), '-png')) {
-            File::put(end($process->command).'-1.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jB2sAAAAASUVORK5CYII='));
+        if (in_array('-jpeg', $process->command, true)) {
+            File::put(end($process->command).'-1.jpg', 'scan page');
         }
 
         return Process::result(output: '');
@@ -272,10 +274,12 @@ test('readable wet signature scans are identified using visible evidence', funct
 ]);
 
 test('a scan reader outage or illegible response never silently verifies a file', function (bool $outage) {
+    $this->staff->assignRole('research_secretary');
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     config(['services.openrouter.key' => 'test-key']);
     Process::fake(function (PendingProcess $process) {
-        if (str_contains(implode(' ', $process->command), '-png')) {
-            File::put(end($process->command).'-1.png', 'fake page image');
+        if (in_array('-jpeg', $process->command, true)) {
+            File::put(end($process->command).'-1.jpg', 'fake page image');
         }
 
         return Process::result(output: '');
@@ -292,6 +296,8 @@ test('the local PDF tools render scanned pages for the configured reader', funct
     if (! is_file(config('research_assistant.document.pdftotext_binary')) || ! is_file(config('research_assistant.document.pdftoppm_binary'))) {
         $this->markTestSkipped('Configure absolute paths to the local PDF tools to run the rasterizer integration test.');
     }
+    $this->staff->assignRole('research_secretary');
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     Process::swap(new Factory);
     config(['services.openrouter.key' => 'test-key']);
     Http::fake(['*' => Http::response(['choices' => [['message' => ['content' => json_encode([
@@ -323,6 +329,18 @@ test('the local PDF tools render scanned pages for the configured reader', funct
     $payload = signingVerificationPayload($source, ['review_file' => UploadedFile::fake()->createWithContent('scan.pdf', $pdf)]);
     $this->postJson(route('topics.head-uploads.store', $this->topic), $payload)
         ->assertOk()->assertJsonPath('verification_status', 'matched');
-    Http::assertSent(fn (Request $request): bool => str_starts_with($request['messages'][1]['content'][1]['image_url']['url'], 'data:image/png;base64,'));
+    Http::assertSent(function (Request $request): bool {
+        $url = $request['messages'][1]['content'][1]['image_url']['url'];
+        $prefix = 'data:image/jpeg;base64,';
+        if (! str_starts_with($url, $prefix)) {
+            return false;
+        }
+
+        $dimensions = getimagesizefromstring(base64_decode(substr($url, strlen($prefix))));
+
+        return $dimensions !== false && array_slice($dimensions, 0, 3) === [1800, 1800, IMAGETYPE_JPEG];
+    });
+    $signed = $this->version->files()->where('source_version_file_id', $source->id)->sole();
+    expect(Storage::disk('local')->get($signed->file_path))->toBe($pdf);
     expect(File::glob(storage_path('app/private/signing-verification/*')))->toBeEmpty();
 });

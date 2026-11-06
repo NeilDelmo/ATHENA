@@ -113,6 +113,12 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 [data-proposal-paper-workspace] .semantic-rich-text-editor th { background: var(--proposal-writing-workspace); font-weight: 600; }
 [data-proposal-paper-workspace] .semantic-rich-text-editor td p { margin: 0; }
 .work-plan-writing-entry { container-type: inline-size; min-width: 0; }
+.specific-methods-editor { container-type: inline-size; }
+.specific-methods-grid { grid-template-columns: minmax(0, 1fr); }
+.specific-methods-grid > [data-specific-method-group]:only-of-type { grid-column: 1 / -1; }
+.specific-method-heading { field-sizing: content; min-height: 2.75rem; max-height: 7rem; resize: none; }
+.specific-method-description { field-sizing: content; min-height: 6rem; max-height: 14rem; }
+@container (min-width: 48rem) { .specific-methods-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .work-plan-writing-fields { grid-template-columns: minmax(0, 1fr); }
 .work-plan-writing-objective { grid-column: 1 / -1; }
 .work-plan-writing-fields textarea { border-radius: .375rem; box-shadow: none; }

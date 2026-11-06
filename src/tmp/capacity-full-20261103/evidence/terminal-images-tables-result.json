@@ -1,0 +1,45 @@
+{
+    "case": "terminal-images-tables",
+    "conversion_seconds": 68.70195492,
+    "source_path": "\/app\/storage\/app\/private\/capacity-output\/terminal-images-tables.docx",
+    "pdf_path": "\/app\/storage\/app\/private\/capacity-output\/terminal-images-tables.pdf",
+    "text_path": "\/app\/storage\/app\/private\/capacity-output\/terminal-images-tables.txt",
+    "pages": 415,
+    "docx_or_xlsx_bytes": 5910829,
+    "pdf_bytes": 20154858,
+    "input_counts": {
+        "images": 12,
+        "image_bytes": 5639834,
+        "accomplishments": 30,
+        "tables": 6,
+        "rows_per_table": 100,
+        "columns_per_table": 6,
+        "serialized_data_bytes": 1341912
+    },
+    "verified_markers": [
+        "ACCOMPLISHMENT30END",
+        "REPORTFIGURE12END",
+        "RESULTSEND",
+        "T6R100C6END",
+        "BIBLIOGRAPHYEND"
+    ],
+    "marker_extraction_fallbacks": {
+        "T6R100C6END": {
+            "method": "exact_column_text",
+            "pages": [
+                398,
+                399
+            ],
+            "crop": [
+                467,
+                50,
+                77,
+                814
+            ]
+        }
+    },
+    "source_generation_seconds": 0.321918953,
+    "fixture_and_validation_seconds": 0.554297811,
+    "elapsed_seconds": 72.093289592,
+    "php_peak_mib": 40.87109375
+}
