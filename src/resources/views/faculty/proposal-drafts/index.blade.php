@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="Draft proposals">
             <x-slot:actions>
-                <a wire:navigate href="{{ route('faculty.proposal-drafts.trash') }}" class="inline-flex min-h-11 items-center px-4 text-base font-semibold text-slate-600 dark:text-slate-300">Trash</a>
+                <a wire:navigate href="{{ route('faculty.proposal-drafts.trash') }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-base font-semibold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-900">
+                    <x-report-library-icon name="remove" />
+                    <span>Trash</span>
+                </a>
                 <a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action text-base">New Proposal</a>
             </x-slot:actions>
         </x-page-header>

@@ -37,6 +37,18 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+test('draft proposals show a labelled trash link with a trash can icon', function () {
+    $response = $this->actingAs($this->owner)->get(route('faculty.proposal-drafts.index'))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $link = $xpath->query('//a[@href="'.route('faculty.proposal-drafts.trash').'"]')->item(0);
+
+    expect($link)->not->toBeNull()
+        ->and(trim($link->textContent))->toBe('Trash')
+        ->and($xpath->query('.//svg[@aria-hidden="true"]/path', $link)->length)->toBe(1);
+});
+
 test('deleting a proposal draft preserves its papers history and membership for undo', function () {
     $path = $this->draft->storageDirectory().'/paper.pdf';
     Storage::disk('local')->put($path, '%PDF-1.7 paper');

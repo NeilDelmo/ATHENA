@@ -59,7 +59,8 @@ test('saving academic literature stores and links it once without opening its pr
         calls.push({ url, body: JSON.parse(options.body) });
         return response({ source: url === '/library' ? librarySource : saved });
     });
-    state.sourceWorkspaceTab = 'search';
+    state.proposalTitle = 'Education outcomes in rural districts';
+    await state.setSourceWorkspaceTab('search');
 
     assert.equal((await state.saveSourceWorkspaceSource(librarySource)).id, 52);
     assert.deepEqual(calls.map((call) => call.url), ['/library', '/proposal/sources/8']);
@@ -69,6 +70,9 @@ test('saving academic literature stores and links it once without opening its pr
     assert.equal((await state.saveSourceWorkspaceSource(librarySource)).id, 52);
     assert.equal(calls.length, 2);
     assert.equal(state.literatureSources.length, 2);
+
+    await state.setSourceWorkspaceTab('library');
+    assert.deepEqual(state.sourceWorkspaceSources(), [linkedSource, saved]);
 });
 
 test('saved literature lists only this proposal bookmarks and searches all of them beyond the shared catalog limit', async () => {

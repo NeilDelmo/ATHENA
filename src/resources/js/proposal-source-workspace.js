@@ -128,6 +128,7 @@ export function proposalSourceWorkspace(config = {}) {
         sourceWorkspaceCitationSource: null,
         sourceWorkspaceCitationMode: false,
         sourceWorkspaceQuery: '',
+        sourceWorkspaceOnlineQuery: '',
         sourceWorkspaceLibraryResults: [],
         sourceWorkspaceSearchResults: [],
         sourceWorkspaceSearchPerformed: false,
@@ -227,6 +228,7 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceCitationMode = Boolean(citationMode);
             if (!citationMode) this.citationPickerSelection = null;
             this.sourceWorkspaceQuery = '';
+            this.sourceWorkspaceOnlineQuery = '';
             this.sourceWorkspaceCitationSource = null;
             this.sourceWorkspaceView = 'list';
             this.sourceWorkspaceError = '';
@@ -277,8 +279,16 @@ export function proposalSourceWorkspace(config = {}) {
             this.sourceWorkspaceVersion++;
             this.invalidateSourceWorkspaceDraft();
             this.sourceWorkspaceLoading = false;
-            if (this.sourceWorkspaceCitationMode && tab !== this.sourceWorkspaceTab) this.citationPickerLocator = '';
-            this.sourceWorkspaceTab = ['paper', 'library', 'search', 'add'].includes(tab) ? tab : 'paper';
+            const nextTab = ['paper', 'library', 'search', 'add'].includes(tab) ? tab : 'paper';
+            if (nextTab !== this.sourceWorkspaceTab) {
+                if (this.sourceWorkspaceCitationMode) {
+                    this.citationPickerLocator = '';
+                } else {
+                    if (this.sourceWorkspaceTab === 'search') this.sourceWorkspaceOnlineQuery = this.sourceWorkspaceQuery;
+                    this.sourceWorkspaceQuery = nextTab === 'search' ? this.sourceWorkspaceOnlineQuery : '';
+                }
+                this.sourceWorkspaceTab = nextTab;
+            }
             if (this.sourceWorkspaceTab === 'search' && !this.sourceWorkspaceQuery.trim()) {
                 this.sourceWorkspaceQuery = sourceText(this.proposalTitle).slice(0, 500);
             }
