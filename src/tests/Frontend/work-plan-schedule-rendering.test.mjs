@@ -38,12 +38,9 @@ test('large Work Plans render only the open schedule while preserving saved mont
                 const register = Alpine.data.bind(Alpine);
                 Alpine.data = (name, factory) => register(name, config => {
                     const state = factory(config);
-                    const owner = state.monthOwnerIndex;
-                    state.monthOwnerIndex = function (...args) { window.ownerCalls++; return owner.apply(this, args); };
                     const initialize = state.init;
                     state.init = function () {
                         window.workPlanState = this;
-                        window.ownerCalls = 0;
                         window.scheduleStarted = performance.now();
                         initialize.call(this);
                         this.$nextTick(() => { window.scheduleInitialized = performance.now(); });
@@ -57,13 +54,11 @@ test('large Work Plans render only the open schedule while preserving saved mont
         await page.waitForFunction(() => window.scheduleInitialized);
         const initial = await page.evaluate(() => ({
             milliseconds: window.scheduleInitialized - window.scheduleStarted,
-            ownerCalls: window.ownerCalls,
             styledCheckboxes: document.querySelectorAll('.work-plan-writing-months input[type="checkbox"]').length,
             elements: document.querySelectorAll('*').length,
         }));
         context.diagnostic(`20-objective / 120-month initialization: ${JSON.stringify(initial)}`);
         assert.equal(initial.styledCheckboxes, 120, 'Collapsed schedules must not initialize another 2,280 styled month controls');
-        assert.ok(initial.ownerCalls < 3200, 'Collapsed schedules must avoid repeating ownership work across styled bindings');
         assert.equal(await page.locator('textarea').count(), 60, 'Collapsed objective fields stay available to browser validation');
 
         const months = index => page.evaluate(row => new FormData(document.querySelector('form')).getAll(`entries[${row}][months][]`), index);
@@ -80,7 +75,7 @@ test('large Work Plans render only the open schedule while preserving saved mont
         });
         assert.deepEqual(await payload(), initialPayload, 'Opening a schedule preserves exactly the same FormData, including filtered invalid months');
         const first = page.locator('[data-work-plan-entry-id="1"]');
-        assert.equal(await first.locator('input[type="checkbox"][value="2"]').isDisabled(), true);
+        assert.equal(await first.locator('input[type="checkbox"][value="2"]').isEnabled(), true);
         await first.locator('input[type="checkbox"][value="4"]').uncheck({ force: true });
         await page.evaluate(async () => { window.workPlanState.toggleEntry(window.workPlanState.entries[1]); await Alpine.nextTick(); });
         const second = page.locator('[data-work-plan-entry-id="2"]');
@@ -119,9 +114,7 @@ test('large Work Plans render only the open schedule while preserving saved mont
             const valid = window.workPlanState.validateForm();
             await Alpine.nextTick();
             return valid;
-        }), false);
-        await page.waitForFunction(() => document.activeElement?.name === 'entries[18][months][]' && document.activeElement.value === '2');
-        assert.equal(await page.evaluate(() => window.workPlanState.monthConflictIndexes.includes(18)), true);
+        }), true);
         assert.equal(await page.evaluate(async () => {
             window.workPlanState.entries.at(-1).months = [120];
             window.workPlanState.entries[0].expectedOutput = '';

@@ -11,10 +11,11 @@ class WorkPlanRules
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
      */
-    public static function rules(string $presenceRule = 'required', bool $allowDraft = false): array
+    public static function rules(string $presenceRule = 'required', bool $allowDraft = false, bool $allowIncompleteEntries = false): array
     {
         $minimumEntries = $allowDraft ? [] : ['min:1'];
-        $minimumMonths = $allowDraft ? [] : ['min:1'];
+        $minimumMonths = $allowDraft || $allowIncompleteEntries ? [] : ['min:1'];
+        $entryDetailsPresence = $allowIncompleteEntries ? 'nullable' : $presenceRule;
 
         return [
             'project_title' => [$presenceRule, 'string', 'max:255'],
@@ -24,9 +25,9 @@ class WorkPlanRules
             'entries' => [$presenceRule, 'array', ...$minimumEntries, 'max:'.config('work_plan.max_objectives')],
             'entries.*' => [$allowDraft ? 'array' : 'array:objective,expected_output,activity,months'],
             'entries.*.objective' => [$presenceRule, 'string', 'max:500'],
-            'entries.*.expected_output' => [$presenceRule, 'string', 'max:500'],
-            'entries.*.activity' => [$presenceRule, 'string', 'max:1500'],
-            'entries.*.months' => [$presenceRule, 'array', ...$minimumMonths, 'max:'.config('work_plan.max_duration_months')],
+            'entries.*.expected_output' => [$entryDetailsPresence, 'string', 'max:500'],
+            'entries.*.activity' => [$entryDetailsPresence, 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'entries.*.months' => [$entryDetailsPresence, 'array', ...$minimumMonths, 'max:'.config('work_plan.max_duration_months')],
             'entries.*.months.*' => ['integer', Rule::in(range(1, (int) config('work_plan.max_duration_months'))), 'lte:total_duration_months'],
             'prepared_by' => [$presenceRule, 'string', 'max:120'],
             'verified_by' => ['nullable', 'string', 'max:120'],
@@ -37,40 +38,30 @@ class WorkPlanRules
     /**
      * @return list<callable(Validator): void>
      */
-    public static function afterCallbacks(mixed $entries, mixed $durationMonths, bool $allowDraft = false): array
+    public static function afterCallbacks(mixed $entries, bool $allowDraft = false): array
     {
         if ($allowDraft) {
             return [];
         }
 
-        return [function (Validator $validator) use ($durationMonths, $entries): void {
+        return [function (Validator $validator) use ($entries): void {
             if (! is_array($entries)) {
                 return;
             }
-
-            if (is_numeric($durationMonths) && count($entries) > (int) $durationMonths) {
-                $validator->errors()->add(
-                    'entries',
-                    'A '.$durationMonths.'-month plan can contain at most '.$durationMonths.' objectives because each objective must use a different month.',
-                );
-            }
-
-            $monthOwners = [];
 
             foreach ($entries as $entryIndex => $entry) {
                 if (! is_array($entry) || ! is_array($entry['months'] ?? null)) {
                     continue;
                 }
 
+                $selectedMonths = [];
                 foreach ($entry['months'] as $month) {
                     if (! is_numeric($month)) {
                         continue;
                     }
 
                     $month = (int) $month;
-                    $ownerIndex = $monthOwners[$month] ?? null;
-
-                    if ($ownerIndex === $entryIndex) {
+                    if (isset($selectedMonths[$month])) {
                         $validator->errors()->add(
                             "entries.{$entryIndex}.months",
                             'M'.$month.' was selected more than once for Objective '.($entryIndex + 1).'.',
@@ -79,16 +70,7 @@ class WorkPlanRules
                         continue;
                     }
 
-                    if ($ownerIndex !== null) {
-                        $validator->errors()->add(
-                            "entries.{$entryIndex}.months",
-                            'M'.$month.' is already assigned to Objective '.($ownerIndex + 1).'. Each month can be assigned to only one objective.',
-                        );
-
-                        continue;
-                    }
-
-                    $monthOwners[$month] = $entryIndex;
+                    $selectedMonths[$month] = true;
                 }
             }
         }];

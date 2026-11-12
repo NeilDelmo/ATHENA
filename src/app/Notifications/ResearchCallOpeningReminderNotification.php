@@ -5,15 +5,9 @@ namespace App\Notifications;
 use App\Models\ResearchCall;
 use App\Models\User;
 use Carbon\CarbonInterface;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\BroadcastMessage;
-use Illuminate\Notifications\Notification;
 
-class ResearchCallOpeningReminderNotification extends Notification implements ShouldQueue
+class ResearchCallOpeningReminderNotification extends ResearchCallNotification
 {
-    use Queueable;
-
     public function __construct(
         public int $researchCallId,
         public string $researchCallTitle,
@@ -21,11 +15,6 @@ class ResearchCallOpeningReminderNotification extends Notification implements Sh
         public string $url,
     ) {
         $this->afterCommit();
-    }
-
-    public function via(object $notifiable): array
-    {
-        return ['database', 'broadcast'];
     }
 
     public function shouldSend(object $notifiable, string $channel): bool
@@ -49,11 +38,6 @@ class ResearchCallOpeningReminderNotification extends Notification implements Sh
             'research_call_id' => $this->researchCallId,
             'workspace' => User::WORKSPACE_RESEARCH_HEAD,
         ];
-    }
-
-    public function toBroadcast(object $notifiable): BroadcastMessage
-    {
-        return new BroadcastMessage($this->toArray($notifiable));
     }
 
     public function broadcastType(): string

@@ -74,7 +74,7 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertSee('isEntryExpanded(entry)', false)
         ->assertSee('Collapse')
         ->assertSee('>Edit<', false)
-        ->assertSee('Each month can belong to only one objective.')
+        ->assertSee('Objectives can run in the same month.')
         ->assertSee('automatically expands each row')
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Signature names')
@@ -238,7 +238,7 @@ test('the Work Plan validates the supported multi-year duration and dynamic obje
         ->assertJsonValidationErrors('entries');
 });
 
-test('the Gantt schedule assigns each month to only one objective', function () {
+test('the Gantt schedule allows objectives to run in the same month', function () {
     $payload = ($this->validWorkPlan)();
     $payload['entries'][] = [
         'objective' => 'Develop the implementation model',
@@ -249,11 +249,7 @@ test('the Gantt schedule assigns each month to only one objective', function () 
 
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.work-plans.preview'), $payload)
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('entries.1.months')
-        ->assertJsonFragment([
-            'M3 is already assigned to Objective 1. Each month can be assigned to only one objective.',
-        ]);
+        ->assertOk();
 
     $payload['entries'][1]['months'] = [4, 5, 6];
 
@@ -272,7 +268,7 @@ test('the Gantt schedule rejects a repeated month within one objective', functio
         ->assertJsonValidationErrors('entries.0.months');
 });
 
-test('the number of objectives cannot exceed the number of available project months', function () {
+test('the number of objectives may exceed the number of project months', function () {
     $payload = ($this->validWorkPlan)();
     $payload['total_duration_months'] = 2;
     $payload['entries'] = collect(range(1, 3))
@@ -286,8 +282,7 @@ test('the number of objectives cannot exceed the number of available project mon
 
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.work-plans.preview'), $payload)
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('entries');
+        ->assertOk();
 });
 
 test('the preview expands objective rows, shades Gantt months, and fixes the verifier', function () {

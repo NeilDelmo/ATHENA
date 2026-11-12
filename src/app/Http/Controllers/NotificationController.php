@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Actions\AcceptProposalWorkspaceInvitation;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
+use App\Models\ProposalInvitationEmail;
+use App\Models\TopicCollaborator;
+use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\FacultyProjectCapacityService;
@@ -19,6 +22,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 use Throwable;
 
 class NotificationController extends Controller
@@ -96,34 +100,54 @@ class NotificationController extends Controller
 
     public function showProposalInvitation(
         Request $request,
-        ProposalDraftMember $proposalDraftMember,
+        int $proposalDraftMember,
         FacultyProjectCapacityService $capacityService,
     ): View|RedirectResponse {
-        Gate::authorize('review', $proposalDraftMember);
+        $member = ProposalDraftMember::query()->with('draft.owner:id,name', 'draft.researchCall')->find($proposalDraftMember);
+        if ($member === null) {
+            $collaborator = $this->submittedInvite($request->user(), $proposalDraftMember);
+            if ($collaborator->accepted_at !== null) {
+                return $this->submittedInviteDestination($request->user(), $collaborator->topic);
+            }
 
-        if ($proposalDraftMember->isAccepted()) {
+            return view('notifications.proposal-invitation', [
+                'invitationId' => $proposalDraftMember,
+                'inviterName' => $collaborator->topic->user->name,
+                'projectTitle' => $collaborator->topic->title,
+                'submitted' => true,
+                'workloadWarning' => $capacityService->warningForAdditionalParticipation(
+                    $request->user(),
+                    $collaborator->topic->researchCall,
+                ),
+            ]);
+        }
+
+        Gate::authorize('review', $member);
+
+        if ($member->isAccepted()) {
             if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
-                return redirect()->route('faculty.proposal-drafts.show', $proposalDraftMember->draft);
+                return redirect()->route('faculty.proposal-drafts.show', $member->draft);
             }
 
             return redirect()->route($request->user()->dashboardRouteName() ?? 'workspace.select')
                 ->with('status', 'This invitation is already accepted. Switch to the Faculty workspace to edit the shared proposal.');
         }
 
-        $proposalDraftMember->loadMissing('draft.owner:id,name', 'draft.researchCall');
-
         return view('notifications.proposal-invitation', [
-            'proposalDraftMember' => $proposalDraftMember,
+            'invitationId' => $proposalDraftMember,
+            'inviterName' => $member->draft->owner->name,
+            'projectTitle' => $member->draft->project_title,
+            'submitted' => false,
             'workloadWarning' => $capacityService->warningForAdditionalParticipation(
                 $request->user(),
-                $proposalDraftMember->draft->researchCall,
+                $member->draft->researchCall,
             ),
         ]);
     }
 
     public function acceptProposalInvitation(
         Request $request,
-        ProposalDraftMember $proposalDraftMember,
+        int $proposalDraftMember,
         AcceptProposalWorkspaceInvitation $acceptInvitation,
         FacultyProjectCapacityService $capacityService,
     ): JsonResponse|RedirectResponse {
@@ -131,9 +155,13 @@ class NotificationController extends Controller
             'notification_id' => ['nullable', 'uuid'],
         ]);
 
-        Gate::authorize('accept', $proposalDraftMember);
+        $member = ProposalDraftMember::query()->find($proposalDraftMember);
+        if ($member === null) {
+            return $this->respondToSubmittedInvite($request, $proposalDraftMember, accept: true);
+        }
+        Gate::authorize('accept', $member);
 
-        $proposalDraft = $acceptInvitation->handle($request->user(), $proposalDraftMember);
+        $proposalDraft = $acceptInvitation->handle($request->user(), $member);
         $workloadWarning = $capacityService->warningForAdditionalParticipation(
             $request->user(),
             $proposalDraft->researchCall,
@@ -161,14 +189,18 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function declineProposalInvitation(Request $request, ProposalDraftMember $proposalDraftMember): JsonResponse|RedirectResponse
+    public function declineProposalInvitation(Request $request, int $proposalDraftMember): JsonResponse|RedirectResponse
     {
         $request->validate(['notification_id' => ['nullable', 'uuid']]);
-        Gate::authorize('decline', $proposalDraftMember);
+        $member = ProposalDraftMember::query()->find($proposalDraftMember);
+        if ($member === null) {
+            return $this->respondToSubmittedInvite($request, $proposalDraftMember, accept: false);
+        }
+        Gate::authorize('decline', $member);
 
-        $draft = DB::transaction(function () use ($proposalDraftMember): ProposalDraft {
-            $draft = $proposalDraftMember->draft()->lockForUpdate()->firstOrFail();
-            $membership = $draft->members()->lockForUpdate()->findOrFail($proposalDraftMember->getKey());
+        $draft = DB::transaction(function () use ($member): ProposalDraft {
+            $draft = $member->draft()->lockForUpdate()->firstOrFail();
+            $membership = $draft->members()->lockForUpdate()->findOrFail($member->getKey());
             Gate::authorize('decline', $membership);
             $membership->delete();
 
@@ -195,7 +227,85 @@ class NotificationController extends Controller
             : redirect()->to($url);
     }
 
-    private function completeInvitationNotification(Request $request, ProposalDraftMember $proposalDraftMember, bool $declined = false): void
+    private function submittedInvite(User $user, int $invitationId, bool $lock = false): TopicCollaborator
+    {
+        $link = ProposalInvitationEmail::query()->whereNotNull('topic_collaborator_id')->findOrFail($invitationId);
+        $collaborator = $link->collaborator()->with('topic.user:id,name', 'topic.researchCall')
+            ->when($lock, fn ($query) => $query->lockForUpdate())
+            ->firstOrFail();
+
+        abort_unless($user->canUseWorkspace(User::WORKSPACE_FACULTY)
+            && ($collaborator->user_id === $user->getKey()
+                || ($collaborator->user_id === null && $user->email_verified_at !== null
+                    && $collaborator->email === mb_strtolower(trim($user->email)))), 403);
+
+        return $collaborator;
+    }
+
+    private function respondToSubmittedInvite(Request $request, int $invitationId, bool $accept): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        $topic = DB::transaction(function () use ($user, $invitationId, $accept): TopicProposal {
+            $collaborator = $this->submittedInvite($user, $invitationId, lock: true);
+            abort_if($collaborator->accepted_at !== null, 403);
+            $topic = $collaborator->topic;
+            $pendingRevisionMemberships = ProposalDraftMember::query()
+                ->whereHas('draft', fn ($query) => $query->withTrashed()->where('topic_id', $topic->id))
+                ->where('email', $collaborator->email)->whereNull('accepted_at');
+
+            if ($accept) {
+                $acceptance = [
+                    'user_id' => $user->getKey(),
+                    'name' => $user->name,
+                    'accepted_at' => now(),
+                ];
+                $collaborator->update($acceptance);
+                $pendingRevisionMemberships->update($acceptance);
+                if ($topic->hasIssuedNoticeToProceed()) {
+                    $user->assignRole(Role::findOrCreate(User::WORKSPACE_FACULTY_RESEARCHER, 'web'));
+                }
+            } else {
+                $pendingRevisionMemberships->delete();
+                $collaborator->delete();
+            }
+
+            return $topic;
+        }, 3);
+
+        $this->completeInvitationNotification($request, $invitationId, declined: ! $accept);
+        $message = $accept ? 'Invitation accepted.' : 'Invitation declined.';
+        $request->session()->flash('status', $message);
+        $response = $accept
+            ? $this->submittedInviteDestination($user, $topic)
+            : redirect()->route($user->dashboardRouteName() ?? 'workspace.select');
+
+        try {
+            $topic->user->notify(new ProposalActivityNotification(
+                title: 'Project staff invitation '.($accept ? 'accepted' : 'declined'),
+                message: $user->name.($accept ? ' accepted' : ' declined').' the project staff invitation for "'.$topic->title.'".',
+                url: route('topics.show', $topic),
+                topicId: $topic->id,
+            ));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        return $request->expectsJson()
+            ? response()->json([($accept ? 'accepted' : 'declined') => true, 'url' => $response->getTargetUrl(), 'message' => $message])
+            : $response;
+    }
+
+    private function submittedInviteDestination(User $user, TopicProposal $topic): RedirectResponse
+    {
+        if (Gate::forUser($user)->allows('view', $topic)) {
+            return redirect()->route('topics.show', $topic);
+        }
+
+        return redirect()->route($user->dashboardRouteName() ?? 'workspace.select')
+            ->with('status', 'Switch to the Faculty workspace to view the submitted proposal.');
+    }
+
+    private function completeInvitationNotification(Request $request, int $proposalDraftMember, bool $declined = false): void
     {
         $notificationId = $request->string('notification_id')->toString();
         $expectedActionUrl = route('notifications.proposal-invitations.accept', $proposalDraftMember);

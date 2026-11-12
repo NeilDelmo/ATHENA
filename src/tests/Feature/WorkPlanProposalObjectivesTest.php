@@ -53,6 +53,69 @@ test('the Work Plan editor imports proposal objectives and preserves existing ac
         ->assertViewHas('sourceData', fn (array $source): bool => $source['entries'] == $this->entries);
 });
 
+test('the Work Plan starts with matching proposal methods and shows overall outputs as reference', function () {
+    $this->proposal->update(['source_data' => [
+        ...$this->proposal->source_data,
+        'specific_method_objectives' => [
+            ['heading' => ' evaluate   THE intervention ', 'methods' => [['description' => 'Compare outcomes']]],
+            ['heading' => 'Establish the baseline', 'methods' => [
+                ['description' => 'Conduct interviews'], ['description' => 'Validate the dataset'],
+            ]],
+            ['heading' => 'Unrelated method group', 'methods' => [['description' => 'Do not import this']]],
+        ],
+        'expected_outputs' => ['publication' => [['description' => 'One journal article']]],
+    ]]);
+
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Overall outputs from Detailed Proposal')
+        ->assertSee('One journal article')
+        ->assertViewHas('sourceData', fn (array $source): bool => $source['entries'][0]['activity'] === "Conduct interviews\nValidate the dataset"
+            && $source['entries'][1]['activity'] === 'Compare outcomes'
+            && $source['entries'][0]['expected_output'] === '');
+});
+
+test('unmatched proposal methods are not assigned by their position', function () {
+    $this->proposal->update(['source_data' => [
+        ...$this->proposal->source_data,
+        'specific_method_objectives' => [
+            ['heading' => 'Another objective', 'methods' => [['description' => 'Unrelated activity']]],
+        ],
+    ]]);
+
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
+        ->assertOk()->assertViewHas('sourceData', fn (array $source): bool => array_column($source['entries'], 'activity') === ['', '']);
+});
+
+test('proposal method suggestions preserve customized work plan activities and months', function () {
+    $this->proposal->update(['source_data' => [
+        ...$this->proposal->source_data,
+        'specific_method_objectives' => [
+            ['heading' => 'Establish the baseline', 'methods' => [['description' => 'New proposal method']]],
+        ],
+    ]]);
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN, 'position' => 0,
+        'source_data' => ['entries' => $this->entries],
+    ]);
+
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
+        ->assertOk()
+        ->assertViewHas('sourceData', fn (array $source): bool => $source['entries'] == $this->entries)
+        ->assertViewHas('proposalActivities', fn (array $activities): bool => $activities['Establish the baseline'] === 'New proposal method');
+});
+
+test('work plans save overlapping months without replacing edited activities from the proposal', function () {
+    $entries = $this->entries;
+    $entries[1]['months'] = [1, 2];
+    $this->actingAs($this->faculty)->putJson(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
+        'document_version' => 0, 'entries' => $entries,
+    ])->assertOk();
+
+    expect($this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole()->source_data['entries'])
+        ->toEqual($entries);
+});
+
 test('proposal narrative edits preserve the prepared Work Plan unless its objectives change', function (bool $objectivesChanged) {
     Storage::fake('local');
     $path = $this->draft->storageDirectory().'/prepared/work-plan/current.pdf';
@@ -90,6 +153,28 @@ test('Work Plan saving and preview use authoritative objectives instead of submi
     expect($document->source_data['entries'])->toEqual($this->entries);
     $this->postJson(route('faculty.proposal-drafts.work-plan.preview', $this->draft), ['entries' => $entries])
         ->assertOk()->assertSee('Establish the baseline')->assertDontSee('Unrelated client objective');
+});
+
+test('the Work Plan paper preview shows unfinished and unscheduled objectives', function () {
+    $this->draft->update(['duration_months' => 24, 'planned_end' => '2028-09-30']);
+    $entries = [
+        ['objective' => 'Establish the baseline', 'activity' => 'Collect initial responses'],
+        [...$this->entries[1], 'months' => [13]],
+    ];
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.work-plan.preview', $this->draft), ['entries' => $entries])
+        ->assertOk()
+        ->assertSee('Establish the baseline')
+        ->assertSee('Collect initial responses')
+        ->assertSee('data-scheduled-month="13"', false)
+        ->assertViewHas('workPlan', fn (array $workPlan): bool => array_column($workPlan['entries_by_year'][1], 'objective') === ['Establish the baseline']
+            && $workPlan['entries_by_year'][1][0]['months'] === []
+            && array_column($workPlan['entries_by_year'][2], 'objective') === ['Evaluate the intervention']);
+
+    $this->postJson(route('faculty.proposal-drafts.work-plan.download', $this->draft), [
+        'save_as_draft' => true, 'entries' => $entries,
+    ])->assertUnprocessable()->assertJsonValidationErrors(['entries.0.expected_output', 'entries.0.months']);
 });
 
 test('reordered and added proposal objectives keep their matching work plan details', function () {

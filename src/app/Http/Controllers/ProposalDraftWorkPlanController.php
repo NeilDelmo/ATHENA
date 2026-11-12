@@ -35,11 +35,20 @@ class ProposalDraftWorkPlanController extends Controller
             'entries' => [],
         ];
         $linkedObjectives = $proposalObjectives->forDraft($proposalDraft);
+        $proposal = $proposalObjectives->proposalForDraft($proposalDraft);
+        $proposalActivities = $proposalObjectives->activities($proposal);
+        $proposalOutputs = collect($proposal['expected_outputs'])->filter()->all();
         $initialEntries = old('entries', $sourceData['entries'] ?? []);
         $sourceData['entries'] = $proposalObjectives->entries(
             is_array($initialEntries) ? $initialEntries : [],
             $linkedObjectives,
         );
+        foreach ($sourceData['entries'] as &$entry) {
+            if (blank($entry['activity'])) {
+                $entry['activity'] = $proposalActivities[$entry['objective']] ?? '';
+            }
+        }
+        unset($entry);
 
         return view('faculty.proposal-drafts.work-plan.edit', compact(
             'proposalDraft',
@@ -47,6 +56,8 @@ class ProposalDraftWorkPlanController extends Controller
             'workPlanDocument',
             'sourceData',
             'linkedObjectives',
+            'proposalActivities',
+            'proposalOutputs',
         ));
     }
 
@@ -104,7 +115,7 @@ class ProposalDraftWorkPlanController extends Controller
     ): View {
         Gate::authorize('update', $proposalDraft);
 
-        $workPlan = WorkPlanData::fromValidated($request->validated());
+        $workPlan = WorkPlanData::fromValidated($request->validated(), includeUnscheduledEntries: true);
 
         return view('faculty.work-plans.preview', compact('workPlan'));
     }

@@ -3,6 +3,7 @@
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -57,6 +58,10 @@ test('vcrdes monitors issued projects across colleges using only forwarded progr
             ->and(trim($link->textContent))->toBeEmpty()
             ->and($xpath->query('.//*[local-name()="svg"]', $link)->length)->toBe(1);
     }
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/dashboard-vcrdes.html'), $response->getContent());
+    }
     $this->get('/vcrdes/dashboard?college=CAS')->assertOk()->assertDontSeeText($project->title);
     $this->get('/vcrdes/dashboard?college=CICS')->assertOk()->assertSeeText($project->title)
         ->assertViewHas('colleges', fn ($colleges): bool => $colleges['CICS']['total'] === 1);
@@ -96,7 +101,11 @@ test('monitoring navigation can return to dashboard sections from the profile pa
 });
 
 test('monitoring filters reject malformed values and empty portfolios give a useful state', function () {
-    $this->get('/vcrdes/dashboard')->assertOk()->assertSee('No issued projects yet');
+    $response = $this->get('/vcrdes/dashboard')->assertOk()->assertSee('No issued projects yet');
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/dashboard-vcrdes-empty.html'), $response->getContent());
+    }
     foreach (['q[]=invalid', 'college=invalid', 'status=invalid'] as $query) {
         $this->getJson('/vcrdes/dashboard?'.$query)->assertUnprocessable();
     }

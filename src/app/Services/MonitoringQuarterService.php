@@ -127,7 +127,7 @@ class MonitoringQuarterService
         $approvedStart = data_get($topic->notice_to_proceed_data, 'approved_start_date');
         $approvedEnd = data_get($topic->notice_to_proceed_data, 'approved_end_date');
 
-        $start = $approvedStart ? $issued->max(CarbonImmutable::parse($approvedStart)->startOfDay()) : $issued;
+        $start = $approvedStart ? CarbonImmutable::parse($approvedStart)->startOfDay() : $issued;
         $months = max(1, (int) (data_get($topic->notice_to_proceed_data, 'approved_duration_months') ?: $topic->estimated_duration_months ?: 12));
 
         return ['start' => $start, 'end' => $approvedEnd ? CarbonImmutable::parse($approvedEnd)->endOfDay() : $start->addMonthsNoOverflow($months)->subDay()->endOfDay()];

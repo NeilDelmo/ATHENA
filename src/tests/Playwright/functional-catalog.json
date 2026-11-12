@@ -1,0 +1,1730 @@
+{
+  "source": "ATHENA_Functional_Test_Cases.xlsx",
+  "manuscript": "UPDATED-FULL-MANU-REVISE.docx; Table IV",
+  "cases": [
+    {
+      "id": "AUTH-01",
+      "feature": "User Authentication",
+      "scenario": "Sign in with valid credentials",
+      "roles": "Research Head, Research Office Secretary, Research Coordinator, Faculty Researcher and Faculty; execute separately for each applicable role",
+      "type": "Positive",
+      "preconditions": "Active account for the role; signed out",
+      "data": "Valid synthetic account credentials",
+      "steps": "1. Open sign-in.\n2. Enter credentials.\n3. Submit.\n4. Check identity and available navigation.",
+      "expected": "Correct account is authenticated; landing page and available functions match its assigned role.",
+      "evidenceRequested": "Role, landing page and identity screenshot; omit credentials.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Google OAuth was excluded by request. Synthetic local sessions and saved deployed sessions do not execute a real credential sign-in.",
+      "blocked": true,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-ROLES: each test identity enters its own workspace"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "AUTH-02",
+      "feature": "User Authentication",
+      "scenario": "Reject an incorrect password",
+      "roles": "Any test account",
+      "type": "Negative",
+      "preconditions": "Active account; signed out",
+      "data": "Valid account identifier with an incorrect password",
+      "steps": "1. Open sign-in.\n2. Submit the incorrect password.\n3. Attempt a protected page.",
+      "expected": "Authentication is rejected; protected content remains inaccessible.",
+      "evidenceRequested": "Validation message and protected-page outcome.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "The supplied case assumes an ATHENA password field; the implemented sign-in uses Google. Confirm an OAuth-equivalent invalid-credential case.",
+      "blocked": true,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "AUTH-03",
+      "feature": "User Authentication",
+      "scenario": "Reject an unknown account",
+      "roles": "Unauthenticated user",
+      "type": "Negative",
+      "preconditions": "Signed out",
+      "data": "Unregistered synthetic identifier",
+      "steps": "1. Enter unregistered identifier and a password.\n2. Submit sign-in.",
+      "expected": "No authenticated session is created; the configured sign-in error is displayed.",
+      "evidenceRequested": "Sign-in error and session outcome.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "A real unknown Google/institutional-account sign-in was not executed. Confirm the expected institutional account rejection flow.",
+      "blocked": true,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "AUTH-04",
+      "feature": "User Authentication",
+      "scenario": "Validate required sign-in fields",
+      "roles": "Unauthenticated user",
+      "type": "Validation",
+      "preconditions": "Signed out",
+      "data": "Blank identifier; blank password; each blank separately",
+      "steps": "1. Submit both fields blank.\n2. Repeat with each required field missing.",
+      "expected": "Required input is validated; no authentication occurs.",
+      "evidenceRequested": "One record per input variation and displayed validation.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "The supplied blank identifier/password form does not exist in the ATHENA Google sign-in screen. Confirm the applicable OAuth validation requirement.",
+      "blocked": true,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "AUTH-05",
+      "feature": "User Authentication",
+      "scenario": "End the authenticated session",
+      "roles": "Research Head, Research Office Secretary, Research Coordinator, Faculty Researcher and Faculty; execute separately for each applicable role",
+      "type": "Session",
+      "preconditions": "Signed in",
+      "data": "Existing authenticated session",
+      "steps": "1. Sign out.\n2. Revisit a protected route.\n3. Refresh or use browser back and refresh.",
+      "expected": "The signed-out session cannot retrieve protected content.",
+      "evidenceRequested": "Logout and subsequent protected-request outcomes.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [faculty]: logout removes access after navigation, back and refresh"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [head]: logout removes access after navigation, back and refresh"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [secretary]: logout removes access after navigation, back and refresh"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [coordinator]: logout removes access after navigation, back and refresh"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [vcrdes]: logout removes access after navigation, back and refresh"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [outsider]: logout removes access after navigation, back and refresh"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-05 [faculty_researcher]: promoted researcher logout protects refreshed pages"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "AUTH-05 [secretary logout]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "ACCESS-01",
+      "feature": "Role-Based Access Control",
+      "scenario": "Allow each assigned action",
+      "roles": "Research Head, Research Office Secretary, Research Coordinator, Faculty Researcher and Faculty; execute separately for each applicable role",
+      "type": "Authorization",
+      "preconditions": "Permission matrix confirmed; account signed in",
+      "data": "List of actions allowed for each role",
+      "steps": "1. Open each permitted feature.\n2. Execute one allowed action.\n3. Verify its intended effect.",
+      "expected": "Each permitted action is available and produces its specified result.",
+      "evidenceRequested": "Separate evidence for each role/action combination.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Representative allowed workflows are covered, but the workbook requires every assigned action for every applicable role. A complete permission-action matrix has not been executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "AUTH-ROLES: each test identity enters its own workspace"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "ACCESS-02",
+      "feature": "Role-Based Access Control",
+      "scenario": "Deny a restricted action through a direct request",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Synthetic records prepared; expected values recorded in the reference dataset; protected action URL/request identified",
+      "data": "Restricted action and synthetic record ID",
+      "steps": "1. Sign in as restricted account.\n2. Send the protected request directly.\n3. Check response and record state.",
+      "expected": "Server denies the prohibited action; no restricted data or unauthorized change is produced.",
+      "evidenceRequested": "Response plus before/after record evidence.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-02 [forbidden call mutation]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "ACCESS-03",
+      "feature": "Role-Based Access Control",
+      "scenario": "Deny access to another restricted record",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Two records with distinct owners or organizational scopes; matrix defines restriction",
+      "data": "Own record A and restricted record B",
+      "steps": "1. Confirm permitted access to A.\n2. Replace identifier with B in the corresponding request.\n3. Attempt retrieval and modification separately.",
+      "expected": "B remains inaccessible to this account; no unauthorized modification occurs.",
+      "evidenceRequested": "Per-operation response and before/after state.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-OWNER: another faculty member cannot read or change the proposal"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-03 PROP-05 [restricted draft read]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-03 PROP-05 [restricted draft update]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-03 [own project permitted]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "ACCESS-04",
+      "feature": "Role-Based Access Control",
+      "scenario": "Reject unauthenticated protected requests",
+      "roles": "Unauthenticated user",
+      "type": "Authorization",
+      "preconditions": "Signed out; protected resources identified",
+      "data": "Protected route and record identifier",
+      "steps": "1. Request protected page.\n2. Request applicable protected endpoint without authentication.",
+      "expected": "Configured sign-in redirect or access rejection occurs; protected records are not disclosed.",
+      "evidenceRequested": "Page and endpoint outcomes.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-01: signed-out visitors cannot open Faculty dashboard"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-02: signed-out visitors cannot open Research Coordinator dashboard"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-03: signed-out visitors cannot open Research Head dashboard"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-04: signed-out visitors cannot open Research Secretary dashboard"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-05: signed-out visitors cannot open VCRDES dashboard"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-06: signed-out visitors cannot open Proposal drafts"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-07: signed-out visitors cannot open Research manual management"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-08: signed-out visitors cannot open Research support"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out dashboard]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out document]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out manual]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "CALL-01",
+      "feature": "Research Call Management",
+      "scenario": "Create and publish a research call",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Positive",
+      "preconditions": "Role permitted to create and publish calls",
+      "data": "Synthetic title, dates, description and required fields",
+      "steps": "1. Create call.\n2. Save using the supported workflow.\n3. Publish using the permitted action.\n4. Reopen the call.",
+      "expected": "Stored and displayed details match the inputs; publication follows the specified workflow.",
+      "evidenceRequested": "Saved record, publication state and display.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-01 [create draft]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-01 [stored fields]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-01 [publish]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-01 [published]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "CALL-02",
+      "feature": "Research Call Management",
+      "scenario": "Validate incomplete or invalid call details",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Validation",
+      "preconditions": "Call form available; actual field rules confirmed",
+      "data": "Missing required title; date input violating a confirmed rule",
+      "steps": "1. Submit missing required information.\n2. Repeat using invalid dates if a rule exists.",
+      "expected": "Configured validation prevents invalid saving or publication; existing records remain unchanged.",
+      "evidenceRequested": "Input variation, validation and saved-state check.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-02 [missing title]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-02 [end before start]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-02 [invalid calls not stored]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "CALL-03",
+      "feature": "Research Call Management",
+      "scenario": "Show published information to intended users",
+      "roles": "Research Head, Research Office Secretary, Research Coordinator, Faculty Researcher and Faculty; execute separately for each applicable role",
+      "type": "Visibility",
+      "preconditions": "One published call and one unpublished call; audience rules confirmed",
+      "data": "Published and unpublished call IDs",
+      "steps": "1. Sign in as an intended viewer.\n2. Open call list and published call.\n3. Attempt unpublished call retrieval if restricted.",
+      "expected": "Published information is correct; unpublished information follows the confirmed audience restrictions.",
+      "evidenceRequested": "List/detail views and restricted retrieval outcome.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Published/draft visibility is checked for Faculty only. Remaining applicable role/audience variations are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-03 [published visible, draft hidden]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "CALL-04",
+      "feature": "Research Call Management",
+      "scenario": "Retain authorized call updates",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Positive",
+      "preconditions": "Editable synthetic call",
+      "data": "Revised permitted description or date",
+      "steps": "1. Edit a permitted field.\n2. Save.\n3. Reload as editor and intended viewer.",
+      "expected": "Permitted updates persist and appear to the intended audience without altering unrelated fields.",
+      "evidenceRequested": "Before/after values and viewer display.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Stored edit fields are checked independently; the changed field has not been compared in both editor and intended-viewer screens.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-04 [edit]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "CALL-04 [persisted edit]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROP-01",
+      "feature": "Research Proposal Management",
+      "scenario": "Save and submit a complete proposal",
+      "roles": "Faculty Researcher or permitted submitting role",
+      "type": "Positive",
+      "preconditions": "Eligible call; prerequisites confirmed",
+      "data": "Complete synthetic proposal and supported documents",
+      "steps": "1. Prepare proposal.\n2. Save if supported.\n3. Submit.\n4. Reopen the record.",
+      "expected": "Inputs persist; ownership and call association are correct; status follows the confirmed submission workflow.",
+      "evidenceRequested": "Input reference, saved record and resulting status.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "SUBMIT: prepare seven real PDFs and turn in the proposal"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROP-02",
+      "feature": "Research Proposal Management",
+      "scenario": "Reject an incomplete proposal",
+      "roles": "Permitted submitting role",
+      "type": "Validation",
+      "preconditions": "Proposal form and required fields identified",
+      "data": "One required field or attachment omitted per variation",
+      "steps": "1. Prepare proposal.\n2. Omit one required item.\n3. Submit.\n4. Repeat each required-item variation.",
+      "expected": "Validation identifies missing requirements; proposal does not advance to a state requiring a complete submission.",
+      "evidenceRequested": "Per-field validation and unchanged status.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "A fully parameterized omission of every required field and attachment has not been executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROP-03",
+      "feature": "Research Proposal Management",
+      "scenario": "Retain permitted proposal edits",
+      "roles": "Proposal owner or permitted editor",
+      "type": "Positive",
+      "preconditions": "Proposal in an editable state",
+      "data": "Revised synthetic title or other editable field",
+      "steps": "1. Edit a permitted field.\n2. Save.\n3. Reload the proposal.",
+      "expected": "Allowed changes persist; unrelated information and associations remain correct.",
+      "evidenceRequested": "Before/after values and status.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "DRAFT-SAVE: faculty creates a draft and saved details survive a reload"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "REVISE: Head highlights a paper and faculty submits a corrected version"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROP-04",
+      "feature": "Research Proposal Management",
+      "scenario": "Enforce submission prerequisites",
+      "roles": "Permitted submitting role",
+      "type": "Workflow",
+      "preconditions": "A confirmed submission prerequisite is unmet",
+      "data": "Proposal failing that specific prerequisite",
+      "steps": "1. Record unmet prerequisite.\n2. Attempt submission.\n3. Inspect status and saved data.",
+      "expected": "Submission follows the documented prerequisite rule; no invalid workflow transition occurs.",
+      "evidenceRequested": "Rule reference, rejection and unchanged state.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "An incomplete proposal submission is rejected, but every documented prerequisite has not been isolated as a separate variation.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "PROP-04 [closed/unpublished call prerequisite]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROP-05",
+      "feature": "Research Proposal Management",
+      "scenario": "Restrict proposal edits by ownership and state",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "A proposal outside the account's permitted ownership or edit state",
+      "data": "Restricted proposal ID",
+      "steps": "1. Attempt opening edit.\n2. Attempt submitting a direct update.\n3. Inspect the record.",
+      "expected": "Unauthorized or disallowed changes are rejected; stored proposal remains unchanged.",
+      "evidenceRequested": "Response and before/after record.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": false,
+      "gap": "Another owner cannot read or update the draft. All disallowed edit-state variations are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "ACCESS-OWNER: another faculty member cannot read or change the proposal"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-03 PROP-05 [restricted draft read]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-03 PROP-05 [restricted draft update]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "APPR-01",
+      "feature": "Proposal Approval",
+      "scenario": "Approve an eligible proposal",
+      "roles": "Authorized approver per workflow",
+      "type": "Positive",
+      "preconditions": "Proposal meets all confirmed approval prerequisites",
+      "data": "Eligible proposal ID",
+      "steps": "1. Review proposal.\n2. Perform the permitted approval action.\n3. Reload relevant views.",
+      "expected": "The exact configured transition occurs once; associated records and displays reflect the approved state.",
+      "evidenceRequested": "Preconditions, approval result and resulting records.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "REVIEW-GAD: Head records clearance and extracts the signed GAD score"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "REVIEW-LREC: record co-evaluation, presentation and ethics clearance"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "SIGNING: secretary uploads and verifies the three signed proposal papers"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "NTP: save notice details, download the PDF and release the project"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "COMPLETE: accept the terminal report, record its signed PDF and complete the project"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "APPR-02",
+      "feature": "Proposal Approval",
+      "scenario": "Deny approval by an unauthorized role",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Eligible proposal; account lacks approval permission",
+      "data": "Eligible proposal ID",
+      "steps": "1. Sign in as restricted account.\n2. Attempt approval through a direct request.\n3. Check proposal state.",
+      "expected": "Approval is denied and proposal state is unchanged.",
+      "evidenceRequested": "Denied response and unchanged state.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "APPR-02 [faculty cannot approve]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "APPR-03",
+      "feature": "Proposal Approval",
+      "scenario": "Enforce approval prerequisites",
+      "roles": "Authorized approver",
+      "type": "Workflow",
+      "preconditions": "Proposal deliberately missing a confirmed approval prerequisite",
+      "data": "Ineligible proposal ID",
+      "steps": "1. Attempt approval.\n2. Inspect status and downstream records.",
+      "expected": "Approval cannot bypass the configured prerequisites; no unintended downstream record is created.",
+      "evidenceRequested": "Rule, rejection and record-state checks.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Each approval prerequisite must be independently removed and the downstream state checked; this complete set is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "APPR-04",
+      "feature": "Proposal Approval",
+      "scenario": "Prevent duplicate approval effects",
+      "roles": "Authorized approver",
+      "type": "Integrity",
+      "preconditions": "A proposal has already completed the approval action",
+      "data": "Previously approved proposal ID",
+      "steps": "1. Repeat or replay the same approval action.\n2. Inspect status and linked records.",
+      "expected": "The workflow prevents an invalid repeat transition and does not duplicate linked records.",
+      "evidenceRequested": "Repeated-action response and record counts.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": false,
+      "gap": "An already-approved project rejects a repeated earlier-stage signing request with unchanged versions/transitions. Replay of the exact final approval operation remains untested.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "APPR-04 [repeat finalized approval]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "APPR-04 [no duplicate transition]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROJ-01",
+      "feature": "Project and Report Records",
+      "scenario": "Associate a report with the correct project",
+      "roles": "Permitted report submitter",
+      "type": "Positive",
+      "preconditions": "Synthetic records prepared; expected values recorded in the reference dataset; reporting requirement configured",
+      "data": "Project A, researcher A and requirement A",
+      "steps": "1. Open project A.\n2. Submit its required report.\n3. Reopen project and report.",
+      "expected": "Report belongs to the intended project, researcher and reporting requirement.",
+      "evidenceRequested": "Report identifiers and association evidence.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MONITORING: upload accomplishment evidence, prepare and submit the monitoring PDF"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "PROGRESS: submit the narrative PDF with evidence and complete both reviews"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "TERMINAL: prepare and submit the completed-project narrative"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROJ-02",
+      "feature": "Project and Report Records",
+      "scenario": "Preserve report associations after editing",
+      "roles": "Permitted report editor",
+      "type": "Integrity",
+      "preconditions": "Editable report linked to project A",
+      "data": "Permitted revised report information",
+      "steps": "1. Edit report content.\n2. Save and reload.\n3. Inspect association fields.",
+      "expected": "Permitted content changes persist; project, researcher and requirement links remain correct.",
+      "evidenceRequested": "Before/after content and associations.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MONITORING-CORRECT: secretary returns the report and the leader resubmits a new version"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROJ-03",
+      "feature": "Project and Report Records",
+      "scenario": "Prevent cross-project report changes",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Projects A and B; account permitted for A only",
+      "data": "Report for restricted project B",
+      "steps": "1. Change project/report identifier in an applicable request.\n2. Attempt retrieval and update separately.",
+      "expected": "Restricted report remains protected and no project association changes.",
+      "evidenceRequested": "Responses and association/state evidence.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "PROJ-03 [restricted project read]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "PROJ-03 [restricted project update]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "PROJ-04",
+      "feature": "Project and Report Records",
+      "scenario": "Validate required reporting information",
+      "roles": "Permitted report submitter",
+      "type": "Validation",
+      "preconditions": "Confirmed reporting rules",
+      "data": "Missing required report data or incorrect requirement selection",
+      "steps": "1. Submit each invalid report variation.\n2. Inspect validation and stored records.",
+      "expected": "The specified rules are enforced; invalid or incorrectly linked submissions are not accepted.",
+      "evidenceRequested": "Variation, validation and saved-record check.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Empty monitoring data is checked. Every required-field and incorrect-requirement-selection variation is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "PROJ-04 [incomplete monitoring data]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DOC-01",
+      "feature": "Document Submission and Retrieval",
+      "scenario": "Upload and retrieve a supported document",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Positive",
+      "preconditions": "Allowed format/size and permissions confirmed",
+      "data": "Nonconfidential supported document with known content",
+      "steps": "1. Upload file to intended record.\n2. Save.\n3. Reload.\n4. Retrieve or download.",
+      "expected": "File is stored against the correct record; retrieved content matches the uploaded file.",
+      "evidenceRequested": "Filename, record link, retrieval and content comparison.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "DOC-01 [reference retrieval]: downloaded PDF bytes match the known fixture"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "SIGNING: secretary uploads and verifies the three signed proposal papers"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ARCHIVE: download a real archive containing the proposal, evidence and signed terminal report"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-01 [known file bytes]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-01 [upload reference]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-01 [upload association]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-01 [retrieve uploaded reference]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DOC-02",
+      "feature": "Document Submission and Retrieval",
+      "scenario": "Reject an unsupported file type",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Validation",
+      "preconditions": "Allowed file types confirmed",
+      "data": "File outside the permitted types",
+      "steps": "1. Select unsupported file.\n2. Submit.\n3. Check attachment list.",
+      "expected": "Configured type validation rejects the file; no invalid attachment is accepted.",
+      "evidenceRequested": "Type rule, validation and attachment list.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-02 [unsupported file]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-02 DOC-03 [invalid uploads not stored]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DOC-03",
+      "feature": "Document Submission and Retrieval",
+      "scenario": "Enforce file size boundary",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Boundary",
+      "preconditions": "Configured size limit documented",
+      "data": "Supported files at and just above the confirmed size limit",
+      "steps": "1. Submit file at the allowed boundary.\n2. Submit oversized file separately.",
+      "expected": "Boundary file follows the configured inclusive/exclusive rule; oversized file is rejected with validation.",
+      "evidenceRequested": "Exact byte sizes, configured limit and outcomes.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-03 [configured 25000 KiB boundary]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-03 [boundary saved]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-03 [one byte over boundary]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-02 DOC-03 [invalid uploads not stored]"
+        }
+      ],
+      "scope": "Configured Laravel limit: PDF exactly 25600000 bytes (25000 KiB) accepted; PDF 25600001 bytes rejected. UI labels this 25 MB."
+    },
+    {
+      "id": "DOC-04",
+      "feature": "Document Submission and Retrieval",
+      "scenario": "Protect a document through its direct retrieval route",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Restricted document exists; its retrieval route known",
+      "data": "Restricted attachment ID or protected link",
+      "steps": "1. Attempt retrieval as restricted account.\n2. Repeat signed out.",
+      "expected": "No restricted document content is returned to either unauthorized requester.",
+      "evidenceRequested": "Retrieval responses without confidential content.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-04 [restricted direct retrieval]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-04 [wrong project document pairing]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out dashboard]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out document]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out manual]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DOC-05",
+      "feature": "Document Submission and Retrieval",
+      "scenario": "Handle an unavailable document",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Error handling",
+      "preconditions": "Controlled test record refers to an unavailable file",
+      "data": "Known missing file reference",
+      "steps": "1. Request unavailable file.\n2. Inspect message and record.",
+      "expected": "A controlled error is displayed; the application does not return another file or corrupt the record.",
+      "evidenceRequested": "Error message and record-state check.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "DOC-05 [missing file]: missing document is a controlled 404"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "DOC-05 [missing file reference]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXTRACT-01",
+      "feature": "Supported Data Extraction",
+      "scenario": "Extract reference fields from supported material",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Accuracy",
+      "preconditions": "Supported material and field-by-field reference key prepared",
+      "data": "Synthetic research material with known title, date and other supported fields",
+      "steps": "1. Submit material to extraction.\n2. Capture returned fields.\n3. Compare every supported field with the reference.",
+      "expected": "Returned supported fields match the predefined reference information; mismatches are individually recorded.",
+      "evidenceRequested": "Input sample ID and field-level expected/actual comparison.",
+      "suggestedMethod": "Playwright plus reference comparison",
+      "completeScope": false,
+      "gap": "GAD score and evaluation narrative reference checks exist. A complete field-by-field key for every supported extraction type is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "REVIEW-GAD: Head records clearance and extracts the signed GAD score"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "REVIEW-LREC: record co-evaluation, presentation and ethics clearance"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXTRACT-02",
+      "feature": "Supported Data Extraction",
+      "scenario": "Handle absent fields without presenting invented values",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Accuracy",
+      "preconditions": "Reference material intentionally omits selected supported fields",
+      "data": "Sample with one or more missing fields",
+      "steps": "1. Submit sample.\n2. Inspect fields absent from the source.\n3. Compare against reference and documented missing-value behavior.",
+      "expected": "Missing information follows the defined behavior; unsupported invented content is not accepted as a correct extraction.",
+      "evidenceRequested": "Missing-field reference and returned values.",
+      "suggestedMethod": "Playwright plus reference comparison",
+      "completeScope": false,
+      "gap": "No complete absent-field extraction reference set is executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXTRACT-03",
+      "feature": "Supported Data Extraction",
+      "scenario": "Reject or handle unsupported extraction input",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Validation",
+      "preconditions": "Supported formats confirmed",
+      "data": "Unsupported or unreadable nonconfidential sample",
+      "steps": "1. Submit unsupported input.\n2. Inspect validation or processing error.",
+      "expected": "The defined validation/error behavior occurs; no misleading successful extraction is recorded.",
+      "evidenceRequested": "Input type and returned error.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "EXTRACT-03 [unsupported reference input]"
+        }
+      ],
+      "scope": "Unsupported text input to research-call image extraction must be rejected."
+    },
+    {
+      "id": "EXTRACT-04",
+      "feature": "Supported Data Extraction",
+      "scenario": "Handle extraction service failure",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Error handling",
+      "preconditions": "Controlled failure simulation available in test environment",
+      "data": "Simulated timeout or unavailable service",
+      "steps": "1. Trigger extraction with controlled failure.\n2. Inspect interface and stored values.",
+      "expected": "Failure is reported according to requirements; existing values are not replaced by false successful output.",
+      "evidenceRequested": "Simulation method, error and before/after values.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Controlled extraction service timeout/failure and preservation of existing values are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "BUD-01",
+      "feature": "Budget Monitoring",
+      "scenario": "Calculate allocation, spending and remaining balance",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Calculation",
+      "preconditions": "Synthetic budget prepared; inclusion rules confirmed",
+      "data": "Example fixture: PHP 100000 allocation; counted expenses PHP 12500 and PHP 7500",
+      "steps": "1. Record allocation.\n2. Record the two included expenditures.\n3. Reload budget views.",
+      "expected": "For this proposed fixture, spending equals PHP 20000 and remaining balance equals PHP 80000; displayed totals match counted records.",
+      "evidenceRequested": "Reference calculation, entries and displayed totals.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "BUD-01 BUD-02 [project owner]: PHP 100000 allocation reconciles before and after a saved edit"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-01 BUD-02 [persisted reference totals]"
+        }
+      ],
+      "scope": "PHP 100000 allocation; spending 10000 + 7500 + 2500; remaining PHP 80000."
+    },
+    {
+      "id": "BUD-02",
+      "feature": "Budget Monitoring",
+      "scenario": "Recalculate after a permitted financial edit",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Calculation",
+      "preconditions": "Editable expenditure; expected totals known",
+      "data": "Example fixture: change included expense from PHP 7500 to PHP 8500",
+      "steps": "1. Record initial totals.\n2. Apply permitted edit.\n3. Reload summaries.",
+      "expected": "For this fixture, spending becomes PHP 21000 and remaining balance PHP 79000; unrelated budgets are unchanged.",
+      "evidenceRequested": "Before/after amounts and independent calculation.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "BUD-01 BUD-02 [project owner]: PHP 100000 allocation reconciles before and after a saved edit"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-01 BUD-02 [persisted reference totals]"
+        }
+      ],
+      "scope": "Change PHP 7500 to PHP 8500; reload confirms PHP 21000 spent and PHP 79000 remaining."
+    },
+    {
+      "id": "BUD-03",
+      "feature": "Budget Monitoring",
+      "scenario": "Validate invalid expenditure values",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Validation",
+      "preconditions": "Actual amount validation rules confirmed",
+      "data": "Missing amount, nonnumeric input and a prohibited negative value if disallowed",
+      "steps": "1. Submit each invalid variation.\n2. Inspect validation and totals.",
+      "expected": "Defined amount rules are enforced; invalid entries do not affect totals.",
+      "evidenceRequested": "Variation, validation and unchanged totals.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Negative and nonnumeric variations are checked; the missing-amount variation is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-03 [negative]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-03 [nonnumeric]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-03 BUD-04 [rejected amounts do not change totals]"
+        }
+      ],
+      "scope": "Negative and nonnumeric amounts; rejected values must leave saved totals unchanged."
+    },
+    {
+      "id": "BUD-04",
+      "feature": "Budget Monitoring",
+      "scenario": "Enforce the configured budget limit",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Boundary",
+      "preconditions": "Budget-limit and rounding rules confirmed",
+      "data": "Values exactly at and above the permitted remaining balance",
+      "steps": "1. Attempt each boundary variation using a fresh fixture.\n2. Inspect saved entry and balance.",
+      "expected": "Saving or rejection matches the confirmed budget-limit rule; calculations remain accurate.",
+      "evidenceRequested": "Rule reference, amounts, outcomes and balances.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Over-allocation is checked; exact allocation and rounding boundaries with fresh fixtures are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-04 [allocation exceeded]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-03 BUD-04 [rejected amounts do not change totals]"
+        }
+      ],
+      "scope": "Requested/disbursed totals PHP 120000 against PHP 100000 allocation are rejected."
+    },
+    {
+      "id": "BUD-05",
+      "feature": "Budget Monitoring",
+      "scenario": "Deny unauthorized financial changes",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Known synthetic budget; restricted account",
+      "data": "Restricted allocation or expense record",
+      "steps": "1. Attempt financial update directly.\n2. Reload authorized budget view.",
+      "expected": "Unauthorized changes are rejected; allocation, expenses and remaining balance remain unchanged.",
+      "evidenceRequested": "Denied response and before/after totals.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-05 [restricted financial write]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "BUD-05 [office secretary cannot edit project budget]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "TARGET-01",
+      "feature": "Research Target Tracking",
+      "scenario": "Display targets and accomplishments for selected scope",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Accuracy",
+      "preconditions": "Synthetic records prepared; expected values recorded in the reference dataset; at least two periods and organizational scopes",
+      "data": "Reference targets and accomplishments by period/scope",
+      "steps": "1. Select a period and scope.\n2. Inspect target and accomplishment values.\n3. Repeat for another combination.",
+      "expected": "Values match only the selected period and organizational scope.",
+      "evidenceRequested": "Reference breakdown and displayed values.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "No independently seeded period/college target-and-accomplishment reference comparison is executed in this browser/endpoint suite.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "TARGET-02",
+      "feature": "Research Target Tracking",
+      "scenario": "Refresh target results when filters change",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Filtering",
+      "preconditions": "Distinct values prepared for each filter combination",
+      "data": "Period A/scope A and period B/scope B",
+      "steps": "1. Select first combination.\n2. Change period.\n3. Change scope.\n4. Compare each result.",
+      "expected": "Each change displays the corresponding reference records without stale values.",
+      "evidenceRequested": "Filter selections and per-selection comparisons.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Two independently known period/scope filter combinations are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "TARGET-03",
+      "feature": "Research Target Tracking",
+      "scenario": "Handle a period with no accomplishment records",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Boundary",
+      "preconditions": "A valid empty period/scope exists",
+      "data": "Empty selection with any configured target",
+      "steps": "1. Select empty period/scope.\n2. Inspect counts and any ratio displayed.",
+      "expected": "Empty-state values match requirements; no unrelated records or invalid division result appears.",
+      "evidenceRequested": "Empty reference selection and displayed result.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "An empty target/accomplishment scope with zero and division checks is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "TARGET-04",
+      "feature": "Research Target Tracking",
+      "scenario": "Restrict target records by organizational access",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Scope restrictions confirmed",
+      "data": "Out-of-scope target/accomplishment record",
+      "steps": "1. Attempt reading and changing restricted target records.\n2. Inspect authorized records.",
+      "expected": "Scope restrictions are enforced; restricted data is not disclosed or altered.",
+      "evidenceRequested": "Responses and unchanged values.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": false,
+      "gap": "Target-specific cross-organization retrieval and mutation checks are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXPORT-01",
+      "feature": "Report Preparation and Export",
+      "scenario": "Generate a report from selected records",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Accuracy",
+      "preconditions": "Reference dataset and supported report format prepared",
+      "data": "Known filters and expected record set",
+      "steps": "1. Select records/filters.\n2. Generate report.\n3. Compare rows and totals against reference.",
+      "expected": "Report includes the expected records, values and totals for the selection.",
+      "evidenceRequested": "Selection, generated file and independent comparison.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Lifecycle PDFs, archive entries and coordinator narrative previews are checked. Complete selected-record and numeric-total comparisons are not executed for every report.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MONITORING: upload accomplishment evidence, prepare and submit the monitoring PDF"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "PROGRESS: submit the narrative PDF with evidence and complete both reviews"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "COORDINATOR: quarterly submission, Head correction and version-two resubmission"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "TERMINAL: prepare and submit the completed-project narrative"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXPORT-02",
+      "feature": "Report Preparation and Export",
+      "scenario": "Export each supported report format",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Format",
+      "preconditions": "Supported export formats confirmed",
+      "data": "Same reference dataset for each supported format",
+      "steps": "1. Export each supported format separately.\n2. Open each file.\n3. Inspect labels, values and layout.",
+      "expected": "Each file opens in its intended viewer and follows its specified content and format requirements.",
+      "evidenceRequested": "One artifact and format checklist per supported format.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Real PDF and ZIP downloads are exercised. Every supported export format has not been opened and compared in its intended viewer.",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MONITORING: upload accomplishment evidence, prepare and submit the monitoring PDF"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "PROGRESS: submit the narrative PDF with evidence and complete both reviews"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "COORDINATOR: quarterly submission, Head correction and version-two resubmission"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "TERMINAL: prepare and submit the completed-project narrative"
+        },
+        {
+          "tool": "Playwright",
+          "variation": "ARCHIVE: download a real archive containing the proposal, evidence and signed terminal report"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXPORT-03",
+      "feature": "Report Preparation and Export",
+      "scenario": "Handle an empty report selection",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Boundary",
+      "preconditions": "Filter combination with no matching records",
+      "data": "Empty selection",
+      "steps": "1. Apply empty filters.\n2. Request report/export.",
+      "expected": "The documented empty-report behavior occurs; no stale or out-of-scope records appear.",
+      "evidenceRequested": "Filter evidence and resulting file/message.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "The documented empty-report-selection behavior is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "EXPORT-04",
+      "feature": "Report Preparation and Export",
+      "scenario": "Prevent export of restricted records",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Restricted export dataset exists",
+      "data": "Direct export request selecting restricted scope",
+      "steps": "1. Attempt restricted export.\n2. Inspect response and any returned file.",
+      "expected": "Restricted records are excluded or access is denied according to the permission matrix; no restricted content leaks.",
+      "evidenceRequested": "Response and permitted-content verification.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": false,
+      "gap": "A restricted-record export and content-exclusion comparison is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DASH-01",
+      "feature": "Dashboard and Analytics",
+      "scenario": "Match dashboard counts to reference records",
+      "roles": "Research Head, Research Office Secretary, Research Coordinator, Faculty Researcher and Faculty; execute separately for each applicable role",
+      "type": "Accuracy",
+      "preconditions": "Synthetic records prepared; expected values recorded in the reference dataset; visible status categories confirmed",
+      "data": "Known project/status counts and faculty/publication records",
+      "steps": "1. Open dashboard.\n2. Compare each visible count/chart to the reference dataset.",
+      "expected": "Each displayed summary matches the included records and assigned access scope.",
+      "evidenceRequested": "Reference counts and screenshot per role.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Page identity/load is checked. No complete independent reference dataset for every role-specific dashboard count and chart is compared.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DASH-02",
+      "feature": "Dashboard and Analytics",
+      "scenario": "Apply dashboard filters correctly",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Filtering",
+      "preconditions": "Distinct period/organizational datasets",
+      "data": "Two filter combinations with known results",
+      "steps": "1. Select first combination.\n2. Change period/scope.\n3. Compare all affected summaries.",
+      "expected": "All affected summaries use the current selection and match its reference values.",
+      "evidenceRequested": "Selections and expected/actual values.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Known-result dashboard period/scope filter combinations are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DASH-03",
+      "feature": "Dashboard and Analytics",
+      "scenario": "Reflect a permitted record change",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Integration",
+      "preconditions": "Known dashboard baseline; permitted update action available",
+      "data": "One new or changed qualifying record",
+      "steps": "1. Record initial summary.\n2. Perform permitted record change.\n3. Use the documented refresh/update mechanism.",
+      "expected": "Affected summaries reflect the change using the specified update behavior; unrelated summaries remain correct.",
+      "evidenceRequested": "Before/after counts and triggering record ID.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "A qualifying record change and its exact dashboard delta are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DASH-04",
+      "feature": "Dashboard and Analytics",
+      "scenario": "Display a valid empty dashboard",
+      "roles": "Authorized actor per confirmed permission matrix",
+      "type": "Boundary",
+      "preconditions": "A permitted role/scope with no qualifying records",
+      "data": "Empty reference dataset",
+      "steps": "1. Open dashboard for empty scope.\n2. Inspect cards, charts and messages.",
+      "expected": "Zero/empty values follow requirements; no stale records or calculation errors appear.",
+      "evidenceRequested": "Empty fixture and dashboard screenshot.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "A known empty dashboard scope is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "DASH-05",
+      "feature": "Dashboard and Analytics",
+      "scenario": "Restrict dashboard summaries by role",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Different account scopes with known distinct totals",
+      "data": "Role-specific dashboard and underlying summary requests",
+      "steps": "1. Open dashboard as each account.\n2. Attempt restricted scope through a direct request.",
+      "expected": "Displayed and returned summaries respect assigned access; restricted aggregate details are not disclosed.",
+      "evidenceRequested": "Per-role comparison and denied request outcome.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": false,
+      "gap": "Aggregate-specific cross-scope request and data-disclosure checks are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "HELP-01",
+      "feature": "Research Assistance Interface",
+      "scenario": "Submit a supported research-assistance request",
+      "roles": "Authorized research-help user",
+      "type": "Positive",
+      "preconditions": "Live service or declared test response configured",
+      "data": "Nonconfidential supported research/system inquiry",
+      "steps": "1. Enter inquiry.\n2. Submit.\n3. Inspect returned response in the interface.",
+      "expected": "Request is submitted and returned response is displayed as specified; this case verifies interface behavior, not scholarly accuracy.",
+      "evidenceRequested": "Inquiry, response and live/simulated service mode.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "A controlled or live valid assistance response has not been submitted and verified in the UI in this suite.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "HELP-02",
+      "feature": "Research Assistance Interface",
+      "scenario": "Validate an empty assistance request",
+      "roles": "Authorized research-help user",
+      "type": "Validation",
+      "preconditions": "Help interface open",
+      "data": "Blank or whitespace-only input",
+      "steps": "1. Submit blank input.\n2. Repeat with whitespace.",
+      "expected": "Documented validation prevents an unsupported empty submission.",
+      "evidenceRequested": "Validation and request outcome.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "HELP-02 [empty]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "HELP-02 [whitespace]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "HELP-03",
+      "feature": "Research Assistance Interface",
+      "scenario": "Handle an assistance service error",
+      "roles": "Authorized research-help user",
+      "type": "Error handling",
+      "preconditions": "Controlled timeout/error available in test environment",
+      "data": "Simulated service failure",
+      "steps": "1. Trigger request failure.\n2. Inspect error and interface state.\n3. Retry after service recovery if supported.",
+      "expected": "Configured error is displayed; no false successful response is shown; recovery follows requirements.",
+      "evidenceRequested": "Failure method, error and recovery outcome.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Controlled assistance service failure and recovery are not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "HELP-04",
+      "feature": "Research Assistance Interface",
+      "scenario": "Review generated content against supplied reference",
+      "roles": "Authorized research-help user and designated reviewer",
+      "type": "Content review",
+      "preconditions": "Nonconfidential reference passage and review criteria prepared",
+      "data": "Question answerable from that supplied reference",
+      "steps": "1. Submit reference-based question.\n2. Compare response statements against reference.\n3. Record errors and limitations separately.",
+      "expected": "Observed statements are documented against the reference; unsupported claims are recorded, with no general AI-quality conclusion from interface success.",
+      "evidenceRequested": "Reference, prompt, response and reviewer comparison.",
+      "suggestedMethod": "Reference review with recorded response",
+      "completeScope": false,
+      "gap": "A supplied reference passage, recorded model answer and designated content review are required; UI success cannot establish content accuracy.",
+      "blocked": true,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "FIND-01",
+      "feature": "Journal and Conference Discovery",
+      "scenario": "Return and display supported discovery results",
+      "roles": "Authorized discovery user",
+      "type": "Positive",
+      "preconditions": "Live service or declared test response available",
+      "data": "Synthetic research topic; supported journal and conference searches",
+      "steps": "1. Search supported topic.\n2. Inspect journal and conference results separately where available.\n3. Compare displayed fields with supplied service output.",
+      "expected": "Available results and metadata match the service response; service mode is recorded.",
+      "evidenceRequested": "Query, source response and displayed fields.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Journal and conference service outputs need controlled reference metadata or recorded live outputs; neither comparison is executed here.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "FIND-02",
+      "feature": "Journal and Conference Discovery",
+      "scenario": "Open a discovery source link",
+      "roles": "Authorized discovery user",
+      "type": "Navigation",
+      "preconditions": "Result with known source URL available",
+      "data": "Journal/conference result and its supplied URL",
+      "steps": "1. Open the result source link.\n2. Inspect destination against supplied URL.",
+      "expected": "The link opens its intended source; no claim of indexing or suitability is inferred solely from successful navigation.",
+      "evidenceRequested": "Result URL and destination verification.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Discovery-specific source-link destinations have not been compared with known service output.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "FIND-03",
+      "feature": "Journal and Conference Discovery",
+      "scenario": "Handle a discovery search with no results",
+      "roles": "Authorized discovery user",
+      "type": "Boundary",
+      "preconditions": "Controlled no-result response available",
+      "data": "Query producing no results or declared simulated empty response",
+      "steps": "1. Submit query.\n2. Inspect result area.",
+      "expected": "Documented empty-result message appears without stale results from a prior query.",
+      "evidenceRequested": "Query, response mode and empty state.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "An explicit empty journal/conference service response has not been executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "FIND-04",
+      "feature": "Journal and Conference Discovery",
+      "scenario": "Handle discovery service failure",
+      "roles": "Authorized discovery user",
+      "type": "Error handling",
+      "preconditions": "Controlled error available in test environment",
+      "data": "Timeout or service error response",
+      "steps": "1. Execute search with controlled service failure.\n2. Inspect message and result area.",
+      "expected": "Configured error handling occurs; no fabricated result is presented as a successful retrieval.",
+      "evidenceRequested": "Failure method and displayed error.",
+      "suggestedMethod": "Playwright",
+      "completeScope": false,
+      "gap": "Controlled journal/conference service failure handling is not yet executed.",
+      "blocked": false,
+      "requiredEvidence": [],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "TURN-01",
+      "feature": "Turnitin Redirection",
+      "scenario": "Open the intended external Turnitin website",
+      "roles": "Authorized user with link access",
+      "type": "Navigation",
+      "preconditions": "Expected institutional/external destination confirmed",
+      "data": "Configured Turnitin link",
+      "steps": "1. Activate the Turnitin link.\n2. Inspect opened destination.\n3. Compare with configured intended website.",
+      "expected": "User is directed to the intended external Turnitin website; this does not test plagiarism detection or external account access.",
+      "evidenceRequested": "Configured destination and observed destination.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "TURN-01 TURN-02 [faculty]: intended external link opens and ATHENA session survives"
+        }
+      ],
+      "scope": "The configured external destination is asserted and the popup destination is intercepted locally. External Turnitin availability is not tested."
+    },
+    {
+      "id": "TURN-02",
+      "feature": "Turnitin Redirection",
+      "scenario": "Retain the ATHENA session after external navigation",
+      "roles": "Authorized user with link access",
+      "type": "Navigation",
+      "preconditions": "Authenticated ATHENA session; intended link behavior confirmed",
+      "data": "Turnitin link",
+      "steps": "1. Open external link.\n2. Return to ATHENA using documented navigation behavior.\n3. Open a permitted ATHENA page.",
+      "expected": "External navigation follows the configured same/new-tab behavior; returning permits normal use of the valid ATHENA session.",
+      "evidenceRequested": "Navigation sequence and returned session outcome.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "TURN-01 TURN-02 [faculty]: intended external link opens and ATHENA session survives"
+        }
+      ],
+      "scope": "External destination intercepted locally; returning to ATHENA preserves the same synthetic account."
+    },
+    {
+      "id": "MAN-01",
+      "feature": "Research Manuals",
+      "scenario": "Open or retrieve an available manual",
+      "roles": "Authorized manual user",
+      "type": "Positive",
+      "preconditions": "Approved manual and allowed retrieval method prepared",
+      "data": "Known manual title/version and content",
+      "steps": "1. Open manuals.\n2. Select manual.\n3. View/download using supported method.",
+      "expected": "Correct manual is accessible; retrieved title/version and content match the reference.",
+      "evidenceRequested": "Manual identity and retrieved content comparison.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MAN-01 MAN-03 [active edition]: permitted roles retrieve the known manual through its reader"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "MAN-01 [active edition bytes]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "MAN-02",
+      "feature": "Research Manuals",
+      "scenario": "Enforce manual access restrictions",
+      "roles": "Account denied this action by the confirmed permission matrix",
+      "type": "Authorization",
+      "preconditions": "Manual access policy confirmed; protected manual exists",
+      "data": "Protected manual ID/link",
+      "steps": "1. Request manual as restricted account.\n2. Repeat signed out if login is required.",
+      "expected": "Access follows the confirmed policy; protected content is not disclosed.",
+      "evidenceRequested": "Policy reference and retrieval responses.",
+      "suggestedMethod": "Playwright / Postman (applicable endpoint)",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Postman / Newman",
+          "variation": "MAN-02 [staged edition restricted]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out dashboard]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out document]"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "ACCESS-04 DOC-04 MAN-02 [signed out manual]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "MAN-03",
+      "feature": "Research Manuals",
+      "scenario": "Use the supported manual retrieval function",
+      "roles": "Authorized manual user",
+      "type": "Retrieval",
+      "preconditions": "Actual retrieval functions and expected behavior identified",
+      "data": "Known title/term for a supported list, search or retrieval function",
+      "steps": "1. Use the implemented retrieval function with reference input.\n2. Inspect results.\n3. Retrieve matching manual.",
+      "expected": "Returned results and selected manual follow the documented behavior; do not assume a search feature exists.",
+      "evidenceRequested": "Function used, reference input and returned manual.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MAN-01 MAN-03 [active edition]: permitted roles retrieve the known manual through its reader"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    },
+    {
+      "id": "MAN-04",
+      "feature": "Research Manuals",
+      "scenario": "Handle an unavailable manual",
+      "roles": "Authorized manual user",
+      "type": "Error handling",
+      "preconditions": "Controlled missing or unavailable manual reference",
+      "data": "Unavailable manual ID or file",
+      "steps": "1. Attempt manual retrieval.\n2. Inspect error and page behavior.",
+      "expected": "Documented unavailable/error behavior occurs; no unrelated manual is returned.",
+      "evidenceRequested": "Unavailable reference and displayed message.",
+      "suggestedMethod": "Playwright",
+      "completeScope": true,
+      "gap": "",
+      "blocked": false,
+      "requiredEvidence": [
+        {
+          "tool": "Playwright",
+          "variation": "MAN-04 [unknown edition]: unavailable manual does not return another edition"
+        },
+        {
+          "tool": "Postman / Newman",
+          "variation": "MAN-04 [unknown edition]"
+        }
+      ],
+      "scope": "Local synthetic reference records and supported application routes; see linked attempts for the exact variation."
+    }
+  ]
+}

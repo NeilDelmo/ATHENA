@@ -38,6 +38,7 @@
             proposalDraftId: @js($proposalDraft->id),
             draftVersion: @js($proposalDraft->lock_version),
             initialEntries: @js($initialEntries),
+            proposalActivities: @js($proposalActivities),
             objectivesLinked: true,
             maxEntries: @js(config('work_plan.max_objectives')),
             durationMonths: @js($proposalDraft->duration_months ?: 12),
@@ -123,11 +124,28 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 id="work-plan-objectives-heading" class="text-lg font-black text-gray-900">Objectives and Gantt schedule</h3>
-                        <p class="mt-1 text-sm text-gray-500">Specific objectives come from your Detailed Proposal. Add activities, expected outputs, and active months for each one. Each month can belong to only one objective.</p>
+                        <p class="mt-1 text-sm text-gray-500">Objectives and suggested activities come from your Detailed Proposal. Review the activities, describe each objective's deliverable, and select its active months. Objectives can run in the same month.</p>
                         <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="mt-2 inline-flex min-h-10 items-center text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Edit objectives in Detailed Proposal</a>
                         <p class="mt-1 text-xs text-gray-400">The generated paper automatically expands each row to fit the longest objective, output, or activity text.</p>
                     </div>
                 </div>
+
+                @if ($proposalOutputs !== [])
+                    <details class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+                        <summary class="cursor-pointer text-sm font-semibold text-gray-900 dark:text-white">Overall outputs from Detailed Proposal</summary>
+                        <p class="mt-3 text-sm text-gray-500 dark:text-slate-400">These are the project's overall deliverables and impacts. Enter a concrete deliverable for each objective below that contributes to these outputs.</p>
+                        <dl class="mt-3 space-y-3 text-sm">
+                            @foreach ($proposalOutputs as $category => $outputs)
+                                <div>
+                                    <dt class="font-semibold text-gray-900 dark:text-white">{{ config('detailed_proposal.expected_outputs.'.$category) }}</dt>
+                                    @foreach ($outputs as $output)
+                                        <dd class="mt-1 whitespace-pre-line text-gray-600 dark:text-slate-300">{{ $output['description'] }}</dd>
+                                    @endforeach
+                                </div>
+                            @endforeach
+                        </dl>
+                    </details>
+                @endif
 
                 @if ($linkedObjectives === [])
                     <p class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Save your specific objectives in the Detailed Proposal first. They will appear here automatically.</p>
@@ -158,16 +176,19 @@
                                 <div>
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`output-${entry.id}`">Expected Output <x-required-mark /></label>
                                     <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-model="entry.expectedOutput" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                    <p class="mt-2 text-xs text-gray-500">The concrete deliverable for this objective, such as a dataset, module, or evaluation report.</p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`activity-${entry.id}`">Activities or Workplan <x-required-mark /></label>
-                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-model="entry.activity" rows="4" maxlength="1500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-model="entry.activity" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                    <p class="mt-2 text-xs text-gray-500">Starts with methods whose heading matches this objective in the Detailed Proposal. Refine them into scheduled activities.</p>
+                                    <button type="button" x-show="entry.proposalActivity && entry.activity !== entry.proposalActivity" x-cloak x-on:click="useProposalMethods(entry)" class="mt-2 min-h-10 text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-red-300">Replace activities with proposal methods</button>
                                 </div>
                             </div>
 
                             <fieldset x-bind:data-work-plan-schedule="entry.id" class="mt-5">
                                 <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <x-required-mark /></legend>
-                                <p class="mt-2 text-xs leading-5 text-gray-500">Each 12-month block becomes a matching Attachment A year sheet. Months assigned to another objective are locked until they are removed from that objective.</p>
+                                <p class="mt-2 text-xs leading-5 text-gray-500">M1 is the first month from your planned start date. Select every month this work will be active; objectives may overlap. Each 12-month block becomes a matching Attachment A year sheet.</p>
                                 <template x-if="isEntryExpanded(entry)">
                                     <div class="mt-3 grid gap-4">
                                         <template x-for="yearGroup in yearGroups" :key="yearGroup.year">
@@ -186,7 +207,6 @@
                                                             <input type="checkbox" class="sr-only" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
                                                             <span x-text="`M${localMonthNumber(month)}`"></span>
                                                             <span x-show="yearGroup.year > 1" class="mt-0.5 text-[9px] font-semibold text-gray-500" x-text="`Project M${month}`"></span>
-                                                            <span x-show="monthOwnerLabel(index, month)" x-text="monthOwnerLabel(index, month)" class="mt-0.5 text-[9px] font-bold uppercase tracking-wide"></span>
                                                         </label>
                                                     </template>
                                                 </div>
@@ -202,7 +222,6 @@
                                     </div>
                                 </template>
                                 <p x-show="monthErrorIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">Select at least one month for this objective.</p>
-                                <p x-show="monthConflictIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">This objective shares a month with an earlier objective. Remove the duplicate month.</p>
                             </fieldset>
                         </div>
                     </article>
@@ -217,7 +236,7 @@
             </noscript>
         </form>
 
-        <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span x-text="previewError || downloadError"></span></div>
+        <div x-show="downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="downloadError"></div>
 
         </div>
         <x-proposal-paper-preview

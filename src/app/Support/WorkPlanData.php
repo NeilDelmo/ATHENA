@@ -23,7 +23,7 @@ class WorkPlanData
      *     verified_role: string
      * }
      */
-    public static function fromValidated(array $validated): array
+    public static function fromValidated(array $validated, bool $includeUnscheduledEntries = false): array
     {
         $duration = (int) ($validated['total_duration_months'] ?? 0);
         $plannedStart = self::date($validated['planned_start'] ?? null);
@@ -54,7 +54,7 @@ class WorkPlanData
             'entries_by_year' => $yearCount > 0
                 ? collect(range(1, $yearCount))
                     ->mapWithKeys(fn (int $year): array => [
-                        $year => self::entriesForYear($entries, $year),
+                        $year => self::entriesForYear($entries, $year, $includeUnscheduledEntries),
                     ])
                     ->all()
                 : [],
@@ -68,14 +68,14 @@ class WorkPlanData
      * @param  array<int, array{objective: string, expected_output: string, activity: string, months: array<int, int>}>  $entries
      * @return array<int, array{objective: string, expected_output: string, activity: string, months: array<int, int>}>
      */
-    private static function entriesForYear(array $entries, int $year): array
+    private static function entriesForYear(array $entries, int $year, bool $includeUnscheduledEntries): array
     {
         $firstMonth = (($year - 1) * 12) + 1;
         $lastMonth = $year * 12;
 
         return collect($entries)
-            ->filter(fn (array $entry): bool => collect($entry['months'])
-                ->contains(fn (int $month): bool => $month >= $firstMonth && $month <= $lastMonth))
+            ->filter(fn (array $entry): bool => ($includeUnscheduledEntries && $year === 1 && $entry['months'] === [])
+                || collect($entry['months'])->contains(fn (int $month): bool => $month >= $firstMonth && $month <= $lastMonth))
             ->values()
             ->all();
     }

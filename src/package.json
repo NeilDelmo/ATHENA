@@ -7,6 +7,14 @@
         "demo:proposal": "playwright test tests/Playwright/fill-proposal-papers.spec.js --headed --workers=1",
         "demo:proposal:session": "node scripts/playwright/save-faculty-session.mjs",
         "dev": "vite",
+        "test:e2e": "playwright test --config=playwright.capstone.config.js",
+        "test:e2e:lifecycle": "playwright test --config=playwright.lifecycle.config.js",
+        "test:functional": "playwright test --config=playwright.functional.config.js",
+        "test:e2e:lifecycle:report": "playwright show-report playwright-report/lifecycle",
+        "test:e2e:report": "playwright show-report playwright-report/capstone",
+        "test:e2e:deployed": "playwright test --config=playwright.deployed.config.js",
+        "test:e2e:deployed:session": "node scripts/playwright/save-deployed-session.mjs",
+        "test:e2e:deployed:report": "playwright show-report playwright-report/deployed",
         "test:frontend": "node --test --test-concurrency=1 tests/Frontend/*.test.mjs"
     },
     "devDependencies": {

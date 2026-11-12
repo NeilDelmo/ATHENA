@@ -353,6 +353,11 @@
                                 <h4 data-team-member-name class="break-words text-lg font-bold leading-7 text-gray-900 dark:text-white">{{ $member->user?->name ?? $member->name }}</h4>
                                 <p data-team-member-email class="mt-1 break-all text-base leading-6 text-gray-600 dark:text-slate-300">{{ $member->user?->email ?? $member->email }}</p>
                                 <p class="mt-2 text-base leading-6 {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-amber-800 dark:text-amber-200' }}">{{ $member->isAccepted() ? 'Can edit proposal papers. Only the project leader can submit.' : ($member->isLinked() ? 'Waiting for the invited staff member to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
+                                @can('manageMembers', $proposalDraft)
+                                    @if ($emailStatus = $member->invitationEmail?->statusMessage())
+                                        <p data-invitation-email-status class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $emailStatus }}</p>
+                                    @endif
+                                @endcan
                             </div>
                         </div>
                         <div class="flex h-fit flex-wrap items-center gap-2 sm:max-w-56 sm:justify-end">

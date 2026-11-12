@@ -79,6 +79,20 @@ test('Google sign in asks the user to choose an account', function () {
         ->toContain('hd=g.batstate-u.edu.ph');
 });
 
+test('Google sign-in returns to an ATHENA invitation without following external redirects', function (bool $external) {
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    mockGoogleUser('invited@g.batstate-u.edu.ph');
+    $url = route('notifications.proposal-invitations.show', 123);
+
+    if ($external) {
+        $this->withSession(['url.intended' => 'https://example.com/notifications/proposal-invitations/123']);
+    } else {
+        $this->get($url)->assertRedirect(route('login'));
+    }
+
+    $this->get(route('auth.google.callback'))->assertRedirect($external ? route('dashboard') : $url);
+})->with([true, false]);
+
 test('a Google callback with invalid state cannot authenticate or provision an account', function () {
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     $googleUser = (new Laravel\Socialite\Two\User)->map([

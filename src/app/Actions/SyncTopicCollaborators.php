@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
+use App\Models\ProposalInvitationEmail;
 use App\Models\TopicProposal;
 
 class SyncTopicCollaborators
@@ -12,8 +13,9 @@ class SyncTopicCollaborators
     {
         $members = $draft->members()->get();
 
-        $existing = $topic->collaborators()->get();
+        $existing = $topic->collaborators()->lockForUpdate()->get();
         $retainedIds = [];
+        $invitationLinks = [];
         foreach ($members as $draftMember) {
             $member = $draftMember->only(['user_id', 'name', 'email', 'accepted_at', 'project_role']);
             $collaborator = $existing->first(fn ($candidate): bool => ($member['user_id'] !== null && $candidate->user_id === $member['user_id'])
@@ -27,7 +29,14 @@ class SyncTopicCollaborators
                 $collaborator = $topic->collaborators()->create($member);
             }
             $retainedIds[] = $collaborator->id;
+            $invitationLinks[] = [
+                'id' => $draftMember->id,
+                'draft_member_id' => null,
+                'topic_collaborator_id' => $collaborator->id,
+            ];
         }
+
+        ProposalInvitationEmail::query()->upsert($invitationLinks, ['id'], ['draft_member_id', 'topic_collaborator_id']);
 
         $topic->collaborators()->whereNull('accepted_at')->whereNotIn('id', $retainedIds)->delete();
         foreach ($existing->whereNotNull('accepted_at')->whereNotIn('id', $retainedIds) as $collaborator) {

@@ -28,7 +28,7 @@ beforeEach(function () {
         'user_id' => $this->leader->id, 'title' => 'Work Plan deadline test',
         'status' => 'approved', 'project_status' => 'ongoing', 'estimated_duration_months' => 9,
         'notice_to_proceed_issued_at' => '2026-01-15',
-        'notice_to_proceed_data' => ['approved_start_date' => '2026-01-01', 'approved_duration_months' => 9],
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-01-15', 'approved_duration_months' => 9],
     ]);
     $version = $this->topic->versions()->create([
         'submitted_by' => $this->leader->id, 'version_number' => 1, 'submission_type' => 'initial',

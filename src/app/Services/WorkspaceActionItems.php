@@ -6,6 +6,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
+use App\Models\ProposalInvitationEmail;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -29,6 +30,12 @@ class WorkspaceActionItems
                 if (Gate::forUser($user)->allows('accept', $membership)) {
                     $items[] = $this->item('invitation:'.$membership->id, 'Review project staff invitation', $membership->draft->project_title, route('notifications.proposal-invitations.show', $membership));
                 }
+            }
+            $submittedInvitations = ProposalInvitationEmail::query()->whereNull('draft_member_id')
+                ->whereHas('collaborator', fn (Builder $query): Builder => $query->whereNull('accepted_at')->invitedUser($user))
+                ->with('collaborator.topic:id,title')->oldest('id')->get()->unique('topic_collaborator_id');
+            foreach ($submittedInvitations as $invitation) {
+                $items[] = $this->item('invitation:'.$invitation->id, 'Review project staff invitation', $invitation->collaborator->topic->title, route('notifications.proposal-invitations.show', $invitation->id));
             }
             foreach (TopicProposal::query()->whereBelongsTo($user)->where('status', 'revision_requested')->oldest('status_started_at')->get() as $topic) {
                 $items[] = $this->item('proposal:'.$topic->id, 'Address proposal revisions', $topic->title, route('faculty.topics.revision', $topic));

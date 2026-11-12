@@ -6,7 +6,9 @@ use App\Models\LiteratureSource;
 use App\Support\LiteratureFullTextToken;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -242,7 +244,7 @@ class LiteratureSearchService
             $semanticScholarParameters['openAccessPdf'] = 'true';
         }
 
-        $semanticScholarApiKey = (string) config('services.semantic_scholar.key');
+        $semanticScholarApiKey = trim((string) config('services.semantic_scholar.key'));
 
         $requests = [
             'semantic_scholar' => ['url' => 'https://api.semanticscholar.org/graph/v1/paper/search', 'parameters' => $semanticScholarParameters],
@@ -324,16 +326,61 @@ class LiteratureSearchService
             }
         }
 
-        if ($pending !== []) {
-            $fresh = Http::pool(function (Pool $pool) use ($pending, $semanticScholarApiKey): array {
+        $semanticScholarLock = null;
+        $semanticScholarRateKey = 'literature:semantic-scholar:'.hash('sha256', $semanticScholarApiKey);
+
+        try {
+            if (isset($pending['semantic_scholar'])) {
+                $semanticScholarLock = Cache::lock($semanticScholarRateKey.':lock', 45);
+                $acquired = $semanticScholarLock->get();
+                $cached = Cache::get($pending['semantic_scholar']['cache_key']);
+
+                if (is_array($cached) || ! $acquired
+                    || (float) Cache::get($semanticScholarRateKey.':next', 0) > now()->getTimestampMs() / 1000) {
+                    if ($acquired) {
+                        $semanticScholarLock->release();
+                    }
+
+                    $semanticScholarLock = null;
+                    $responses['semantic_scholar'] = is_array($cached)
+                        ? new Response(new PsrResponse(200, ['Content-Type' => $cached['content_type']], $cached['body']))
+                        : new Response(new PsrResponse(429));
+                    unset($pending['semantic_scholar']);
+                } else {
+                    Cache::put($semanticScholarRateKey.':next', now()->getTimestampMs() / 1000 + 1, 2);
+                }
+            }
+
+            if ($pending === []) {
+                return $responses;
+            }
+
+            $fresh = Http::pool(function (Pool $pool) use ($pending, $semanticScholarApiKey, $semanticScholarRateKey, &$semanticScholarLock): array {
                 $requests = [];
 
                 foreach ($pending as $name => $request) {
                     $client = $pool->as($name)->acceptJson()->connectTimeout(4)->timeout(12)
                         ->withHeaders(['User-Agent' => 'Athena Research Support (mailto:'.config('mail.from.address', 'hello@example.com').')']);
 
-                    if ($name === 'semantic_scholar' && $semanticScholarApiKey !== '') {
-                        $client->withHeaders(['x-api-key' => $semanticScholarApiKey]);
+                    if ($name === 'semantic_scholar') {
+                        if ($semanticScholarApiKey !== '') {
+                            $client->withHeaders(['x-api-key' => $semanticScholarApiKey]);
+                        }
+
+                        $client->retry([1000, 2000], when: fn (\Throwable $exception): bool => $exception instanceof ConnectionException
+                            || ($exception instanceof RequestException && $exception->response->serverError()
+                                && blank($exception->response->header('Retry-After'))), throw: false)
+                            ->afterResponse(function (Response $response) use ($request, $semanticScholarRateKey, &$semanticScholarLock): void {
+                                if ($response->successful() && $this->validProviderResponse($response, 'semantic_scholar')) {
+                                    // Publish before releasing the lock so another search can reuse the completed response.
+                                    Cache::put($request['cache_key'], [
+                                        'body' => $response->body(), 'content_type' => $response->header('Content-Type'),
+                                    ], now()->addHour());
+                                    Cache::put($semanticScholarRateKey.':next', now()->getTimestampMs() / 1000 + 1, 2);
+                                    $semanticScholarLock?->release();
+                                    $semanticScholarLock = null;
+                                }
+                            });
                     }
 
                     $requests[] = $client->get($request['url'], $request['parameters']);
@@ -346,6 +393,22 @@ class LiteratureSearchService
                 $response = $fresh[$name] ?? null;
                 $responses[$name] = $response;
 
+                if ($name === 'semantic_scholar') {
+                    $delay = 1;
+
+                    if ($response instanceof ConnectionException || ($response instanceof Response
+                        && ($response->status() === 429 || $response->serverError()))) {
+                        $retryAfter = $response instanceof Response ? trim((string) $response->header('Retry-After')) : '';
+                        $delay = max(30, ctype_digit($retryAfter) ? (int) $retryAfter : (int) strtotime($retryAfter) - now()->timestamp);
+                    }
+
+                    if ($semanticScholarLock !== null) {
+                        Cache::put($semanticScholarRateKey.':next', now()->getTimestampMs() / 1000 + $delay, $delay + 1);
+                    }
+
+                    continue;
+                }
+
                 if ($response instanceof Response && $response->successful()
                     && $this->validProviderResponse($response, explode(':', $name)[0])) {
                     Cache::put($request['cache_key'], [
@@ -353,6 +416,8 @@ class LiteratureSearchService
                     ], now()->addHour());
                 }
             }
+        } finally {
+            $semanticScholarLock?->release();
         }
 
         return $responses;

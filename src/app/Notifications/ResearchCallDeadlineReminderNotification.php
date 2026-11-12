@@ -5,15 +5,9 @@ namespace App\Notifications;
 use App\Models\ResearchCall;
 use App\Models\User;
 use Carbon\CarbonInterface;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\BroadcastMessage;
-use Illuminate\Notifications\Notification;
 
-class ResearchCallDeadlineReminderNotification extends Notification implements ShouldQueue
+class ResearchCallDeadlineReminderNotification extends ResearchCallNotification
 {
-    use Queueable;
-
     public function __construct(
         public int $researchCallId,
         public string $researchCallTitle,
@@ -22,11 +16,6 @@ class ResearchCallDeadlineReminderNotification extends Notification implements S
         public string $url,
     ) {
         $this->afterCommit();
-    }
-
-    public function via(object $notifiable): array
-    {
-        return ['database', 'broadcast'];
     }
 
     public function shouldSend(object $notifiable, string $channel): bool
@@ -55,11 +44,6 @@ class ResearchCallDeadlineReminderNotification extends Notification implements S
             'deadline_at' => $this->closesAt->toIso8601String(),
             'workspace' => User::WORKSPACE_FACULTY,
         ];
-    }
-
-    public function toBroadcast(object $notifiable): BroadcastMessage
-    {
-        return new BroadcastMessage($this->toArray($notifiable));
     }
 
     public function broadcastType(): string

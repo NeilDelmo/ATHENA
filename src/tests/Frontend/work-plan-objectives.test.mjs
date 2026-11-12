@@ -50,3 +50,30 @@ test('the independent Work Plan builder keeps its editable row behavior', () => 
     state.removeEntry(0);
     assert.equal(state.entries.length, 1);
 });
+
+test('objectives can share months and independent rows are not limited by project duration', () => {
+    const state = editor({ durationMonths: 1, initialEntries: [
+        { objective: 'Baseline', activity: 'Survey', expected_output: 'Dataset', months: [1] },
+        { objective: 'Evaluation', activity: 'Analyze', expected_output: 'Report', months: [1] },
+    ] });
+    assert.equal(state.isMonthSelectable(1, 1), true);
+    assert.equal(state.isComplete(), true);
+    assert.equal(state.validateForm(), true);
+    assert.equal(state.canAddEntry(), true);
+    assert.equal(state.isMonthSelectable(0, 0), false);
+    assert.equal(state.isMonthSelectable(0, 2), false);
+});
+
+test('researchers can deliberately reload proposal methods without changing outputs or months', () => {
+    const state = editor({ objectivesLinked: true,
+        proposalActivities: { Baseline: 'Conduct interviews\nValidate dataset' },
+        initialEntries: [{ objective: 'Baseline', activity: 'Custom survey', expected_output: 'Dataset', months: [1] }],
+    });
+    state.triggerWorkPlanAutoSave = () => {};
+    state.markProposalPreviewStale = () => {};
+    assert.equal(state.entries[0].activity, 'Custom survey');
+    state.useProposalMethods(state.entries[0]);
+    assert.equal(state.entries[0].activity, 'Conduct interviews\nValidate dataset');
+    assert.equal(state.entries[0].expectedOutput, 'Dataset');
+    assert.deepEqual(Array.from(state.entries[0].months), [1]);
+});

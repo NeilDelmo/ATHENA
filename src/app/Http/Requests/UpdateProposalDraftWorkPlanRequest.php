@@ -52,7 +52,11 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
     public function rules(): array
     {
         $allowDraft = $this->allowsDraftValidation();
-        $rules = WorkPlanRules::rules($allowDraft ? 'nullable' : 'required', $allowDraft);
+        $rules = WorkPlanRules::rules(
+            $allowDraft ? 'nullable' : 'required',
+            $allowDraft,
+            allowIncompleteEntries: $this->routeIs('faculty.proposal-drafts.work-plan.preview'),
+        );
         $rules['entries.*.objective'] = [$allowDraft ? 'nullable' : 'required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')];
 
         return [
@@ -70,7 +74,6 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
     {
         return [...WorkPlanRules::afterCallbacks(
             $this->input('entries'),
-            $this->input('total_duration_months'),
             $this->allowsDraftValidation(),
         ), function (Validator $validator): void {
             if ($this->linkedObjectives === [] && ! $this->allowsDraftValidation()) {

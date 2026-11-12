@@ -182,11 +182,11 @@ for (const name of papers) {
                     assert.equal(fixture.state.previewError, '');
                     assert.equal(fixture.state.validationMessage, '');
                 } else {
-                    assert.match(failure === 'validation' ? fixture.state.validationMessage : fixture.state.previewError,
+                    assert.match(fixture.state.previewError,
                         failure === 'validation' ? /Content is required/ : /Network unavailable/);
                     if (failure === 'validation') {
-                        fixture.state.validationMessage = '';
-                        assert.equal(fixture.state.previewError, 'Content is required.');
+                        assert.equal(fixture.state.validationMessage,
+                            name === 'proposalDraftWorkPlan' ? '' : 'Content is required.');
                     }
                 }
                 t.mock.timers.tick(5000);

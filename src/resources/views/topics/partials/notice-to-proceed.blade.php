@@ -37,6 +37,8 @@
         </div>
     </div>
 
+    <p class="border-b border-slate-200 px-5 py-4 text-sm leading-6 text-gray-600 dark:border-slate-700 dark:text-slate-300 sm:px-7">This notice authorizes the approved proposal and its Work Plan. The approved dates below set the timeline for monitoring the Work Plan's activities; releasing the signed copy opens project monitoring.</p>
+
     @if ($topic->hasIssuedNoticeToProceed())
         <div class="grid gap-px border-b border-gray-200 bg-gray-200 sm:grid-cols-3">
             <div class="bg-white px-5 py-4">

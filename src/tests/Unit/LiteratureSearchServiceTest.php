@@ -249,6 +249,152 @@ test('repeated searches reuse valid cached metadata', function () {
     Http::assertNothingSent();
 });
 
+test('Semantic Scholar requests share a rate limit across different searches', function () {
+    $this->freezeTime();
+    fakeLiteratureIndexes();
+
+    app(LiteratureSearchService::class)->search('community monitoring');
+    $limited = app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($limited['failed_sources'])->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(1);
+
+    $this->travel(1)->seconds();
+    $available = app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($available['failed_sources'])->not->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(2);
+});
+
+test('Semantic Scholar overlapping searches reuse cached metadata without duplicate provider requests', function () {
+    $nested = null;
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => function () use (&$nested) {
+            if ($nested === null) {
+                $nested = false;
+                $nested = app(LiteratureSearchService::class)->search('community monitoring');
+            }
+
+            return Http::response(['data' => []]);
+        },
+    ]);
+
+    $outer = app(LiteratureSearchService::class)->search('community monitoring');
+    $cached = app(LiteratureSearchService::class)->search('community monitoring');
+
+    expect($nested['failed_sources'])->toContain('Semantic Scholar')
+        ->and($outer['failed_sources'])->not->toContain('Semantic Scholar')
+        ->and($cached['failed_sources'])->not->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(1);
+});
+
+test('Semantic Scholar transient server failures retry with increasing delays and cache recovery', function () {
+    $delays = [];
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => function ($request, $options) use (&$delays) {
+            $delays[] = $options['delay'] ?? 0;
+
+            return count($delays) < 3 ? Http::response([], 503) : Http::response(['data' => []]);
+        },
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search('community monitoring');
+
+    expect($search['failed_sources'])->not->toContain('Semantic Scholar')
+        ->and($delays)->toBe([0, 1000, 2000]);
+
+    Http::fake(['*' => Http::response([], 500)]);
+    app(LiteratureSearchService::class)->search('community monitoring');
+    Http::assertNothingSent();
+});
+
+test('Semantic Scholar authentication failures are not retried and the API key stays in its header', function () {
+    config(['services.semantic_scholar.key' => ' semantic-test-key ']);
+    fakeLiteratureIndexes(['api.semanticscholar.org/*' => Http::response([], 401)]);
+
+    $search = app(LiteratureSearchService::class)->search('community monitoring');
+    $requests = Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org'));
+
+    expect($search['failed_sources'])->toContain('Semantic Scholar')
+        ->and($requests)->toHaveCount(1)
+        ->and($requests[0][0]->header('x-api-key'))->toBe(['semantic-test-key'])
+        ->and($requests[0][0]->url())->not->toContain('semantic-test-key');
+});
+
+test('Semantic Scholar cooldown respects Retry-After seconds and dates across searches', function (int $status, bool $dateHeader) {
+    $this->freezeTime();
+    $retryAfter = $dateHeader ? now()->addSeconds(120)->toRfc7231String() : '120';
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => Http::sequence()->push([], $status, ['Retry-After' => $retryAfter])->push(['data' => []]),
+    ]);
+
+    app(LiteratureSearchService::class)->search('community monitoring');
+    $this->travel(119)->seconds();
+    $limited = app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($limited['failed_sources'])->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(1);
+
+    $this->travel(2)->seconds();
+    $recovered = app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($recovered['failed_sources'])->not->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(2);
+})->with([[429, false], [429, true], [503, false], [503, true]]);
+
+test('Semantic Scholar exhausted retries fall back and briefly pause new attempts', function () {
+    $this->freezeTime();
+    $unavailable = true;
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => function () use (&$unavailable) {
+            return $unavailable ? Http::response([], 503) : Http::response(['data' => []]);
+        },
+        'api.crossref.org/*' => Http::response(['message' => ['items' => [[
+            'title' => ['Community Monitoring Programs'], 'published' => ['date-parts' => [[2024]]],
+            'abstract' => 'Community monitoring programs improve local participation and environmental monitoring.',
+            'author' => [['given' => 'A.', 'family' => 'Researcher']], 'DOI' => '10.1000/community-monitoring',
+        ]]]]),
+    ]);
+
+    $search = app(LiteratureSearchService::class)->search('community monitoring');
+    app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($search['results'])->not->toBeEmpty()
+        ->and($search['failed_sources'])->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(3);
+
+    $this->travel(31)->seconds();
+    $unavailable = false;
+    $recovered = app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($recovered['failed_sources'])->not->toContain('Semantic Scholar');
+    expect(Http::recorded(fn ($request): bool => str_contains($request->url(), 'api.semanticscholar.org')))->toHaveCount(4);
+});
+
+test('Semantic Scholar connection failures release the request lock and recover after cooldown', function () {
+    $this->freezeTime();
+    $attempts = 0;
+    fakeLiteratureIndexes([
+        'api.semanticscholar.org/*' => function () use (&$attempts) {
+            $attempts++;
+
+            return $attempts <= 3 ? Http::failedConnection() : Http::response(['data' => []]);
+        },
+    ]);
+
+    $failed = app(LiteratureSearchService::class)->search('community monitoring');
+    app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($failed['failed_sources'])->toContain('Semantic Scholar')
+        ->and($attempts)->toBe(3);
+
+    $this->travel(31)->seconds();
+    $recovered = app(LiteratureSearchService::class)->search('coastal biodiversity');
+
+    expect($recovered['failed_sources'])->not->toContain('Semantic Scholar')
+        ->and($attempts)->toBe(4);
+});
+
 test('malformed successful responses are reported and not cached', function () {
     fakeLiteratureIndexes(['api.openalex.org/*' => Http::sequence()
         ->push(['error' => 'Unexpected upstream response'])

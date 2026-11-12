@@ -2,16 +2,23 @@
 
 namespace App\Notifications;
 
-use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
+use App\Models\ProposalInvitationEmail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Mail\SentMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Throwable;
 
 class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [15, 60];
 
     public function __construct(
         public string $recipientName,
@@ -21,6 +28,8 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
         public string $workspaceUrl,
         public bool $accountLinked,
         public bool $requiresAcceptance = false,
+        public ?int $invitationId = null,
+        public ?string $attempt = null,
     ) {
         $this->afterCommit();
     }
@@ -38,13 +47,57 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
     public function shouldSend(object $notifiable, string $channel): bool
     {
         preg_match('~/notifications/proposal-invitations/(\d+)$~', $this->workspaceUrl, $matches);
-        if (! isset($matches[1])) {
+        $invitationId = $this->invitationId ?? (isset($matches[1]) ? (int) $matches[1] : null);
+        if ($invitationId === null) {
             return true;
         }
 
-        return ProposalDraftMember::query()->whereKey($matches[1])->where('email', $this->invitedEmail)
+        $delivery = ProposalInvitationEmail::query()->find($invitationId);
+        if (($this->attempt ?? null) !== null && ! $delivery?->isSendable($this->attempt)) {
+            return false;
+        }
+        if (($this->attempt ?? null) === null && $delivery?->attempt !== null) {
+            return false;
+        }
+
+        $active = ProposalDraftMember::query()->whereKey($invitationId)->where('email', $this->invitedEmail)
             ->when($this->requiresAcceptance, fn ($query) => $query->whereNull('accepted_at'))
-            ->whereHas('draft', fn ($query) => $query->where('status', ProposalDraft::STATUS_DRAFT))->exists();
+            ->whereHas('draft')->exists()
+            || ProposalInvitationEmail::query()->whereKey($invitationId)->whereHas('collaborator', function ($query): void {
+                $query->where('email', $this->invitedEmail)
+                    ->when($this->requiresAcceptance, fn ($query) => $query->whereNull('accepted_at'));
+            })->exists();
+
+        if (! $active) {
+            $this->recordResult(ProposalInvitationEmail::SKIPPED);
+        }
+
+        return $active;
+    }
+
+    public function afterSending(object $notifiable, string $channel, mixed $response): void
+    {
+        $mailer = config('mail.default');
+        $transport = config("mail.mailers.{$mailer}.transport");
+        $status = match (true) {
+            ! $response instanceof SentMessage => ProposalInvitationEmail::FAILED,
+            in_array($transport, ['log', 'array'], true) => ProposalInvitationEmail::CAPTURED,
+            default => ProposalInvitationEmail::PROCESSED,
+        };
+
+        $this->recordResult($status);
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $this->recordResult(ProposalInvitationEmail::FAILED);
+    }
+
+    private function recordResult(string $status): void
+    {
+        if (isset($this->invitationId, $this->attempt)) {
+            ProposalInvitationEmail::recordResult($this->invitationId, $this->attempt, $status);
+        }
     }
 
     /**
@@ -62,7 +115,7 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
                     : 'Your verified ATHENA account is already linked to this proposal workspace.')
                 : 'Sign in with the invited BatStateU Google account, then choose Accept or Decline. Access starts only after you accept.')
             ->action('Open ATHENA', $this->workspaceUrl)
-            ->line('Sign in using '.$this->invitedEmail.'. The shared proposal will appear in your Proposal Workspace.')
+            ->line('Sign in using '.$this->invitedEmail.'. Open the invitation to find the shared proposal or its submitted project record.')
             ->line('Project staff may edit draft papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
     }
 

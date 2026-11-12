@@ -144,6 +144,21 @@ test('narrative drafts and PDF preparation allow accomplishments without proof',
     Storage::disk('local')->assertExists($report->official_pdf_path);
 });
 
+test('narrative report preparation uses the latest proposal budget when the topic budget is empty', function () {
+    $this->topic->update(['estimated_budget' => null]);
+    $this->topic->versions()->create([
+        'submitted_by' => $this->researcher->id, 'version_number' => 1,
+        'submission_type' => 'initial', 'title' => $this->topic->title,
+        'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf', 'mime_type' => 'application/pdf',
+        'file_size' => 100, 'checksum' => hash('sha256', 'proposal'), 'estimated_budget' => 85000,
+    ]);
+
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->payload)())
+        ->assertSessionHasNoErrors();
+
+    expect(ProjectNarrativeReport::query()->sole()->budget)->toBe('85000.00');
+});
+
 test('approved narrative objectives retain their evidence when client labels are changed', function () {
     $version = $this->topic->versions()->create([
         'submitted_by' => $this->researcher->id, 'version_number' => 1,

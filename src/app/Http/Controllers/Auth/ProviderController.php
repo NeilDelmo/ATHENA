@@ -67,24 +67,25 @@ class ProviderController extends Controller
                 report($exception);
             }
 
+            $invitationUrl = $this->intendedInvitationUrl($request);
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             Auth::login($user, (bool) config('services.google.remember_login', false));
             $request->session()->regenerateToken();
 
             if (WorkspacePreference::restore($request)) {
-                return redirect()->route('dashboard');
+                return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('dashboard');
             }
 
             if ($user->hasMultipleWorkspaces()) {
-                return redirect()->route('workspace.select');
+                return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('workspace.select');
             }
 
             if ($workspace = $user->availableWorkspaceKeys()[0] ?? null) {
                 $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
             }
 
-            return redirect()->route('dashboard');
+            return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('dashboard');
         } catch (\Exception $e) {
             Log::warning('Google authentication failed.', [
                 'message' => $e->getMessage(),
@@ -95,6 +96,18 @@ class ProviderController extends Controller
                 ->route('login')
                 ->withErrors(['google' => 'Google sign-in could not be completed. Please try again.']);
         }
+    }
+
+    private function intendedInvitationUrl(Request $request): ?string
+    {
+        $intended = $request->session()->get('url.intended');
+        if (! is_string($intended) || ! preg_match('~/proposal-invitations/([1-9][0-9]*)$~D', $intended, $matches)) {
+            return null;
+        }
+
+        $invitationUrl = route('notifications.proposal-invitations.show', $matches[1]);
+
+        return $intended === $invitationUrl ? $invitationUrl : null;
     }
 
     private function findOrCreateGoogleUser(SocialiteUser $googleUser, string $email): User

@@ -6,6 +6,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\UploadedFile;
@@ -60,6 +61,22 @@ beforeEach(function () {
         'status' => 'approved',
         'project_status' => null,
     ]);
+});
+
+test('monitoring keeps the notice approved timeline when the signed notice is released late', function () {
+    $this->topic->update([
+        'notice_to_proceed_issued_at' => '2026-10-15',
+        'notice_to_proceed_data' => [
+            'approved_start_date' => '2026-09-01', 'approved_end_date' => '2027-08-31',
+            'approved_duration_months' => 12,
+        ],
+    ]);
+    $quarters = app(MonitoringQuarterService::class);
+    $window = $quarters->reportingWindow($this->topic);
+
+    expect($window['start']->toDateString())->toBe('2026-09-01')
+        ->and($window['end']->toDateString())->toBe('2027-08-31')
+        ->and($quarters->projectPeriods($this->topic)->first()['end']->toDateString())->toBe('2026-11-30');
 });
 
 test('the notice form keeps editable details visible above the signed upload', function (bool $prepared) {

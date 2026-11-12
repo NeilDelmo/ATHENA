@@ -48,7 +48,6 @@ class StoreTopicProposalRequest extends FormRequest
     {
         return WorkPlanRules::afterCallbacks(
             $this->input('entries'),
-            $this->input('total_duration_months'),
         );
     }
 

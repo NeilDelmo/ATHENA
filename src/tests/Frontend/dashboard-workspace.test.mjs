@@ -8,6 +8,68 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
+test('vcrdes balances maroon summaries with softer panels and icon controls in both themes', { timeout: 120000 }, async () => {
+    execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/VcrdesWorkspaceTest.php'], {
+        encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
+        env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_DASHBOARD_LAYOUT: '1' },
+    });
+    const manifest = JSON.parse(readFileSync(resolve('public/build/manifest.json'), 'utf8'));
+    const styles = [manifest['resources/css/app.css'].file, ...manifest['resources/js/app.js'].css]
+        .map(file => readFileSync(resolve(`public/build/${file}`), 'utf8')).join('\n');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const fixture of ['vcrdes', 'vcrdes-empty']) {
+            const source = readFileSync(resolve(`storage/framework/testing/dashboard-${fixture}.html`), 'utf8');
+            for (const width of [320, 390, 768, 1440]) {
+                for (const dark of [false, true]) {
+                    const page = await browser.newPage({ viewport: { width, height: 1000 } });
+                    const errors = [];
+                    page.on('pageerror', error => errors.push(error.message));
+                    const content = await page.evaluate(source => new DOMParser().parseFromString(source, 'text/html').querySelector('[data-vcrdes-dashboard]').outerHTML, source);
+                    await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles}</style><body class="bg-slate-50 p-4 font-sans dark:bg-slate-950"><main>${content}</main></body></html>`);
+                    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${fixture}: ${width}px overflow`);
+                    for (const selector of ['#overview', '#projects > div:first-child']) {
+                        assert.equal(await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(122, 0, 25)');
+                    }
+                    for (const selector of ['#attention > div:first-child', '#budget', '#colleges > div:first-child', '#colleges a']) {
+                        const background = await page.locator(selector).first().evaluate(element => getComputedStyle(element).backgroundColor);
+                        assert.ok(!['rgb(122, 0, 25)', 'rgb(185, 28, 28)'].includes(background), 'Secondary panels should use softer surfaces');
+                    }
+                    for (const control of await page.locator('#projects input, #projects select').all()) {
+                        assert.equal(await control.evaluate(element => getComputedStyle(element).color), dark ? 'rgb(255, 255, 255)' : 'rgb(15, 23, 42)', 'Filter values must remain readable against their own surfaces');
+                    }
+                    for (const action of await page.locator('a, button').all()) {
+                        assert.ok(await action.locator('svg').count() > 0, 'Monitoring actions need icons');
+                        const style = await action.evaluate(element => {
+                            const css = getComputedStyle(element);
+                            return { background: css.backgroundColor, border: parseFloat(css.borderTopWidth), radius: parseFloat(css.borderRadius), decoration: css.textDecorationLine, height: element.getBoundingClientRect().height };
+                        });
+                        assert.ok(style.border >= 1 || !['rgba(0, 0, 0, 0)', 'transparent'].includes(style.background), 'Actions need visible button surfaces');
+                        assert.ok(style.radius >= 4 && style.height >= 44, 'Actions need usable button shapes');
+                        assert.equal(style.decoration, 'none');
+                    }
+                    if (fixture === 'vcrdes') {
+                        const summary = page.locator('#projects summary').first();
+                        await summary.focus();
+                        await page.keyboard.press('Enter');
+                        assert.equal(await summary.evaluate(element => element.parentElement.open), true);
+                        assert.ok(await page.locator('#projects details[open]').count() > 0);
+                        await page.keyboard.press('Enter');
+                        assert.equal(await summary.evaluate(element => element.parentElement.open), false);
+                        if ([390, 1440].includes(width)) await page.screenshot({ path: resolve(`storage/framework/testing/dashboard-vcrdes-${width}-${dark ? 'dark' : 'light'}.png`), fullPage: true });
+                    } else {
+                        assert.ok(await page.getByRole('heading', { name: 'No issued projects yet' }).isVisible());
+                    }
+                    assert.deepEqual(errors, []);
+                    await page.close();
+                }
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('submission date filter icons stay centered when collapsed and expanded', async () => {
     const source = readFileSync(resolve('resources/views/livewire/research-head-overview.blade.php'), 'utf8');
     const summary = source.match(/<summary class="rh-button-secondary[\s\S]*?<\/summary>/)[0]

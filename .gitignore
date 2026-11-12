@@ -64,3 +64,14 @@ Thumbs.db
 /src/playwright-report/
 /src/playwright/.auth/
 /src/test-results/
+/src/scripts/jmeter/private/
+/src/scripts/jmeter/*.local.json
+__pycache__/
+
+# Local test output and temporary files.
+/.tmp/
+/output/jmeter/
+/output/playwright/
+/src/storage/session-debug.json
+/src/tmp/
+/tmp/

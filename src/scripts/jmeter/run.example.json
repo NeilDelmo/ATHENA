@@ -1,0 +1,35 @@
+{
+  "baseUrl": "https://athenaresearch.app",
+  "workspace": "research_head",
+  "users": [
+    {
+      "sessionFile": "private/research_head-01.json",
+      "records": {},
+      "payloads": {}
+    }
+  ],
+  "threads": 1,
+  "rampUpSeconds": 1,
+  "loops": 1,
+  "warmupLoops": 0,
+  "durationSeconds": 0,
+  "pauseMs": 1000,
+  "operations": [
+    "head-dashboard",
+    "head-analytics",
+    "head-analytics-refresh",
+    "calls",
+    "head-submissions",
+    "head-projects",
+    "head-completed",
+    "report-reviews",
+    "head-budgets",
+    "targets-research_head",
+    "targets-refresh-research_head",
+    "college-reports-head",
+    "rms-reports",
+    "manuals",
+    "outcomes"
+  ],
+  "isolatedTestEnvironment": false
+}

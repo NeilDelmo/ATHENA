@@ -2,8 +2,8 @@
 <section class="secretary-panel" data-secretary-report-queue aria-labelledby="secretary-review-heading" @unless ($compact) data-automatic-assessment-preview x-data="proposalAssessmentPreview()" @resize.window.debounce.150ms="resizeProposalPaperPreview()" @endunless>
     <div @unless ($compact) :inert="previewFullscreen" @endunless>
         <header class="secretary-section-heading">
-            <div><h2 id="secretary-review-heading">{{ $compact ? 'Report reviews' : 'Submitted reports' }}</h2></div>
-            @if ($compact)<a href="{{ route('research_secretary.reports.index') }}" class="secretary-button-secondary">View all {{ $reports->count() }} <span aria-hidden="true">→</span></a>@else<span class="secretary-count">{{ $reports->count() }} waiting</span>@endif
+            <div><h2 id="secretary-review-heading" class="flex items-center gap-2.5"><x-report-library-icon name="list" class="h-5 w-5" /> {{ $compact ? 'Report reviews' : 'Submitted reports' }}</h2></div>
+            @if ($compact)<a href="{{ route('research_secretary.reports.index') }}" class="secretary-button-secondary">View all {{ $reports->count() }} <x-report-library-icon name="open" class="h-4 w-4" /></a>@else<span class="secretary-count">{{ $reports->count() }} waiting</span>@endif
         </header>
         <div class="secretary-report-list" data-secretary-priority-list>
             @forelse ($compact ? $reports->take(4) : $reports as $report)
@@ -21,8 +21,8 @@
                         @if ($report->research_head_remarks)<p class="secretary-concern">Returned by Research Head · resolve concerns before forwarding</p>@endif
                     </div>
                     <div class="secretary-row-actions">
-                        @unless ($compact)<button type="button" data-preview-url="{{ $previewUrl }}" data-preview-label="{{ $monitoring ? 'Monitoring Tool' : ucfirst($report->report_label) }}" @click="openAssessmentPreview({ label: $el.dataset.previewLabel, previewUrl: $el.dataset.previewUrl })" aria-haspopup="dialog" aria-controls="secretary-report-preview-panel" class="secretary-button-secondary">Preview PDF</button>@endunless
-                        <a href="{{ $reportUrl }}" class="secretary-button-primary">Review report <span aria-hidden="true">→</span></a>
+                        @unless ($compact)<button type="button" data-preview-url="{{ $previewUrl }}" data-preview-label="{{ $monitoring ? 'Monitoring Tool' : ucfirst($report->report_label) }}" @click="openAssessmentPreview({ label: $el.dataset.previewLabel, previewUrl: $el.dataset.previewUrl })" aria-haspopup="dialog" aria-controls="secretary-report-preview-panel" class="secretary-button-secondary"><x-report-library-icon name="preview" class="h-4 w-4" /> Preview PDF</button>@endunless
+                        <a href="{{ $reportUrl }}" class="secretary-button-primary"><x-report-library-icon name="rename" class="h-4 w-4" /> Review report <x-report-library-icon name="open" class="h-4 w-4" /></a>
                     </div>
                 </article>
             @empty

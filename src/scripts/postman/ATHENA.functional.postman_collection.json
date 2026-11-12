@@ -1,0 +1,2615 @@
+{
+  "info": {
+    "name": "ATHENA functional correctness — isolated local endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Workbook case IDs label requests and assertions. Synthetic local session setup is not a Google login test. State checks use a key-protected loopback-only fixture oracle. Imported collections require the generated private local environment. No deployed mutation is supported."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const target = pm.environment.get('baseURL'); if (!new RegExp('^http://(127[.]0[.]0[.]1|localhost):[0-9]+$').test(target || '') || !pm.environment.get('fixtureKey')) { pm.execution.skipRequest(); throw new Error('Refusing nonlocal functional fixture execution.'); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "SETUP session head",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/head"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session head response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf head",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf head response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity head",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/research-head/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity head response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('headId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-02 [missing title]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"\",\"academic_year\":\"2026-2027\",\"opens_at\":\"2026-01-01\",\"closes_at\":\"2027-01-01\",\"max_active_research_per_faculty\":2,\"status\":\"draft\",\"description\":\"Reference description\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-02: CALL-02 [missing title] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies title\", function () { pm.expect(pm.response.json().errors).to.have.property(\"title\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-02 [end before start]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Postman functional call\",\"academic_year\":\"2026-2027\",\"opens_at\":\"2026-01-01\",\"closes_at\":\"2025-01-01\",\"max_active_research_per_faculty\":2,\"status\":\"draft\",\"description\":\"Reference description\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-02: CALL-02 [end before start] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies closes_at\", function () { pm.expect(pm.response.json().errors).to.have.property(\"closes_at\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-02 [invalid calls not stored]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-02: CALL-02 [invalid calls not stored] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"No invalid call created\", function () { pm.expect(state.calls.filter(c => c.title === 'Postman functional call')).to.have.lengthOf(0); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-01 [create draft]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Postman functional call\",\"academic_year\":\"2026-2027\",\"opens_at\":\"2026-01-01\",\"closes_at\":\"2027-01-01\",\"max_active_research_per_faculty\":2,\"status\":\"draft\",\"description\":\"Reference description\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-01: CALL-01 [create draft] response\", function () { pm.expect(pm.response.code).to.eql(302); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-01 [stored fields]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-01: CALL-01 [stored fields] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "const call = state.calls.find(c => c.title === 'Postman functional call'); if (call) pm.collectionVariables.set('createdCallId', call.id);",
+              "pm.test(\"Created call values match\", function () { pm.expect(call).to.include({title:'Postman functional call', description:'Reference description', status:'draft', academic_year:'2026-2027'}); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-01 [publish]",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls/{{createdCallId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\":\"open\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-01: CALL-01 [publish] response\", function () { pm.expect(pm.response.code).to.eql(302); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-01 [published]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-01: CALL-01 [published] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"Publication persisted\", function () { pm.expect(state.calls.find(c => c.id === Number(pm.collectionVariables.get('createdCallId'))).status).to.eql('open'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-04 [edit]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls/{{createdCallId}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Postman functional call\",\"academic_year\":\"2026-2027\",\"opens_at\":\"2026-01-01\",\"closes_at\":\"2027-01-01\",\"max_active_research_per_faculty\":2,\"status\":\"open\",\"description\":\"Updated reference description\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-04: CALL-04 [edit] response\", function () { pm.expect(pm.response.code).to.eql(302); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-04 [persisted edit]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-04: CALL-04 [persisted edit] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"Only intended call fields changed\", function () { pm.expect(state.calls.find(c => c.id === Number(pm.collectionVariables.get('createdCallId')))).to.include({title:'Postman functional call',description:'Updated reference description',status:'open',academic_year:'2026-2027'}); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "EXTRACT-03 [unsupported reference input]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls/extract-image",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "reference_image",
+              "type": "file",
+              "src": "test-results/lifecycle-fixtures/unsupported.txt"
+            }
+          ]
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"EXTRACT-03: EXTRACT-03 [unsupported reference input] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies reference_image\", function () { pm.expect(pm.response.json().errors).to.have.property(\"reference_image\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "APPR-04 [repeat finalized approval]",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-head/topics/{{projectId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\":\"ready_for_signature\",\"lrec_clearance_confirmed\":true}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"APPR-04: APPR-04 [repeat finalized approval] response\", function () { pm.expect(pm.response.code).to.eql(422); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "APPR-04 [no duplicate transition]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"APPR-04: APPR-04 [no duplicate transition] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"Approved project preserved\", function () { pm.expect(state.project.status).to.eql('approved'); pm.expect(state.project.project_status).to.eql('ongoing'); pm.expect(state.projectTransitions).to.eql(1); pm.expect(state.projectVersions).to.eql(0); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP session faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/functional_owner"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session faculty response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf faculty response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity faculty response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('facultyId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CALL-03 [published visible, draft hidden]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"CALL-03: CALL-03 [published visible, draft hidden] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "pm.test(\"Published call visible\", function () { pm.expect(pm.response.text()).to.include('Postman functional call'); });",
+              "pm.test(\"Unpublished call hidden\", function () { pm.expect(pm.response.text()).not.to.include('Functional unpublished call'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-02 [forbidden call mutation]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-calls",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Postman functional call\",\"academic_year\":\"2026-2027\",\"opens_at\":\"2026-01-01\",\"closes_at\":\"2027-01-01\",\"max_active_research_per_faculty\":2,\"status\":\"draft\",\"description\":\"Reference description\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-02: ACCESS-02 [forbidden call mutation] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "APPR-02 [faculty cannot approve]",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-head/topics/{{projectId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\":\"ready_for_signature\",\"lrec_clearance_confirmed\":true}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"APPR-02: APPR-02 [faculty cannot approve] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PROP-04 [closed/unpublished call prerequisite]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/proposal-drafts/{{draftId}}/submit",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"PROP-04: PROP-04 [closed/unpublished call prerequisite] response\", function () { pm.expect(pm.response.code).to.eql(422); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP session faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/functional_owner?workspace=faculty_researcher"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session faculty response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf faculty response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity faculty response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('facultyId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PROJ-04 [incomplete monitoring data]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research/{{projectId}}/progress-reports/prepare",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"PROJ-04: PROJ-04 [incomplete monitoring data] response\", function () { pm.expect(pm.response.code).to.eql(422); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "HELP-02 [empty]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-support/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"messages\":[]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HELP-02: HELP-02 [empty] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Required message content rejected\", function () { pm.expect(Object.keys(pm.response.json().errors).some(k => k.startsWith('messages'))).to.eql(true); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "HELP-02 [whitespace]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research-support/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"messages\":[{\"role\":\"user\",\"content\":\"   \"}]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HELP-02: HELP-02 [whitespace] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Required message content rejected\", function () { pm.expect(Object.keys(pm.response.json().errors).some(k => k.startsWith('messages'))).to.eql(true); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-01 [known file bytes]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents/{{documentId}}/download"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-01: DOC-01 [known file bytes] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "pm.test(\"Returned file matches independent SHA256\", function () { pm.expect(require('crypto-js').SHA256(pm.response.text()).toString()).to.eql(pm.environment.get('documentChecksum')); pm.expect(pm.response.text()).to.include('Expected content: coastal baseline 2026'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-02 [unsupported file]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "category",
+              "value": "supporting_files",
+              "type": "text"
+            },
+            {
+              "key": "documents[]",
+              "src": "test-results/lifecycle-fixtures/unsupported.txt",
+              "type": "file"
+            }
+          ]
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-02: DOC-02 [unsupported file] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies documents.0\", function () { pm.expect(pm.response.json().errors).to.have.property(\"documents.0\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-03 [configured 25000 KiB boundary]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "category",
+              "value": "supporting_files",
+              "type": "text"
+            },
+            {
+              "key": "documents[]",
+              "src": "test-results/functional-fixtures/boundary.pdf",
+              "type": "file"
+            }
+          ]
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-03: DOC-03 [configured 25000 KiB boundary] response\", function () { pm.expect(pm.response.code).to.eql(302); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-03 [boundary saved]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-03: DOC-03 [boundary saved] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.collectionVariables.set('documentCount',state.documents.length);",
+              "pm.test(\"Boundary bytes stored\", function () { pm.expect(state.documents.some(d => d.file_size === 25600000)).to.eql(true); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-03 [one byte over boundary]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "category",
+              "value": "supporting_files",
+              "type": "text"
+            },
+            {
+              "key": "documents[]",
+              "src": "test-results/functional-fixtures/oversized.pdf",
+              "type": "file"
+            }
+          ]
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-03: DOC-03 [one byte over boundary] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies documents.0\", function () { pm.expect(pm.response.json().errors).to.have.property(\"documents.0\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-02 DOC-03 [invalid uploads not stored]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-02: DOC-02 DOC-03 [invalid uploads not stored] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"No invalid document was added\", function () { pm.expect(state.documents.length).to.eql(Number(pm.collectionVariables.get('documentCount'))); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-01 [upload reference]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "category",
+              "value": "supporting_files",
+              "type": "text"
+            },
+            {
+              "key": "documents[]",
+              "src": "test-results/lifecycle-fixtures/reference.pdf",
+              "type": "file"
+            }
+          ]
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-01: DOC-01 [upload reference] response\", function () { pm.expect(pm.response.code).to.eql(302); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-01 [upload association]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-01: DOC-01 [upload association] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "const doc = state.documents.filter(d => d.original_filename === 'reference.pdf').at(-1); if(doc) pm.collectionVariables.set('uploadedDocumentId',doc.id);",
+              "pm.test(\"Uploaded PDF bound to intended record\", function () { pm.expect(doc.topic_id).to.eql(Number(pm.environment.get('projectId'))); pm.expect(doc.checksum).to.eql(pm.environment.get('documentChecksum')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-01 [retrieve uploaded reference]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents/{{uploadedDocumentId}}/download"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-01: DOC-01 [retrieve uploaded reference] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "pm.test(\"Upload roundtrip SHA256\", function () { pm.expect(require('crypto-js').SHA256(pm.response.text()).toString()).to.eql(pm.environment.get('documentChecksum')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-05 [missing file reference]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents/{{missingDocumentId}}/download"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-05: DOC-05 [missing file reference] response\", function () { pm.expect(pm.response.code).to.eql(404); });",
+              "pm.test(\"No unrelated PDF leaked\", function () { pm.expect(pm.response.text()).not.to.include('Expected content: coastal baseline 2026'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "MAN-01 [active edition bytes]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-manuals/{{activeManualVersion}}/file"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"MAN-01: MAN-01 [active edition bytes] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "pm.test(\"Correct edition PDF retrieved\", function () { pm.expect(require('crypto-js').SHA256(pm.response.text()).toString()).to.eql(pm.environment.get('documentChecksum')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "MAN-02 [staged edition restricted]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-manuals/{{stagedManualVersion}}/file"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"MAN-02: MAN-02 [staged edition restricted] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "MAN-04 [unknown edition]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-manuals/0000000000000000000000000000000000000000000000000000000000000000/file"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"MAN-04: MAN-04 [unknown edition] response\", function () { pm.expect(pm.response.code).to.eql(404); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP session outsider",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/outsider"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session outsider response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf outsider",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf outsider response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity outsider",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity outsider response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('outsiderId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-03 PROP-05 [restricted draft read]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/proposal-drafts/{{draftId}}/details"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-03: ACCESS-03 PROP-05 [restricted draft read] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-03 PROP-05 [restricted draft update]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/proposal-drafts/{{draftId}}/details",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"project_title\":\"Unauthorized overwrite\"}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-03: ACCESS-03 PROP-05 [restricted draft update] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP session outsider",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/outsider?workspace=faculty_researcher"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session outsider response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf outsider",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf outsider response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity outsider",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity outsider response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('outsiderId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-03 [own project permitted]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research/{{otherProjectId}}"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-03: ACCESS-03 [own project permitted] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "pm.test(\"Own project is readable\", function () { pm.expect(pm.response.text()).to.include('Functional other project'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PROJ-03 [restricted project read]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research/{{projectId}}"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"PROJ-03: PROJ-03 [restricted project read] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PROJ-03 [restricted project update]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/research/{{projectId}}/progress-reports/prepare",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"PROJ-03: PROJ-03 [restricted project update] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-04 [restricted direct retrieval]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents/{{documentId}}/download"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-04: DOC-04 [restricted direct retrieval] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DOC-04 [wrong project document pairing]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{otherProjectId}}/documents/{{documentId}}/download"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"DOC-04: DOC-04 [wrong project document pairing] response\", function () { pm.expect(pm.response.code).to.eql(404); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-05 [restricted financial write]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/projects/{{projectId}}/reports/{{reportId}}/budget",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"budget_token\":\"{{budgetToken}}\",\"budget_utilization\":[{\"type\":\"Purchase Request\",\"amount_requested\":30000,\"actual_amount\":1},{\"type\":\"Cash Advance\",\"amount_requested\":30000,\"actual_amount\":2},{\"type\":\"Request of Payment\",\"amount_requested\":30000,\"actual_amount\":3}]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-05: BUD-05 [restricted financial write] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-02: ACCESS-02 ACCESS-03 PROP-05 PROJ-03 BUD-05 [unchanged protected state] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"Budget and report associations unchanged\", function () { pm.expect(state.budget.spent).to.eql(21000); pm.expect(state.budget.remaining).to.eql(79000); pm.expect(state.otherAllocation).to.eql(100000); pm.expect(state.report.topic_id).to.eql(Number(pm.environment.get('projectId'))); pm.expect(state.report.submitted_by).to.eql(Number(pm.environment.get('facultyId'))); });",
+              "pm.test(\"Protected draft and project unchanged\", function () { pm.expect(state.draft.project_title).to.eql('Functional incomplete draft'); pm.expect(state.draft.user_id).to.eql(Number(pm.environment.get('facultyId'))); pm.expect(state.project.status).to.eql('approved'); });",
+              "pm.test(\"Unauthorized call creation produced no duplicate\", function () { pm.expect(state.calls.filter(c => c.title === 'Postman functional call')).to.have.lengthOf(1); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP session faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/functional_owner?workspace=faculty_researcher"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session faculty response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf faculty response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity faculty",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/faculty/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity faculty response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('facultyId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-01 BUD-02 [persisted reference totals]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-01: BUD-01 BUD-02 [persisted reference totals] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"Budget and report associations unchanged\", function () { pm.expect(state.budget.spent).to.eql(21000); pm.expect(state.budget.remaining).to.eql(79000); pm.expect(state.otherAllocation).to.eql(100000); pm.expect(state.report.topic_id).to.eql(Number(pm.environment.get('projectId'))); pm.expect(state.report.submitted_by).to.eql(Number(pm.environment.get('facultyId'))); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-03 [negative]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/projects/{{projectId}}/reports/{{reportId}}/budget",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"budget_token\":\"{{budgetToken}}\",\"budget_utilization\":[{\"type\":\"Purchase Request\",\"amount_requested\":30000,\"actual_amount\":-1},{\"type\":\"Cash Advance\",\"amount_requested\":30000,\"actual_amount\":8500},{\"type\":\"Request of Payment\",\"amount_requested\":30000,\"actual_amount\":2500}]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-03: BUD-03 [negative] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies budget_utilization.0.actual_amount\", function () { pm.expect(pm.response.json().errors).to.have.property(\"budget_utilization.0.actual_amount\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-03 [nonnumeric]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/projects/{{projectId}}/reports/{{reportId}}/budget",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"budget_token\":\"{{budgetToken}}\",\"budget_utilization\":[{\"type\":\"Purchase Request\",\"amount_requested\":30000,\"actual_amount\":\"invalid\"},{\"type\":\"Cash Advance\",\"amount_requested\":30000,\"actual_amount\":8500},{\"type\":\"Request of Payment\",\"amount_requested\":30000,\"actual_amount\":2500}]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-03: BUD-03 [nonnumeric] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies budget_utilization.0.actual_amount\", function () { pm.expect(pm.response.json().errors).to.have.property(\"budget_utilization.0.actual_amount\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-04 [allocation exceeded]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/projects/{{projectId}}/reports/{{reportId}}/budget",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"budget_token\":\"{{budgetToken}}\",\"budget_utilization\":[{\"type\":\"Purchase Request\",\"amount_requested\":40000,\"actual_amount\":40000},{\"type\":\"Cash Advance\",\"amount_requested\":40000,\"actual_amount\":40000},{\"type\":\"Request of Payment\",\"amount_requested\":40000,\"actual_amount\":40000}]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-04: BUD-04 [allocation exceeded] response\", function () { pm.expect(pm.response.code).to.eql(422); });",
+              "pm.test(\"Validation identifies budget_utilization\", function () { pm.expect(pm.response.json().errors).to.have.property(\"budget_utilization\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-03 BUD-04 [rejected amounts do not change totals]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/functional-state"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-03: BUD-03 BUD-04 [rejected amounts do not change totals] response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const state = pm.response.json(); pm.collectionVariables.set('budgetToken', state.budget.token);",
+              "pm.test(\"Budget and report associations unchanged\", function () { pm.expect(state.budget.spent).to.eql(21000); pm.expect(state.budget.remaining).to.eql(79000); pm.expect(state.otherAllocation).to.eql(100000); pm.expect(state.report.topic_id).to.eql(Number(pm.environment.get('projectId'))); pm.expect(state.report.submitted_by).to.eql(Number(pm.environment.get('facultyId'))); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP session secretary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/__playwright/session/secretary"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP session secretary response\", function () { pm.expect(pm.response.code).to.eql(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP csrf secretary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP csrf secretary response\", function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SETUP identity secretary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/html"
+          }
+        ],
+        "url": "{{baseURL}}/research-secretary/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"SETUP: SETUP identity secretary response\", function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const match = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/); if (match) pm.collectionVariables.set('csrf', match[1]);",
+              "pm.test(\"SETUP authenticated identity\", function () { pm.expect(pm.response.text()).to.include('data-auth-user-id=\"' + pm.environment.get('secretaryId') + '\"'); pm.expect(match).not.to.eql(null); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BUD-05 [office secretary cannot edit project budget]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/projects/{{projectId}}/reports/{{reportId}}/budget",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"budget_token\":\"{{budgetToken}}\",\"budget_utilization\":[{\"type\":\"Purchase Request\",\"amount_requested\":30000,\"actual_amount\":10000},{\"type\":\"Cash Advance\",\"amount_requested\":30000,\"actual_amount\":8500},{\"type\":\"Request of Payment\",\"amount_requested\":30000,\"actual_amount\":2500}]}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"BUD-05: BUD-05 [office secretary cannot edit project budget] response\", function () { pm.expect(pm.response.code).to.eql(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "AUTH-05 [secretary logout]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseURL}}/logout",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"AUTH-05: AUTH-05 [secretary logout] response\", function () { pm.expect(pm.response.code).to.eql(302); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-04 DOC-04 MAN-02 [signed out dashboard]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-secretary/dashboard"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-04: ACCESS-04 DOC-04 MAN-02 [signed out dashboard] response\", function () { pm.expect(pm.response.code).to.eql(401); });",
+              "pm.test(\"No private response data\", function () { pm.expect(pm.response.text()).not.to.include('Expected content: coastal baseline 2026'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-04 DOC-04 MAN-02 [signed out document]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/topics/{{projectId}}/documents/{{documentId}}/download"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-04: ACCESS-04 DOC-04 MAN-02 [signed out document] response\", function () { pm.expect(pm.response.code).to.eql(401); });",
+              "pm.test(\"No private response data\", function () { pm.expect(pm.response.text()).not.to.include('Expected content: coastal baseline 2026'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "ACCESS-04 DOC-04 MAN-02 [signed out manual]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Playwright-Key",
+            "value": "{{fixtureKey}}"
+          }
+        ],
+        "url": "{{baseURL}}/research-manuals/{{activeManualVersion}}/file"
+      },
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"ACCESS-04: ACCESS-04 DOC-04 MAN-02 [signed out manual] response\", function () { pm.expect(pm.response.code).to.eql(401); });",
+              "pm.test(\"No private response data\", function () { pm.expect(pm.response.text()).not.to.include('Expected content: coastal baseline 2026'); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

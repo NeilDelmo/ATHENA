@@ -27,7 +27,7 @@ const toolbar = execFileSync('php', ['-r', String.raw`
 const editView = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/work-plan/edit.blade.php', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const entryView = editView.slice(editView.indexOf('<template x-for="(entry, index) in entries"'), editView.indexOf('\n            </section>\n\n            <x-proposal-signatory-summary'));
 
-test('Work Plan opens the desktop preview automatically and uses one preview toggle while preserving autosave and month locks', async () => {
+test('Work Plan opens the desktop preview automatically and preserves autosave with overlapping months', async () => {
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
     const workspaceStyles = readFileSync(new URL('../../resources/css/proposal-paper-workspace.css', import.meta.url), 'utf8');
@@ -45,6 +45,7 @@ test('Work Plan opens the desktop preview automatically and uses one preview tog
                         { objective: 'Document the coastal baseline', expected_output: 'Baseline dataset', activity: 'Conduct surveys', months: [1, 2] },
                         { objective: 'Evaluate the monitoring workflow', expected_output: 'Evaluation report', activity: 'Analyze results', months: [13, 14] },
                     ],
+                    proposalActivities: { 'Evaluate the monitoring workflow': 'Compare the recorded results' },
                 };
                 await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}\n${workspaceStyles}</style><body data-app-shell>
                     <div data-app-content-shell style="padding-left:${width >= 640 ? 280 : 76}px">
@@ -96,14 +97,19 @@ test('Work Plan opens the desktop preview automatically and uses one preview tog
                 }
                 await page.locator('#output-2').fill('Reviewed evaluation dataset');
                 const secondEntry = page.locator('[data-work-plan-entry-id="2"]');
-                assert.equal(await secondEntry.locator('input[type="checkbox"][value="1"]').isDisabled(), true);
+                await secondEntry.getByRole('button', { name: 'Replace activities with proposal methods' }).click();
+                assert.equal(await page.locator('#activity-2').inputValue(), 'Compare the recorded results');
+                await page.waitForFunction(() => window.savedBodies.some(body => body.some(([name, value]) => name === 'entries[1][activity]' && value === 'Compare the recorded results')));
+                assert.equal(await secondEntry.locator('input[type="checkbox"][value="1"]').isEnabled(), true);
+                await secondEntry.locator('input[type="checkbox"][value="1"]').check({ force: true });
                 await secondEntry.locator('label:has(input[value="15"])').click();
                 assert.equal(await secondEntry.locator('input[type="checkbox"][value="15"]').isChecked(), true);
-                await page.waitForFunction(() => window.savedBodies.length > 0 && !window.workPlanState.autoSaveInFlight);
+                await page.waitForFunction(() => !window.workPlanState.autoSaveInFlight && window.savedBodies.at(-1)?.some(([name, value]) => name === 'entries[1][months][]' && value === '15'));
                 if (width < 1024) assert.equal(await page.evaluate(() => window.previewBodies.length), 0);
                 const saved = await page.evaluate(() => window.savedBodies.at(-1));
                 assert.ok(saved.some(([name, value]) => name === 'entries[1][expected_output]' && value === 'Reviewed evaluation dataset'));
                 assert.ok(saved.some(([name, value]) => name === 'entries[1][months][]' && value === '15'));
+                assert.ok(saved.some(([name, value]) => name === 'entries[1][months][]' && value === '1'));
 
                 await page.getByRole('button', { name: 'Collapse objective', exact: true }).click();
                 await page.locator('#activity-2').waitFor({ state: 'hidden' });
@@ -166,7 +172,8 @@ test('Work Plan opens the desktop preview automatically and uses one preview tog
                 if (width < 1024) await page.evaluate(() => window.workPlanState.closeProposalPreview());
                 await page.locator('#activity-2').fill('Validate results after reviewing required months');
                 if (width < 1024) await previewToggle.click();
-                await page.waitForFunction(() => !window.workPlanState.previewLoading && window.workPlanState.validationMessage);
+                await page.waitForFunction(() => !window.workPlanState.previewLoading && window.workPlanState.previewError);
+                assert.equal(await page.evaluate(() => window.workPlanState.validationMessage), '');
                 assert.equal(await page.evaluate(() => window.workPlanState.previewHtml), lastPreview);
                 assert.equal(await page.getByRole('alert').textContent(), 'Choose the required months.');
                 assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), true);

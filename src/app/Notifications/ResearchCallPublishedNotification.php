@@ -4,27 +4,15 @@ namespace App\Notifications;
 
 use App\Models\ResearchCall;
 use App\Models\User;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\BroadcastMessage;
-use Illuminate\Notifications\Notification;
 
-class ResearchCallPublishedNotification extends Notification implements ShouldQueue
+class ResearchCallPublishedNotification extends ResearchCallNotification
 {
-    use Queueable;
-
     public function __construct(
         public int $researchCallId,
         public string $researchCallTitle,
         public string $url,
     ) {
         $this->afterCommit();
-    }
-
-    /** @return array<int, string> */
-    public function via(object $notifiable): array
-    {
-        return ['database', 'broadcast'];
     }
 
     public function shouldSend(object $notifiable, string $channel): bool
@@ -44,11 +32,6 @@ class ResearchCallPublishedNotification extends Notification implements ShouldQu
             'research_call_id' => $this->researchCallId,
             'workspace' => User::WORKSPACE_FACULTY,
         ];
-    }
-
-    public function toBroadcast(object $notifiable): BroadcastMessage
-    {
-        return new BroadcastMessage($this->toArray($notifiable));
     }
 
     public function broadcastType(): string

@@ -4,21 +4,46 @@ namespace App\Support;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
+use Illuminate\Support\Str;
 
 class WorkPlanProposalObjectives
 {
     /** @return list<string> */
     public function forDraft(ProposalDraft $draft): array
     {
+        return collect($this->proposalForDraft($draft)['specific_objectives'])
+            ->pluck('description')
+            ->values()
+            ->all();
+    }
+
+    /** @return array<string, mixed> */
+    public function proposalForDraft(ProposalDraft $draft): array
+    {
         $draft->loadMissing('documents');
         $source = $draft->documents
             ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
             ->firstWhere('position', 0)?->source_data ?? [];
 
-        return collect(DetailedProposalData::fromValidated($source)['specific_objectives'])
-            ->pluck('description')
-            ->values()
-            ->all();
+        return DetailedProposalData::fromValidated($source);
+    }
+
+    /**
+     * @param  array<string, mixed>  $proposal
+     * @return array<string, string>
+     */
+    public function activities(array $proposal): array
+    {
+        $groups = collect($proposal['specific_method_objectives'])
+            ->groupBy(fn (array $group): string => Str::lower(Str::squish($group['heading'])));
+
+        return collect($proposal['specific_objectives'])->mapWithKeys(function (array $objective) use ($groups): array {
+            $description = $objective['description'];
+            $methods = $groups->get(Str::lower(Str::squish($description)), collect());
+
+            return [$description => $methods->flatMap(fn (array $group): array => $group['methods'])
+                ->pluck('description')->implode("\n")];
+        })->all();
     }
 
     /**

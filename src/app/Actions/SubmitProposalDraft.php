@@ -521,7 +521,7 @@ class SubmitProposalDraft
             [],
             WorkPlanRules::attributes(),
         );
-        $validator->after(WorkPlanRules::afterCallbacks($sourceData['entries'], $draft->duration_months));
+        $validator->after(WorkPlanRules::afterCallbacks($sourceData['entries']));
         $validated = $validator->validate();
         $workPlan = WorkPlanData::fromValidated($validated);
 

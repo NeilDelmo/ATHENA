@@ -114,7 +114,22 @@ test('secretary pages stay focused, navigate in one tab, and work on phones and 
                         assert.ok(await page.locator('[data-secretary-priority-list] article').count() <= 4);
                         const summary = page.getByRole('region', { name: 'Office workload' });
                         await expect(summary.locator('dt')).toHaveCount(4);
-                        assert.ok((await summary.boundingBox()).height <= (width >= 900 ? 120 : 220), 'Workload summary must leave room for report reviews');
+                        assert.ok((await summary.boundingBox()).height <= (width >= 900 ? 130 : 260), 'Workload summary must leave room for report reviews');
+                        for (const metric of await summary.locator('dl > div').all()) {
+                            await expect(metric).toHaveCSS('background-color', 'rgb(122, 0, 25)');
+                            await expect(metric.locator('svg')).toHaveCount(1);
+                        }
+                        for (const heading of await page.locator('.secretary-section-heading').all()) {
+                            await expect(heading).toHaveCSS('background-color', dark ? 'rgb(53, 29, 42)' : 'rgb(247, 231, 235)');
+                            await expect(heading.locator('h2 svg')).toHaveCount(1);
+                        }
+                        for (const shortcut of await page.locator('.secretary-target-link').all()) {
+                            await expect(shortcut).toHaveCSS('background-color', dark ? 'rgb(53, 29, 42)' : 'rgb(247, 231, 235)');
+                        }
+                        for (const action of await page.locator('[data-secretary-workspace] a, [data-workspace-header-banner] a').all()) {
+                            assert.ok(await action.locator('svg').count() > 0, 'Dashboard actions need recognizable icons');
+                            await expect(action).toHaveCSS('text-decoration-line', 'none');
+                        }
                         await expect(page.getByRole('link', { name: 'Review reports', exact: true })).toHaveCount(1);
                         await expect(page.locator('[data-secretary-workspace]').getByRole('link', { name: /^Projects/ })).toHaveCount(0);
                     }

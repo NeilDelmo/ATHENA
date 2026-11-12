@@ -2458,7 +2458,8 @@ test('generated papers can save partial source data as in-progress drafts', func
         ->toBe('Saved Attachment A: Work Plan as a draft.');
 
     $this->actingAs($this->faculty)
-        ->postJson(route('faculty.proposal-drafts.work-plan.preview', $draft), [
+        ->putJson(route('faculty.proposal-drafts.work-plan.update', $draft), [
+            'document_version' => 1,
             'entries' => [[
                 'objective' => 'Partial objective',
                 'expected_output' => '',

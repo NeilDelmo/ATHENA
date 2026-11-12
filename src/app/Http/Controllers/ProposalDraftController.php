@@ -151,6 +151,7 @@ class ProposalDraftController extends Controller
             'documents',
             'owner:id,name,email,avatar,college,contact_number,professional_title,department',
             'members.user:id,name,email,avatar,college,contact_number,professional_title,department',
+            'members.invitationEmail',
         ]);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);

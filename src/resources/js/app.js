@@ -7099,7 +7099,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         (_, index) => index + 1,
     ),
     monthErrorIndexes: [],
-    monthConflictIndexes: [],
     validationMessage: '',
     previewHtml: '',
     previewError: '',
@@ -7149,16 +7148,25 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
     newEntry(values = {}) {
         this.nextEntryId += 1;
+        const proposalActivities = config.proposalActivities || {};
 
         return {
             id: this.nextEntryId,
             objective: String(values.objective || ''),
             expectedOutput: String(values.expected_output || ''),
             activity: String(values.activity || ''),
+            proposalActivity: Object.hasOwn(proposalActivities, values.objective) ? proposalActivities[values.objective] : '',
             months: Array.isArray(values.months)
                 ? values.months.map((month) => Number(month))
                 : [],
         };
+    },
+
+    useProposalMethods(entry) {
+        if (!entry.proposalActivity) return;
+
+        entry.activity = entry.proposalActivity;
+        this.$nextTick(() => this.triggerWorkPlanAutoSave());
     },
 
     addEntry() {
@@ -7168,7 +7176,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.entries.push(entry);
         this.expandedEntryId = entry.id;
         this.monthErrorIndexes = [];
-        this.monthConflictIndexes = [];
         this.$nextTick(() => {
             focusNewFormEntry(this.$refs.form, `[data-work-plan-objective-input="${entry.id}"]`);
             this.triggerWorkPlanAutoSave();
@@ -7183,7 +7190,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             this.expandedEntryId = this.entries.at(-1)?.id ?? null;
         }
         this.monthErrorIndexes = [];
-        this.monthConflictIndexes = [];
         this.$nextTick(() => this.triggerWorkPlanAutoSave());
     },
 
@@ -7191,7 +7197,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         if (this.entries[index]?.months.length === 0) return;
 
         this.monthErrorIndexes = this.monthErrorIndexes.filter((entryIndex) => entryIndex !== index);
-        this.monthConflictIndexes = [];
         this.validationMessage = '';
     },
 
@@ -7257,34 +7262,17 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     isMonthWithinDuration(month) {
         return Number.isInteger(this.durationMonths)
             && this.durationMonths >= 1
+            && Number.isInteger(month) && month >= 1
             && month <= this.durationMonths;
     },
 
     canAddEntry() {
         if (this.objectivesLinked) return false;
-        const usedMonths = new Set(this.entries.flatMap((entry) => entry.months));
-
-        return this.entries.length < Math.min(this.maxEntries, this.durationMonths)
-            && usedMonths.size < this.durationMonths;
-    },
-
-    monthOwnerIndex(entryIndex, month) {
-        return this.entries.findIndex((entry, index) => (
-            index !== entryIndex && entry.months.includes(month)
-        ));
+        return this.entries.length < this.maxEntries;
     },
 
     isMonthSelectable(entryIndex, month) {
-        if (!this.isMonthWithinDuration(month)) return false;
-        if (this.entries[entryIndex]?.months.includes(month)) return true;
-
-        return this.monthOwnerIndex(entryIndex, month) === -1;
-    },
-
-    monthOwnerLabel(entryIndex, month) {
-        const ownerIndex = this.monthOwnerIndex(entryIndex, month);
-
-        return ownerIndex === -1 ? '' : `O${ownerIndex + 1}`;
+        return this.isMonthWithinDuration(month);
     },
 
     monthSelectionTitle(entryIndex, month) {
@@ -7292,34 +7280,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             return `${this.monthScheduleLabel(month)} is outside the project duration.`;
         }
 
-        const ownerIndex = this.monthOwnerIndex(entryIndex, month);
-
-        return ownerIndex === -1
-            ? `Assign ${this.monthScheduleLabel(month)} to Objective ${entryIndex + 1}`
-            : `${this.monthScheduleLabel(month)} is assigned to Objective ${ownerIndex + 1}`;
-    },
-
-    monthConflicts() {
-        const monthOwners = new Map();
-        const conflicts = [];
-
-        this.entries.forEach((entry, entryIndex) => {
-            entry.months.forEach((month) => {
-                if (monthOwners.has(month) && monthOwners.get(month) !== entryIndex) {
-                    conflicts.push({
-                        entryIndex,
-                        month,
-                        ownerIndex: monthOwners.get(month),
-                    });
-
-                    return;
-                }
-
-                monthOwners.set(month, entryIndex);
-            });
-        });
-
-        return conflicts;
+        return `Assign ${this.monthScheduleLabel(month)} to Objective ${entryIndex + 1}`;
     },
 
     limitMonthsToDuration() {
@@ -7327,15 +7288,13 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             entry.months = entry.months.filter((month) => this.isMonthWithinDuration(month));
         });
         this.monthErrorIndexes = [];
-        this.monthConflictIndexes = [];
     },
 
     isComplete() {
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
 
         return this.entries.length > 0 && fields.every((field) => field.checkValidity())
-            && this.entries.every((entry) => entry.months.length > 0)
-            && this.monthConflicts().length === 0;
+            && this.entries.every((entry) => entry.months.length > 0);
     },
 
     clearWorkPlanValidationHighlights() {
@@ -7424,28 +7383,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         }
 
         this.monthErrorIndexes = [];
-        const conflicts = this.monthConflicts();
-
-        if (conflicts.length === 0) {
-            this.monthConflictIndexes = [];
-
-            return true;
-        }
-
-        const firstConflict = conflicts[0];
-        this.monthConflictIndexes = [...new Set(conflicts.map((conflict) => conflict.entryIndex))];
-        this.expandedEntryId = this.entries[firstConflict.entryIndex]?.id ?? null;
-        this.validationMessage = `${this.monthScheduleLabel(firstConflict.month)} is already assigned to Objective ${firstConflict.ownerIndex + 1}. Each month can be assigned to only one objective.`;
-        this.highlightWorkPlanSchedule(this.entries[firstConflict.entryIndex]);
-        this.$nextTick(() => {
-            const field = this.$refs.form
-                ?.querySelector(`[name="entries[${firstConflict.entryIndex}][months][]"][value="${firstConflict.month}"]`);
-
-            field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            field?.focus();
-        });
-
-        return false;
+        return true;
     },
 
     workPlanFormData() {
@@ -7638,9 +7576,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
                 this.previewStale = true;
                 if (revision !== this.previewRevision) return;
 
-                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                this.previewError = Object.values(payload.errors || {}).flat().join(' ')
                     || 'Please review the Work Plan information.';
-                this.previewError = this.validationMessage;
 
                 return;
             }

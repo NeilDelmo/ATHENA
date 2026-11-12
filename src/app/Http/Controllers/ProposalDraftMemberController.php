@@ -7,8 +7,10 @@ use App\Http\Requests\StoreProposalDraftMemberRequest;
 use App\Http\Requests\UpdateProposalDraftMemberRoleRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
+use App\Models\TopicProposal;
 use App\Services\FacultyProjectCapacityService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -69,8 +71,8 @@ class ProposalDraftMemberController extends Controller
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', $linkedUser
-                ? 'Invitation sent to '.$linkedUser->name.'. Their project staff access starts after accepting it in ATHENA.'
-                : 'Invitation sent to '.$membership->name.'. They must sign in with '.$membership->email.' and accept before getting access.')
+                ? 'Invitation email queued for '.$linkedUser->name.'. Their project staff access starts after accepting it in ATHENA.'
+                : 'Invitation email queued for '.$membership->name.'. They must sign in with '.$membership->email.' and accept before getting access.')
             ->with('workload_warning', $workloadWarning);
     }
 
@@ -96,6 +98,27 @@ class ProposalDraftMemberController extends Controller
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', 'Invitation email queued for '.$proposalDraftMember->name.'.');
+    }
+
+    public function resendSubmitted(
+        Request $request,
+        TopicProposal $topic,
+        int $collaborator,
+        SendProposalWorkspaceInvitation $sendInvitation,
+    ): RedirectResponse {
+        abort_unless($topic->user_id === $request->user()->getKey(), 403);
+        $member = $topic->collaborators()->whereNull('accepted_at')->whereHas('latestInvitationEmail')->findOrFail($collaborator);
+        $response = redirect()->route('topics.show', $topic);
+
+        try {
+            $sendInvitation->resendSubmitted($member);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return $response->withErrors(['invitation' => 'ATHENA could not queue the invitation email. Please try again.']);
+        }
+
+        return $response->with('success', 'Invitation email queued for '.$member->name.'.');
     }
 
     public function updateRole(

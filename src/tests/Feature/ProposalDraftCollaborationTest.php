@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Notifications\ProposalWorkspaceInvitation;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -526,8 +527,10 @@ test('late invitation acceptance follows the current submitted project roster', 
         'project_status' => $released ? $stage : null,
         'notice_to_proceed_issued_at' => $released ? now() : null,
     ]);
-    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
-    $this->draft->update(['topic_id' => $topic->id, 'status' => ProposalDraft::STATUS_SUBMITTED]);
+    DB::transaction(function () use ($topic): void {
+        app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+        $this->draft->forceDelete();
+    });
 
     if (! $retained) {
         $topic->collaborators()->delete();
@@ -536,16 +539,18 @@ test('late invitation acceptance follows the current submitted project roster', 
     if ($firstSignIn) {
         $invitee = User::factory()->create(['email' => $email]);
         $invitee->assignRole('faculty');
-        app(LinkProposalDraftMemberships::class)->handle($invitee);
     } else {
         $invitee = $this->collaborator;
-        $this->actingAs($invitee)
-            ->postJson(route('notifications.proposal-invitations.accept', $membership))
-            ->assertOk();
     }
 
-    expect($membership->fresh()->accepted_at)->not->toBeNull()
-        ->and($topic->collaborators()->forUser($invitee)->exists())->toBe($retained)
+    $response = $this->actingAs($invitee)->postJson(route('notifications.proposal-invitations.accept', $membership));
+    if ($retained) {
+        $response->assertOk()->assertJsonPath('accepted', true);
+    } else {
+        $response->assertNotFound();
+    }
+
+    expect($topic->collaborators()->forUser($invitee)->exists())->toBe($retained)
         ->and($invitee->fresh()->hasRole('faculty_researcher'))->toBe($released && $retained);
 
     if ($retained) {

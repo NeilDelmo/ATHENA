@@ -147,6 +147,8 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
 Route::middleware(['auth', 'workspace:faculty'])->group(function () {
     Route::get('/faculty/submissions', [TopicController::class, 'submissions'])->name('faculty.submissions');
     Route::get('/faculty/topics/create', [TopicController::class, 'create'])->name('faculty.topics.create');
+    Route::post('/faculty/topics/{topic}/collaborators/{collaborator}/invitation', [ProposalDraftMemberController::class, 'resendSubmitted'])
+        ->whereNumber('collaborator')->middleware('throttle:6,1')->name('faculty.topic-collaborators.invitation');
 
     Route::prefix('/faculty/proposal-drafts')->name('faculty.proposal-drafts.')->group(function () {
         Route::get('/', [ProposalDraftController::class, 'index'])->name('index');
@@ -334,10 +336,13 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
     Route::get('/', [NotificationController::class, 'index'])->name('index');
     Route::patch('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
     Route::get('/proposal-invitations/{proposalDraftMember}', [NotificationController::class, 'showProposalInvitation'])
+        ->whereNumber('proposalDraftMember')
         ->name('proposal-invitations.show');
     Route::post('/proposal-invitations/{proposalDraftMember}/accept', [NotificationController::class, 'acceptProposalInvitation'])
+        ->whereNumber('proposalDraftMember')
         ->name('proposal-invitations.accept');
     Route::post('/proposal-invitations/{proposalDraftMember}/decline', [NotificationController::class, 'declineProposalInvitation'])
+        ->whereNumber('proposalDraftMember')
         ->name('proposal-invitations.decline');
     Route::post('/{notification}/open', [NotificationController::class, 'open'])->name('open');
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');

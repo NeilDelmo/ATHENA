@@ -108,7 +108,7 @@ class ProjectNarrativeReportController extends Controller
             ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
             'topic_id' => $topic->id,
             'submitted_by' => $request->user()->id,
-            'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
+            'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->latestVersion?->estimated_budget ?? $topic->estimated_budget ?? 0,
             'accomplishment_summary' => collect($validated['accomplishments'])
                 ->pluck('actual')
                 ->implode("\n"),

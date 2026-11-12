@@ -92,7 +92,7 @@ class ProcessResearchCallOpeningNotifications
         $lockedCall = $notification['researchCall'];
 
         if ($notification['type'] === 'faculty') {
-            Notification::sendNow(
+            Notification::send(
                 User::assignedToRole(User::WORKSPACE_FACULTY)->get(),
                 new ResearchCallPublishedNotification(
                     $lockedCall->id,
@@ -104,7 +104,7 @@ class ProcessResearchCallOpeningNotifications
             return true;
         }
 
-        Notification::sendNow(
+        Notification::send(
             $this->researchHeadRecipients($lockedCall),
             new ResearchCallOpeningReminderNotification(
                 $lockedCall->id,
@@ -159,7 +159,7 @@ class ProcessResearchCallOpeningNotifications
         /** @var ResearchCall $lockedCall */
         $lockedCall = $notification['researchCall'];
 
-        Notification::sendNow(
+        Notification::send(
             $notification['recipients'],
             new ResearchCallDeadlineReminderNotification(
                 $lockedCall->id,

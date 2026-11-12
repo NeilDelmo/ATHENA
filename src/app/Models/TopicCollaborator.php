@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TopicCollaborator extends Model
 {
@@ -41,22 +42,34 @@ class TopicCollaborator extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function latestInvitationEmail(): HasOne
+    {
+        return $this->hasOne(ProposalInvitationEmail::class)->ofMany(
+            ['id' => 'max'],
+            fn (Builder $query) => $query->whereNotNull('status'),
+        );
+    }
+
     /** @param Builder<TopicCollaborator> $query */
     public function scopeForUser(Builder $query, User $user): Builder
     {
-        return $query
-            ->whereNotNull('accepted_at')
-            ->where(function (Builder $collaborator) use ($user): void {
-                $collaborator->where('user_id', $user->getKey());
+        return $query->whereNotNull('accepted_at')->invitedUser($user);
+    }
 
-                if ($user->email_verified_at !== null) {
-                    $collaborator->orWhere(function (Builder $externalCollaborator) use ($user): void {
-                        $externalCollaborator
-                            ->whereNull('user_id')
-                            ->where('email', mb_strtolower(trim($user->email)));
-                    });
-                }
-            });
+    /** @param Builder<TopicCollaborator> $query */
+    public function scopeInvitedUser(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $collaborator) use ($user): void {
+            $collaborator->where('user_id', $user->getKey());
+
+            if ($user->email_verified_at !== null) {
+                $collaborator->orWhere(function (Builder $externalCollaborator) use ($user): void {
+                    $externalCollaborator
+                        ->whereNull('user_id')
+                        ->where('email', mb_strtolower(trim($user->email)));
+                });
+            }
+        });
     }
 
     public function isProjectSecretary(): bool

@@ -437,16 +437,25 @@
                             @foreach ($topic->collaborators as $collaborator)
                                 <li class="flex items-start gap-3">
                                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-black text-red-700">PS</span>
-                                    <span class="min-w-0">
+                                    <div class="min-w-0">
                                         <span class="block truncate text-sm font-bold text-gray-900">{{ $collaborator->name }}</span>
                                         <span class="block truncate text-xs text-gray-500">{{ $collaborator->email }}</span>
                                         <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Confirmed' : 'Invitation pending' }}</span>
+                                        @if ($isFacultyWorkspace && Auth::id() === $topic->user_id && ($invitationEmail = $collaborator->latestInvitationEmail))
+                                            <span class="mt-1 block text-xs text-gray-600">{{ $invitationEmail->statusMessage() }}</span>
+                                            @if ($collaborator->accepted_at === null)
+                                                <form method="POST" action="{{ route('faculty.topic-collaborators.invitation', [$topic, $collaborator]) }}">
+                                                    @csrf
+                                                    <button type="submit" class="mt-1 text-xs font-semibold text-red-700 underline">Resend invitation</button>
+                                                </form>
+                                            @endif
+                                        @endif
                                         @if (! Auth::user()->isUsingWorkspace(['research_head', 'research_secretary']) && ($collaborator->isProjectSecretary() || $collaborator->user_id === $topic->research_secretary_id))
                                             <span class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">Project Secretary</span>
                                         @elseif ($collaborator->accepted_at)
                                             <span class="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gray-700">Project staff</span>
                                         @endif
-                                    </span>
+                                    </div>
                                 </li>
                             @endforeach
                         </ul>

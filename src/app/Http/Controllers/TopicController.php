@@ -233,6 +233,10 @@ class TopicController extends Controller
             $topic->markLatestVersionViewedByResearchHead();
         }
 
+        if ($topic->user_id === $request->user()->getKey() && $request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
+            $topic->loadMissing('collaborators.latestInvitationEmail');
+        }
+
         $monitoringReports = $topic->progressReports->values();
         $projectHealth = null;
         if ($topic->hasIssuedNoticeToProceed()) {

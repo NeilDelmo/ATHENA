@@ -8,12 +8,16 @@
 
             <div class="px-6 py-7 sm:px-8">
                 <p class="text-sm leading-6 text-gray-600 dark:text-slate-300">
-                    <span class="font-bold text-gray-900 dark:text-white">{{ $proposalDraftMember->draft->owner->name }}</span>
+                    <span class="font-bold text-gray-900 dark:text-white">{{ $inviterName }}</span>
                     invited you to serve as project staff for
-                    <span class="font-bold text-gray-900 dark:text-white">“{{ $proposalDraftMember->draft->project_title }}”</span>.
+                    <span class="font-bold text-gray-900 dark:text-white">"{{ $projectTitle }}"</span>.
                 </p>
                 <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-slate-300">
-                    Project staff can edit proposal papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.
+                    @if ($submitted)
+                        The proposal has been submitted. Accept the invitation to join the project team and view the submitted proposal.
+                    @else
+                        Project staff can edit proposal papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.
+                    @endif
                 </p>
 
                 @if ($workloadWarning)
@@ -21,13 +25,13 @@
                 @endif
 
                 <div class="mt-7 flex flex-wrap gap-3">
-                    <form method="POST" action="{{ route('notifications.proposal-invitations.accept', $proposalDraftMember) }}">
+                    <form method="POST" action="{{ route('notifications.proposal-invitations.accept', $invitationId) }}">
                         @csrf
                         <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
                             Accept invitation
                         </button>
                     </form>
-                    <form method="POST" action="{{ route('notifications.proposal-invitations.decline', $proposalDraftMember) }}">
+                    <form method="POST" action="{{ route('notifications.proposal-invitations.decline', $invitationId) }}">
                         @csrf
                         <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-900">Decline invitation</button>
                     </form>

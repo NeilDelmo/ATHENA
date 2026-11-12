@@ -157,7 +157,7 @@ class ResearchCallController extends Controller
         }
 
         if ($hasChanges && $researchCall->status !== 'draft') {
-            Notification::sendNow(
+            Notification::send(
                 User::assignedToRole(User::WORKSPACE_FACULTY)->get(),
                 new ResearchCallUpdatedNotification(
                     $researchCall->id,

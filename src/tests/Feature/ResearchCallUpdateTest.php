@@ -4,7 +4,9 @@ use App\Models\ResearchCall;
 use App\Models\User;
 use App\Notifications\ResearchCallUpdatedNotification;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -86,6 +88,15 @@ test('Research Head can edit a research call and replace its poster', function (
         ])
         ->and($this->head->notifications()->exists())->toBeFalse()
         ->and($this->otherUser->notifications()->exists())->toBeFalse();
+
+    $queue = Queue::connection('database');
+    while ($job = $queue->pop()) {
+        $job->fire();
+    }
+
+    $mail = Mail::mailer()->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
+    expect($mail->getSubject())->toBe('Research call updated')
+        ->and($mail->getTo()[0]->getAddress())->toBe($this->faculty->email);
 });
 
 test('Research Head can edit a published call before the faculty role exists', function () {

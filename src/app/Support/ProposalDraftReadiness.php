@@ -337,7 +337,7 @@ class ProposalDraftReadiness
                 $rules = WorkPlanRules::rules();
                 $rules['entries.*.objective'] = ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')];
                 $attributes = WorkPlanRules::attributes();
-                $callbacks = WorkPlanRules::afterCallbacks($source['entries'], $draft->duration_months);
+                $callbacks = WorkPlanRules::afterCallbacks($source['entries']);
             } elseif ($paper['slug'] === 'line-item-budget') {
                 $expenseSource = $draft->documents->firstWhere('document_type', config('proposal_papers.expense-breakdown.document_type'))?->source_data;
                 $source = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown($source, is_array($expenseSource['items'] ?? null) ? $expenseSource['items'] : null);
@@ -453,7 +453,7 @@ class ProposalDraftReadiness
             'prepared_by' => $draft->project_leader,
             'entries' => $entries,
         ], $rules, [], WorkPlanRules::attributes());
-        $validator->after(WorkPlanRules::afterCallbacks($entries, $draft->duration_months));
+        $validator->after(WorkPlanRules::afterCallbacks($entries));
 
         return $validator->passes();
     }
