@@ -130,7 +130,7 @@
                         <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Use MOOE, Capital Outlay, or both. Only add expense items for categories that apply to your project; an unused category has a zero total. Remove any unused expense rows.</p>
                         <p data-proposal-required-legend class="mt-2 text-[11px] text-gray-500"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required for each entered expense item. At least one expense item overall is required to complete this paper, not one in each category.</p>
                     </div>
-                    <button type="button" x-on:click="addItem(true)" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Add expense item</button>
+                    <button type="button" x-on:click="addItem(true)" class="inline-flex min-h-10 shrink-0 items-center justify-center self-start whitespace-nowrap rounded-xl border border-red-200 px-3 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Add expense item</button>
                 </div>
 
                 <div class="mt-5 space-y-4">
