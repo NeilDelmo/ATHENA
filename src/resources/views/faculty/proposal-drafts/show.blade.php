@@ -28,7 +28,7 @@
         <section data-submitted-package-workspace class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
             <h2 class="font-bold text-gray-950 dark:text-white">{{ $submittedTopic->canUpdateBeforeReview() ? 'Update submitted proposal' : 'Proposal under review' }}</h2>
             <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">{{ $submittedTopic->canUpdateBeforeReview() ? 'These changes are private until you submit the next version. Your earlier submitted PDFs stay in Versions. Editing closes when the Research Head opens the submission.' : 'The Research Head has opened this proposal. Editing and submission are locked until revisions are requested. Your saved working copy is preserved.' }}</p>
-            <a href="{{ route('topics.show', $submittedTopic) }}" class="mt-3 inline-flex min-h-11 items-center font-semibold text-red-700 hover:underline dark:text-red-300">View submitted versions</a>
+            <a href="{{ route('topics.show', $submittedTopic) }}" class="mt-3 secondary-action">View submitted versions</a>
         </section>
     @endif
 
@@ -249,8 +249,8 @@
 
                             @if ($template || $sampleAvailable)
                                 <div class="mt-3 flex flex-wrap gap-3">
-                                    @if ($template)<a href="{{ route('proposal-templates.download', $template) }}" class="inline-flex min-h-11 items-center text-sm font-bold text-red-600 underline decoration-red-200 underline-offset-4 hover:text-red-700 dark:text-red-300 dark:decoration-red-900 dark:hover:text-red-200">Download template</a>@endif
-                                    @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center text-sm font-bold text-red-600 underline decoration-red-200 underline-offset-4 hover:text-red-700 dark:text-red-300 dark:decoration-red-900 dark:hover:text-red-200">View sample</a>@endif
+                                    @if ($template)<a href="{{ route('proposal-templates.download', $template) }}" class="secondary-action">Download template</a>@endif
+                                    @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="secondary-action">View sample</a>@endif
                                 </div>
                             @endif
                         </div>

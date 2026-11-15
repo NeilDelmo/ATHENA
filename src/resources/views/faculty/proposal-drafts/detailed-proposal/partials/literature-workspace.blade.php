@@ -190,7 +190,7 @@
                     <p class="text-xs font-semibold text-slate-800 dark:text-slate-100">Source-paper text</p>
                     <p class="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300" x-text="literatureReviewEvidence()"></p>
                 </div>
-                <a x-show="literatureReviewSource?.url" x-bind:href="literatureReviewSource?.url" target="_blank" rel="noopener noreferrer" class="mt-4 inline-flex text-xs font-semibold text-red-800 hover:underline dark:text-red-200">Open source record</a>
+                <a x-show="literatureReviewSource?.url" x-bind:href="literatureReviewSource?.url" target="_blank" rel="noopener noreferrer" class="mt-4 secondary-action">Open source record</a>
             </section>
 
             <section class="flex min-h-[28rem] flex-col p-5 dark:bg-slate-950 lg:overflow-y-auto sm:p-6">

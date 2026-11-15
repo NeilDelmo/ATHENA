@@ -63,6 +63,17 @@ test('login screen presents institutional Google sign in and theme controls', fu
         ->assertDontSee('or local user');
 });
 
+test('the login screen issues a session cookie for the configured idle timeout', function () {
+    $this->freezeSecond();
+    config()->set('session.lifetime', 480);
+    config()->set('session.expire_on_close', false);
+
+    $response = $this->get('/login')->assertOk();
+    $sessionCookie = $response->getCookie(config('session.cookie'));
+
+    expect($sessionCookie?->getExpiresTime())->toBe(now()->addHours(8)->timestamp);
+});
+
 test('Google sign in asks the user to choose an account', function () {
     config()->set('services.google.client_id', 'google-client-id');
     config()->set('services.google.client_secret', 'google-client-secret');

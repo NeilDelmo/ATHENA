@@ -125,7 +125,7 @@
                     <div>
                         <h3 id="work-plan-objectives-heading" class="text-lg font-black text-gray-900">Objectives and Gantt schedule</h3>
                         <p class="mt-1 text-sm text-gray-500">Objectives and suggested activities come from your Detailed Proposal. Review the activities, describe each objective's deliverable, and select its active months. Objectives can run in the same month.</p>
-                        <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="mt-2 inline-flex min-h-10 items-center text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Edit objectives in Detailed Proposal</a>
+                        <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="mt-2 secondary-action">Edit objectives in Detailed Proposal</a>
                         <p class="mt-1 text-xs text-gray-400">The generated paper automatically expands each row to fit the longest objective, output, or activity text.</p>
                     </div>
                 </div>
@@ -182,7 +182,7 @@
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`activity-${entry.id}`">Activities or Workplan <x-required-mark /></label>
                                     <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-model="entry.activity" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                     <p class="mt-2 text-xs text-gray-500">Starts with methods whose heading matches this objective in the Detailed Proposal. Refine them into scheduled activities.</p>
-                                    <button type="button" x-show="entry.proposalActivity && entry.activity !== entry.proposalActivity" x-cloak x-on:click="useProposalMethods(entry)" class="mt-2 min-h-10 text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-red-300">Replace activities with proposal methods</button>
+                                    <button type="button" x-show="entry.proposalActivity && entry.activity !== entry.proposalActivity" x-cloak x-on:click="useProposalMethods(entry)" class="mt-2 secondary-action">Replace activities with proposal methods</button>
                                 </div>
                             </div>
 

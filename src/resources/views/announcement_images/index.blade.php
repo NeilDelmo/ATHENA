@@ -133,7 +133,7 @@
                             <form method="POST" action="{{ route('announcement-images.archive', $announcementImage) }}" class="border-t border-gray-100 pt-3 dark:border-slate-800">
                                 @csrf
                                 @method('PATCH')
-                                <button type="submit" class="text-[11px] font-black text-red-700 transition hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300">Archive announcement</button>
+                                <button type="submit" class="secondary-action">Archive announcement</button>
                             </form>
                         </div>
                     </article>

@@ -57,7 +57,7 @@
                         <h4 class="break-words font-semibold">{{ $person['name'] }}</h4><p class="mt-1 text-sm rh-muted">{{ $person['college'] ?: 'College not recorded' }}</p>
                         <ul class="mt-3 flex flex-col gap-3">
                             @foreach ($person['projects'] as $project)
-                                <li><a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="break-words text-sm font-medium text-brand hover:underline dark:text-rose-300">{{ $project['title'] }}</a><span class="block text-xs rh-muted">{{ $project['role'] === 'lead' ? 'Project lead' : 'Research staff' }}</span></li>
+                                <li><a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="break-words secondary-action">{{ $project['title'] }}</a><span class="block text-xs rh-muted">{{ $project['role'] === 'lead' ? 'Project lead' : 'Research staff' }}</span></li>
                             @endforeach
                         </ul>
                     </article>

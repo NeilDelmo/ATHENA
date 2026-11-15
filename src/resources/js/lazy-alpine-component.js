@@ -54,7 +54,7 @@ export default function registerLazyAlpineComponent(Alpine, name, load) {
             notice.textContent = 'The editor could not load. ';
             const reload = document.createElement('button');
             reload.type = 'button';
-            reload.className = 'underline';
+            reload.className = 'secondary-action';
             reload.textContent = 'Reload editor';
             reload.addEventListener('click', () => window.location.reload());
             notice.append(reload);

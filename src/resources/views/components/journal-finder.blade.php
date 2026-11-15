@@ -94,10 +94,10 @@
             <p class="font-semibold text-gray-900 dark:text-white">Compare with official journal matchers</p>
             <p class="mt-1 leading-6 text-gray-600 dark:text-slate-300">Paste your title and abstract into Elsevier Journal Finder or Web of Science Manuscript Matcher. Check each journal’s current coverage by ISSN before submitting.</p>
             <div class="mt-3 flex flex-wrap items-center gap-4 font-semibold text-red-700 dark:text-red-300">
-                <button type="button" @click="copyManuscript()" :disabled="!query.trim() && !context.trim()" class="hover:underline disabled:opacity-50">Copy title &amp; abstract</button>
-                <a href="https://journalfinder.elsevier.com/" target="_blank" rel="noopener noreferrer" class="hover:underline">Elsevier Journal Finder ↗</a>
-                <a href="https://mjl.clarivate.com/" target="_blank" rel="noopener noreferrer" class="hover:underline">Web of Science / Manuscript Matcher ↗</a>
-                <a href="https://www.scopus.com/sources" target="_blank" rel="noopener noreferrer" class="hover:underline">Scopus Sources ↗</a>
+                <button type="button" @click="copyManuscript()" :disabled="!query.trim() && !context.trim()" class="secondary-action">Copy title &amp; abstract</button>
+                <a href="https://journalfinder.elsevier.com/" target="_blank" rel="noopener noreferrer" class="secondary-action">Elsevier Journal Finder ↗</a>
+                <a href="https://mjl.clarivate.com/" target="_blank" rel="noopener noreferrer" class="secondary-action">Web of Science / Manuscript Matcher ↗</a>
+                <a href="https://www.scopus.com/sources" target="_blank" rel="noopener noreferrer" class="secondary-action">Scopus Sources ↗</a>
             </div>
             <p x-show="copyMessage" x-cloak x-text="copyMessage" class="mt-2 text-gray-600 dark:text-slate-300" role="status"></p>
         </div>
@@ -194,7 +194,7 @@
                         <ul class="mt-2 grid gap-2 text-sm leading-6 text-gray-700 dark:text-slate-200 lg:grid-cols-3">
                             <template x-for="article in journal.sample_articles" :key="article.title">
                                 <li class="rounded-xl bg-gray-50 p-3 dark:bg-slate-900">
-                                    <a x-show="article.url" :href="article.url" target="_blank" rel="noopener noreferrer" class="font-semibold text-red-700 hover:underline dark:text-red-300" x-text="article.title"></a>
+                                    <a x-show="article.url" :href="article.url" target="_blank" rel="noopener noreferrer" class="secondary-action" x-text="article.title"></a>
                                     <span x-show="!article.url" class="font-semibold" x-text="article.title"></span>
                                     <span class="mt-1 block text-gray-500 dark:text-slate-400" x-text="article.year || 'Year not listed'"></span>
                                 </li>
@@ -205,8 +205,8 @@
                     <div class="mt-5 flex flex-wrap gap-3">
                         <a x-show="journal.homepage_url" :href="journal.homepage_url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-800 dark:bg-white dark:text-gray-950">Visit journal website</a>
                         <a x-show="journal.openalex_url" :href="journal.openalex_url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900">Review OpenAlex record</a>
-                        <a :href="journal.scopus.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center text-sm font-semibold text-red-700 hover:underline dark:text-red-300">Check Scopus coverage ↗</a>
-                        <a :href="journal.wos_url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center text-sm font-semibold text-red-700 hover:underline dark:text-red-300">Check Web of Science ↗</a>
+                        <a :href="journal.scopus.url" target="_blank" rel="noopener noreferrer" class="secondary-action">Check Scopus coverage ↗</a>
+                        <a :href="journal.wos_url" target="_blank" rel="noopener noreferrer" class="secondary-action">Check Web of Science ↗</a>
                         @if ($canTrack)
                             <button type="button" @click="$dispatch('journal-selected', journal)" class="inline-flex min-h-11 items-center rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300">Track this journal</button>
                         @endif

@@ -6,7 +6,7 @@
 @if ($restore)
     <div role="alert" class="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
         <ul class="list-inside list-disc space-y-1">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-        @if ($errors->has('lock_version'))<a href="{{ $outcome->detailUrl() }}" class="mt-2 inline-block font-semibold underline">Reload current labels</a>@endif
+        @if ($errors->has('lock_version'))<a href="{{ $outcome->detailUrl() }}" class="mt-2 secondary-action">Reload current labels</a>@endif
     </div>
 @endif
 @if (! $outcome?->topic_id)

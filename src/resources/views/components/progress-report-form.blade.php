@@ -267,14 +267,14 @@
                                 <template x-for="file in row.evidence" :key="file.id">
                                     <div class="flex items-start gap-2 rounded-lg border border-gray-200 p-2 dark:border-slate-700">
                                         <input type="hidden" :name="`accomplishments[${index}][evidence_ids][]`" :value="file.id">
-                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words text-sm font-medium text-gray-700 underline underline-offset-4 hover:text-red-700 dark:text-slate-200"></a>
+                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words secondary-action justify-start text-left"></a>
                                         <button type="button" @click="removeAccomplishmentEvidence(row, file.id)" :aria-label="`Remove ${file.name}`" title="Remove evidence" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6" /></svg></button>
                                     </div>
                                 </template>
                                 <template x-for="(file, fileIndex) in row.pendingEvidenceFiles" :key="fileIndex">
                                     <p class="break-words text-xs text-gray-600 dark:text-slate-300" x-text="file.name + ' · waiting to save'"></p>
                                 </template>
-                                <button type="button" x-show="row.pendingEvidenceFiles.length" @click="clearPendingAccomplishmentEvidence(row)" class="min-h-9 text-sm font-semibold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-red-300">Clear selected files</button>
+                                <button type="button" x-show="row.pendingEvidenceFiles.length" @click="clearPendingAccomplishmentEvidence(row)" class="secondary-action">Clear selected files</button>
                             </div>
                         </div>
                     </div>

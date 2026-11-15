@@ -38,7 +38,7 @@
                         </dl>
                         <p class="text-xs text-gray-500" x-text="'Listing checked: ' + new Date(item.source_checked_at).toLocaleString()"></p>
                         <div class="mt-auto flex flex-wrap items-center gap-4">
-                            <a :href="item.url" target="_blank" rel="noopener noreferrer" class="text-sm font-bold text-red-700 dark:text-red-300">Read source listing ↗</a>
+                            <a :href="item.url" target="_blank" rel="noopener noreferrer" class="secondary-action">Read source listing ↗</a>
                             <button type="button" @click="chooseConference(item)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold dark:border-slate-600">Add to shortlist</button>
                         </div>
                     </article>

@@ -210,7 +210,7 @@
                         <div x-cloak x-show="visibleCount() === 0" class="px-6 py-16 text-center">
                             <p class="text-base font-black text-gray-900 dark:text-white">No matching notifications</p>
                             <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Try another category, read status, or search term.</p>
-                            <button type="button" @click="category = 'all'; readState = 'all'; query = ''" class="mt-4 text-sm font-black text-red-600 hover:text-red-700 dark:text-red-400">Clear filters</button>
+                            <button type="button" @click="category = 'all'; readState = 'all'; query = ''" class="mt-4 secondary-action">Clear filters</button>
                         </div>
                     @endif
                 </div>

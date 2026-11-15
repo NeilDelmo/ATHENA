@@ -37,7 +37,7 @@
             <template x-for="(file, index) in files" :key="file.name + '-' + file.size + '-' + file.lastModified">
                 <li class="flex items-center justify-between gap-3 text-xs">
                     <span class="min-w-0 truncate text-gray-600 dark:text-slate-300" x-text="file.name"></span>
-                    <button type="button" @click="remove(index)" :aria-label="'Remove ' + file.name" class="shrink-0 font-semibold text-red-700 hover:underline dark:text-red-300">Remove</button>
+                    <button type="button" @click="remove(index)" :aria-label="'Remove ' + file.name" class="shrink-0 secondary-action">Remove</button>
                 </li>
             </template>
         </ul>

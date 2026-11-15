@@ -76,7 +76,7 @@
                         <span class="block truncate text-[11px] font-bold text-gray-700" x-text="file.name"></span>
                         <span class="block text-[10px] text-gray-400" x-text="formatSize(file.size)"></span>
                     </span>
-                    <button type="button" @click="remove(index)" class="shrink-0 text-[10px] font-black text-red-600 hover:text-red-700">Remove</button>
+                    <button type="button" @click="remove(index)" class="shrink-0 secondary-action">Remove</button>
                 </li>
             </template>
         </ul>

@@ -59,9 +59,9 @@
             <button type="button" class="workspace-icon" :disabled="!canGoUp" @click="up()" aria-label="Up" title="Up one folder"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v15" /></svg></button>
         </div>
         <nav aria-label="Folder path" class="flex min-h-11 min-w-0 flex-1 items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 px-3 text-base dark:border-slate-700">
-            <button type="button" @click="openLocation('all')" class="shrink-0 font-medium text-slate-700 dark:text-slate-200">Project library</button>
+            <button type="button" @click="openLocation('all')" class="shrink-0 secondary-action">Project library</button>
             <template x-for="crumb in breadcrumbs" :key="crumb.id">
-                <span class="flex min-w-0 shrink-0 items-center gap-2"><span class="text-slate-400" aria-hidden="true">›</span><button type="button" @click="openLocation(crumb.id)" class="max-w-[230px] truncate text-slate-700 dark:text-slate-200" :title="crumb.name" x-text="crumb.name"></button></span>
+                <span class="flex min-w-0 shrink-0 items-center gap-2"><span class="text-slate-400" aria-hidden="true">›</span><button type="button" @click="openLocation(crumb.id)" class="secondary-action max-w-[230px] truncate" :title="crumb.name" x-text="crumb.name"></button></span>
             </template>
         </nav>
         <label class="relative w-full shrink-0 sm:w-60">

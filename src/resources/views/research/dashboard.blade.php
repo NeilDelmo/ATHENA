@@ -23,9 +23,9 @@
                     ['Completed projects', $completedProjects->count(), 'completed', 'M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'],
                     ['Average completion', $averageProgress === null ? '—' : $averageProgress.'%', 'active', 'M5 20v-6m7 6V9m7 11V4M3 20h18'],
                 ] as [$label, $value, $status, $icon])
-                    <div class="relative min-w-0 bg-brand p-4 text-white focus-within:ring-2 focus-within:ring-inset focus-within:ring-white sm:px-5">
+                    <div class="relative min-w-0 bg-brand p-4 text-white transition-colors hover:bg-[#650015] focus-within:ring-2 focus-within:ring-inset focus-within:ring-white sm:px-5">
                         <dt class="flex items-start justify-between gap-2 text-sm font-medium">
-                            <a @if ($status !== 'attention') wire:navigate @endif href="{{ $status === 'attention' ? '#needs-attention' : route('research.index', ['status' => $status]) }}" class="after:absolute after:inset-0 hover:underline focus:outline-none">{{ $label }}<span class="sr-only">: {{ $value }}</span></a>
+                            <a @if ($status !== 'attention') wire:navigate @endif href="{{ $status === 'attention' ? '#needs-attention' : route('research.index', ['status' => $status]) }}" class="after:absolute after:inset-0 focus:outline-none">{{ $label }}<span class="sr-only">: {{ $value }}</span></a>
                             <svg class="h-6 w-6 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $icon }}" /></svg>
                         </dt>
                         <dd class="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{{ $value }}</dd>
@@ -74,7 +74,7 @@
                             <ul data-project-issues class="divide-y divide-stone-200 overflow-hidden rounded-lg border border-stone-300 bg-stone-50 dark:divide-stone-700 dark:border-stone-700 dark:bg-stone-900">
                                 @foreach ($health['actions'] as $issue)
                                     <li class="flex flex-col items-start gap-2 p-3 sm:flex-row sm:justify-between sm:gap-3">
-                                        <a wire:navigate href="{{ $issue['url'] }}" class="inline-flex min-w-0 items-start gap-2 break-words text-sm font-medium leading-6 text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-red-300 dark:focus-visible:outline-red-400"><svg class="mt-1 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01M11 11h1v5h1m8-4a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg><span class="min-w-0 break-words">{{ $issue['issue'] }}</span></a>
+                                        <a wire:navigate href="{{ $issue['url'] }}" class="min-w-0 gap-2 break-words leading-6 secondary-action"><svg class="mt-1 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01M11 11h1v5h1m8-4a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg><span class="min-w-0 break-words">{{ $issue['issue'] }}</span></a>
                                         @if ($issue['days'] !== null)
                                             <span class="shrink-0 rounded-md bg-white px-2 py-1 text-xs leading-5 tabular-nums text-stone-600 dark:bg-stone-900 dark:text-stone-300">{{ $issue['days'] }} {{ str('day')->plural($issue['days']) }} {{ $issue['basis'] === 'overdue' ? 'overdue' : 'waiting' }}</span>
                                         @endif
@@ -89,7 +89,7 @@
                         <div class="rounded-xl border border-stone-300 bg-white px-5 py-8 xl:col-span-2 dark:border-stone-700 dark:bg-stone-900">
                             <p class="text-base font-semibold text-stone-950 dark:text-white">No actions currently flagged</p>
                             <p class="mt-2 text-sm text-stone-600 dark:text-stone-400">Check your projects for reporting periods and review updates.</p>
-                            <a wire:navigate href="{{ route('research.index') }}" class="mt-3 inline-flex min-h-11 items-center rounded text-sm font-semibold text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-red-300 dark:focus-visible:outline-red-400">View projects</a>
+                            <a wire:navigate href="{{ route('research.index') }}" class="mt-3 secondary-action">View projects</a>
                         </div>
                     @endforelse
                 </div>

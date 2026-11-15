@@ -17,7 +17,7 @@
             <div x-ref="viewer" tabindex="0" aria-label="Selected {{ $formName }} preview" class="pdf-annotation-viewer revision-pdf-pages"></div>
         </div>
     </template>
-    <a x-show="previewUrl && /\.docx$/i.test(files[0]?.name ?? '')" x-cloak :href="previewUrl" :download="files[0]?.name" @click="previewed = true" class="inline-flex text-sm font-bold text-red-700 underline dark:text-red-300">Open selected DOCX to review all pages</a>
+    <a x-show="previewUrl && /\.docx$/i.test(files[0]?.name ?? '')" x-cloak :href="previewUrl" :download="files[0]?.name" @click="previewed = true" class="secondary-action">Open selected DOCX to review all pages</a>
     @if ($manualReviewRequired)
         <label data-assessment-manual-confirmation class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
             <input type="checkbox" name="assessment_form_manually_confirmed" value="1" x-model="confirmed" :disabled="!previewed" class="mt-1 rounded border-gray-300 text-red-700 focus:ring-red-700 disabled:opacity-40">

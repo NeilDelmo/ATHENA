@@ -114,7 +114,7 @@
                         <h4 class="text-base font-semibold text-slate-900 dark:text-white" x-text="group.title"></h4>
                         <ul class="mt-2 space-y-1">
                             <template x-for="requirement in group.requirements" :key="requirement.field">
-                                <li><button type="button" x-on:click="focusProposalRequirement(requirement.field)" class="min-h-11 w-full rounded-md py-2 text-left text-base leading-6 text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-300 dark:decoration-slate-600 dark:hover:text-red-300" x-text="requirement.messages.join(' ')"></button></li>
+                                <li><button type="button" x-on:click="focusProposalRequirement(requirement.field)" class="w-full text-left leading-6 secondary-action justify-start" x-text="requirement.messages.join(' ')"></button></li>
                             </template>
                         </ul>
                     </div>
@@ -479,7 +479,7 @@
                             </div>
                             <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                                 <p :id="`responsibility-share-${responsibility.id}`" class="text-gray-500 dark:text-slate-400" x-text="`${responsibility.percentageFixed ? 'Fixed' : 'Automatic'} share · Up to ${availableResponsibilityPercentage(responsibility)}% available`"></p>
-                                <button x-show="responsibility.percentageFixed" type="button" @click="setResponsibilityAutomatic(responsibility)" :aria-label="`Use automatic percentage for ${responsibility.name || 'member ' + (index + 1)}`" class="inline-flex min-h-11 items-center rounded font-semibold text-red-800 underline underline-offset-4 hover:text-red-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-red-200 dark:hover:text-red-100">Use Auto</button>
+                                <button x-show="responsibility.percentageFixed" type="button" @click="setResponsibilityAutomatic(responsibility)" :aria-label="`Use automatic percentage for ${responsibility.name || 'member ' + (index + 1)}`" class="secondary-action">Use Auto</button>
                             </div>
                             <label class="mt-3 block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`responsibility-duties-${responsibility.id}`">Duties and responsibilities <x-required-mark /></label><textarea :id="`responsibility-duties-${responsibility.id}`" :name="`responsibilities[${index}][duties]`" rows="5" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="responsibility.duties" data-semantic-editor class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                         </div>

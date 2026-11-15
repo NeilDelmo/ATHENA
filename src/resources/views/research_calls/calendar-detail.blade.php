@@ -16,7 +16,7 @@
     </x-slot>
 
     <div class="mx-auto max-w-6xl space-y-5">
-        <a href="{{ route('research-calls.index') }}" class="inline-flex items-center gap-2 text-xs font-black text-slate-500 transition hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300"><span aria-hidden="true">←</span>{{ $isResearchHead ? 'All research calls' : 'All announcements' }}</a>
+        <a href="{{ route('research-calls.index') }}" class="secondary-action"><span aria-hidden="true">←</span>{{ $isResearchHead ? 'All research calls' : 'All announcements' }}</a>
 
         <article data-research-call-announcement class="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="call-title">
             <header class="flex items-start gap-4 bg-[#800020] p-5 text-white sm:p-7">

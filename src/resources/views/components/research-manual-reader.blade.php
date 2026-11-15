@@ -72,7 +72,7 @@
                             <ul x-show="check.sources.length" class="mt-4 space-y-2" aria-label="Manual sources">
                                 <template x-for="(source, index) in check.sources" x-bind:key="index">
                                     <li class="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                                        <a x-bind:href="source.url" x-on:click.prevent="openPreview(source.page_start)" class="inline-flex min-h-11 items-center text-xs font-semibold text-red-700 underline-offset-4 hover:underline focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300"><span x-text="source.reference || ('ATHENA ' + (index + 1))"></span><span class="mx-1" aria-hidden="true">·</span><span x-text="sourceLabel(source)"></span></a>
+                                        <a x-bind:href="source.url" x-on:click.prevent="openPreview(source.page_start)" class="secondary-action"><span x-text="source.reference || ('ATHENA ' + (index + 1))"></span><span class="mx-1" aria-hidden="true">·</span><span x-text="sourceLabel(source)"></span></a>
                                         <p x-text="source.content || source.excerpt || 'Open the cited PDF page to inspect this passage.'" class="whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300"></p>
                                     </li>
                                 </template>

@@ -182,7 +182,7 @@
             <div>
                 <div class="flex flex-wrap items-center gap-2">
                     <h3 id="shared-literature-heading" class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Saved literature</h3>
-                    <a href="#rrl-finder" @click="workspaceMode = 'find'" class="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-red-800 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-200">Find papers</a>
+                    <a href="#rrl-finder" @click="workspaceMode = 'find'" class="secondary-action">Find papers</a>
                 </div>
                 <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Find and reuse papers saved by faculty.</p>
             </div>
@@ -426,7 +426,7 @@
                         <div class="mt-3 max-h-[32rem] overflow-y-auto rounded-xl border border-emerald-100 bg-white p-4 dark:border-emerald-900 dark:bg-slate-950">
                             <p class="whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200" x-text="$store.literatureSearch.fullTextPreview"></p>
                         </div>
-                        <a x-show="$store.literatureSearch.fullTextSourceUrl" :href="$store.literatureSearch.fullTextSourceUrl" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex text-xs font-semibold text-emerald-800 underline dark:text-emerald-200">Open public source</a>
+                        <a x-show="$store.literatureSearch.fullTextSourceUrl" :href="$store.literatureSearch.fullTextSourceUrl" target="_blank" rel="noopener noreferrer" class="mt-3 secondary-action">Open public source</a>
                     </div>
 
                 </div>

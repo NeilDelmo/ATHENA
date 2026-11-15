@@ -44,7 +44,7 @@
                                             <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white" x-text="source.title"></h4>
                                             <p class="mt-1 break-words text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.literatureSourceMetadata(source)"></p>
                                         </div>
-                                        <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" :aria-label="`Open study: ${source.title}`" class="shrink-0 rounded px-1 text-sm font-medium text-red-700 hover:underline focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300">Open study</a>
+                                        <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" :aria-label="`Open study: ${source.title}`" class="shrink-0 secondary-action">Open study</a>
                                     </div>
                                     <p class="text-sm leading-6 text-gray-600 dark:text-slate-300" x-text="$store.researchAssistant.literatureEvidenceLabel(source)"></p>
                                     <details x-show="source.description || source.relevance.reason" class="text-sm leading-6 text-gray-600 dark:text-slate-300">

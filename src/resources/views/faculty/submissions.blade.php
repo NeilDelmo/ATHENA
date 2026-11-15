@@ -21,7 +21,7 @@
     @if ($status ?? '')
         <div class="flex flex-wrap items-center justify-between gap-3 text-base text-slate-600 dark:text-slate-300" data-submission-status-filter>
             <span>{{ $status === 'review' ? 'Under review' : 'Needs revision' }}</span>
-            <a wire:navigate href="{{ route('faculty.submissions', ['category' => $category]) }}" class="inline-flex min-h-11 items-center font-semibold text-brand dark:text-rose-300">Clear filter</a>
+            <a wire:navigate href="{{ route('faculty.submissions', ['category' => $category]) }}" class="secondary-action">Clear filter</a>
         </div>
     @endif
     @if ($category === 'monitoring')

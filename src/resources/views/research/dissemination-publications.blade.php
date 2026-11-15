@@ -26,7 +26,7 @@
                         <p class="font-bold" x-text="author.name"></p>
                         <p class="mt-1 text-sm" x-text="author.affiliation || 'Affiliation not listed'"></p>
                         <p class="mt-1 text-xs text-gray-500" x-text="(author.orcid || 'No ORCID listed') + ' · ' + author.works_count + ' indexed works'"></p>
-                        <button type="button" @click="previewAuthor(author)" :disabled="!!busy" class="mt-3 text-sm font-bold text-red-700 dark:text-red-300">Check sample papers</button>
+                        <button type="button" @click="previewAuthor(author)" :disabled="!!busy" class="mt-3 secondary-action">Check sample papers</button>
                     </article>
                 </template>
             </div>
@@ -44,8 +44,8 @@
                     <input type="url" x-model="scholarUrl" maxlength="2000" placeholder="https://scholar.google.com/citations?user=..." class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900">
                 </label>
                 <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">Saved as a link to your public profile. Publication discovery uses OpenAlex and may differ from Google Scholar; this does not synchronize Scholar citations.</p>
-                <button :disabled="!!busy" class="mt-3 text-sm font-bold text-red-700 dark:text-red-300">Save profile link</button>
-                <a x-show="profile?.scholar_url" :href="profile?.scholar_url" target="_blank" rel="noopener noreferrer" class="ml-4 text-sm font-semibold text-red-700 dark:text-red-300">Open Google Scholar ↗</a>
+                <button :disabled="!!busy" class="mt-3 secondary-action">Save profile link</button>
+                <a x-show="profile?.scholar_url" :href="profile?.scholar_url" target="_blank" rel="noopener noreferrer" class="ml-4 secondary-action">Open Google Scholar ↗</a>
             </form>
         </section>
 
@@ -65,13 +65,13 @@
                     <p class="text-sm" x-text="paper.authors"></p>
                     <p class="text-xs text-gray-500" x-text="[paper.venue || 'Venue unknown', paper.year || 'Year unknown', paper.type].join(' · ')"></p>
                     <p class="text-xs text-gray-500" x-text="'OpenAlex · Retrieved ' + new Date(paper.source_checked_at).toLocaleString()"></p>
-                    <a x-show="paper.url" :href="paper.url" target="_blank" rel="noopener noreferrer" class="block text-sm font-semibold text-red-700 dark:text-red-300">Check publication source ↗</a>
+                    <a x-show="paper.url" :href="paper.url" target="_blank" rel="noopener noreferrer" class="secondary-action">Check publication source ↗</a>
                     <label class="flex items-start gap-2 text-sm"><input type="checkbox" x-model="confirmed" :disabled="paper.saved" class="mt-1 rounded border-gray-300 text-red-700">I authored this paper and it is an output of this project.</label>
                     <button type="button" @click="importPaper(paper, confirmed)" :disabled="!confirmed || paper.saved || !!busy" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50" x-text="paper.saved ? 'Saved to project' : 'Confirm and link paper'"></button>
                 </article>
             </template>
             <div x-show="papersSearched && !lookupDoi" x-cloak class="flex items-center gap-4 text-sm">
-                <button type="button" @click="loadPapers(page - 1)" :disabled="page <= 1 || !!busy" class="font-bold disabled:opacity-40">Previous</button><span x-text="'Page ' + page"></span><button type="button" @click="loadPapers(page + 1)" :disabled="!hasMore || !!busy" class="font-bold disabled:opacity-40">Next</button>
+                <button type="button" @click="loadPapers(page - 1)" :disabled="page <= 1 || !!busy" class="secondary-action">Previous</button><span x-text="'Page ' + page"></span><button type="button" @click="loadPapers(page + 1)" :disabled="!hasMore || !!busy" class="secondary-action">Next</button>
             </div>
             @if ($ownPublications->isNotEmpty())
                 <form method="POST" action="{{ route('research.dissemination.link', $topic) }}" class="space-y-3 border-t border-gray-200 pt-4 dark:border-slate-700">
@@ -81,7 +81,7 @@
                             @foreach ($ownPublications as $paper)<option value="{{ $paper->id }}">{{ $paper->title }}</option>@endforeach
                         </select>
                     </label>
-                    <button class="text-sm font-bold text-red-700 dark:text-red-300">Link selected publication to this project</button>
+                    <button class="secondary-action">Link selected publication to this project</button>
                 </form>
             @endif
             <details @if ($errors->has('authors') || $errors->has('year') || $errors->has('confirmed')) open @endif>
@@ -110,11 +110,11 @@
                 <p class="text-sm text-gray-600 dark:text-slate-300">{{ $publication->venue ?: 'Venue not recorded' }} · {{ $publication->year ?: 'Year not recorded' }} · {{ $publication->type ?: 'Type not recorded' }}</p>
                 @if ($publication->doi)<p class="break-all text-xs text-gray-500">DOI: {{ $publication->doi }}</p>@endif
                 <p class="text-xs text-gray-500">{{ $publication->source }} · Authorship confirmed by {{ $publication->user->name }} on {{ $publication->confirmed_at->format('M j, Y') }} @if ($publication->source_checked_at) · Retrieved {{ $publication->source_checked_at->format('M j, Y') }} @endif</p>
-                @if ($publication->url)<a href="{{ $publication->url }}" target="_blank" rel="noopener noreferrer" class="inline-block text-sm font-bold text-red-700 dark:text-red-300">View publication ↗</a>@endif
+                @if ($publication->url)<a href="{{ $publication->url }}" target="_blank" rel="noopener noreferrer" class="secondary-action">View publication ↗</a>@endif
                 @if ($canEdit && $publication->user_id === Auth::id())
                     <form method="POST" action="{{ route('research.dissemination.unlink', [$topic, $publication]) }}">
                         @csrf @method('DELETE')
-                        <button class="text-xs font-semibold text-gray-500 underline dark:text-slate-400">Unlink from this project (keep saved paper)</button>
+                        <button class="secondary-action">Unlink from this project (keep saved paper)</button>
                     </form>
                 @endif
             </article>

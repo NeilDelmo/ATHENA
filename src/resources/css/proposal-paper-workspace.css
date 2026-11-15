@@ -105,8 +105,8 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 [data-proposal-paper-workspace] .proposal-semantic-field { border-radius: .375rem; box-shadow: none; border-color: var(--proposal-writing-border); }
 [data-proposal-paper-workspace] .proposal-writing-active { border-color: var(--proposal-writing-accent); }
 [data-proposal-paper-workspace] .semantic-rich-text-editor { height: clamp(8rem, calc(var(--proposal-editor-rows, 7) * 1rem + 1rem), 14rem); background: var(--proposal-writing-surface); color: var(--proposal-writing-ink); }
-[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button'] { cursor: pointer; }
-[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button']:hover { text-decoration: underline; text-underline-offset: .125rem; }
+[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button'] { padding-inline: .25em; border: 1px solid var(--proposal-writing-border); border-radius: .25rem; background: var(--proposal-writing-workspace); cursor: pointer; }
+[data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button']:hover { border-color: var(--proposal-writing-accent); }
 [data-proposal-paper-workspace] .semantic-rich-text-editor [data-proposal-citation][role='button']:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 2px; }
 [data-proposal-paper-workspace] .semantic-rich-text-editor table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-block: .75rem; }
 [data-proposal-paper-workspace] .semantic-rich-text-editor :is(td, th) { min-width: 0; border: 1px solid var(--proposal-writing-border); padding: .5rem; vertical-align: top; overflow-wrap: anywhere; }

@@ -297,13 +297,8 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                                 return { decoration: computed.textDecorationLine, border: parseFloat(computed.borderTopWidth), height: anchor.getBoundingClientRect().height };
                             });
                             assert.ok(style.height >= 44, `${label} needs a usable touch target`);
-                            if (label === 'View research calls') {
-                                assert.equal(style.decoration, 'underline');
-                                assert.equal(style.border, 0);
-                            } else {
-                                assert.equal(style.decoration, 'none');
-                                assert.ok(style.border >= 1);
-                            }
+                            assert.equal(style.decoration, 'none');
+                            assert.ok(style.border >= 1);
                         }
                         if (width === 1440) {
                             const headerBox = await page.locator('[data-workspace-header-banner]').boundingBox();

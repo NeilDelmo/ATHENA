@@ -121,6 +121,14 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 }
 
 @layer components {
+    .secondary-action {
+        @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-400 bg-white px-3 py-2 text-center text-sm font-semibold text-red-800 no-underline transition-colors [overflow-wrap:anywhere] hover:border-red-700 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-500 dark:bg-slate-900 dark:text-red-200 dark:hover:border-red-300 dark:hover:bg-slate-800 dark:focus-visible:outline-red-300;
+    }
+
+    .secondary-action[hidden] {
+        display: none;
+    }
+
     .disclosure-summary {
         @apply flex min-h-11 cursor-pointer items-center gap-3;
     }

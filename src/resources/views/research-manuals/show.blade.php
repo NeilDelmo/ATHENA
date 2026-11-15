@@ -55,7 +55,7 @@
                         <p class="mt-1 max-w-3xl text-sm leading-6 text-amber-800 dark:text-amber-200">Text could not be read on the pages below. Review them in the PDF before activating this edition. Their content may be missing from research guidance.</p>
                         <ul class="mt-3 flex flex-wrap gap-2 text-xs font-bold" aria-label="Pages with unreadable text">
                             @foreach ($unindexedPages as $page)
-                                <li><a href="#page={{ $page }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($manual->version), page: {{ $page }} })" class="inline-flex min-h-11 items-center rounded-lg border border-amber-200 bg-white/60 px-2.5 py-1.5 underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-600 dark:border-amber-800 dark:bg-amber-950/50">Page {{ $page }}</a></li>
+                                <li><a href="#page={{ $page }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($manual->version), page: {{ $page }} })" class="secondary-action">Page {{ $page }}</a></li>
                             @endforeach
                         </ul>
                     </div>
@@ -96,7 +96,7 @@
                                 <p class="mt-2 font-semibold">{{ $edition['label'] }}:</p>
                                 <ul class="flex flex-wrap gap-x-4 gap-y-1" aria-label="{{ $edition['label'] }} unreadable pages">
                                     @foreach ($edition['reader']['unindexed_pages'] as $page)
-                                        <li><a href="{{ $edition['reader']['read_url'] }}#page={{ $page }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($edition['reader']['version']), page: {{ $page }} })" class="inline-flex min-h-11 items-center underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-600">Page {{ $page }}</a></li>
+                                        <li><a href="{{ $edition['reader']['read_url'] }}#page={{ $page }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($edition['reader']['version']), page: {{ $page }} })" class="secondary-action">Page {{ $page }}</a></li>
                                     @endforeach
                                 </ul>
                             @endif
@@ -114,7 +114,7 @@
                                 <div class="min-w-0 p-4">
                                     <p class="text-xs font-bold text-slate-500 dark:text-slate-400">{{ $side['label'] }} · {{ $side['reader']['edition'] ?? 'Legacy edition' }}</p>
                                     @if ($side['passage'])
-                                        <a href="{{ $side['reader']['read_url'] }}#page={{ $side['passage']['page_start'] }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($side['reader']['version']), page: {{ $side['passage']['page_start'] }} })" class="inline-flex min-h-11 items-center text-xs font-semibold text-red-700 underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300">{{ $side['passage']['page_start'] === $side['passage']['page_end'] ? 'Page '.$side['passage']['page_start'] : 'Pages '.$side['passage']['page_start'].'–'.$side['passage']['page_end'] }}</a>
+                                        <a href="{{ $side['reader']['read_url'] }}#page={{ $side['passage']['page_start'] }}" x-data x-on:click.prevent="$dispatch('research-manual:page', { version: @js($side['reader']['version']), page: {{ $side['passage']['page_start'] }} })" class="secondary-action">{{ $side['passage']['page_start'] === $side['passage']['page_end'] ? 'Page '.$side['passage']['page_start'] : 'Pages '.$side['passage']['page_start'].'–'.$side['passage']['page_end'] }}</a>
                                         <p class="break-words text-sm leading-7 text-slate-700 dark:text-slate-200">@foreach ($side['passage']['segments'] as $segment)@if ($segment['changed'])<mark @class(['bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200 line-through' => $side['before'], 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200' => ! $side['before']])>{{ $segment['text'] }}</mark>@else{{ $segment['text'] }}@endif@endforeach</p>
                                     @else
                                         <p class="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">No matching extracted passage in this section.{{ $change['type'] === 'unreadable' ? ' Check the unreadable PDF pages before interpreting this difference.' : '' }}</p>

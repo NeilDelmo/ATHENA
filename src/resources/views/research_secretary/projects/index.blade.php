@@ -7,7 +7,7 @@
                 <div class="secretary-search"><label for="secretary-project-search" class="sr-only">Search projects</label><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="secretary-project-search" type="search" name="q" value="{{ request('q') }}" placeholder="Search projects or project leaders" maxlength="200"></div>
                 <div><label for="secretary-project-status" class="sr-only">Project status</label><select id="secretary-project-status" name="status"><option value="">All project statuses</option>@foreach (['ongoing' => 'Ongoing', 'delayed' => 'Delayed', 'completion_pending' => 'Completion pending', 'completed' => 'Completed'] as $value => $label)<option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>@endforeach</select></div>
                 <button type="submit" class="secretary-button-primary">Find projects</button>
-                @if (request()->filled('q') || request()->filled('status'))<a href="{{ route('research_secretary.projects.index') }}" class="secretary-button-secondary">Clear filters</a>@endif
+                @if (request()->filled('q') || request()->filled('status'))<a href="{{ route('research_secretary.projects.index') }}" class="secondary-action">Clear filters</a>@endif
             </form>
             <header class="secretary-directory-labels" aria-hidden="true"><span>Project / project leader</span><span>Project budget</span><span>Reported disbursements</span></header>
             <div class="secretary-project-list">

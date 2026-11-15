@@ -17,7 +17,7 @@
                         @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
                             <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#7A0019] transition-colors hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:px-4">Start a proposal</a>
                         @endif
-                        <a href="{{ route('research-calls.index') }}" class="inline-flex min-h-11 items-center text-xs font-semibold text-rose-100 underline underline-offset-4 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">View research calls</a>
+                        <a href="{{ route('research-calls.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:px-4">View research calls</a>
                     </div>
                 </article>
             @endforeach

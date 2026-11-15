@@ -144,7 +144,7 @@
                                     </div>
 
                                     <h3 class="text-lg font-bold leading-snug text-slate-950 transition-colors group-hover:text-[#7A0019] sm:text-xl">
-                                        <a href="{{ $projectUrl }}" class="focus:outline-none focus-visible:underline focus-visible:underline-offset-4">{{ $topic->title }}</a>
+                                        <a href="{{ $projectUrl }}" class="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-700">{{ $topic->title }}</a>
                                     </h3>
 
                                     <div class="flex flex-col gap-2">
@@ -177,7 +177,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625A1.125 1.125 0 0 0 4.5 3.375v17.25c0 .621.504 1.125 1.125 1.125h12.75a1.125 1.125 0 0 0 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                         </svg>
                         <p class="mt-2 text-xs font-bold text-slate-700">No matching research projects</p>
-                        <button type="button" @click="query = ''; filter = 'all'" class="mt-2 text-xs font-bold text-[#7A0019] hover:underline hover:underline-offset-4">Clear filters</button>
+                        <button type="button" @click="query = ''; filter = 'all'" class="mt-2 secondary-action">Clear filters</button>
                     </div>
                 </div>
             @endif

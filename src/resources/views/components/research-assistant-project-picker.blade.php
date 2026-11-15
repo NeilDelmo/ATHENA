@@ -65,7 +65,7 @@
             <p x-show="$store.researchAssistant.contextOptionsLoading" role="status" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">Loading projects…</p>
             <div x-show="$store.researchAssistant.contextOptionsError" role="alert" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">
                 <p x-text="$store.researchAssistant.contextOptionsError"></p>
-                <button type="button" @click="$store.researchAssistant.loadContextOptions()" class="mt-2 underline">Retry loading projects</button>
+                <button type="button" @click="$store.researchAssistant.loadContextOptions()" class="mt-2 secondary-action">Retry loading projects</button>
             </div>
             <p x-show="!projects.length && !$store.researchAssistant.contextOptionsLoading && !$store.researchAssistant.contextOptionsError" role="status" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-slate-400">No matching projects.</p>
         </div>

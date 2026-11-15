@@ -342,7 +342,7 @@
                                 <template x-for="file in (entry.evidence || [])" :key="file.id">
                                     <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-950">
                                         <input type="hidden" :name="`work_plan[${index}][evidence_ids][]`" :value="file.id">
-                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words text-sm font-medium text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-red-700 dark:text-slate-200"></a>
+                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words secondary-action justify-start text-left"></a>
                                         <button type="button" @click="removeEvidence(entry, file.id)" :aria-label="`Remove ${file.name}`" title="Remove evidence" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-red-300 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6" /></svg></button>
                                     </div>
                                 </template>

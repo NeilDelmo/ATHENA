@@ -87,9 +87,9 @@
                                 <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">The manuscript title and report abstract are ready. Searches and submissions stay linked to this project.</p>
                             </div>
                             <div class="flex flex-wrap gap-4 text-sm font-semibold text-red-700 dark:text-red-300">
-                                <a wire:navigate href="{{ route('topics.show', $journalTopic) }}#project-monitoring" class="hover:underline">Back to project</a>
-                                <a href="#journal-submissions" class="hover:underline">Submission tracker</a>
-                                <a wire:navigate href="{{ route('research.dissemination.show', $journalTopic) }}#conferences" class="hover:underline">Conference shortlist</a>
+                                <a wire:navigate href="{{ route('topics.show', $journalTopic) }}#project-monitoring" class="secondary-action">Back to project</a>
+                                <a href="#journal-submissions" class="secondary-action">Submission tracker</a>
+                                <a wire:navigate href="{{ route('research.dissemination.show', $journalTopic) }}#conferences" class="secondary-action">Conference shortlist</a>
                             </div>
                         </div>
                     @endif

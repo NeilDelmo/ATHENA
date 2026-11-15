@@ -69,7 +69,7 @@
                     <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
                         <p class="font-black">Please correct the budget entries.</p>
                         <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-                        @if ($errors->has('budget_token'))<a href="{{ url()->current() }}" class="mt-2 inline-block font-semibold underline">Reload current budget</a>@endif
+                        @if ($errors->has('budget_token'))<a href="{{ url()->current() }}" class="mt-2 secondary-action">Reload current budget</a>@endif
                     </div>
                 @endif
 

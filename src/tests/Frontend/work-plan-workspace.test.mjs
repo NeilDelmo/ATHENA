@@ -25,6 +25,8 @@ const toolbar = execFileSync('php', ['-r', String.raw`
     echo view('components.work-plan-writing-toolbar')->render();
 `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
 const editView = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/work-plan/edit.blade.php', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const editObjectivesLink = editView.match(/<a [^\n]+>Edit objectives in Detailed Proposal<\/a>/)[0]
+    .replace(/\{\{.*?\}\}/, '/detailed-proposal');
 const entryView = editView.slice(editView.indexOf('<template x-for="(entry, index) in entries"'), editView.indexOf('\n            </section>\n\n            <x-proposal-signatory-summary'));
 
 test('Work Plan opens the desktop preview automatically and preserves autosave with overlapping months', async () => {
@@ -57,7 +59,7 @@ test('Work Plan opens the desktop preview automatically and preserves autosave w
                                 <div class="proposal-edit-pane" :inert="previewFullscreen">
                                     <form x-ref="form" method="POST" action="/save" data-work-plan-autosave-form>
                                         <input type="hidden" name="_method" value="PUT"><input type="hidden" name="document_version" value="0"><input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
-                                        <section data-revision-section="section-schedule">${entryView}</section>
+                                        <section data-revision-section="section-schedule">${editObjectivesLink}${entryView}</section>
                                     </form>
                                 </div>${previewView}
                             </div>
@@ -97,7 +99,19 @@ test('Work Plan opens the desktop preview automatically and preserves autosave w
                 }
                 await page.locator('#output-2').fill('Reviewed evaluation dataset');
                 const secondEntry = page.locator('[data-work-plan-entry-id="2"]');
-                await secondEntry.getByRole('button', { name: 'Replace activities with proposal methods' }).click();
+                const editObjectives = page.getByRole('link', { name: 'Edit objectives in Detailed Proposal' });
+                const replaceActivities = secondEntry.getByRole('button', { name: 'Replace activities with proposal methods' });
+                assert.equal(await editObjectives.getAttribute('href'), '/detailed-proposal');
+                for (const control of [editObjectives, replaceActivities]) {
+                    const style = await control.evaluate(element => {
+                        const computed = getComputedStyle(element);
+                        return { decoration: computed.textDecorationLine, border: parseFloat(computed.borderTopWidth), height: element.getBoundingClientRect().height };
+                    });
+                    assert.equal(style.decoration, 'none');
+                    assert.ok(style.border >= 1);
+                    assert.ok(style.height >= 44);
+                }
+                await replaceActivities.click();
                 assert.equal(await page.locator('#activity-2').inputValue(), 'Compare the recorded results');
                 await page.waitForFunction(() => window.savedBodies.some(body => body.some(([name, value]) => name === 'entries[1][activity]' && value === 'Compare the recorded results')));
                 assert.equal(await secondEntry.locator('input[type="checkbox"][value="1"]').isEnabled(), true);

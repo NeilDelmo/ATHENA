@@ -291,7 +291,7 @@
                         </div>
                     </details>
                 </nav>
-                <button x-show="activeTopicTab === 'history'" x-cloak type="button" @click="decisionHistoryOpen = ! decisionHistoryOpen" data-decision-history-toggle :aria-expanded="decisionHistoryOpen.toString()" aria-expanded="false" aria-controls="decision-history-list" class="inline-flex min-h-11 items-center px-5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white sm:px-6">View Decision History ({{ $decisionReviews->count() }})</button>
+                <button x-show="activeTopicTab === 'history'" x-cloak type="button" @click="decisionHistoryOpen = ! decisionHistoryOpen" data-decision-history-toggle :aria-expanded="decisionHistoryOpen.toString()" aria-expanded="false" aria-controls="decision-history-list" class="secondary-action">View Decision History ({{ $decisionReviews->count() }})</button>
             @else
             <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900" aria-label="{{ $canViewMonitoring ? 'Project workspace sections' : 'Proposal workspace sections' }}">
                 <div class="flex shrink-0 gap-1" role="tablist" aria-label="{{ $canViewMonitoring ? 'Project workspace sections' : 'Proposal workspace sections' }}">
@@ -326,7 +326,7 @@
                         :aria-expanded="decisionHistoryOpen.toString()"
                         aria-expanded="false"
                         aria-controls="decision-history-list"
-                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-slate-800"
+                        class="shrink-0 secondary-action"
                     >
                         View Decision History ({{ $decisionReviews->count() }})
                     </button>
@@ -446,7 +446,7 @@
                                             @if ($collaborator->accepted_at === null)
                                                 <form method="POST" action="{{ route('faculty.topic-collaborators.invitation', [$topic, $collaborator]) }}">
                                                     @csrf
-                                                    <button type="submit" class="mt-1 text-xs font-semibold text-red-700 underline">Resend invitation</button>
+                                                    <button type="submit" class="mt-1 secondary-action">Resend invitation</button>
                                                 </form>
                                             @endif
                                         @endif

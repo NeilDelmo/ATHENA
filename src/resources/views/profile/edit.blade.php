@@ -55,9 +55,9 @@
                     <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">Your existing researcher connection helps identify publications in project dissemination. Edit reusable curriculum vitae details in the profile form.</p>
                     <p class="mt-4 break-words text-sm font-semibold text-gray-800 dark:text-slate-200">{{ $researcherProfile->display_name ?: $user->name }}</p>
                     <div class="mt-2 flex flex-col items-start gap-2 text-sm">
-                        @if ($orcidUrl)<a href="{{ $orcidUrl }}" target="_blank" rel="noopener noreferrer" class="break-all rounded text-red-700 underline decoration-red-200 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:decoration-red-900">ORCID {{ $orcidMatches[1] }}<span class="sr-only"> (opens in a new tab)</span></a>@endif
-                        @if ($scholarUrl)<a href="{{ $scholarUrl }}" target="_blank" rel="noopener noreferrer" class="rounded text-red-700 underline decoration-red-200 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:decoration-red-900">Google Scholar<span class="sr-only"> (opens in a new tab)</span></a>@endif
-                        @if ($openalexUrl)<a href="{{ $openalexUrl }}" target="_blank" rel="noopener noreferrer" class="rounded text-red-700 underline decoration-red-200 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:decoration-red-900">OpenAlex author<span class="sr-only"> (opens in a new tab)</span></a>@endif
+                        @if ($orcidUrl)<a href="{{ $orcidUrl }}" target="_blank" rel="noopener noreferrer" class="break-all secondary-action">ORCID {{ $orcidMatches[1] }}<span class="sr-only"> (opens in a new tab)</span></a>@endif
+                        @if ($scholarUrl)<a href="{{ $scholarUrl }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Google Scholar<span class="sr-only"> (opens in a new tab)</span></a>@endif
+                        @if ($openalexUrl)<a href="{{ $openalexUrl }}" target="_blank" rel="noopener noreferrer" class="secondary-action">OpenAlex author<span class="sr-only"> (opens in a new tab)</span></a>@endif
                     </div>
                 </section>
             @endif

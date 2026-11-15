@@ -49,7 +49,7 @@
                         @if (! empty($check['sources']))
                             <ul class="mt-3 space-y-2 text-sm" aria-label="Candidate edition evidence">
                                 @foreach ($check['sources'] as $source)
-                                    <li><a href="{{ $source['url'] }}" class="inline-flex min-h-11 items-center text-red-700 underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300">[{{ $source['reference'] }}] {{ $source['title'] }}</a></li>
+                                    <li><a href="{{ $source['url'] }}" class="secondary-action">[{{ $source['reference'] }}] {{ $source['title'] }}</a></li>
                                 @endforeach
                             </ul>
                         @endif

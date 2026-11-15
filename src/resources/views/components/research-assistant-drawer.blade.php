@@ -94,9 +94,9 @@
         </div>
 
         <footer class="shrink-0 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:bg-slate-900 sm:px-5 sm:pb-4">
-            <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+            <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
                 <div><p class="font-semibold" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
-                <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-semibold disabled:opacity-50" x-text="$store.researchAssistant.errorTitle === 'Chat is full' ? 'New chat' : ($store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry')"></button>
+                <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="secondary-action" x-text="$store.researchAssistant.errorTitle === 'Chat is full' ? 'New chat' : ($store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry')"></button>
             </div>
 
             <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 px-1 text-sm leading-6 text-gray-600 dark:text-slate-300">

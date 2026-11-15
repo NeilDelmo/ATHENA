@@ -50,10 +50,10 @@
                     @if ($submission->submission_reference)<div class="flex gap-1"><dt class="font-semibold">Journal ID:</dt><dd>{{ $submission->submission_reference }}</dd></div>@endif
                 </dl>
                 <div class="mt-3 flex flex-wrap gap-4 text-sm font-semibold text-red-700 dark:text-red-300">
-                    @if ($submission->journal_url)<a href="{{ $submission->journal_url }}" target="_blank" rel="noopener noreferrer" class="hover:underline">Journal website ↗</a>@endif
+                    @if ($submission->journal_url)<a href="{{ $submission->journal_url }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Journal website ↗</a>@endif
                     @if ($submission->status === 'published' && $submission->publication_url)
-                        <a href="{{ $submission->publication_url }}" target="_blank" rel="noopener noreferrer" class="hover:underline">Read published article ↗</a>
-                        <a href="https://scholar.google.com/scholar?{{ http_build_query(['q' => '"'.$submission->manuscript_title.'"']) }}" target="_blank" rel="noopener noreferrer" class="hover:underline">Check Google Scholar ↗</a>
+                        <a href="{{ $submission->publication_url }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Read published article ↗</a>
+                        <a href="https://scholar.google.com/scholar?{{ http_build_query(['q' => '"'.$submission->manuscript_title.'"']) }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Check Google Scholar ↗</a>
                     @endif
                 </div>
                 @if ($submission->notes)<p class="mt-2 whitespace-pre-line text-sm text-gray-600 dark:text-slate-300">{{ $submission->notes }}</p>@endif

@@ -186,7 +186,7 @@
                             default => $issue['url'],
                         };
                     @endphp
-                    <a data-monitoring-task-link href="{{ $taskUrl }}" class="flex min-h-11 min-w-0 items-center gap-3 rounded-md py-1 text-base text-red-800 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-200">
+                    <a data-monitoring-task-link href="{{ $taskUrl }}" class="min-w-0 gap-3 secondary-action justify-start text-left">
                         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v6m0 4h.01"/></svg>
                         <span class="min-w-0"><span class="block font-semibold">{{ $issue['issue'] }}</span><span class="block text-base font-normal text-slate-600 dark:text-slate-300">{{ in_array($issue['type'], ['quarterly', 'progress_quarterly']) ? 'Oldest missing report · ' : '' }}{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></span>
                     </a>
@@ -199,7 +199,7 @@
                         </summary>
                         <ul class="divide-y divide-red-100 border-t border-red-100 dark:divide-red-900 dark:border-red-900">
                             @foreach ($issues as $issue)
-                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? ($issue['type'] === 'terminal_review' ? '#terminal-reports' : '#progress-reports') : $issue['url'] }}" class="flex min-h-11 flex-col justify-center gap-1 rounded-md py-2 text-base hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
+                                <li><a data-monitoring-task-link href="{{ Auth::user()->isUsingWorkspace('research_head') && $issue['review_stage'] === 'secretary' ? ($issue['type'] === 'terminal_review' ? '#terminal-reports' : '#progress-reports') : $issue['url'] }}" class="flex-col gap-1 secondary-action justify-start text-left items-start"><span class="font-medium text-red-800 dark:text-red-200">{{ str($issue['issue'])->before(' · ') }}</span><span class="text-slate-600 dark:text-slate-300">{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</span></a></li>
                             @endforeach
                         </ul>
                     </details>
@@ -276,7 +276,7 @@
                         <div class="flex flex-wrap gap-2">
                             <button type="button" x-ref="secretaryTrigger" @click="open = !open; if (open) $nextTick(() => $refs.search.focus())" class="monitoring-secondary-action">{{ $topic->researchSecretary ? 'Change secretary' : 'Select project staff' }}</button>
                             @if ($topic->researchSecretary)
-                                <button type="button" @click="clearSelection" class="monitoring-secondary-action">Remove</button>
+                                <button type="button" @click="clearSelection" class="secondary-action">Remove</button>
                             @endif
                         </div>
                         @error('research_secretary_id')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror

@@ -48,7 +48,7 @@
 
             <div data-workspace-switch-status role="status" aria-live="polite" hidden class="mb-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 <span data-workspace-switch-message></span>
-                <a data-workspace-switch-continue hidden class="ml-2 font-semibold text-[#7A0019] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-red-300">Open workspace</a>
+                <a data-workspace-switch-continue hidden class="ml-2 mt-2 secondary-action">Open workspace</a>
             </div>
 
             <div data-workspace-options @class([

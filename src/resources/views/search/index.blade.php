@@ -33,7 +33,7 @@
         @else
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="min-w-0 break-words text-sm font-semibold text-slate-700 dark:text-slate-200">{{ number_format($results->total()) }} {{ str('result')->plural($results->total()) }} for “{{ $query }}”</h2>
-                <a href="{{ route('search.index') }}" class="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-red-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-300">Clear search</a>
+                <a href="{{ route('search.index') }}" class="secondary-action">Clear search</a>
             </div>
             @if ($results->isEmpty())
                 <div class="rounded-xl border border-slate-200 bg-white px-5 py-12 text-center dark:border-slate-700 dark:bg-slate-900">

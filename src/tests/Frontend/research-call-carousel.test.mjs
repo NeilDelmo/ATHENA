@@ -34,11 +34,10 @@ test('carousel navigation, keyboard previews, and navigation cleanup work at des
             const callsLink = slides.nth(0).getByRole('link', { name: 'View research calls' });
             const linkStyle = await callsLink.evaluate((element) => {
                 const style = getComputedStyle(element);
-                return { decoration: style.textDecorationLine, border: style.borderTopWidth, background: style.backgroundColor, height: element.getBoundingClientRect().height };
+                return { decoration: style.textDecorationLine, border: parseFloat(style.borderTopWidth), height: element.getBoundingClientRect().height };
             });
-            assert.equal(linkStyle.decoration, 'underline');
-            assert.equal(linkStyle.border, '0px');
-            assert.equal(linkStyle.background, 'rgba(0, 0, 0, 0)');
+            assert.equal(linkStyle.decoration, 'none');
+            assert.ok(linkStyle.border >= 1);
             assert.ok(linkStyle.height >= 44);
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
             assert.equal(await slides.nth(1).isVisible(), false);
