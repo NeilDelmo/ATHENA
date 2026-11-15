@@ -124,7 +124,7 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 id="work-plan-objectives-heading" class="text-lg font-black text-gray-900">Objectives and Gantt schedule</h3>
-                        <p class="mt-1 text-sm text-gray-500">Objectives and suggested activities come from your Detailed Proposal. Review the activities, describe each objective's deliverable, and select its active months. Objectives can run in the same month.</p>
+                        <p class="mt-1 text-sm text-gray-500">Each Specific Objective from your Detailed Proposal gets one row in Attachment A. List its outputs and activities together, then choose the months for that row.</p>
                         <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="mt-2 secondary-action">Edit objectives in Detailed Proposal</a>
                         <p class="mt-1 text-xs text-gray-400">The generated paper automatically expands each row to fit the longest objective, output, or activity text.</p>
                     </div>
@@ -133,7 +133,7 @@
                 @if ($proposalOutputs !== [])
                     <details class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
                         <summary class="cursor-pointer text-sm font-semibold text-gray-900 dark:text-white">Overall outputs from Detailed Proposal</summary>
-                        <p class="mt-3 text-sm text-gray-500 dark:text-slate-400">These are the project's overall deliverables and impacts. Enter a concrete deliverable for each objective below that contributes to these outputs.</p>
+                        <p class="mt-3 text-sm text-gray-500 dark:text-slate-400">Use these project-wide outputs as a reference. Under each objective below, list the specific deliverables that help achieve them.</p>
                         <dl class="mt-3 space-y-3 text-sm">
                             @foreach ($proposalOutputs as $category => $outputs)
                                 <div>
@@ -175,20 +175,20 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`output-${entry.id}`">Expected Output <x-required-mark /></label>
-                                    <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-model="entry.expectedOutput" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                                    <p class="mt-2 text-xs text-gray-500">The concrete deliverable for this objective, such as a dataset, module, or evaluation report.</p>
+                                    <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-bind:aria-describedby="`output-help-${entry.id}`" x-model="entry.expectedOutput" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                    <p x-bind:id="`output-help-${entry.id}`" class="mt-2 text-xs text-gray-500">List one deliverable per line. For example, “Usability dataset” and “Evaluation report” can both belong to one objective.</p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`activity-${entry.id}`">Activities or Workplan <x-required-mark /></label>
-                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-model="entry.activity" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                                    <p class="mt-2 text-xs text-gray-500">Starts with methods whose heading matches this objective in the Detailed Proposal. Refine them into scheduled activities.</p>
+                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-bind:aria-describedby="`activity-help-${entry.id}`" x-model="entry.activity" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                    <p x-bind:id="`activity-help-${entry.id}`" class="mt-2 text-xs text-gray-500">List one activity per line, such as “Run usability sessions” and “Analyze feedback.” Matching methods from the Detailed Proposal appear here as a starting point.</p>
                                     <button type="button" x-show="entry.proposalActivity && entry.activity !== entry.proposalActivity" x-cloak x-on:click="useProposalMethods(entry)" class="mt-2 secondary-action">Replace activities with proposal methods</button>
                                 </div>
                             </div>
 
                             <fieldset x-bind:data-work-plan-schedule="entry.id" class="mt-5">
                                 <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <x-required-mark /></legend>
-                                <p class="mt-2 text-xs leading-5 text-gray-500">M1 is the first month from your planned start date. Select every month this work will be active; objectives may overlap. Each 12-month block becomes a matching Attachment A year sheet.</p>
+                                <p class="mt-2 text-xs leading-5 text-gray-500">Select the months when any of this objective’s activities will be active. They share one schedule in Attachment A. Objectives may overlap, and M1 is the first month from your planned start date.</p>
                                 <template x-if="isEntryExpanded(entry)">
                                     <div class="mt-3 grid gap-4">
                                         <template x-for="yearGroup in yearGroups" :key="yearGroup.year">
