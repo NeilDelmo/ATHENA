@@ -1,6 +1,7 @@
 <x-app-layout>
     @php
         $unknownSchedules = $projectHealth->where('has_schedule', false)->count();
+        $singleAttentionProject = $attentionProjects->count() === 1;
     @endphp
     <x-slot name="header">
         <x-page-header data-faculty-researcher-dashboard data-dashboard-header variant="hero" eyebrow="Faculty Researcher" title="Dashboard" subtitle="Track approved projects, reporting deadlines, and follow-up actions.">
@@ -36,7 +37,7 @@
                     <h2 id="focus-heading" class="dashboard-section-title">Needs attention</h2>
                     <span class="rh-badge">{{ $attentionProjects->count() }} {{ str('project')->plural($attentionProjects->count()) }}</span>
                 </div>
-                <div class="grid gap-4 xl:grid-cols-2" id="faculty-project-actions">
+                <div id="faculty-project-actions" @class(['grid gap-4', 'xl:grid-cols-2' => ! $singleAttentionProject])>
                     @forelse ($attentionProjects as $topic)
                         @php
                             $health = $projectHealth[$topic->id];
@@ -52,28 +53,38 @@
                                 default => 'Update monitoring',
                             };
                         @endphp
-                        <article data-project-attention="{{ $topic->id }}" class="flex min-w-0 flex-col gap-4 dashboard-panel p-5" @if ($loop->index >= 4) x-show="showAll" x-cloak @endif>
-                            <div class="space-y-3">
-                                <div class="flex min-w-0 items-start gap-3">
-                                    <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center text-brand dark:text-red-300" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8M8 17h5" /></svg></span>
+                        <article data-project-attention="{{ $topic->id }}" @class([
+                            'flex min-w-0 flex-col gap-4 dashboard-panel p-5',
+                            'xl:grid xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-8' => $singleAttentionProject,
+                        ]) @if ($loop->index >= 4) x-show="showAll" x-cloak @endif>
+                            <div @class(['flex min-w-0 items-start gap-3', 'xl:col-start-1 xl:row-start-1' => $singleAttentionProject])>
+                                <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center text-brand dark:text-red-300" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8M8 17h5" /></svg></span>
+                                <div class="min-w-0 space-y-2">
                                     <h3 class="min-w-0 break-words text-base font-semibold">{{ $topic->title }}</h3>
-                                </div>
-                                <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm leading-5 text-slate-600 dark:text-slate-400">
-                                    <p>{{ $topic->latestProgressReport ? 'Monitoring Tool · '.$topic->latestProgressReport->reporting_date->format('M j, Y') : 'No submitted Monitoring Tool' }}</p>
-                                    <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ $health['progress'] === null ? 'Progress unreported' : $health['progress'].'% reported' }}</span>
+                                    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm leading-5 text-slate-600 dark:text-slate-400">
+                                        <p>{{ $topic->latestProgressReport ? 'Monitoring Tool · '.$topic->latestProgressReport->reporting_date->format('M j, Y') : 'No submitted Monitoring Tool' }}</p>
+                                        <span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ $health['progress'] === null ? 'Progress unreported' : $health['progress'].'% reported' }}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <ul data-project-issues class="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-300 bg-slate-50 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
+                            <ul data-project-issues @class([
+                                'min-w-0 divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800',
+                                'xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:border-l xl:border-t-0 xl:pl-6' => $singleAttentionProject,
+                            ])>
                                 @foreach ($health['actions'] as $issue)
-                                    <li class="flex flex-col items-start gap-2 p-3 sm:flex-row sm:justify-between sm:gap-3">
-                                        <a wire:navigate href="{{ $issue['url'] }}" class="min-w-0 gap-2 break-words leading-6 secondary-action"><svg class="mt-1 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01M11 11h1v5h1m8-4a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg><span class="min-w-0 break-words">{{ $issue['issue'] }}</span></a>
+                                    <li class="grid min-w-0 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-x-4">
+                                        <a wire:navigate href="{{ $issue['url'] }}" class="relative min-w-0 break-words rounded-sm pl-6 text-sm font-medium leading-5 text-slate-800 underline-offset-4 hover:text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-200 dark:hover:text-red-300"><svg class="absolute left-0 top-0.5 h-4 w-4 text-brand dark:text-red-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01M11 11h1v5h1m8-4a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg><span class="min-w-0 break-words">{{ $issue['issue'] }}</span></a>
                                         @if ($issue['days'] !== null)
-                                            <span class="shrink-0 rounded-md bg-white px-2 py-1 text-sm leading-5 tabular-nums text-slate-600 dark:bg-slate-900 dark:text-slate-300">{{ $issue['days'] }} {{ str('day')->plural($issue['days']) }} {{ $issue['basis'] === 'overdue' ? 'overdue' : 'waiting' }}</span>
+                                            <span class="whitespace-nowrap pl-6 text-sm leading-5 tabular-nums text-slate-500 sm:justify-self-end sm:pl-0 dark:text-slate-400">{{ $issue['days'] }} {{ str('day')->plural($issue['days']) }} {{ $issue['basis'] === 'overdue' ? 'overdue' : 'waiting' }}</span>
                                         @endif
                                     </li>
                                 @endforeach
                             </ul>
-                            <div class="mt-auto flex flex-wrap justify-end gap-2">
+                            <div @class([
+                                'mt-auto flex flex-wrap gap-2',
+                                'xl:col-start-1 xl:row-start-2 xl:mt-0 xl:self-start' => $singleAttentionProject,
+                                'sm:justify-end' => ! $singleAttentionProject,
+                            ])>
                                 <a wire:navigate href="{{ route('research.show', $topic) }}#project-monitoring" class="secondary-action">Open project</a>
                                 <a wire:navigate data-project-action href="{{ $primaryIssue['url'] }}" class="dashboard-action max-w-full text-center">{{ $action }}<svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
                             </div>

@@ -105,6 +105,19 @@ test('researcher dashboards load report summaries only for active projects and r
         ->assertSee('Missing Monitoring Tools: Q2')->assertSee('Missing Progress Reports: Q2')
         ->assertSee('Q1 Monitoring Tool · Corrections needed')->assertSee('Q1 Progress Report · Corrections needed')
         ->assertSee('Missing terminal report')->assertSee('At least 50% remaining in latest reported budget snapshot');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $actions = '//*[@id="faculty-project-actions"]';
+    $card = $actions.'//article[@data-project-attention]';
+
+    expect($xpath->query($card)->length)->toBe(1)
+        ->and($xpath->query($actions)->item(0)->getAttribute('class'))->not->toContain('xl:grid-cols-2')
+        ->and($xpath->query($card)->item(0)->getAttribute('class'))->toContain('xl:grid-cols-2')
+        ->and($xpath->query($card.'//ul[@data-project-issues]//a[contains(@class, "secondary-action")]')->length)->toBe(0)
+        ->and($xpath->query($card.'//ul[@data-project-issues]//li[not(contains(@class, "sm:items-baseline"))]')->length)->toBe(0)
+        ->and($xpath->query($card.'//a[@data-project-action]')->length)->toBe(1);
+
     $health = $response->viewData('projectHealth')[$active->id];
     expect($health['progress'])->toBe(40)
         ->and($health['utilized'])->toBe(2000.0)
