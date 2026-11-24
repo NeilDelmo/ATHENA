@@ -111,7 +111,7 @@ test('faculty dashboards show workspace-specific data in the shared restrained l
         ->assertDontSee('border-l-4 border-[#800000]', false)
         ->assertSee('aria-label="Open account menu"', false)
         ->assertSee('aria-label="Toggle light and dark theme"', false)
-        ->assertDontSee('athena-sidebar-hexagons', false);
+        ->assertSee('athena-sidebar-hexagons', false);
 
     if ($workspace === User::WORKSPACE_FACULTY) {
         $response->assertSee('data-dashboard-layout="faculty-overview"', false)

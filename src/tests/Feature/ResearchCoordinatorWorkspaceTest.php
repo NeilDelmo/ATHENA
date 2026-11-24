@@ -31,6 +31,8 @@ test('coordinator dashboard and focused work pages share the office design and n
     foreach (['dashboard', 'proposals.index', 'targets.index', 'members.index'] as $page) {
         $response = $this->get(route('research_coordinator.'.$page))->assertOk()
             ->assertSee('data-coordinator-workspace', false)->assertSee('data-research-office-navigation', false)
+            ->assertSee('athena-sidebar-hexagons', false)->assertSee('data-sidebar-account', false)
+            ->assertSee('aria-label="Planning &amp; reports"', false)
             ->assertDontSee(route('research_coordinator.notices.index'), false)
             ->assertDontSee('Prepare Notice to Proceed')->assertDontSee('Document releases')
             ->assertDontSee('secretary-page-index')->assertDontSee('secretary-page-intro');

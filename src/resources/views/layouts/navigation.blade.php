@@ -1,29 +1,16 @@
-@if (Auth::user()->isUsingWorkspace('vcrdes'))
-    <x-vcrdes-navigation />
-@else
 @php
     $isFacultyNavigation = Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
     $isResearchOfficeNavigation = Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE);
-    $usesSimpleSidebar = $isFacultyNavigation || $isResearchOfficeNavigation;
-    $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold text-slate-600 transition-all duration-200 ease-out hover:translate-x-0.5 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
-    $sidebarCurrentClasses = '!bg-white !text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:!bg-slate-900 dark:!text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]';
-    if ($usesSimpleSidebar) {
-        $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
-        $sidebarCurrentClasses = '!bg-red-50 !text-[#7A0019] before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-[#7A0019] dark:!bg-red-950/30 dark:!text-red-200';
-    }
-    if ($isResearchOfficeNavigation) {
-        $sidebarLinkClasses = 'relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white';
-        $sidebarCurrentClasses = '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200';
-    }
+    $isSecretaryNavigation = Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_SECRETARY);
+    $sidebarLinkClasses = 'relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
 @endphp
 
 <aside
     x-data
     id="app-sidebar"
-    :class="$store.sidebar.open ? '!w-[280px] {{ $usesSimpleSidebar ? 'shadow-xl sm:shadow-none' : 'shadow-2xl sm:shadow-xl' }}' : '!w-[76px] {{ $usesSimpleSidebar ? '' : 'shadow-lg' }}'"
-    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden {{ $usesSimpleSidebar ? 'bg-white dark:bg-slate-900' : 'rounded-r-[28px] bg-white/95 shadow-slate-900/10 backdrop-blur-xl dark:bg-slate-950/95' }} border-r border-slate-200/80 transition-colors duration-300 dark:border-slate-800/80 sm:w-[280px]"
+    :class="$store.sidebar.open ? '!w-[280px] shadow-2xl sm:shadow-xl' : '!w-[76px] shadow-lg'"
+    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden rounded-r-[28px] bg-white/95 shadow-slate-900/10 backdrop-blur-xl dark:bg-slate-950/95 border-r border-slate-200/80 transition-colors duration-300 dark:border-slate-800/80 sm:w-[280px]"
 >
-    @if (! $usesSimpleSidebar)
     <svg
         class="pointer-events-none absolute inset-0 z-0 h-full w-full text-[#7A0019]/[0.035] dark:text-white/[0.025]"
         aria-hidden="true"
@@ -76,7 +63,6 @@
         class="pointer-events-none absolute inset-y-0 right-0 z-[1] w-px bg-gradient-to-b
                from-transparent via-[#7A0019]/15 to-transparent dark:via-white/10"
     ></div>
-    @endif
 
     <div
         :class="$store.sidebar.open ? 'px-5 pb-5 pt-5' : 'px-3 pb-4 pt-4'"
@@ -176,16 +162,16 @@
         @endif
 
 
-        @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_SECRETARY))
+        @if ($isSecretaryNavigation)
             <x-research-secretary-navigation />
-            <a wire:navigate wire:current="{{ $sidebarCurrentClasses }}" href="{{ route('signatories.index') }}" aria-label="Signatory defaults" title="Signatory defaults" class="{{ $sidebarLinkClasses }}">
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h5M5 3h14v18H5V3m5 14h5" /></svg>
-                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signatories</span>
-            </a>
+        @endif
+
+        @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_VCRDES))
+            <x-vcrdes-navigation :link-classes="$sidebarLinkClasses" />
         @endif
 
         @role('research_coordinator')
-            @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE))
+            @if ($isResearchOfficeNavigation)
                 <x-research-coordinator-navigation :attention-counts="$sidebarAttentionCounts ?? []" />
             @endif
         @endrole
@@ -195,25 +181,20 @@
         @endif
 
     </div>
-    @if ($usesSimpleSidebar || Auth::user()->isUsingWorkspace('research_head'))
-        <div data-sidebar-account class="relative z-10 shrink-0 border-t border-slate-100 p-3 dark:border-slate-800">
-            @if ($isFacultyNavigation || Auth::user()->isUsingWorkspace('research_head'))
-                <h2 x-show="$store.sidebar.open" class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</h2>
-            @endif
-            @if (Auth::user()->hasMultipleWorkspaces())
-                <a wire:navigate.hover href="{{ route('workspace.select') }}" aria-label="Switch Workspace" title="Switch Workspace" class="{{ $sidebarLinkClasses }}" :class="!$store.sidebar.open && 'justify-center !px-0'">
-                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h14m0 0-4-4m4 4-4 4M17 17H3m0 0 4 4m-4-4 4-4" /></svg>
-                    <span x-show="$store.sidebar.open">Switch Workspace</span>
-                </a>
-            @endif
-            <a wire:navigate href="{{ route('profile.edit') }}" aria-label="Account Profile" title="Account Profile" class="flex items-center gap-3 rounded-lg p-2 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:hover:bg-slate-800" :class="!$store.sidebar.open && 'justify-center'">
-                <x-user-avatar :user="Auth::user()" class="h-8 w-8 shrink-0 rounded-full bg-[#7A0019] text-xs text-white" />
-                <span x-show="$store.sidebar.open" class="min-w-0">
-                    <span class="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{{ Auth::user()->name }}</span>
-                    <span class="block truncate text-[11px] text-slate-500">Account Profile</span>
-                </span>
+    <div data-sidebar-account class="relative z-10 shrink-0 border-t border-slate-100 p-3 dark:border-slate-800">
+        <h2 x-show="$store.sidebar.open" class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</h2>
+        @if (Auth::user()->hasMultipleWorkspaces())
+            <a wire:navigate.hover href="{{ route('workspace.select') }}" aria-label="Switch Workspace" title="Switch Workspace" class="{{ $sidebarLinkClasses }}" :class="!$store.sidebar.open && 'justify-center !px-0'">
+                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h14m0 0-4-4m4 4-4 4M17 17H3m0 0 4 4m-4-4 4-4" /></svg>
+                <span x-show="$store.sidebar.open">Switch Workspace</span>
             </a>
-        </div>
-    @endif
+        @endif
+        <a wire:navigate href="{{ route('profile.edit') }}" aria-label="Account Profile" title="Account Profile" class="flex items-center gap-3 rounded-lg p-2 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:hover:bg-slate-800" :class="!$store.sidebar.open && 'justify-center'">
+            <x-user-avatar :user="Auth::user()" class="h-8 w-8 shrink-0 rounded-full bg-[#7A0019] text-xs text-white" />
+            <span x-show="$store.sidebar.open" class="min-w-0">
+                <span class="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{{ Auth::user()->name }}</span>
+                <span class="block truncate text-[11px] text-slate-500">Account Profile</span>
+            </span>
+        </a>
+    </div>
 </aside>
-@endif

@@ -1,21 +1,52 @@
-<aside id="app-sidebar" class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col items-center border-r border-slate-200 bg-white py-5 dark:border-slate-800 dark:bg-slate-900">
-    <a wire:navigate href="{{ route('vcrdes.dashboard') }}" aria-label="ATHENA dashboard" title="ATHENA dashboard" class="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:bg-red-950/30">
-        <img src="{{ asset('images/athenalogo-transparent.png') }}" alt="" class="h-10 w-10 object-contain">
-    </a>
-    <div class="my-6 h-px w-8 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></div>
-    <nav data-vcrdes-navigation aria-label="VCRDES monitoring" class="flex flex-1 flex-col gap-3">
-        @foreach ([['Overview', 'grid', '#overview'], ['Research projects', 'folder-open', '#projects'], ['Needs attention', 'history', '#attention'], ['Budget utilization', 'presentation', '#budget'], ['College performance', 'college', '#colleges']] as [$label, $icon, $anchor])
-            <a href="{{ route('vcrdes.dashboard').$anchor }}" title="{{ $label }}" aria-label="{{ $label }}" class="group relative flex h-12 w-12 items-center justify-center rounded-xl transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] {{ $loop->first ? 'bg-[#7A0019] text-white shadow-md shadow-red-950/15' : 'text-slate-400 hover:bg-red-50 hover:text-[#7A0019] dark:hover:bg-slate-800 dark:hover:text-red-200' }}">
-                <x-report-library-icon :name="$icon" class="h-5 w-5" />
-            </a>
-        @endforeach
-    </nav>
-    <div class="flex flex-col items-center gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-        @if (Auth::user()->hasMultipleWorkspaces())
-            <a wire:navigate href="{{ route('workspace.select') }}" aria-label="Switch workspace" title="Switch workspace" class="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:hover:bg-slate-800 dark:hover:text-red-200"><x-report-library-icon name="move" class="h-5 w-5" /></a>
-        @endif
-        <a wire:navigate href="{{ route('profile.edit') }}" aria-label="Account profile" title="Account profile" class="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019]">
-            <x-user-avatar :user="Auth::user()" class="h-9 w-9 rounded-full bg-[#7A0019] text-xs text-white" />
-        </a>
-    </div>
-</aside>
+@props(['linkClasses'])
+
+@php
+    $sections = [
+        'Overview' => [['Overview', 'grid', '#overview']],
+        'Projects' => [
+            ['Research projects', 'folder-open', '#projects'],
+            ['Needs attention', 'history', '#attention'],
+        ],
+        'Planning & reports' => [
+            ['Budget utilization', 'presentation', '#budget'],
+            ['College performance', 'college', '#colleges'],
+        ],
+    ];
+    $activeClasses = '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-rose-950/40 dark:!text-rose-200';
+@endphp
+
+<nav
+    data-vcrdes-navigation
+    aria-label="VCRDES monitoring"
+    class="space-y-4"
+    x-data="{
+        activeSection: '',
+        syncSection() {
+            const overview = this.$el.querySelector('a');
+            this.activeSection = window.location.pathname === overview.pathname ? (window.location.hash || overview.hash) : '';
+        },
+    }"
+    x-init="syncSection()"
+    @hashchange.window="syncSection()"
+    x-on:livewire:navigated.window="syncSection()"
+>
+    @foreach ($sections as $heading => $links)
+        <section aria-label="{{ $heading }}">
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {{ $heading }}<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                @foreach ($links as [$label, $icon, $anchor])
+                    <a href="{{ route('vcrdes.dashboard').$anchor }}" aria-label="{{ $label }}" title="{{ $label }}"
+                        class="{{ $linkClasses }}"
+                        :aria-current="activeSection === @js($anchor) ? 'location' : null"
+                        :class="[!$store.sidebar.open && '!justify-center !gap-0 !px-0', activeSection === @js($anchor) && @js($activeClasses)]"
+                        @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)">
+                        <x-report-library-icon :name="$icon" class="h-5 w-5 shrink-0" />
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">{{ $label }}</span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endforeach
+</nav>

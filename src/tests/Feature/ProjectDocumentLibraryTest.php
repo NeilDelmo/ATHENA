@@ -58,6 +58,34 @@ test('an empty project folder keeps its Explorer browse surface and View menu', 
         ->and($xpath->query('//*[@role="menu" and @aria-label="View"]//button[@role="menuitemradio"]')->length)->toBe(4);
 });
 
+test('faculty researchers download the previous signed approval from signed papers in the project folder', function () {
+    $this->faculty->assignRole('faculty_researcher');
+    $path = 'approvals/signed.pdf';
+    Storage::disk('local')->put($path, '%PDF-1.7 signed approval');
+    $this->topic->update([
+        'status' => 'approved',
+        'project_status' => 'ongoing',
+        'signed_approval_path' => $path,
+        'notice_to_proceed_issued_at' => '2026-01-01',
+    ]);
+
+    $url = route('topics.approval', $this->topic);
+    $response = $this->actingAs($this->faculty)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('research.show', $this->topic))->assertOk()->assertDontSee('Download previous signed approval');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $folder = '//*[@id="project-files-tab"]';
+    expect($response->viewData('projectDocumentLibrary')['documents']->firstWhere('key', 'signed-approval-'.$this->topic->id))
+        ->toMatchArray(['category' => ProjectDocument::CATEGORY_SIGNED_PAPERS, 'download_url' => $url])
+        ->and($xpath->query($folder.'//a[@href="'.$url.'"]')->length)->toBe(1)
+        ->and($xpath->query('//a[@href="'.$url.'"][not(ancestor::*[@id="project-files-tab"])]')->length)->toBe(0);
+
+    $this->get($url)->assertSuccessful()->assertDownload('signed-approval-'.$this->topic->id.'.pdf');
+});
+
 test('the project folder lists generated review papers with their source version and existing preview viewer', function () {
     [$version, $paper] = ($this->makeResponseVersion)();
     $head = User::factory()->create();

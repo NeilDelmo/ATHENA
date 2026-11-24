@@ -46,7 +46,9 @@ test('vcrdes monitors issued projects across colleges using only forwarded progr
         ->assertViewHas('budgetPercentage', fn ($value): bool => $value === 20.0)
         ->assertSee('Coastal sensor network')->assertSee('42%')->assertSee('60,000.00')->assertSee('12,000.00')
         ->assertDontSee('23,000.00')->assertDontSee('Unissued confidential proposal')
-        ->assertSeeHtml('data-vcrdes-navigation')->assertSeeHtml('data-vcrdes-dashboard');
+        ->assertSeeHtml('data-vcrdes-navigation')->assertSeeHtml('data-vcrdes-dashboard')
+        ->assertSeeHtml('data-sidebar-account')->assertSee('athena-sidebar-hexagons', false)
+        ->assertSee('Collapse navigation menu');
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
@@ -57,7 +59,7 @@ test('vcrdes monitors issued projects across colleges using only forwarded progr
     foreach ($links as $link) {
         expect($link->getAttribute('aria-label'))->not->toBeEmpty()
             ->and($link->getAttribute('title'))->not->toBeEmpty()
-            ->and(trim($link->textContent))->toBeEmpty()
+            ->and(trim($link->textContent))->toBe($link->getAttribute('aria-label'))
             ->and($xpath->query('.//*[local-name()="svg"]', $link)->length)->toBe(1);
     }
     if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {

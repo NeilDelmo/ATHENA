@@ -87,6 +87,31 @@ test('the secretary has a separate dashboard and focused work pages with working
         ->assertDontSee('One queue. A clear next step.')->assertDontSee('Submission queue');
 });
 
+test('the secretary sidebar groups office links and keeps workspace switching in the account footer', function () {
+    $this->secretary->assignRole(Role::firstOrCreate(['name' => 'faculty']));
+
+    $response = $this->get(route('research_secretary.dashboard'))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $navigation = '//*[@id="app-sidebar"]//nav[@data-research-secretary-navigation]';
+
+    foreach ([
+        'Overview' => ['Dashboard'],
+        'Research workflow' => ['Report reviews', 'Notices to Proceed'],
+        'Monitoring & planning' => ['Budget monitoring', 'Research targets'],
+        'Resources' => ['Signatories'],
+    ] as $section => $labels) {
+        $links = $xpath->query($navigation.'//section[@aria-label="'.$section.'"]//a');
+        expect(array_map(fn (DOMElement $link): string => $link->getAttribute('aria-label'), iterator_to_array($links)))->toBe($labels);
+    }
+
+    $footer = '//*[@id="app-sidebar"]//*[@data-sidebar-account]';
+    expect($xpath->query($footer.'//h2[normalize-space(.)="Account"]')->length)->toBe(1)
+        ->and($xpath->query($footer.'//a[@aria-label="Switch Workspace"]')->length)->toBe(1)
+        ->and($xpath->query($footer.'//a[@aria-label="Account Profile"]')->length)->toBe(1);
+});
+
 test('report review filters identify the selected view using the existing tab format', function (string $type, string $label) {
     $response = $this->get(route('research_secretary.reports.index', $type ? ['type' => $type] : []))->assertOk()
         ->assertDontSee('secretary-filter-tabs');

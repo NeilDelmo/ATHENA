@@ -1033,10 +1033,6 @@
             <x-project-document-drawer :topic="$topic" :library="$projectDocumentLibrary" :inline="true" />
         </section>
 
-        @if ($topic->signed_approval_path)
-            <a href="{{ route('topics.approval', $topic) }}" class="flex justify-center rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-black dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download previous signed approval</a>
-        @endif
-
         <x-back-link
             fixed
             x-ref="workspaceBackLink"

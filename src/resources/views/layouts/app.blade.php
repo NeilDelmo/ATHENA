@@ -75,7 +75,7 @@
 
         <div
             x-cloak
-            x-show="{{ $isVcrdesWorkspace ? 'false' : '$store.sidebar.open' }}"
+            x-show="$store.sidebar.open"
             x-transition.opacity
             @click="$store.sidebar.setOpen(false)"
             class="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] sm:hidden"
@@ -83,8 +83,8 @@
         ></div>
 
         <div
-            @unless ($isVcrdesWorkspace) :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'" @endunless
-            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] {{ $isVcrdesWorkspace ? '' : 'sm:pl-[280px]' }} transition-colors duration-300 dark:bg-slate-950"
+            :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'"
+            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] sm:pl-[280px] transition-colors duration-300 dark:bg-slate-950"
             data-app-content-shell
         >
             
