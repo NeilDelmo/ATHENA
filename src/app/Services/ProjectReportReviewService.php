@@ -96,15 +96,32 @@ class ProjectReportReviewService
 
     public function notifySecretarySubmission(ProjectProgressReport|ProjectNarrativeReport $report): void
     {
-        $this->notify($this->officeSecretaries($report->topic), $report, 'Report submitted for Research Office Secretary review', 'A report is ready for checking before it is forwarded to the Research Head.', User::WORKSPACE_RESEARCH_SECRETARY);
+        $label = $report instanceof ProjectProgressReport ? 'Monitoring Tool' : ucfirst($report->report_label);
+        $this->notify($this->officeSecretaries($report->topic), $report, $label.' awaiting Secretary review', 'Check the submitted report before forwarding it to the Research Head.', User::WORKSPACE_RESEARCH_SECRETARY);
+
+        if ($report->reporting_date !== null && ($report instanceof ProjectProgressReport || $report->report_type === 'progress')) {
+            $this->notify(
+                $this->collegeRecipients($report->topic, 'research_coordinator'),
+                $report,
+                $label.' submitted for your college',
+                'The faculty submission is available for your quarterly accomplishment report.',
+                User::WORKSPACE_RESEARCH_OFFICE,
+                url: route('research_coordinator.reports.index', ['year' => $report->reporting_date->year, 'quarter' => $report->reporting_date->quarter]),
+            );
+        }
     }
 
     public function officeSecretaries(TopicProposal $topic): Collection
     {
+        return $this->collegeRecipients($topic, User::ROLE_RESEARCH_OFFICE_SECRETARY);
+    }
+
+    private function collegeRecipients(TopicProposal $topic, string $role): Collection
+    {
         $college = $topic->projectCollege();
 
         return filled($college)
-            ? User::role(User::ROLE_RESEARCH_OFFICE_SECRETARY)->whereIn('college', TopicProposal::collegeAliases($college))->get()
+            ? User::assignedToRole($role)->whereIn('college', TopicProposal::collegeAliases($college))->get()
             : new Collection;
     }
 
@@ -138,15 +155,19 @@ class ProjectReportReviewService
             && hash_equals($signedCopy['checksum'], hash_file('sha256', Storage::disk('local')->path($signedCopy['path'])));
     }
 
-    private function notify(Collection $recipients, ProjectProgressReport|ProjectNarrativeReport $report, string $title, string $message, string $workspace, string $level = 'info'): void
+    private function notify(Collection $recipients, ProjectProgressReport|ProjectNarrativeReport $report, string $title, string $message, string $workspace, string $level = 'info', ?string $url = null): void
     {
-        $anchor = $report instanceof ProjectProgressReport ? 'monitoring-tool-'.$report->id : 'project-monitoring';
+        $monitoring = $report instanceof ProjectProgressReport;
+        $url ??= $monitoring
+            ? route('topics.show', $report->topic).'#monitoring-tool-'.$report->id
+            : route('project-narrative-reports.show', $report);
         $notification = new ProposalActivityNotification(
             title: $title,
             message: $message.' Project: '.$report->topic->title,
-            url: route('topics.show', $report->topic).'#'.$anchor,
+            url: $url,
             level: $level,
             topicId: $report->topic_id,
+            actionData: ['report_key' => ($monitoring ? 'monitoring:' : 'narrative:').$report->id],
             workspace: $workspace,
             sidebarArea: $workspace === User::WORKSPACE_FACULTY_RESEARCHER
                 ? ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS

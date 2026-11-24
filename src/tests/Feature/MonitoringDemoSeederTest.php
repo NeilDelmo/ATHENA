@@ -190,6 +190,100 @@ test('monitoring demo connects proposal history to reviewed reports archives lab
     expect(ResearchAnnualTarget::sole()->publications_target)->toBe(50);
 });
 
+test('the proposal and monitoring portfolio adds varied actionable examples without rewriting them', function () {
+    $source = TopicProposal::create([
+        'user_id' => $this->faculty_researcher->id, 'title' => 'Existing walkthrough source',
+        'status' => 'approved', 'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_path' => 'existing-notice.pdf',
+    ]);
+    $seeder = app(MonitoringDemoSeeder::class);
+    $seeder->seedWalkthrough($source->id);
+    $projects = $seeder->seedPortfolio($source->id);
+
+    expect($projects)->toHaveCount(14)
+        ->and($projects['pending']->versions()->count())->toBe(1)
+        ->and($projects['revision_requested']->status)->toBe('revision_requested')
+        ->and($projects['resubmitted']->versions()->count())->toBe(2)
+        ->and($projects['gad_review']->hasIssuedNoticeToProceed())->toBeFalse()
+        ->and($projects['rejected']->status)->toBe('rejected')
+        ->and($projects['report_due']->progressReports()->count())->toBe(0)
+        ->and($projects['secretary_pending']->progressReports()->where('reporting_quarter', 2)->sole()->isAwaitingSecretaryReview())->toBeTrue()
+        ->and($projects['faculty_corrections']->project_status)->toBe('delayed')
+        ->and($projects['faculty_corrections']->narrativeReports()->where('reporting_quarter', 2)->sole()->review_status)->toBe('revision_requested')
+        ->and($projects['head_pending']->progressReports()->where('reporting_quarter', 2)->sole()->isAvailableToResearchHead())->toBeTrue()
+        ->and($projects['head_concerns']->progressReports()->where('reporting_quarter', 2)->sole()->research_head_remarks)->not->toBeNull();
+    $forSecretary = $projects['terminal_pending']->narrativeReports()->where('report_type', 'terminal')->sole();
+    $forHead = $projects['terminal_head']->narrativeReports()->where('report_type', 'terminal')->sole();
+    $accepted = $projects['awaiting_signed_copy']->narrativeReports()->where('report_type', 'terminal')->sole();
+    expect($forSecretary->isAwaitingSecretaryReview())->toBeTrue()
+        ->and($forHead->isAvailableToResearchHead())->toBeTrue()
+        ->and($forHead->review_status)->toBe('pending')
+        ->and($accepted->review_status)->toBe('reviewed')
+        ->and($accepted->hasSignedCopy())->toBeFalse()
+        ->and($projects['completed']->isCompletedProject())->toBeTrue()
+        ->and(CollegeQuarterlyReport::where('reporting_quarter', 1)->sole()->submitted_at)->not->toBeNull()
+        ->and(CollegeQuarterlyReport::where('reporting_quarter', 3)->sole()->latestSubmission->return_reason)->not->toBeNull();
+    Storage::disk('local')->assertExists($forSecretary->official_pdf_path);
+
+    $projects['terminal_pending']->update(['title' => 'Updated project title']);
+    expect($seeder->seedPortfolio($source->id)['terminal_pending']->title)->toBe('Updated project title')
+        ->and(TopicProposal::count())->toBe(17);
+    Notification::assertNothingSent();
+});
+
+test('supplemental monitoring examples cover staggered quarters corrections and closeout', function () {
+    $this->travelTo(now()->setDate(2026, 11, 25)->setTime(12, 0));
+    $source = TopicProposal::create([
+        'user_id' => $this->faculty_researcher->id, 'title' => 'Existing monitoring source',
+        'status' => 'approved', 'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_path' => 'existing-notice.pdf',
+    ]);
+    $seeder = app(MonitoringDemoSeeder::class);
+    $seeder->seedWalkthrough($source->id);
+    $this->artisan('monitoring:seed-portfolio', ['source' => $source->id, '--monitoring' => true])->assertSuccessful();
+    $projects = $seeder->seedPortfolio($source->id, monitoringOnly: true);
+    $quarters = app(MonitoringQuarterService::class);
+
+    expect($projects)->toHaveCount(13)
+        ->and(TopicProposal::count())->toBe(16)
+        ->and(CollegeQuarterlyReport::count())->toBe(1)
+        ->and($quarters->narrativeProgressPeriods($projects['recently_issued'])->first()['status'])->toBe('Upcoming')
+        ->and($quarters->narrativeProgressPeriods($projects['active_second_quarter'])->pluck('status')->all())->toBe(['Reviewed', 'Upcoming'])
+        ->and($quarters->narrativeProgressPeriods($projects['overdue_second_quarter'])->pluck('status')->all())->toBe(['Reviewed', 'Overdue'])
+        ->and($projects['monitoring_tool_only']->progressReports()->sole()->isAwaitingSecretaryReview())->toBeTrue()
+        ->and($projects['monitoring_tool_only']->narrativeReports()->count())->toBe(0);
+
+    $revised = $projects['revised_quarterly_reports'];
+    [$firstTool, $latestTool] = $revised->progressReports()->where('reporting_quarter', 2)->reorder('version_number')->get()->all();
+    [$firstProgress, $latestProgress] = $revised->narrativeReports()->where('reporting_quarter', 2)->reorder('version_number')->get()->all();
+    expect($firstTool->review_status)->toBe('revision_requested')
+        ->and($firstProgress->review_status)->toBe('revision_requested')
+        ->and($latestTool->supersedes_report_id)->toBe($firstTool->id)
+        ->and($latestProgress->monitoring_report_id)->toBe($latestTool->id)
+        ->and($latestTool->isLatestSubmittedVersion())->toBeTrue()
+        ->and($latestProgress->isLatestSubmittedVersion())->toBeTrue()
+        ->and($firstTool->official_pdf_path)->not->toBe($latestTool->official_pdf_path)
+        ->and($firstProgress->official_pdf_path)->not->toBe($latestProgress->official_pdf_path);
+
+    $terminalDue = $projects['terminal_due'];
+    $ready = $projects['ready_to_close'];
+    $signedReport = $ready->narrativeReports()->where('report_type', 'terminal')->sole();
+    expect($quarters->canSubmitTerminal($terminalDue))->toBeTrue()
+        ->and($quarters->missingTerminalReportPeriods($terminalDue))->toBe([])
+        ->and($terminalDue->narrativeReports()->where('report_type', 'terminal')->exists())->toBeFalse()
+        ->and($ready->isCompletedProject())->toBeFalse()
+        ->and($signedReport->review_status)->toBe('reviewed')
+        ->and(app(ProjectReportReviewService::class)->hasAvailableSignedCopy($signedReport))->toBeTrue()
+        ->and($projects['completed_publication']->researchOutcome->labels)->toBe(['publication'])
+        ->and($projects['completed_presentation']->researchOutcome->labels)->toContain('presentation');
+
+    $this->actingAs($this->research_office_secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('research_secretary.reports.index', ['type' => 'terminal']))->assertOk()
+        ->assertSee($projects['terminal_secretary_queue']->title);
+    Notification::assertNothingSent();
+});
+
 test('rerunning the monitoring demo preserves edited records and unrelated work', function () {
     $this->seed(MonitoringDemoSeeder::class);
     $project = TopicProposal::first();

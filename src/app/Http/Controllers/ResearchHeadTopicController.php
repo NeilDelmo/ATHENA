@@ -391,6 +391,21 @@ class ResearchHeadTopicController extends Controller
             }
         }
 
+        if ($validated['status'] === TopicProposal::STATUS_LREC_QUEUED) {
+            $coordinators = User::assignedToRole('research_coordinator')
+                ->whereIn('college', TopicProposal::collegeAliases($topic->projectCollege()))->get();
+            $notice = new ProposalActivityNotification(
+                title: 'Proposal queued for LREC presentation',
+                message: 'The Research Head cleared “'.$topic->title.'” for LREC. Open the proposal to start the committee review.',
+                url: route('topics.show', $topic).'#proposal-review',
+                topicId: $topic->id,
+                workspace: User::WORKSPACE_RESEARCH_OFFICE,
+            );
+            foreach ($coordinators as $coordinator) {
+                rescue(fn () => $coordinator->notify($notice));
+            }
+        }
+
         $message = match ($validated['status']) {
             TopicProposal::STATUS_GAD_REVIEW => 'Research Head review cleared. The proposal is now available for GAD Office assessment.',
             TopicProposal::STATUS_LREC_QUEUED => 'GAD assessment and co-evaluator review cleared. The proposal is queued for LREC presentation.',

@@ -4,6 +4,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProjectReportReviewService;
 use Illuminate\Support\Facades\File;
 use Spatie\Permission\Models\Role;
 
@@ -207,6 +208,38 @@ test('Head concerns and terminal reports use the same office review process', fu
         ->get(route('project-narrative-reports.show', $terminal))->assertOk()
         ->assertSee('Accept report')->assertSee('Send concerns to Research Office Secretary')
         ->assertDontSee(route('research_secretary.narrative-reports.review', $terminal), false);
+});
+
+test('submitted faculty reports appear separately in the same college secretary and coordinator inboxes', function () {
+    Role::findOrCreate('research_coordinator', 'web');
+    $coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $coordinator->assignRole('research_coordinator');
+    $otherCoordinator = User::factory()->create(['college' => 'CTE']);
+    $otherCoordinator->assignRole('research_coordinator');
+    config(['broadcasting.default' => 'null']);
+
+    $reports = [
+        ProjectProgressReport::create([...$this->reportData, 'progress_percentage' => 25, 'accomplishments' => 'Baseline complete.', 'work_plan' => [], 'budget_utilization' => []]),
+        ProjectNarrativeReport::create($this->progressData),
+        ProjectNarrativeReport::create([...$this->progressData, 'report_type' => 'terminal', 'reporting_date' => null, 'reporting_quarter' => null]),
+    ];
+    foreach ($reports as $report) {
+        app(ProjectReportReviewService::class)->notifySecretarySubmission($report);
+    }
+
+    expect($this->otherSecretary->notifications()->count())->toBe(0)
+        ->and($otherCoordinator->notifications()->count())->toBe(0)
+        ->and($this->teamSecretary->notifications()->count())->toBe(0)
+        ->and($this->head->notifications()->count())->toBe(0);
+    $secretaryInbox = $this->actingAs($this->secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(3, 'notifications')->json('notifications');
+    $terminal = collect($secretaryInbox)->firstWhere('group_key', 'report:narrative:'.$reports[2]->id);
+    expect($terminal['data']['url'])->toBe(route('project-narrative-reports.show', $reports[2]))
+        ->and($terminal['actions'])->toHaveCount(1);
+    $this->actingAs($coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(2, 'notifications')
+        ->assertJsonPath('notifications.0.data.url', route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 1]));
 });
 
 test('Head monitoring rows retain submitted status while secretary report content stays hidden', function () {

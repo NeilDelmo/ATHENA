@@ -858,6 +858,12 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         'gad_outcome' => 'passed',
     ]]);
 
+    $this->faculty->update(['college' => 'CICS']);
+    Role::findOrCreate('research_coordinator', 'web');
+    $coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $coordinator->assignRole('research_coordinator');
+    $otherCoordinator = User::factory()->create(['college' => 'CTE']);
+    $otherCoordinator->assignRole('research_coordinator');
     $this->patch(route('research_head.topics.updateStatus', $topic), [
         'status' => TopicProposal::STATUS_LREC_QUEUED,
         'initial_clearance_confirmed' => '1',
@@ -866,6 +872,9 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         ->and($topic->fresh()->review_stage)->toBe('lrec');
     Notification::assertSentTo($this->faculty, ProposalActivityNotification::class, fn (ProposalActivityNotification $notification): bool => $notification->title === 'Queued for LREC'
         && $notification->workspace === User::WORKSPACE_FACULTY);
+    Notification::assertSentTo($coordinator, ProposalActivityNotification::class, fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal queued for LREC presentation'
+        && $notification->workspace === User::WORKSPACE_RESEARCH_OFFICE);
+    Notification::assertNotSentTo($otherCoordinator, ProposalActivityNotification::class);
 });
 
 test('revision requests remain attached to the review stage that issued them', function () {

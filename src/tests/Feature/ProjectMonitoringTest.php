@@ -2108,6 +2108,10 @@ test('a project requires the reviewed terminal reports signed PDF before complet
     expect($signedCopy)->not->toBeNull()
         ->and($signedCopy['original_filename'])->toBe('signed-terminal-report.pdf');
     Storage::disk('local')->assertExists($signedCopy['path']);
+    Notification::assertSentTo($this->researcher, ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notice): bool => $notice->title === 'Signed Terminal Report available'
+            && $notice->url === route('project-narrative-reports.show', $terminalReport)
+            && $notice->workspace === User::WORKSPACE_FACULTY_RESEARCHER);
 
     $this->get(route('project-narrative-reports.signed-copy.download', $terminalReport))
         ->assertOk()

@@ -79,6 +79,9 @@ class NotificationInbox
         if (isset($data['action_data']['rms_period_key'])) {
             return 'rms:'.$data['action_data']['rms_period_key'];
         }
+        if (isset($data['action_data']['report_key'])) {
+            return 'report:'.$data['action_data']['report_key'];
+        }
         if (isset($data['topic_id'])) {
             return 'topic:'.$data['topic_id'].':'.$this->category($notification);
         }
@@ -145,6 +148,9 @@ class NotificationInbox
 
             return isset($matches[1]) ? 'invitation:'.$matches[1] : '';
         }
+        if (isset($data['action_data']['report_key'])) {
+            return $data['action_data']['report_key'];
+        }
 
         return isset($data['topic_id']) ? ($this->category($notification) === 'projects' ? 'project:' : 'proposal:').$data['topic_id'] : '';
     }
@@ -165,6 +171,9 @@ class NotificationInbox
             [$prefix, $id] = explode(':', $action['key'], 2);
             $entity = isset($reports[$prefix]) ? 'project:'.$reports[$prefix]->get($id) : $action['key'];
             $entities[$entity][] = $action;
+            if (isset($reports[$prefix])) {
+                $entities[$action['key']][] = $action;
+            }
         }
 
         return $entities;

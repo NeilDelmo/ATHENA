@@ -11,6 +11,7 @@ use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\ProjectDocument;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use App\Services\CollegeQuarterlyReportData;
 use App\Services\CollegeQuarterlyReportDocument;
 use App\Services\CollegeQuarterlyReportFacultyEvidence;
@@ -134,7 +135,7 @@ class ResearchCoordinatorReportController extends Controller
         $storedPaths = [];
         $removedPaths = [];
         try {
-            DB::transaction(function () use ($request, $validated, $submitting, $data, $storeProjectDocuments, &$storedPaths, &$removedPaths): void {
+            $report = DB::transaction(function () use ($request, $validated, $submitting, $data, $storeProjectDocuments, &$storedPaths, &$removedPaths): CollegeQuarterlyReport {
                 $coordinator = $request->user();
                 $report = CollegeQuarterlyReport::firstOrCreate([
                     'college' => $coordinator->college,
@@ -223,6 +224,8 @@ class ResearchCoordinatorReportController extends Controller
                         'submitted_by' => $coordinator->id, 'snapshot' => $report->snapshot, 'submitted_at' => $report->submitted_at,
                     ]);
                 }
+
+                return $report;
             });
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($storedPaths);
@@ -230,6 +233,15 @@ class ResearchCoordinatorReportController extends Controller
         }
         Storage::disk('local')->delete($removedPaths);
         if ($submitting) {
+            $notice = new ProposalActivityNotification(
+                title: 'College accomplishment report submitted for review',
+                message: $report->college.' submitted its Q'.$report->reporting_quarter.' '.$report->reporting_year.' accomplishment report.',
+                url: route('research_head.quarterly-reports.index', ['year' => $report->reporting_year, 'college' => $report->college, 'quarter' => $report->reporting_quarter]),
+                workspace: User::WORKSPACE_RESEARCH_HEAD,
+            );
+            foreach (User::role(User::WORKSPACE_RESEARCH_HEAD)->get(['id']) as $head) {
+                rescue(fn () => $head->notify($notice));
+            }
             rescue(fn () => $notifyRmsStatus->handle($validated['reporting_year'], $validated['reporting_quarter']));
         }
 

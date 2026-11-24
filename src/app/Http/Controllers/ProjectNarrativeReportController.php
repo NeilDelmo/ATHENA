@@ -551,6 +551,17 @@ class ProjectNarrativeReportController extends Controller
             Storage::disk('local')->delete($previousPath);
         }
 
+        rescue(fn () => $report->topic->user->notify(new ProposalActivityNotification(
+            title: $previousPath === null ? 'Signed Terminal Report available' : 'Signed Terminal Report replaced',
+            message: 'The signed Terminal Report for '.$report->topic->title.' is available to download.',
+            url: route('project-narrative-reports.show', $report),
+            level: 'success',
+            topicId: $report->topic_id,
+            actionData: ['report_key' => 'narrative:'.$report->id],
+            workspace: User::WORKSPACE_FACULTY_RESEARCHER,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
+        )));
+
         return back()->with('success', 'Signed Terminal Report recorded. The project may now be completed when every other completion requirement is satisfied.');
     }
 

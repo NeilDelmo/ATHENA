@@ -91,12 +91,13 @@ test('saving a coordinator draft stays quiet and its final submission sends the 
     expect($this->head->notifications()->count())->toBe(0);
 
     $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
-    expect($this->head->notifications()->sole()->data['title'])->toBe('All college reports received')
-        ->and($this->otherHead->notifications()->count())->toBe(1)
+    expect($this->head->notifications()->get()->pluck('data.title')->all())->toEqualCanonicalizing([
+        'College accomplishment report submitted for review', 'All college reports received',
+    ])->and($this->otherHead->notifications()->count())->toBe(2)
         ->and(RmsQuarterlyReport::count())->toBe(0);
     $this->postJson(route('research_coordinator.reports.store'), ($this->reportInput)())
         ->assertUnprocessable()->assertJsonValidationErrors('intent');
-    expect($this->head->notifications()->count())->toBe(1);
+    expect($this->head->notifications()->count())->toBe(2);
 });
 
 test('returning an exported college report warns the head and corrected resubmission restores ready status in one inbox group', function () {
@@ -131,21 +132,21 @@ test('returning an exported college report warns the head and corrected resubmis
     expect($this->head->notifications()->count())->toBe(1);
     $this->travel(1)->minute();
     $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
-    $updatedNotice = $this->head->notifications()->latest()->firstOrFail();
+    $updatedNotice = $this->head->notifications()->where('data->title', 'RMS report updated since download')->sole();
     expect($updatedNotice->data['title'])->toBe('RMS report updated since download')
         ->and($updatedNotice->data['level'])->toBe('warning')
         ->and($updatedNotice->data['action_data']['rms_status_token'])->not->toBe($returnedNotice->data['action_data']['rms_status_token'])
         ->and($status->forPeriod(2026, 3, $rms)['ready'])->toBeTrue()
         ->and($status->forPeriod(2026, 3, $rms)['outdated'])->toBeTrue()
-        ->and($this->head->notifications()->count())->toBe(2)
-        ->and($this->otherHead->notifications()->count())->toBe(2);
+        ->and($this->head->notifications()->count())->toBe(3)
+        ->and($this->otherHead->notifications()->count())->toBe(3);
 
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
-    $this->getJson(route('notifications.index'))->assertOk()->assertJsonCount(1, 'notifications')
-        ->assertJsonPath('notifications.0.group_key', 'rms:2026-Q3')
-        ->assertJsonPath('notifications.0.update_count', 2)
-        ->assertJsonPath('notifications.0.unread_count', 2)
-        ->assertJsonPath('notifications.0.data.title', 'RMS report updated since download');
+    $notifications = $this->getJson(route('notifications.index'))->assertOk()->assertJsonCount(2, 'notifications')->json('notifications');
+    $rmsNotice = collect($notifications)->firstWhere('group_key', 'rms:2026-Q3');
+    expect($rmsNotice['update_count'])->toBe(2)
+        ->and($rmsNotice['unread_count'])->toBe(2)
+        ->and($rmsNotice['data']['title'])->toBe('RMS report updated since download');
     expect($attention->countsFor($this->head)['rms_reports'])->toBe(2);
     foreach ([[], ['year' => 2026, 'quarter' => 3]] as $location) {
         $this->get(route('research_head.rms-quarterly-reports.index', $location))->assertOk()
@@ -154,8 +155,8 @@ test('returning an exported college report warns the head and corrected resubmis
     $this->post(route('sidebar-attention.open', 'rms_reports'))
         ->assertRedirect(route('research_head.rms-quarterly-reports.index'));
     expect($attention->countsFor($this->head)['rms_reports'])->toBe(0)
-        ->and($this->head->notifications()->whereNull('read_at')->count())->toBe(0)
-        ->and($this->otherHead->notifications()->whereNull('read_at')->count())->toBe(2);
+        ->and($this->head->notifications()->whereNull('read_at')->count())->toBe(1)
+        ->and($this->otherHead->notifications()->whereNull('read_at')->count())->toBe(3);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
     expect($attention->canOpen($this->head, 'rms_reports'))->toBeFalse();
     $this->getJson(route('notifications.index'))->assertOk()->assertJsonCount(0, 'notifications');
@@ -181,6 +182,20 @@ test('RMS status notifications wait for a successful commit and are discarded on
         expect($this->head->notifications()->count())->toBe(0);
     });
     expect($this->head->notifications()->count())->toBe(1);
+});
+
+test('an individual college submission alerts the Research Head while RMS stays pending', function () {
+    $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
+
+    $notice = $this->head->notifications()->sole();
+    expect($notice->data['title'])->toBe('College accomplishment report submitted for review')
+        ->and($notice->data['url'])->toBe(route('research_head.quarterly-reports.index', [
+            'year' => 2026, 'college' => $this->coordinator->college, 'quarter' => 3,
+        ]))
+        ->and(app(RmsQuarterlyReportStatus::class)->forPeriod(2026, 3)['ready'])->toBeFalse();
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get($notice->data['url'])->assertSuccessful();
 });
 
 test('a notification failure still confirms a submitted report and keeps its evidence', function () {

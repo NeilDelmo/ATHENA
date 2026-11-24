@@ -121,7 +121,9 @@ class WorkspaceActionItems
                     }
                     $url = $workspace === User::WORKSPACE_FACULTY_RESEARCHER
                         ? route($isMonitoring ? 'project-progress.create' : 'project-narrative-reports.create', $parameters)
-                        : route('topics.show', $report->topic_id).'#'.($isMonitoring ? 'monitoring-tool-'.$report->id : 'project-monitoring');
+                        : ($isMonitoring
+                            ? route('topics.show', $report->topic_id).'#monitoring-tool-'.$report->id
+                            : route('project-narrative-reports.show', $report));
                     $items[] = $this->item(($isMonitoring ? 'monitoring:' : 'narrative:').$report->id, $label, $report->topic->title.' · '.($isMonitoring ? 'Monitoring Tool' : $report->report_label), $url);
                 }
             }
