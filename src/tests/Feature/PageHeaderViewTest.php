@@ -100,7 +100,7 @@ test('every workspace dashboard renders the reference hero style beneath the unt
     'Research Coordinator' => ['research_office', 'research_coordinator', 'research_coordinator.dashboard', 'Coordinator dashboard'],
     'Faculty' => ['faculty', 'faculty', 'faculty.dashboard', 'Dashboard'],
     'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard', 'Dashboard'],
-    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard', 'Secretary dashboard'],
+    'Research Secretary' => ['research_office_secretary', 'research_secretary', 'research_secretary.dashboard', 'Secretary dashboard'],
 ]);
 
 test('regular workspace pages use the shared page header', function () {

@@ -303,7 +303,7 @@ test('calendar project access follows the active workspace and accepted collabor
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
     expect(($this->projectEvents)($this->head))->toBeEmpty();
 
-    foreach (['research_secretary' => User::WORKSPACE_RESEARCH_SECRETARY, 'research_coordinator' => User::WORKSPACE_RESEARCH_OFFICE] as $role => $workspace) {
+    foreach (['research_office_secretary' => User::WORKSPACE_RESEARCH_SECRETARY, 'research_coordinator' => User::WORKSPACE_RESEARCH_OFFICE] as $role => $workspace) {
         Role::firstOrCreate(['name' => $role]);
         $viewer = User::factory()->create(['college' => 'CICS']);
         $viewer->assignRole($role);

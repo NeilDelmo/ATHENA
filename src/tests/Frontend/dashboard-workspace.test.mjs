@@ -26,26 +26,21 @@ test('vcrdes uses neutral surfaces and brand accents for key figures and actions
                     const errors = [];
                     page.on('pageerror', error => errors.push(error.message));
                     const content = await page.evaluate(source => new DOMParser().parseFromString(source, 'text/html').querySelector('[data-vcrdes-dashboard]').outerHTML, source);
-                    await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles}</style><body class="bg-slate-50 p-4 font-sans dark:bg-slate-950"><main>${content}</main></body></html>`);
+                    await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles}</style><body class="bg-slate-50 font-sans dark:bg-slate-950"><main class="px-4 py-6 sm:px-6 lg:px-8">${content}</main></body></html>`);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${fixture}: ${width}px overflow`);
-                    for (const selector of ['#overview', '#budget']) {
-                        const background = await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor);
-                        assert.equal(background, dark ? 'rgb(15, 23, 42)' : 'rgb(238, 240, 242)');
-                    }
-                    for (const selector of ['#overview strong', '#projects-heading']) {
-                        const color = await page.locator(selector).first().evaluate(element => getComputedStyle(element).color);
-                        assert.equal(color, dark ? 'rgb(252, 165, 165)' : 'rgb(122, 0, 25)');
-                    }
-                    for (const selector of ['#attention', '#projects', '#colleges']) {
-                        const background = await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor);
+                    const metrics = page.locator('[data-dashboard-metrics] > div');
+                    assert.equal(await metrics.count(), 4);
+                    assert.equal(await metrics.first().evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(122, 0, 25)');
+                    for (const selector of ['#budget', '#attention', '#projects', '#colleges', '#overview .dashboard-metric:not(.dashboard-metric-priority)']) {
+                        const background = await page.locator(selector).first().evaluate(element => getComputedStyle(element).backgroundColor);
                         assert.equal(background, dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)', selector + ' should use a neutral panel surface');
                     }
                     const applyFilters = page.getByRole('button', { name: 'Apply project filters' });
-                    assert.equal(await applyFilters.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(122, 0, 25)');
-                    const awaitingLink = page.getByRole('link', { name: /^Awaiting report \/ review:/ });
-                    assert.ok(await awaitingLink.getByText('Awaiting report / review', { exact: true }).isVisible());
+                    assert.equal(await applyFilters.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(185, 28, 28)');
+                    const awaitingLink = page.getByRole('link', { name: 'View projects (Awaiting report / review)' });
+                    assert.match(await awaitingLink.getAttribute('href'), /status=awaiting#projects$/);
                     for (const control of await page.locator('#projects input, #projects select').all()) {
-                        assert.equal(await control.evaluate(element => getComputedStyle(element).color), dark ? 'rgb(255, 255, 255)' : 'rgb(15, 23, 42)', 'Filter values must remain readable against their own surfaces');
+                        assert.equal(await control.evaluate(element => getComputedStyle(element).color), dark ? 'rgb(241, 245, 249)' : 'rgb(15, 23, 42)', 'Filter values must remain readable against their own surfaces');
                     }
                     for (const action of await page.locator('a, button').all()) {
                         assert.ok(await action.locator('svg').count() > 0, 'Monitoring actions need icons');
@@ -180,10 +175,9 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         assert.equal(await rows.count(), 4);
                     }
                     if (fixture === 'researcher') {
-                        const link = page.getByRole('link', { name: /^Active projects\s*:/ });
-                        const card = await link.locator('..').locator('..').boundingBox();
-                        const target = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('a')?.getAttribute('href'), { x: card.x + card.width / 2, y: card.y + card.height - 12 });
-                        assert.match(target, /research\?status=active$/, 'The metric should be clickable across its cell');
+                        const link = page.getByRole('link', { name: 'View active (Active projects)' });
+                        assert.match(await link.getAttribute('href'), /research\?status=active$/);
+                        assert.ok((await link.boundingBox()).height >= 44, 'The metric should have a visible action button');
                     }
                     if (['researcher', 'actions', 'unreported', 'empty'].includes(fixture)) {
                         assert.equal(await page.locator('[data-project-summary] > div').count(), 4);
@@ -206,7 +200,7 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                             }
                         }
                         if (width === 1440) {
-                            assert.ok((await page.locator('[data-project-summary]').boundingBox()).height <= 130, 'Totals should stay compact');
+                            assert.ok((await page.locator('[data-project-summary]').boundingBox()).height <= 180, 'Totals should stay compact');
                             const cards = page.locator('[data-project-attention]:visible');
                             if (await cards.count() >= 2) {
                                 const first = await cards.nth(0).boundingBox();
@@ -217,7 +211,7 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         }
                     }
                     if (fixture === 'faculty') {
-                        assert.ok(await page.getByRole('link', { name: /^Submitted\s*:/ }).getAttribute('href').then(href => href.includes('category=all')));
+                        assert.ok(await page.getByRole('link', { name: 'View submissions (Submitted)' }).getAttribute('href').then(href => href.includes('category=all')));
                         assert.equal(await page.locator('[data-dashboard-assistant-suggestions]').count(), 0, 'Faculty AI checks should live in their revision and draft rows');
                         const drafts = page.locator('#recent-drafts');
                         assert.equal(await drafts.getByRole('heading', { name: 'Drafts', exact: true }).count(), 1);
@@ -264,19 +258,23 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                         }
                         const order = await page.evaluate(() => ['[data-research-call-carousel]', '[aria-labelledby="proposal-overview-heading"]', '[data-revision-worklist]', '#recent-drafts'].map(selector => document.querySelector(selector).getBoundingClientRect().top));
                         assert.ok(order[0] < order[1] && order[1] < order[2] && order[2] < order[3], 'The announcement banner should lead the overview, required actions, and drafts');
-                        const surfaces = page.locator('[aria-labelledby="proposal-overview-heading"] dl > div, [data-revision-worklist] > div:last-child, #recent-drafts > div:last-child');
+                        const surfaces = page.locator('[aria-labelledby="proposal-overview-heading"] dl > div, [data-revision-worklist], #recent-drafts');
                         assert.ok(await surfaces.count() >= 6, 'Palette fixture must include metrics, revisions, and drafts');
                         const invalidSurfaces = await surfaces.evaluateAll(elements => elements.map(element => {
                             const color = getComputedStyle(element).backgroundColor;
-                            const [r, g, b, alpha = 1] = color.match(/[\d.]+/g).map(Number);
-                            const neutral = Math.max(r, g, b) - Math.min(r, g, b) <= 12;
-                            return { surface: element.querySelector('dt, h3, h4')?.textContent.trim() || element.closest('section')?.getAttribute('aria-labelledby'), color, valid: alpha === 1 && (neutral || r - g >= Math.abs(g - b)) };
+                            const allowed = ['rgb(122, 0, 25)', 'rgb(255, 255, 255)', 'rgb(15, 23, 42)'];
+                            return { surface: element.querySelector('dt, h3, h4')?.textContent.trim() || element.closest('section')?.getAttribute('aria-labelledby'), color, valid: allowed.includes(color) };
                         }).filter(surface => !surface.valid));
                         assert.deepEqual(invalidSurfaces, [], `Faculty surfaces must be opaque and neutral or burgundy in ${dark ? 'dark' : 'light'} mode`);
                         const banner = page.locator('[data-research-call-carousel]');
                         const bannerBox = await banner.boundingBox();
-                        const dashboardBox = await page.locator('[data-dashboard-layout]').boundingBox();
-                        assert.ok(Math.abs(bannerBox.x - dashboardBox.x) <= 1 && Math.abs(bannerBox.width - dashboardBox.width) <= 1, 'The announcement banner should span the dashboard width');
+                        const contentBox = await page.locator('[data-dashboard-layout]').evaluate(element => {
+                            const box = element.getBoundingClientRect();
+                            const style = getComputedStyle(element);
+                            const left = parseFloat(style.paddingLeft);
+                            return { x: box.x + left, width: box.width - left - parseFloat(style.paddingRight) };
+                        });
+                        assert.ok(Math.abs(bannerBox.x - contentBox.x) <= 1 && Math.abs(bannerBox.width - contentBox.width) <= 1, 'The announcement banner should span the dashboard content width');
                         if ([320, 390, 1440].includes(width)) {
                             assert.ok(bannerBox.height <= (width === 1440 ? 260 : 360), 'The promotional banner should stay compact');
                         }
@@ -334,8 +332,8 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                     }
                     if (fixture === 'secretary') {
                         assert.equal(await page.locator('#assigned-projects').count(), 0);
-                        const portfolio = page.locator('.secretary-portfolio-link');
-                        assert.match(await portfolio.getAttribute('href'), /research-secretary\/projects$/);
+                        const budgets = page.getByRole('link', { name: 'Open budget monitoring' });
+                        assert.match(await budgets.getAttribute('href'), /research-secretary\/budgets$/);
                         assert.equal(await page.locator('[data-research-target-board]').count(), 0);
                     }
                     if (['office', 'secretary'].includes(fixture)) {

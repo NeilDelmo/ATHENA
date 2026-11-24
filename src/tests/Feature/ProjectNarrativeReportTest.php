@@ -46,7 +46,7 @@ beforeEach(function () {
     };
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
-    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -55,7 +55,7 @@ beforeEach(function () {
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
     $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
-    $this->officeSecretary->assignRole('research_secretary');
+    $this->officeSecretary->assignRole('research_office_secretary');
     $this->forwardReport = function (ProjectNarrativeReport $report): void {
         $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
             ->patch(route('research_secretary.narrative-reports.review', $report), ['decision' => 'forward'])->assertRedirect()->assertSessionHasNoErrors();

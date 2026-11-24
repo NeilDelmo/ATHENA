@@ -169,9 +169,15 @@ test('Attachment B keeps its section links, budget calculations, and responsive 
                 await assertProjectActionsAligned(page);
                 assert.equal(await page.locator('.proposal-preview-dock').isVisible(), false);
 
-                await page.getByRole('link', { name: 'Capital Outlays', exact: true }).click();
+                const sectionNavigation = page.getByRole('navigation', { name: 'Budget sections' });
+                const jumpToCapitalOutlays = sectionNavigation.getByRole('link', { name: 'Capital Outlays', exact: true });
+                const jumpToMooe = sectionNavigation.getByRole('link', { name: 'MOOE', exact: true });
+                for (const sectionLink of [jumpToMooe, jumpToCapitalOutlays]) {
+                    await expect(sectionLink).toHaveCSS('text-decoration-line', 'none');
+                    await expect(sectionLink).toHaveCSS('border-top-width', '1px');
+                }
+                await jumpToCapitalOutlays.click();
                 assert.equal(await page.locator('#amount-machinery_equipment_outlay').evaluate((element) => element === document.activeElement), true);
-                const jumpToMooe = page.getByRole('link', { name: 'MOOE', exact: true });
                 await jumpToMooe.click();
                 await page.locator('#amount-travelling_expenses').fill('1500');
                 const mooe = page.locator('#line-item-budget-section-mooe');

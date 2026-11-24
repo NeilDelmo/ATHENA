@@ -471,7 +471,7 @@ test('research support denies access outside faculty workspaces', function (arra
     'research head' => [['research_head'], User::WORKSPACE_RESEARCH_HEAD],
     'research office with faculty access' => [['research_coordinator', 'faculty'], User::WORKSPACE_RESEARCH_OFFICE],
     'research office only' => [['research_coordinator'], User::WORKSPACE_RESEARCH_OFFICE],
-    'research secretary only' => [['research_secretary'], User::WORKSPACE_RESEARCH_SECRETARY],
+    'research secretary only' => [['research_office_secretary'], User::WORKSPACE_RESEARCH_SECRETARY],
 ]);
 
 test('proposal owners can launch athena with the current proposal selected', function () {

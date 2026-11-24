@@ -425,27 +425,17 @@ class TopicProposal extends Model
 
     public function scopeAccessibleForDocumentRelease(Builder $query, User $user): Builder
     {
-        return $query->where(function (Builder $query) use ($user): void {
-            $query->whereRaw('1 = 0');
+        if (! $user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY])) {
+            return $query->whereRaw('1 = 0');
+        }
 
-            if ($user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY]) && filled($user->college)) {
-                $query->orWhere(fn (Builder $college): Builder => $college->forCollege($user->college));
-            }
-
-            if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
-                $query->orWhere('research_secretary_id', $user->getKey());
-            }
-        });
+        return $query->forCollege($user->college);
     }
 
     public function isAccessibleForDocumentRelease(User $user): bool
     {
-        if (! $user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY])) {
-            return false;
-        }
-
-        return $this->belongsToCollege($user->college)
-            || ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $this->research_secretary_id === $user->getKey());
+        return $user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY])
+            && $this->belongsToCollege($user->college);
     }
 
     public function scopeForImplementationReportReview(Builder $query, User $user): Builder

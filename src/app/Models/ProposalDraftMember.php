@@ -11,10 +11,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ProposalDraftMember extends Model
 {
-    public const ROLE_SECRETARY = 'secretary';
+    public const ROLE_PROJECT_SECRETARY = 'secretary';
 
     public const PROJECT_ROLES = [
-        self::ROLE_SECRETARY,
+        self::ROLE_PROJECT_SECRETARY,
     ];
 
     /** @use HasFactory<ProposalDraftMemberFactory> */
@@ -82,6 +82,6 @@ class ProposalDraftMember extends Model
 
     public function isProjectSecretary(): bool
     {
-        return $this->project_role === self::ROLE_SECRETARY;
+        return $this->project_role === self::ROLE_PROJECT_SECRETARY;
     }
 }

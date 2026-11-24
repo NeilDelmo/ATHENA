@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TopicCollaborator extends Model
 {
-    public const ROLE_SECRETARY = 'secretary';
+    public const ROLE_PROJECT_SECRETARY = 'secretary';
 
     /** @use HasFactory<TopicCollaboratorFactory> */
     use HasFactory;
@@ -74,6 +74,6 @@ class TopicCollaborator extends Model
 
     public function isProjectSecretary(): bool
     {
-        return $this->project_role === self::ROLE_SECRETARY;
+        return $this->project_role === self::ROLE_PROJECT_SECRETARY;
     }
 }

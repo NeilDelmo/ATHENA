@@ -52,7 +52,7 @@ class ProjectReportReviewUiDemoSeeder extends Seeder
 
             $head = User::role('research_head')->orderBy('id')->firstOrFail();
             app(PermissionRegistrar::class)->forgetCachedPermissions();
-            $role = Role::findOrCreate(User::WORKSPACE_RESEARCH_SECRETARY, 'web');
+            $role = Role::findOrCreate(User::ROLE_RESEARCH_OFFICE_SECRETARY, 'web');
             $secretaries = [];
             foreach ($reports->groupBy(fn ($report): string => $report::class.':'.$report->topic_id) as $group) {
                 $latest = $group->where('submission_status', 'submitted')->sortByDesc(fn ($report): string => ($report->reporting_date ?? $report->submission_date ?? $report->created_at)->format('Y-m-d').sprintf('-%010d', $report->id))->first();

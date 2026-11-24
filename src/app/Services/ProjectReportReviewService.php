@@ -104,7 +104,7 @@ class ProjectReportReviewService
         $college = $topic->projectCollege();
 
         return filled($college)
-            ? User::role(User::WORKSPACE_RESEARCH_SECRETARY)->whereIn('college', TopicProposal::collegeAliases($college))->get()
+            ? User::role(User::ROLE_RESEARCH_OFFICE_SECRETARY)->whereIn('college', TopicProposal::collegeAliases($college))->get()
             : new Collection;
     }
 

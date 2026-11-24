@@ -21,7 +21,7 @@ beforeEach(function () {
     Process::preventStrayProcesses();
     config(['services.openrouter.key' => null, 'services.gemini.key' => null, 'proposal_signing.demo_mode' => false]);
 
-    foreach (['faculty', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->owner = User::factory()->create(['college' => 'CICS']);
@@ -125,7 +125,7 @@ test('signed PDF upload labels respect the active staff workspace', function (st
         ->assertDontSee('We check the official form and project title before saving.');
 })->with([
     'office cannot upload signed papers' => ['research_coordinator', 'research_office', false],
-    'secretary uploads signed papers' => ['research_secretary', 'research_secretary', true],
+    'secretary uploads signed papers' => ['research_office_secretary', 'research_secretary', true],
 ]);
 
 test('form checks remain active without the local demo setting', function (string $environment, bool $enabled) {
@@ -184,7 +184,7 @@ test('final signed forms are matched by contents and audited before storage', fu
         ->and(Storage::disk('local')->exists($signed->file_path))->toBeTrue();
 })->with(['detailed_proposal', 'work_plan', 'line_item_budget'])->with([
     'office' => ['research_coordinator', 'research_office'],
-    'secretary' => ['research_secretary', 'research_secretary'],
+    'secretary' => ['research_office_secretary', 'research_secretary'],
 ]);
 
 test('a wrong form cannot replace an existing signed copy even with manual confirmation', function () {
@@ -236,7 +236,7 @@ test('malformed or password protected PDFs cannot bypass verification', function
 });
 
 test('readable wet signature scans are identified using visible evidence', function (string $detectedTitle, string $detectedHeading, string $status) {
-    $this->staff->assignRole('research_secretary');
+    $this->staff->assignRole('research_office_secretary');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     config(['services.openrouter.key' => 'test-key']);
     Process::fake(function (PendingProcess $process) {
@@ -274,7 +274,7 @@ test('readable wet signature scans are identified using visible evidence', funct
 ]);
 
 test('a scan reader outage or illegible response never silently verifies a file', function (bool $outage) {
-    $this->staff->assignRole('research_secretary');
+    $this->staff->assignRole('research_office_secretary');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     config(['services.openrouter.key' => 'test-key']);
     Process::fake(function (PendingProcess $process) {
@@ -296,7 +296,7 @@ test('the local PDF tools render scanned pages for the configured reader', funct
     if (! is_file(config('research_assistant.document.pdftotext_binary')) || ! is_file(config('research_assistant.document.pdftoppm_binary'))) {
         $this->markTestSkipped('Configure absolute paths to the local PDF tools to run the rasterizer integration test.');
     }
-    $this->staff->assignRole('research_secretary');
+    $this->staff->assignRole('research_office_secretary');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     Process::swap(new Factory);
     config(['services.openrouter.key' => 'test-key']);

@@ -144,10 +144,10 @@ test('accepted assessments appear as signed papers while final signing requests 
         File::ensureDirectoryExists(storage_path('framework/testing'));
         file_put_contents(storage_path('framework/testing/signed-upload-layout.html'), $response->getContent());
     }
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $this->faculty->update(['college' => User::COLLEGES['CICS']]);
     $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $office->assignRole('research_secretary');
+    $office->assignRole('research_office_secretary');
     $signingResponse = $this->actingAs($office)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('topics.show', $this->topic))->assertOk();

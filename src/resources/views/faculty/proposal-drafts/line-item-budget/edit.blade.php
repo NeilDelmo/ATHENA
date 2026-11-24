@@ -105,10 +105,10 @@
             </div>
         </section>
 
-        <nav aria-label="Budget sections" class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <nav aria-label="Budget sections" class="flex flex-wrap items-center gap-2 text-sm">
             <span class="text-gray-600">Jump to</span>
-            <a href="#line-item-budget-section-mooe" @click.prevent="focusLineItemBudgetSection('mooe')" class="font-semibold text-red-700 underline underline-offset-4 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200">MOOE</a>
-            <a href="#line-item-budget-section-co" @click.prevent="focusLineItemBudgetSection('co')" class="font-semibold text-red-700 underline underline-offset-4 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200">Capital Outlays</a>
+            <a href="#line-item-budget-section-mooe" @click.prevent="focusLineItemBudgetSection('mooe')" class="secondary-action">MOOE</a>
+            <a href="#line-item-budget-section-co" @click.prevent="focusLineItemBudgetSection('co')" class="secondary-action">Capital Outlays</a>
         </nav>
 
         <form data-paper-form data-line-item-budget-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.line-item-budget.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>

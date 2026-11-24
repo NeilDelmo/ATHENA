@@ -26,7 +26,7 @@ beforeEach(function () {
     $this->travelTo(now()->setDate(2026, 10, 27)->setTime(12, 0));
     Storage::set('local', Storage::fake('monitoring-demo-'.getmypid()));
     Notification::fake();
-    foreach (['faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::findOrCreate($role, 'web');
         $user = User::factory()->create(['college' => User::COLLEGES['CICS']]);
         $user->assignRole($role);

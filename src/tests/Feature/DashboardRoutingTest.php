@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary', 'vcrdes'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 });
@@ -25,6 +25,34 @@ test('each account role is sent to its own dashboard', function (string $role, s
     'faculty researcher' => ['faculty_researcher', 'faculty.dashboard'],
     'research head' => ['research_head', 'research_head.dashboard'],
     'research coordinator' => ['research_coordinator', 'research_coordinator.dashboard'],
+    'research secretary' => ['research_office_secretary', 'research_secretary.dashboard'],
+    'VCRDES' => ['vcrdes', 'vcrdes.dashboard'],
+]);
+
+test('role dashboards share the research head layout and render their own primary action as a button', function (string $role, string $route, string $action, string $destination) {
+    $this->withoutVite();
+    $user = User::factory()->create(['college' => 'CICS']);
+    $user->assignRole($role);
+
+    $response = $this->actingAs($user)->get(route($route))->assertOk()
+        ->assertSeeHtml('data-page-header-variant="hero"')
+        ->assertSeeHtml('data-dashboard-palette="maroon-slate-white"')
+        ->assertSeeHtml('data-dashboard-metrics');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $control = (new DOMXPath($document))->query('//*[@data-workspace-header-banner]//a[normalize-space(.)="'.$action.'"]')->item(0);
+
+    expect($control)->toBeInstanceOf(DOMElement::class)
+        ->and($control->getAttribute('class'))->toContain('dashboard-action')
+        ->and($control->getAttribute('href'))->toBe(str_starts_with($destination, '#') ? $destination : route($destination));
+})->with([
+    'faculty' => ['faculty', 'faculty.dashboard', 'New proposal', 'faculty.proposal-drafts.create'],
+    'faculty researcher' => ['faculty_researcher', 'faculty.dashboard', 'Projects', 'research.index'],
+    'research head' => ['research_head', 'research_head.dashboard', 'Research targets', '#research-targets'],
+    'research coordinator' => ['research_coordinator', 'research_coordinator.dashboard', 'Open LREC queue', 'research_coordinator.proposals.index'],
+    'research secretary' => ['research_office_secretary', 'research_secretary.dashboard', 'Review reports', 'research_secretary.reports.index'],
+    'VCRDES' => ['vcrdes', 'vcrdes.dashboard', 'View research projects', '#projects'],
 ]);
 
 test('the shared faculty dashboard uses the correct workspace identity for each role', function () {
@@ -44,7 +72,7 @@ test('the shared faculty dashboard uses the correct workspace identity for each 
         ->assertDontSee('Faculty research')
         ->assertDontSee('Your proposals and next actions.')
         ->assertDontSee('Faculty workspace')
-        ->assertSee('data-dashboard-palette="red-black-white"', false)
+        ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
         ->assertSee('Proposal overview')
         ->assertDontSee('A quick view of your research pipeline.')
         ->assertDontSee('Faculty Researcher Workspace')

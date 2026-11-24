@@ -19,7 +19,7 @@ use Illuminate\Support\Js;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -40,8 +40,8 @@ beforeEach(function () {
 
     $this->head = User::factory()->create(['name' => 'Research Head']);
     $this->head->assignRole('research_head');
-    $this->staff = User::factory()->create(['name' => 'Research Secretary', 'college' => 'CICS']);
-    $this->staff->assignRole('research_secretary');
+    $this->staff = User::factory()->create(['name' => 'Research Office Secretary', 'college' => 'CICS']);
+    $this->staff->assignRole('research_office_secretary');
     $this->faculty = User::factory()->create(['name' => 'Faculty Owner', 'college' => 'CICS']);
     $this->faculty->assignRole('faculty');
     $this->call = ResearchCall::create([
@@ -155,7 +155,7 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->assertOk()
         ->assertSee('Final signing')
         ->assertDontSee('Manage signatory names')
-        ->assertSee('Reviews are complete. The Research Secretary is collecting signed papers and the signed Notice to Proceed. They will be released together.')
+        ->assertSee('Reviews are complete. The Research Office Secretary is collecting signed papers and the signed Notice to Proceed. They will be released together.')
         ->assertDontSee('Project monitoring');
 
     $this->withSession([
@@ -582,7 +582,7 @@ test('only the secretary workspace can prepare generate or release notices', fun
             'review_file' => UploadedFile::fake()->create('signed.pdf', 100, 'application/pdf'),
         ])->assertForbidden();
         $this->withSession(['topic_tab' => 'notice'])->get(route('topics.show', $this->topic))->assertOk()
-            ->assertSee('The Research Secretary')
+            ->assertSee('The Research Office Secretary')
             ->assertDontSee('id="notice-to-proceed-tab-button"', false)
             ->assertDontSee('id="notice-to-proceed-tab"', false)
             ->assertSee('activeTopicTab: '.Js::from('details')->toHtml(), false)
@@ -595,8 +595,8 @@ test('only the secretary workspace can prepare generate or release notices', fun
 })->with([
     'Research Head' => ['research_head', 'research_head'],
     'Research Coordinator' => ['research_coordinator', 'research_office'],
-    'Dual role in Research Head workspace' => [['research_head', 'research_secretary'], 'research_head'],
-    'Dual role in Coordinator workspace' => [['research_coordinator', 'research_secretary'], 'research_office'],
+    'Dual role in Research Head workspace' => [['research_head', 'research_office_secretary'], 'research_head'],
+    'Dual role in Coordinator workspace' => [['research_coordinator', 'research_office_secretary'], 'research_office'],
     'Faculty' => ['faculty', 'faculty'],
 ]);
 
@@ -611,7 +611,7 @@ test('staff and secretary signing queues are limited to cleared accessible proje
     $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
     $dashboardResponse = $this->get(route($dashboard))->assertOk()->assertDontSee($otherProject->title);
     $topicResponse = $this->get(route('topics.show', $this->topic))->assertOk();
-    if ($role === 'research_secretary') {
+    if ($role === 'research_office_secretary') {
         $dashboardResponse->assertSee('Prepare Notice to Proceed')->assertSee($this->topic->title);
         $topicResponse->assertSee('Save notice details');
     } else {
@@ -627,33 +627,28 @@ test('staff and secretary signing queues are limited to cleared accessible proje
     }
 })->with([
     'Research Office' => ['research_coordinator', 'research_office', 'research_coordinator.dashboard'],
-    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard'],
+    'Research Office Secretary' => ['research_office_secretary', 'research_secretary', 'research_secretary.dashboard'],
 ]);
 
-test('an assigned secretary can prepare and release a notice across colleges', function () {
+test('a project budget assignment grants no office signing access across colleges', function () {
     $secretary = User::factory()->create(['college' => 'CTE']);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'research_secretary_id' => $secretary->id]);
-    completeSignedProposalPackage($this->topic, $this->faculty, $secretary);
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->staff);
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';
 
     $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
-    $this->get(route('research_secretary.dashboard'))->assertOk()->assertSee($this->topic->title);
-    expect($secretary->can('generateCommentResponseForm', $this->topic))->toBeTrue();
-    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertSessionHasNoErrors();
-    $this->post(route('topics.notice-to-proceed.preview', $this->topic), $payload)->assertOk();
-    $this->get(route('topics.notice-to-proceed.download-unsigned', $this->topic))->assertDownload();
+    $this->get(route('research_secretary.dashboard'))->assertOk()->assertDontSee($this->topic->title);
+    expect($secretary->can('generateCommentResponseForm', $this->topic))->toBeFalse();
+    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertForbidden();
+    $this->post(route('topics.notice-to-proceed.preview', $this->topic), $payload)->assertForbidden();
+    $this->get(route('topics.notice-to-proceed.download-unsigned', $this->topic))->assertForbidden();
     $this->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
         'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
-    ])->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed');
+    ])->assertForbidden();
 
-    $this->topic->refresh();
-    expect($this->topic->isMonitoringAvailable())->toBeTrue()
-        ->and($this->topic->notice_to_proceed_issued_by)->toBe($secretary->id)
-        ->and($this->topic->reviews()->latest('id')->first()->decision)->toBe('documents_released');
-    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertForbidden();
-    $this->get(route('research_secretary.dashboard'))->assertOk()->assertDontSee('Prepare Notice to Proceed');
+    expect($this->topic->fresh()->notice_to_proceed_issued_at)->toBeNull();
 });
 
 test('a failed notice notification does not interrupt release or notifications to other team members', function () {
@@ -719,7 +714,7 @@ test('only the secretary can upload signed papers and cannot record Research Hea
         ->and(Storage::disk('local')->allFiles('notices-to-proceed'))->toBeEmpty();
 })->with([
     'Research Office' => ['research_coordinator', 'research_office'],
-    'Research Secretary' => ['research_secretary', 'research_secretary'],
+    'Research Office Secretary' => ['research_office_secretary', 'research_secretary'],
 ]);
 
 test('unassigned staff without a college cannot access the signing queue projects', function (string $role, string $workspace) {
@@ -731,7 +726,7 @@ test('unassigned staff without a college cannot access the signing queue project
     $this->post(route('topics.notice-to-proceed.store', $this->topic), [])->assertForbidden();
 })->with([
     'Research Office' => ['research_coordinator', 'research_office'],
-    'Research Secretary' => ['research_secretary', 'research_secretary'],
+    'Research Office Secretary' => ['research_office_secretary', 'research_secretary'],
 ]);
 
 function completeSignedProposalPackage(TopicProposal $topic, User $faculty, User $head): void

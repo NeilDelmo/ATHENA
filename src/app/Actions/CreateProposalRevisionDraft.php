@@ -98,7 +98,7 @@ class CreateProposalRevisionDraft
                         'email' => $collaborator->email,
                         'accepted_at' => $collaborator->accepted_at,
                         'project_role' => $collaborator->user_id === $topic->research_secretary_id
-                            ? TopicCollaborator::ROLE_SECRETARY
+                            ? TopicCollaborator::ROLE_PROJECT_SECRETARY
                             : $collaborator->project_role,
                     ])->all(),
                 );

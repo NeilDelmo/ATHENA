@@ -45,7 +45,7 @@ class SyncTopicCollaborators
         $draft->unsetRelation('members');
 
         $secretaryId = $topic->collaborators()
-            ->where('project_role', ProposalDraftMember::ROLE_SECRETARY)
+            ->where('project_role', ProposalDraftMember::ROLE_PROJECT_SECRETARY)
             ->whereNotNull('accepted_at')
             ->whereNotNull('user_id')
             ->value('user_id');

@@ -41,7 +41,7 @@ class ProjectDocumentLibrary
         return route('project-narrative-reports.photos.view', [$report, $photoIndex, 'preview' => 1]);
     }
 
-    /** @return array{categories: Collection<int, array{key: string, label: string, description: string, count: int}>, documents: Collection<int, array<string, mixed>>, total: int, canUpload: bool, uploadCategories: array<string, string>} */
+    /** @return array{categories: Collection<int, array{key: string, label: string, description: string, count: int}>, documents: Collection<int, array<string, mixed>>, total: int} */
     public function build(TopicProposal $topic, User $viewer): array
     {
         $topic->loadMissing([
@@ -178,12 +178,6 @@ class ProjectDocumentLibrary
             'categories' => $categories,
             'documents' => $documents,
             'total' => $documents->count(),
-            'canUpload' => $topic->user_id === $viewer->id
-                && $viewer->isUsingWorkspace([
-                    User::WORKSPACE_FACULTY,
-                    User::WORKSPACE_FACULTY_RESEARCHER,
-                ]),
-            'uploadCategories' => ProjectDocument::uploadCategoryOptions(),
         ];
     }
 

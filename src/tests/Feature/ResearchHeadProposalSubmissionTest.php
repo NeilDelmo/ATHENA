@@ -560,9 +560,9 @@ test('signing automatically requires five papers and exempts CV and expense brea
     Process::fake();
     Notification::fake();
     Storage::fake('local');
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $staff = User::factory()->create(['college' => 'CICS']);
-    $staff->assignRole('research_secretary');
+    $staff->assignRole('research_office_secretary');
     $this->faculty->update(['college' => 'CICS']);
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,

@@ -82,21 +82,11 @@
         if (($initialTopicTab === 'monitoring' && ! $canViewMonitoring) || ($initialTopicTab === 'notice' && ! $canViewNoticeToProceed)) {
             $initialTopicTab = 'details';
         }
-        if (session('project_documents_open') || $errors->getBag('projectDocuments')->any()) {
-            $initialTopicTab = 'files';
-        }
-
     @endphp
 
     <x-slot name="header">
         <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal').($topic->researchManual ? ' · Research manual: '.$topic->researchManual->title.' ('.$topic->researchManual->edition.')' : '')" :class="$canViewMonitoring ? 'project-page-header' : ''">
             <x-slot name="actions">
-                    @can('view', $topic)
-                        <a data-project-archive href="{{ route('topics.archive', $topic) }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
-                            Project archive
-                        </a>
-                    @endcan
                     @if ($sampleProposalDraft)
                         <a href="{{ route('faculty.proposal-drafts.show', $sampleProposalDraft) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-900 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Open sample proposal draft</a>
                     @endif
@@ -570,13 +560,13 @@
                         @if ($topic->status === 'revision_requested')
                             The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
                         @elseif ($topic->isAwaitingNoticeToProceed())
-                            Final signing is complete. Wait for the Research Secretary to issue the Notice to Proceed before beginning the project or entering monitoring.
+                            Final signing is complete. Wait for the Research Office Secretary to issue the Notice to Proceed before beginning the project or entering monitoring.
                         @elseif ($topic->isCompletedProject())
                             This project is complete and archived. Its approved papers, Notice to Proceed, and previous monitoring records remain available as read-only records.
                         @elseif ($topic->status === 'approved')
                             Your Notice to Proceed has been issued. The proposal is now an active research project and monitoring is open.
                         @elseif ($topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
-                            Reviews are complete. The Research Secretary is collecting signed papers and the signed Notice to Proceed. They will be released together.
+                            Reviews are complete. The Research Office Secretary is collecting signed papers and the signed Notice to Proceed. They will be released together.
                         @elseif ($topic->status === 'lrec_queued')
                             Initial review is complete. Await the LREC presentation schedule from the research office.
                         @elseif ($topic->status === 'lrec_review')
@@ -816,7 +806,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
-                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : ($canManageNoticeToProceed ? 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.' : 'Review is complete. The Research Secretary will prepare the Notice to Proceed and upload the signed documents for release.') }}</p>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : ($canManageNoticeToProceed ? 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.' : 'Review is complete. The Research Office Secretary will prepare the Notice to Proceed and upload the signed documents for release.') }}</p>
                     </div>
                 </div>
                 @if (($isResearchHead || $canViewSigningDocuments) && $headUploadWorkspace)

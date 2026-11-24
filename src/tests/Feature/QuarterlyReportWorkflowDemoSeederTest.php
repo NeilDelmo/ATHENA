@@ -19,7 +19,7 @@ beforeEach(function () {
     $this->travelTo(now()->setDate(2026, 10, 18)->setTime(12, 0));
     Storage::fake('local');
     Notification::fake();
-    foreach (['faculty_researcher', 'research_coordinator', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_coordinator', 'research_head', 'research_office_secretary'] as $role) {
         Role::findOrCreate($role, 'web');
     }
     $this->head = User::factory()->create(['college' => User::COLLEGES['CICS']]);
@@ -29,7 +29,7 @@ beforeEach(function () {
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $this->coordinator->assignRole('research_coordinator');
     $this->secretary = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $this->secretary->assignRole('research_secretary');
+    $this->secretary->assignRole('research_office_secretary');
     $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->andReturn("%PDF-1.4\nTest conversion");
 });
 

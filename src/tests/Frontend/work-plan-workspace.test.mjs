@@ -192,7 +192,7 @@ test('Work Plan previews and autosaves continuous ranges across years and overla
                 await expect(activities).toBeEditable();
                 await page.waitForFunction(() => window.savedBodies.some(body => body.some(([name, value]) => name === 'entries[1][activity]' && value === 'Compare the recorded results')));
                 const startMonth = secondEntry.getByRole('combobox', { name: 'Start month' });
-                const endMonth = secondEntry.getByRole('combobox', { name: 'End month' });
+                await expect(secondEntry.getByRole('combobox')).toHaveCount(1);
                 const selectedMonths = () => secondEntry.locator('[data-work-plan-month][aria-pressed="true"]').evaluateAll(buttons => buttons.map(button => button.dataset.workPlanMonth));
                 const scheduledMonths = (body, index) => new URLSearchParams(body).getAll(`entries[${index}][months][]`);
                 const waitForSavedMonths = months => page.waitForFunction(expected => {
@@ -201,18 +201,15 @@ test('Work Plan previews and autosaves continuous ranges across years and overla
                         && saved.getAll('entries[1][months][]').join() === expected.join();
                 }, months);
                 await expect(startMonth).toHaveValue('13');
-                await expect(endMonth).toHaveValue('15');
                 assert.deepEqual(await selectedMonths(), ['13', '15']);
                 await secondEntry.getByRole('button', { name: 'Fill gaps' }).click();
                 assert.deepEqual(await selectedMonths(), ['13', '14', '15']);
                 await startMonth.selectOption({ label: 'Y1 / M12' });
                 assert.deepEqual(await selectedMonths(), ['12', '13', '14', '15']);
-                assert.equal(await endMonth.locator('option[value="11"]').evaluate(option => option.disabled), true);
                 await expect(secondEntry.locator('[data-work-plan-month="11"]')).toBeDisabled();
                 await secondEntry.locator('[data-work-plan-month="16"]').click();
                 assert.deepEqual(await selectedMonths(), ['12', '13', '14', '15', '16']);
-                await expect(endMonth).toHaveValue('16');
-                await endMonth.selectOption({ label: 'Y2 / M3' });
+                await secondEntry.locator('[data-work-plan-month="15"]').click();
                 assert.deepEqual(await selectedMonths(), ['12', '13', '14', '15']);
                 await waitForSavedMonths(['12', '13', '14', '15']);
                 if (width >= 1024) {
@@ -221,7 +218,6 @@ test('Work Plan previews and autosaves continuous ranges across years and overla
                 }
                 await startMonth.selectOption('1');
                 await expect(startMonth).toHaveValue('1');
-                await expect(endMonth).toHaveValue('15');
                 const expectedMonths = Array.from({ length: 15 }, (_, index) => String(index + 1));
                 assert.deepEqual(await selectedMonths(), expectedMonths);
                 await waitForSavedMonths(expectedMonths);
@@ -241,7 +237,6 @@ test('Work Plan previews and autosaves continuous ranges across years and overla
                 await page.locator('#activity-2').waitFor({ state: 'visible' });
                 assert.equal(await page.locator('#activity-2').isVisible(), true);
                 await expect(startMonth).toHaveValue('1');
-                await expect(endMonth).toHaveValue('15');
                 assert.deepEqual(await selectedMonths(), expectedMonths);
                 const previewToggle = page.locator('[data-proposal-preview-toggle]');
                 assert.equal(await previewToggle.count(), 1);

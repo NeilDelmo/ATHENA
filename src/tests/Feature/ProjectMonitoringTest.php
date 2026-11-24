@@ -50,7 +50,7 @@ beforeEach(function () {
     };
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
-    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -65,7 +65,7 @@ beforeEach(function () {
     ]);
     $this->secretary->assignRole('faculty_researcher');
     $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
-    $this->officeSecretary->assignRole('research_secretary');
+    $this->officeSecretary->assignRole('research_office_secretary');
     $this->forwardReport = function (ProjectProgressReport|ProjectNarrativeReport $report): void {
         $route = $report instanceof ProjectProgressReport ? 'research_secretary.monitoring-reports.review' : 'research_secretary.narrative-reports.review';
         $this->actingAs($this->officeSecretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
@@ -474,7 +474,7 @@ test('the project secretary has budget priority while other project members may 
         ->assertSee('disabled', false);
 
     $otherSecretary = User::factory()->create();
-    $otherSecretary->assignRole('research_secretary');
+    $otherSecretary->assignRole('research_office_secretary');
 
     $this->actingAs($otherSecretary)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])

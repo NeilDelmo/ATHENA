@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 
-test('trash archive and automatic manual results fit both themes and retain keyboard actions', { timeout: 60000 }, async context => {
+test('trash, project headers, and manual results fit both themes and retain keyboard actions', { timeout: 60000 }, async context => {
     const read = path => readFileSync(resolve(path), 'utf8');
     const manifest = JSON.parse(read('public/build/manifest.json'));
     const styles = [manifest['resources/css/app.css'].file, ...manifest['resources/js/app.js'].css]
@@ -55,12 +55,7 @@ test('trash archive and automatic manual results fit both themes and retain keyb
                 await expect(details).toHaveAttribute('open', '');
                 await expect(details.getByRole('link').first()).toHaveAttribute('href', /research-manuals\/[a-f0-9]{64}#page=2$/);
             } else {
-                const archive = page.locator('[data-project-archive]');
-                await expect(archive).toBeVisible();
-                await expect(archive).toHaveAttribute('href', /\/topics\/\d+\/archive$/);
-                assert.equal(await archive.getAttribute('wire:navigate'), null);
-                await archive.focus();
-                await expect(archive).toBeFocused();
+                await expect(page.locator('[data-project-archive], a[href$="/archive"]')).toHaveCount(0);
             }
             assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} must not overflow at ${width}px`);
             await page.screenshot({ path: resolve(`storage/framework/testing/${name}-${width}-${dark ? 'dark' : 'light'}.png`), fullPage: true });

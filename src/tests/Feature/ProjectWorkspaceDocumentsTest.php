@@ -99,7 +99,7 @@ test('research head opens project files through the existing private document ro
     $response = $this->getJson($this->documentsUrl)
         ->assertSuccessful()
         ->assertJsonPath('total', 1)
-        ->assertJsonPath('canUpload', false)
+        ->assertJsonMissingPath('canUpload')
         ->assertJsonPath('categories.0.key', ProjectDocument::CATEGORY_SUPPORTING_FILES)
         ->assertJsonPath('categories.0.count', 1)
         ->assertJsonPath('documents.0.key', 'project-document-'.$document->id)
@@ -127,7 +127,11 @@ test('project files require authentication', function () {
 });
 
 test('project files require the active research head workspace even for a research head role', function (string $workspace) {
-    $role = $workspace === User::WORKSPACE_RESEARCH_OFFICE ? 'research_coordinator' : $workspace;
+    $role = match ($workspace) {
+        User::WORKSPACE_RESEARCH_OFFICE => 'research_coordinator',
+        User::WORKSPACE_RESEARCH_SECRETARY => User::ROLE_RESEARCH_OFFICE_SECRETARY,
+        default => $workspace,
+    };
     Role::findOrCreate($role, 'web');
     $this->head->assignRole($role);
 

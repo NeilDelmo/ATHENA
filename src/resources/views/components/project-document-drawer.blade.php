@@ -1,15 +1,12 @@
 @props(['topic', 'library', 'floating' => true, 'inline' => false])
 
 @php
-    $projectDocumentErrors = $errors->getBag('projectDocuments');
-    $initialOpen = (bool) session('project_documents_open') || $projectDocumentErrors->any();
     $categories = $library['categories'];
     $documents = $library['documents'];
-    $canUpload = $library['canUpload'];
 @endphp
 
 <div
-    x-data="projectDocumentDrawer({ topicId: @js($topic->id), documents: @js($documents->map(fn (array $document) => \Illuminate\Support\Arr::only($document, ['key', 'filename', 'view_url', 'download_url']))->values()), inline: @js($inline), initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()), displayStorageKey: @js('athena-report-library:'.auth()->id()) })"
+    x-data="projectDocumentDrawer({ topicId: @js($topic->id), documents: @js($documents->map(fn (array $document) => \Illuminate\Support\Arr::only($document, ['key', 'filename', 'view_url', 'download_url']))->values()), inline: @js($inline), displayStorageKey: @js('athena-report-library:'.auth()->id()) })"
     data-workspace-sizing data-size="medium" :data-size="size"
     @open-project-documents.window="openDrawer($event.detail?.category || 'all')"
     @keydown.escape.window="if (open && !document.querySelector('[data-project-document-preview-content]')) closeDrawer()"
@@ -92,75 +89,6 @@
             </header>
 
             <div @class(['px-4 py-5 sm:px-6', 'min-h-0 flex-1 overflow-y-auto overscroll-contain' => ! $inline])>
-                @if ($canUpload)
-                    <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900" aria-labelledby="add-project-files-heading">
-                        <button type="button" @click="uploadOpen = !uploadOpen" :aria-expanded="uploadOpen" aria-controls="project-file-upload" class="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-800 sm:px-5">
-                            <span>
-                                <span id="add-project-files-heading" class="block text-base font-semibold text-gray-950 dark:text-white">Add PDF files</span>
-                                <span class="mt-0.5 block text-base text-gray-500 dark:text-gray-400">For corrected forms, supporting papers, and project records.</span>
-                            </span>
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" aria-hidden="true">
-                                <svg :class="uploadOpen ? 'rotate-45' : ''" class="h-4 w-4 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
-                            </span>
-                        </button>
-
-                        <form id="project-file-upload" x-show="uploadOpen" x-cloak action="{{ route('topics.documents.store', $topic) }}" method="POST" enctype="multipart/form-data" class="space-y-4 border-t border-gray-100 p-4 dark:border-gray-800 sm:p-5">
-                            @csrf
-                            <div>
-                                <label for="project_document_category" class="text-base font-semibold text-gray-700 dark:text-gray-200">Category</label>
-                                <select id="project_document_category" name="category" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-base shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                                    @foreach ($library['uploadCategories'] as $value => $label)
-                                        <option value="{{ $value }}" @selected(old('category', \App\Models\ProjectDocument::CATEGORY_SUPPORTING_FILES) === $value)>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                                @error('category', 'projectDocuments')<p class="mt-1 text-base font-semibold text-red-600">{{ $message }}</p>@enderror
-                            </div>
-
-                            <label
-                                class="block cursor-pointer rounded-2xl border-2 border-dashed p-5 text-center transition focus-within:ring-2 focus-within:ring-red-700 focus-within:ring-offset-2"
-                                :class="isDragging ? 'border-red-600 bg-red-50 dark:bg-red-950/30' : 'border-gray-300 bg-gray-50 hover:border-red-300 hover:bg-red-50/40 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-red-800'"
-                                @dragenter.prevent="isDragging = true"
-                                @dragover.prevent="isDragging = true"
-                                @dragleave.prevent="isDragging = false"
-                                @drop.prevent="dropFiles($event)"
-                            >
-                                <input x-ref="fileInput" type="file" name="documents[]" accept="application/pdf,.pdf" multiple required class="sr-only" @change="chooseFiles($event)">
-                                <span class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-red-700 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-red-300 dark:ring-gray-700" aria-hidden="true">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V6.75m0 0-3.75 3.75M12 6.75l3.75 3.75M6.75 18.75h10.5A2.25 2.25 0 0 0 19.5 16.5v-9a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                                </span>
-                                <span class="mt-3 block text-base font-semibold text-gray-900 dark:text-white">Drop PDFs here or browse</span>
-                                <span class="mt-1 block text-base text-gray-500 dark:text-gray-400">Up to 10 PDFs, 25 MB each</span>
-                            </label>
-                            @error('documents', 'projectDocuments')<p class="text-base font-semibold text-red-600">{{ $message }}</p>@enderror
-                            @error('documents.*', 'projectDocuments')<p class="text-base font-semibold text-red-600">{{ $message }}</p>@enderror
-                            <p x-show="fileError" x-text="fileError" class="text-base font-semibold text-red-600" role="alert"></p>
-
-                            <div x-show="selectedFiles.length > 0" x-cloak class="space-y-2">
-                                <template x-for="(file, index) in selectedFiles" :key="`${file.name}-${file.size}-${index}`">
-                                    <div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-950">
-                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-base font-black text-red-700 dark:bg-red-950/50 dark:text-red-300">PDF</span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block truncate text-base font-semibold text-gray-900 dark:text-white" x-text="file.name"></span>
-                                            <span class="block text-base text-gray-500" x-text="formatSize(file.size)"></span>
-                                        </span>
-                                        <button type="button" @click="removeFile(index)" class="rounded-lg p-2 text-gray-400 transition hover:bg-white hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:hover:bg-gray-800" :aria-label="`Remove ${file.name}`">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
-                                        </button>
-                                    </div>
-                                </template>
-                            </div>
-
-                            <div>
-                                <label for="project_document_note" class="text-base font-semibold text-gray-700 dark:text-gray-200">Note <span class="font-normal text-gray-400">(optional)</span></label>
-                                <textarea id="project_document_note" name="note" rows="2" maxlength="1000" class="mt-1.5 block w-full rounded-xl border-gray-300 text-base shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="Why these files are being kept with the project">{{ old('note') }}</textarea>
-                                @error('note', 'projectDocuments')<p class="mt-1 text-base font-semibold text-red-600">{{ $message }}</p>@enderror
-                            </div>
-
-                            <button type="submit" :disabled="selectedFiles.length === 0" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-base font-semibold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700" x-text="uploadButtonLabel()"></button>
-                        </form>
-                    </section>
-                @endif
-
                 @if ($documents->isEmpty())
                     <div x-ref="browserHeading" data-library-view-surface tabindex="0" aria-label="Project folders and files" @wheel="resizeWithWheel($event)" @contextmenu="openViewMenu($event)" class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
                         <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300" aria-hidden="true">

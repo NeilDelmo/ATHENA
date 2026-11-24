@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_secretary', 'research_office'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_office_secretary', 'research_office'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     Storage::fake('local');
@@ -118,7 +118,10 @@ test('project archive includes every submitted edition and released record with 
         ->and($manifest['missing_files'])->toBe(0)
         ->and(collect($manifest['files'])->where('category', 'Monitoring Tool')->pluck('edition')->all())->toBe(['Version 1', 'Version 2']);
     expect($entries['INDEX.txt'])->toContain('Water Research', 'Version 1', 'Version 2', 'Submitted', 'No missing');
-    $page = $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('data-project-archive', false)->assertSee(route('topics.archive', $this->topic));
+    $page = $this->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertDontSee('data-project-archive', false)
+        ->assertDontSee(route('topics.archive', $this->topic));
     if (getenv('ATHENA_TEST_EXPORT_UI') === '1') {
         file_put_contents(storage_path('framework/testing/project-archive-page.html'), $page->getContent());
     }
@@ -150,8 +153,7 @@ test('project archive excludes prepared reports and follows report forwarding ac
     ($this->narrative)(['report_type' => 'terminal', 'review_stage' => 'head', 'official_pdf_filename' => 'terminal.pdf']);
     ($this->narrative)(['report_type' => 'terminal', 'review_stage' => 'secretary', 'official_pdf_filename' => 'unforwarded-terminal.pdf']);
     $viewer = $workspace === 'faculty' ? $this->owner : User::factory()->create(['college' => 'Science']);
-    $viewer->assignRole($workspace);
-    $this->topic->update(['research_secretary_id' => $workspace === 'research_secretary' ? $viewer->id : null]);
+    $viewer->assignRole($workspace === User::WORKSPACE_RESEARCH_SECRETARY ? User::ROLE_RESEARCH_OFFICE_SECRETARY : $workspace);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
     $entries = ($this->readArchive)($viewer);
     $names = implode("\n", array_keys($entries));

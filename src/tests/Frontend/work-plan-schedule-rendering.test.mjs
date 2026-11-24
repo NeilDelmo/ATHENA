@@ -165,6 +165,7 @@ test('large Work Plans render only the open schedule while preserving saved mont
 
         const schedule = page.locator('[data-work-plan-schedule="20"]');
         await page.evaluate(() => window.workPlanState.toggleEntry(window.workPlanState.entries.at(-1)));
+        await expect(schedule.getByRole('combobox')).toHaveCount(1);
         await schedule.getByRole('button', { name: 'Clear schedule' }).click();
         assert.deepEqual(await months(18), []);
         await expect(schedule.getByRole('combobox', { name: 'Start month' })).toBeFocused();
@@ -174,19 +175,16 @@ test('large Work Plans render only the open schedule while preserving saved mont
         await schedule.locator('[data-work-plan-month="5"]').click();
         assert.deepEqual(await months(18), ['1', '2', '3', '4', '5']);
         await expect(schedule.getByRole('combobox', { name: 'Start month' })).toHaveValue('1');
-        await expect(schedule.getByRole('combobox', { name: 'End month' })).toHaveValue('5');
         await expect(schedule).not.toHaveAttribute('data-work-plan-invalid');
         assert.equal(await page.evaluate(() => window.workPlanState.validateForm()), true);
         await schedule.locator('[data-work-plan-month="10"]').click();
         assert.deepEqual(await months(18), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
-        await expect(schedule.getByRole('combobox', { name: 'End month' })).toHaveValue('10');
         await schedule.locator('[data-work-plan-month="3"]').press('Space');
         assert.deepEqual(await months(18), ['1', '2', '3']);
         await schedule.getByRole('combobox', { name: 'Start month' }).selectOption('5');
-        await expect(schedule.getByRole('combobox', { name: 'End month' })).toHaveValue('5');
         assert.deepEqual(await months(18), ['5']);
         await schedule.getByRole('button', { name: 'Clear schedule' }).click();
-        await schedule.getByRole('combobox', { name: 'End month' }).selectOption('6');
+        await schedule.locator('[data-work-plan-month="6"]').click();
         await expect(schedule.getByRole('combobox', { name: 'Start month' })).toHaveValue('1');
         assert.deepEqual(await months(18), ['1', '2', '3', '4', '5', '6']);
         assert.equal(await page.evaluate(async () => {

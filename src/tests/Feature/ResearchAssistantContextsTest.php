@@ -9,7 +9,7 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     $this->withoutVite();
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary', 'expert'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary', 'expert'] as $role) {
         Role::findOrCreate($role, 'web');
     }
     $this->makeTopic = fn (User $owner, array $attributes = []): TopicProposal => TopicProposal::create([
@@ -138,7 +138,7 @@ test('assistant contexts require an allowed active workspace', function (string 
         ->getJson('/research-support/contexts')->assertForbidden();
 })->with([
     ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE],
-    ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
+    ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
     ['expert', 'expert'],
 ]);
 

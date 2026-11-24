@@ -329,7 +329,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_LREC_REVIEW => ['LREC review started', 'The research office is recording the LREC outcome for “'.$topic->title.'”. Any revisions will be shared in one Comment-Response Form.', 'info'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
-                'The review of “'.$topic->title.'” is complete. The Research Secretary will prepare the Notice to Proceed and upload the required signed documents.',
+                'The review of “'.$topic->title.'” is complete. The Research Office Secretary will prepare the Notice to Proceed and upload the required signed documents.',
                 'info',
             ],
             'revision_requested' => [
@@ -367,19 +367,8 @@ class ResearchHeadTopicController extends Controller
 
         if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE) {
             $colleges = TopicProposal::collegeAliases($topic->projectCollege());
-            $staff = User::query()
-                ->where(function ($query) use ($topic, $colleges): void {
-                    if ($colleges !== []) {
-                        $query->whereIn('college', $colleges)
-                            ->whereHas('roles', fn ($roles) => $roles->where('name', 'research_secretary'));
-                    } else {
-                        $query->whereRaw('1 = 0');
-                    }
-
-                    if ($topic->research_secretary_id !== null) {
-                        $query->orWhere(fn ($assigned) => $assigned->whereKey($topic->research_secretary_id)->whereHas('roles', fn ($roles) => $roles->where('name', 'research_secretary')));
-                    }
-                })
+            $staff = User::role(User::ROLE_RESEARCH_OFFICE_SECRETARY)
+                ->whereIn('college', $colleges)
                 ->get();
 
             $releaseNotification = new ProposalActivityNotification(
@@ -399,7 +388,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_GAD_REVIEW => 'Research Head review cleared. The proposal is now available for GAD Office assessment.',
             TopicProposal::STATUS_LREC_QUEUED => 'GAD assessment and co-evaluator review cleared. The proposal is queued for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'LREC review opened. Record committee comments or confirm clearance.',
-            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. The Research Secretary will prepare and release the signed documents and Notice to Proceed.',
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. The Research Office Secretary will prepare and release the signed documents and Notice to Proceed.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
                 : 'Revision requested. The faculty member can review the feedback in ATHENA.',
@@ -442,7 +431,7 @@ class ResearchHeadTopicController extends Controller
         }
 
         return redirect()->to(route('topics.show', $topic).'#proposal-review')
-            ->with('success', 'Signed papers are ready. The Research Secretary will upload the signed Notice to Proceed and release the project to faculty.');
+            ->with('success', 'Signed papers are ready. The Research Office Secretary will upload the signed Notice to Proceed and release the project to faculty.');
     }
 
     /**

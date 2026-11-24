@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import {
     acceptReport, archiveContents, asActor, confirmAction, fillWritingField, fixtureAction, fixtureFile, fixtures,
     forwardReport, headDecision, selectCalendarDate, submitDraft,
@@ -412,23 +413,21 @@ test.describe.serial('Proposal through archive', () => {
         await asActor(browser, 'faculty', testInfo, async page => {
             await page.goto(`topics/${topic}`);
             await expect(page.getByText('Completed - archived', { exact: false }).first()).toBeVisible();
-            const downloadPromise = page.waitForEvent('download');
-            const responsePromise = page.waitForResponse(response => new URL(response.url()).pathname === `/topics/${topic}/archive`);
-            await page.locator('[data-project-archive]').click();
-            const response = await responsePromise;
+            await expect(page.locator('[data-project-archive]')).toHaveCount(0);
+            const archiveUrl = `topics/${topic}/archive`;
+            let response = await page.request.get(archiveUrl);
             if (response.status() === 429) {
                 const retryAfter = Number(response.headers()['retry-after']);
                 expect(retryAfter).toBeGreaterThan(0);
                 expect(retryAfter).toBeLessThanOrEqual(60);
                 await testInfo.attach('archive-throttle', { body: `HTTP 429; retry after ${retryAfter} seconds.`, contentType: 'text/plain' });
                 await page.waitForTimeout((retryAfter + 1) * 1000);
-                await page.goto(`topics/${topic}`);
-                await page.locator('[data-project-archive]').click();
+                response = await page.request.get(archiveUrl);
             }
-            const download = await downloadPromise;
-            expect(await download.failure()).toBeNull();
-            const archive = testInfo.outputPath(download.suggestedFilename());
-            await download.saveAs(archive);
+            await expect(response).toBeOK();
+            expect(response.headers()['content-disposition']).toMatch(/^attachment;.*\.zip/);
+            const archive = testInfo.outputPath('project-archive.zip');
+            await writeFile(archive, await response.body());
             await testInfo.attach('completed-project-archive', { path: archive, contentType: 'application/zip' });
             const contents = archiveContents(archive);
             expect(contents.names).toContain('INDEX.txt');

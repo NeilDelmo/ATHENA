@@ -49,8 +49,8 @@ dataset('persistent account workspaces', [
     'Coordinator using Faculty Researcher' => [['research_coordinator', 'faculty_researcher'], 'faculty_researcher', 'faculty.dashboard'],
     'Research Head' => [['research_head'], 'research_head', 'research_head.dashboard'],
     'Research Head using Faculty' => [['research_head'], 'faculty', 'faculty.dashboard'],
-    'Secretary only' => [['research_secretary'], 'research_secretary', 'research_secretary.dashboard'],
-    'Secretary' => [['research_secretary', 'research_coordinator'], 'research_secretary', 'research_secretary.dashboard'],
+    'Secretary only' => [['research_office_secretary'], 'research_secretary', 'research_secretary.dashboard'],
+    'Secretary' => [['research_office_secretary', 'research_coordinator'], 'research_secretary', 'research_secretary.dashboard'],
 ]);
 
 test('login screen presents institutional Google sign in and theme controls', function () {
@@ -218,13 +218,13 @@ test('an invalid Google callback cannot replace an existing signed-in account', 
 
 test('switching to another multi-role account does not inherit the previous head workspace', function () {
     $this->withoutVite();
-    foreach (['research_head', 'faculty', 'faculty_researcher', 'research_secretary'] as $role) {
+    foreach (['research_head', 'faculty', 'faculty_researcher', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $previous = User::factory()->create();
     $previous->assignRole('research_head');
     $selected = User::factory()->create(['email' => 'selected.secretary@g.batstate-u.edu.ph']);
-    $selected->assignRole(['faculty', 'faculty_researcher', 'research_secretary']);
+    $selected->assignRole(['faculty', 'faculty_researcher', 'research_office_secretary']);
     $this->actingAs($previous)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head'])
         ->withCookie(WorkspacePreference::COOKIE_NAME, $previous->id.':research_head');

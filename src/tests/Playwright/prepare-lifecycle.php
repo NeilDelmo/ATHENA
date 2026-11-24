@@ -166,7 +166,7 @@ $workspaces = [];
 foreach ([
     'faculty' => ['faculty', 'faculty', 'CICS'],
     'head' => ['research_head', 'research_head', 'CICS'],
-    'secretary' => ['research_secretary', 'research_secretary', 'CICS'],
+    'secretary' => ['research_office_secretary', 'research_secretary', 'CICS'],
     'coordinator' => ['research_coordinator', 'research_office', 'CICS'],
     'vcrdes' => ['vcrdes', 'vcrdes', 'CICS'],
     'outsider' => ['faculty', 'faculty', 'CTE'],

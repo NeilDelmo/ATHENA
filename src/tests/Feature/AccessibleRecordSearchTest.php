@@ -63,7 +63,7 @@ function searchNarrative(TopicProposal $topic, array $attributes = []): ProjectN
 }
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->withoutVite();
@@ -152,13 +152,13 @@ test('unreleased and superseded signed filenames do not leak to faculty while si
     $file = $version->files()->create(['document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD, 'file_path' => 'private/signed.pdf', 'original_filename' => 'SecretSignatures.pdf', 'source_data' => ['purpose' => 'signed']]);
     expect(app(AccessibleRecordSearch::class)->search($this->owner, 'SecretSignatures')->total())->toBe(0);
     $secretary = User::factory()->create(['college' => 'CICS']);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     expect(app(AccessibleRecordSearch::class)->search($secretary, 'SecretSignatures'))->toHaveCount(1);
     $assignedSecretary = User::factory()->create(['college' => 'CTE']);
-    $assignedSecretary->assignRole('research_secretary');
+    $assignedSecretary->assignRole('research_office_secretary');
     $topic->update(['research_secretary_id' => $assignedSecretary->id]);
-    expect(app(AccessibleRecordSearch::class)->search($assignedSecretary, 'SecretSignatures'))->toHaveCount(1);
+    expect(app(AccessibleRecordSearch::class)->search($assignedSecretary, 'SecretSignatures'))->toHaveCount(0);
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
     $topic->update(['status' => 'approved', 'notice_to_proceed_issued_at' => now()]);
     expect(app(AccessibleRecordSearch::class)->search($this->owner, 'SecretSignatures')->total())->toBe(1);
@@ -174,9 +174,9 @@ test('report metadata respects secretary forwarding college and terminal visibil
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $secretary = User::factory()->create(['college' => 'CICS']);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $otherSecretary = User::factory()->create(['college' => 'CTE']);
-    $otherSecretary->assignRole('research_secretary');
+    $otherSecretary->assignRole('research_office_secretary');
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
     expect(app(AccessibleRecordSearch::class)->search($head, 'SEARCH-', 'reports')->total())->toBe(0);

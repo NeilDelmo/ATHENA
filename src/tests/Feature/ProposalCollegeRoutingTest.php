@@ -40,7 +40,7 @@ beforeEach(function () {
     $this->travelTo(now()->setDate(2026, 10, 27)->setTime(12, 0));
     Notification::fake();
     Storage::fake('local');
-    foreach (['faculty_researcher', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::findOrCreate($role, 'web');
     }
     $this->leader = User::factory()->create(['college' => User::COLLEGES['CTE']]);
@@ -50,7 +50,7 @@ beforeEach(function () {
         $coordinator->assignRole('research_coordinator');
         $this->{$source.'Coordinator'} = $coordinator;
         $secretary = User::factory()->create(['college' => User::COLLEGES[$college]]);
-        $secretary->assignRole('research_secretary');
+        $secretary->assignRole('research_office_secretary');
         $this->{$source.'Secretary'} = $secretary;
     }
     $this->topic = TopicProposal::create([

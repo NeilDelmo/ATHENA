@@ -98,7 +98,7 @@ test('faculty dashboards show workspace-specific data in the shared restrained l
         ->assertSee('data-dashboard-columns', false)
         ->assertDontSee('data-calendar-compact', false)
         ->assertSee('data-sidebar-account', false)
-        ->assertSee('data-dashboard-palette="red-black-white"', false)
+        ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
         ->assertSee('Resources')
         ->assertSee('Profile')
         ->assertDontSee('Private project outside this portfolio')

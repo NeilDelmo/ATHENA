@@ -72,7 +72,7 @@ class MonitoringDemoSeeder extends Seeder
         $coordinator = User::role('research_coordinator')->whereIn('college', array_values(User::COLLEGES))->orderBy('id')->firstOrFail();
         $faculty = User::role('faculty_researcher')->where('college', $coordinator->college)
             ->whereDoesntHave('roles', fn (Builder $roles) => $roles->where('name', 'research_head'))->orderBy('id')->firstOrFail();
-        $secretary = User::role('research_secretary')->where('college', $coordinator->college)->orderBy('id')->firstOrFail();
+        $secretary = User::role(User::ROLE_RESEARCH_OFFICE_SECRETARY)->where('college', $coordinator->college)->orderBy('id')->firstOrFail();
         $this->storedPaths = [];
         try {
             DB::transaction(function () use ($head, $coordinator, $faculty, $secretary): void {

@@ -1,33 +1,35 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header variant="hero" eyebrow="Research office" title="Coordinator dashboard" :subtitle="($coordinator->college ?: 'Your college').' · '.now()->format('l, F j, Y')">
-            <x-slot name="actions"><a href="{{ route('research_coordinator.proposals.index') }}" class="secretary-button-primary">Open LREC queue <span aria-hidden="true">→</span></a></x-slot>
+        <x-page-header variant="hero" eyebrow="Research Coordinator" title="Coordinator dashboard"
+            :subtitle="(\App\Models\User::COLLEGES[$coordinator->college] ?? $coordinator->college ?? 'College research').' · LREC reviews and research reporting.'">
+            <x-slot name="actions">
+                <a href="{{ route('research_coordinator.proposals.index') }}" class="dashboard-action">
+                    <x-report-library-icon name="list" class="!h-5 !w-5" /> Open LREC queue
+                </a>
+            </x-slot>
         </x-page-header>
     </x-slot>
-    @php($attentionTotal = $lrecReviewCount)
-    <div class="secretary-workspace" data-coordinator-workspace="dashboard" data-dashboard-layout="office-overview">
-        <section class="secretary-overview" aria-label="College workload">
-            <div class="secretary-overview-main">
-                <div class="secretary-overview-label"><span class="secretary-status-dot" aria-hidden="true"></span> Your college at a glance</div>
-                <div class="secretary-attention-number">{{ $attentionTotal }}<span>items<br>need attention</span></div>
-                <p>Record committee feedback, follow up on proposals, and keep your college’s research moving.</p>
-                <a href="{{ route('research_coordinator.proposals.index', ['status' => 'review']) }}" class="secretary-button-primary">{{ $lrecReviewCount }} ready for committee comments <span aria-hidden="true">→</span></a>
-            </div>
-            <dl class="secretary-metrics">
-                @foreach ([['LREC proposals', $lrecProposals->total(), 'Committee reviews and follow-up'], ['Ready for comments', $lrecReviewCount, 'Committee reviews needing your input'], ['College members', $memberCount, 'Faculty in your college directory']] as [$label, $count, $description])
-                    <div><dt>{{ $label }}</dt><dd>{{ $count }}</dd><p>{{ $description }}</p></div>
-                @endforeach
+
+    <div class="role-dashboard" data-dashboard-palette="maroon-slate-white" data-coordinator-workspace="dashboard" data-dashboard-layout="office-overview">
+        <section aria-label="College workload">
+            <dl class="dashboard-metrics md:!grid-cols-3" data-dashboard-metrics>
+                <x-dashboard-stat label="Ready for comments" :value="$lrecReviewCount" description="Committee reviews needing your input"
+                    icon="rename" :href="route('research_coordinator.proposals.index', ['status' => 'review'])" action="View reviews" priority />
+                <x-dashboard-stat label="LREC proposals" :value="$lrecProposals->total()" description="College proposals at the committee stage" icon="publication" />
+                <x-dashboard-stat label="College members" :value="$memberCount" description="Faculty in your college directory" icon="college" />
             </dl>
         </section>
-        <div class="secretary-dashboard-columns" data-dashboard-columns>
+
+        <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-dashboard-columns>
             <x-coordinator-lrec-queue :proposals="$lrecProposals" :coordinator="$coordinator" compact />
-            <aside class="secretary-office-links" aria-label="College work">
-                <a href="{{ route('research_coordinator.reports.index') }}" class="secretary-portfolio-link"><span><span class="secretary-eyebrow">College accomplishment reporting</span><strong>Quarterly report</strong><small>Prepare activities, attach evidence, and submit your college report.</small></span><b>Q{{ now()->quarter }}</b></a>
+            <aside class="grid gap-5" aria-label="College work">
+                <x-dashboard-shortcut title="Quarterly report" :description="'Prepare activities and attach evidence for Q'.now()->quarter.'.'"
+                    :href="route('research_coordinator.reports.index')" icon="list" action="Open quarterly reporting" />
+                <x-dashboard-shortcut title="Research targets" description="Track annual goals and recorded accomplishments."
+                    :href="route('research_coordinator.targets.index')" icon="calendar" action="View targets" />
+                <x-dashboard-shortcut title="Faculty directory" description="Find contact details for faculty in your college."
+                    :href="route('research_coordinator.members.index')" icon="college" action="Open directory" />
             </aside>
-        </div>
-        <div class="grid gap-5 lg:grid-cols-2">
-            <a href="{{ route('research_coordinator.targets.index') }}" class="secretary-target-link"><span class="secretary-file-mark" aria-hidden="true"><x-report-library-icon name="calendar" class="h-5 w-5" /></span><span><strong>Research targets</strong><small>Track your college’s annual goals and accomplishments.</small></span><span aria-hidden="true">→</span></a>
-            <a href="{{ route('research_coordinator.members.index') }}" class="secretary-target-link"><span class="secretary-file-mark" aria-hidden="true"><x-report-library-icon name="college" class="h-5 w-5" /></span><span><strong>Faculty directory</strong><small>{{ $memberCount }} {{ str('member')->plural($memberCount) }} in your college. Find a colleague’s contact details.</small></span><span aria-hidden="true">→</span></a>
         </div>
     </div>
 </x-app-layout>

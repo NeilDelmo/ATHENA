@@ -1,32 +1,67 @@
 <x-app-layout>
-    <x-slot name="header"><x-page-header variant="hero" title="Secretary dashboard" :subtitle="now()->format('l, F j, Y')"><x-slot name="actions"><a href="{{ route('research_secretary.reports.index') }}" class="secretary-button-primary"><x-report-library-icon name="list" class="h-5 w-5" /> Review reports <x-report-library-icon name="open" class="h-4 w-4" /></a></x-slot></x-page-header></x-slot>
-    @php($attentionTotal = $reportReviewTasks->count() + $signingProjects->total())
-    <div class="secretary-workspace" data-secretary-workspace="dashboard" data-dashboard-layout="secretary-overview">
+    <x-slot name="header">
+        <x-page-header variant="hero" eyebrow="Research Office Secretary" title="Secretary dashboard"
+            subtitle="Review reports, release cleared documents, and track project budgets.">
+            <x-slot name="actions">
+                <a href="{{ route('research_secretary.reports.index') }}" class="dashboard-action">
+                    <x-report-library-icon name="list" class="!h-5 !w-5" /> Review reports
+                </a>
+            </x-slot>
+        </x-page-header>
+    </x-slot>
+
+    <div class="role-dashboard" data-dashboard-palette="maroon-slate-white" data-secretary-workspace="dashboard" data-dashboard-layout="secretary-overview">
         <section aria-label="Office workload">
-            <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-brand bg-white/20 sm:grid-cols-4">
-                @foreach ([['Items that need attention', $attentionTotal, 'history'], ['Report reviews', $reportReviewTasks->count(), 'list'], ['Awaiting release', $signingProjects->total(), 'submit'], ['Projects monitored', $projectCount, 'folder-open']] as [$label, $count, $icon])
-                    <div class="min-w-0 bg-brand px-4 py-4 text-white">
-                        <dt class="flex items-start justify-between gap-3 text-sm font-medium leading-5"><span>{{ $label }}</span><x-report-library-icon :name="$icon" class="h-5 w-5" /></dt>
-                        <dd class="mt-2 text-3xl font-bold leading-8 tabular-nums">{{ $count }}</dd>
-                    </div>
-                @endforeach
+            <dl class="dashboard-metrics" data-dashboard-metrics>
+                <x-dashboard-stat label="Items that need attention" :value="$reportReviewTasks->count() + $signingProjects->total()"
+                    description="Report reviews and pending releases" icon="history" priority />
+                <x-dashboard-stat label="Report reviews" :value="$reportReviewTasks->count()" description="Submitted reports awaiting review"
+                    icon="list" href="#secretary-report-reviews" action="View reviews" />
+                <x-dashboard-stat label="Awaiting release" :value="$signingProjects->total()" description="Cleared Notices to Proceed"
+                    icon="submit" href="#secretary-releases" action="View releases" />
+                <x-dashboard-stat label="Projects monitored" :value="$projectCount" description="Projects assigned to your office" icon="folder-open" />
             </dl>
         </section>
-        <div class="secretary-dashboard-columns" data-dashboard-columns>
+
+        <div class="grid items-start gap-5 xl:grid-cols-2" data-dashboard-columns>
             <x-secretary-report-queue :reports="$reportReviewTasks" compact />
-            <aside class="secretary-office-links" aria-label="Office work">
-                <section class="secretary-panel secretary-release-summary" aria-labelledby="secretary-release-heading">
-                    <header class="secretary-section-heading"><div><h2 id="secretary-release-heading"><x-report-library-icon name="submit" class="h-5 w-5" /> Notices to Proceed</h2></div><span class="secretary-count">{{ $signingProjects->total() }}</span></header>
+            <section id="secretary-releases" class="dashboard-panel scroll-mt-40" aria-labelledby="secretary-release-heading">
+                <header class="dashboard-panel-heading">
+                    <div>
+                        <h2 id="secretary-release-heading" class="dashboard-section-title">Notices to Proceed</h2>
+                        <p class="mt-1 text-sm rh-muted">{{ $signingProjects->total() }} awaiting release</p>
+                    </div>
+                    <a href="{{ route('research_secretary.notices.index') }}" class="secondary-action">
+                        View all notices <x-report-library-icon name="open" class="!h-4 !w-4" />
+                    </a>
+                </header>
+                <div class="divide-y divide-slate-100 dark:divide-slate-800">
                     @forelse ($signingProjects->take(2) as $project)
-                        <article class="secretary-release-row"><h3>{{ $project->title }}</h3><p class="secretary-muted">{{ $project->user?->name }}</p><p class="secretary-waiting">{{ $project->status_started_at ? ((int) max(0, $project->status_started_at->diffInDays(now(), false))).' days waiting' : 'Clearance date unavailable' }}</p><a href="{{ route('topics.show', $project) }}#notice-to-proceed" class="secretary-button-secondary"><x-report-library-icon name="rename" class="h-4 w-4" /> {{ $project->hasPreparedNoticeToProceed() ? 'Upload signed documents' : 'Prepare Notice to Proceed' }} <x-report-library-icon name="open" class="h-4 w-4" /></a></article>
-                    @empty<div class="secretary-empty"><h3>No documents waiting.</h3><p>Cleared projects appear here for release.</p></div>@endforelse
-                    <a href="{{ route('research_secretary.notices.index') }}" class="secretary-panel-footer secretary-button-secondary">View Notices to Proceed <x-report-library-icon name="open" class="h-4 w-4" /></a>
-                </section>
-            </aside>
+                        <article class="flex flex-wrap items-center justify-between gap-3 p-5">
+                            <div class="min-w-0">
+                                <h3 class="break-words font-semibold">{{ $project->title }}</h3>
+                                <p class="mt-1 text-sm rh-muted">{{ $project->user?->name }}</p>
+                                <p class="mt-1 text-sm font-medium text-brand dark:text-rose-300">{{ $project->status_started_at ? ((int) max(0, $project->status_started_at->diffInDays(now(), false))).' days waiting' : 'Clearance date unavailable' }}</p>
+                            </div>
+                            <a href="{{ route('topics.show', $project) }}#notice-to-proceed" class="dashboard-action">
+                                <x-report-library-icon name="rename" class="!h-4 !w-4" /> {{ $project->hasPreparedNoticeToProceed() ? 'Upload signed documents' : 'Prepare Notice to Proceed' }}
+                            </a>
+                        </article>
+                    @empty
+                        <div class="p-5">
+                            <h3 class="font-semibold">No documents waiting.</h3>
+                            <p class="mt-1 text-sm rh-muted">Cleared projects appear here for release.</p>
+                        </div>
+                    @endforelse
+                </div>
+            </section>
         </div>
-        <div class="grid gap-4 lg:grid-cols-2">
-            <a href="{{ route('research_secretary.budgets.index') }}" class="secretary-target-link"><span class="secretary-file-mark" aria-hidden="true"><x-report-library-icon name="presentation" class="h-5 w-5" /></span><span><strong>Budget monitoring</strong><small>View project budgets and reported disbursements.</small></span><x-report-library-icon name="open" class="h-5 w-5" /></a>
-            <a href="{{ route('research_secretary.targets.index') }}" class="secretary-target-link"><span class="secretary-file-mark" aria-hidden="true"><x-report-library-icon name="calendar" class="h-5 w-5" /></span><span><strong>Research targets</strong><small>Annual college targets and recorded accomplishments.</small></span><x-report-library-icon name="open" class="h-5 w-5" /></a>
+
+        <div class="grid gap-5 lg:grid-cols-2" aria-label="Office work">
+            <x-dashboard-shortcut title="Budget monitoring" description="View project budgets and reported disbursements."
+                :href="route('research_secretary.budgets.index')" icon="presentation" action="Open budget monitoring" />
+            <x-dashboard-shortcut title="Research targets" description="View annual college targets and recorded accomplishments."
+                :href="route('research_secretary.targets.index')" icon="calendar" action="View targets" />
         </div>
     </div>
 </x-app-layout>

@@ -14,7 +14,7 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     $this->withoutVite();
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(9, 0));
-    foreach (['research_head', 'research_coordinator', 'faculty', 'research_secretary'] as $role) {
+    foreach (['research_head', 'research_coordinator', 'faculty', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);
@@ -122,7 +122,7 @@ test('only the research head can return college reports', function (string $role
 })->with([
     'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE],
     'faculty' => ['faculty', User::WORKSPACE_FACULTY],
-    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
+    'secretary' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
 ]);
 
 test('submission history and its photos are limited to the college coordinator and research head', function () {

@@ -10,9 +10,9 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     $this->withoutVite();
     $this->travelTo(now()->setDate(2026, 10, 27)->setTime(9, 0));
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $this->secretary = User::factory()->create(['name' => 'Andrea Reyes', 'college' => 'CICS']);
-    $this->secretary->assignRole('research_secretary');
+    $this->secretary->assignRole('research_office_secretary');
     $this->owner = User::factory()->create(['name' => 'Gabriel Santos', 'college' => 'CICS']);
     $this->project = TopicProposal::create([
         'user_id' => $this->owner->id, 'research_secretary_id' => $this->secretary->id,

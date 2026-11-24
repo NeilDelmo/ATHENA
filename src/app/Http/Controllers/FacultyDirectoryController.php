@@ -74,7 +74,7 @@ class FacultyDirectoryController extends Controller
 
     public function updateSecretary(UpdateResearchSecretaryRequest $request, User $member): RedirectResponse
     {
-        $role = Role::findOrCreate('research_secretary');
+        $role = Role::findOrCreate(User::ROLE_RESEARCH_OFFICE_SECRETARY, 'web');
 
         if ($request->validated('action') === 'assign') {
             $member->assignRole($role);

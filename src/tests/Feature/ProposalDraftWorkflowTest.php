@@ -3501,10 +3501,10 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->assertRedirect(route('research_head.dashboard'))
         ->assertSessionHasNoErrors();
 
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $this->faculty->update(['college' => User::COLLEGES['CAS']]);
     $office = User::factory()->create(['college' => User::COLLEGES['CAS']]);
-    $office->assignRole('research_secretary');
+    $office->assignRole('research_office_secretary');
     $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
     foreach (['detailed_proposal', 'work_plan', 'line_item_budget'] as $type) {
         $formText = 'Research Project Title: '.$topic->title.' '.match ($type) {
@@ -3551,9 +3551,9 @@ test('an rrl backed proposal completes submission revision approval notice and m
 
     $period = app(MonitoringQuarterService::class)->projectPeriods($topic)->first();
     $this->travelTo($period['end']);
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $secretary = User::factory()->create(['college' => $this->faculty->college]);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $monitoringPayload = [
         'reporting_date' => now()->toDateString(),
         'tracking_number' => 'LIFECYCLE-2026-001',
@@ -3831,8 +3831,8 @@ test('a proposal completes repeated highlighted revisions co evaluator and LREC 
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'lrec_clearance_confirmed' => true,
         ])->assertSessionHasNoErrors();
     expect($topic->fresh()->isMonitoringAvailable())->toBeFalse();
-    Role::firstOrCreate(['name' => 'research_secretary']);
-    $office->assignRole('research_secretary');
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
+    $office->assignRole('research_office_secretary');
     $as($office, User::WORKSPACE_RESEARCH_SECRETARY)->get(route('topics.show', $topic))->assertOk()->assertSee('Upload the required signed PDFs');
     foreach (['detailed_proposal', 'work_plan', 'line_item_budget'] as $type) {
         $extractedText = 'Research Project Title: '.$topic->title.' '.match ($type) {

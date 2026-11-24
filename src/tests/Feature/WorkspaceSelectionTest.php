@@ -277,7 +277,7 @@ test('fast workspace switches return only the authorized dashboard and save the 
     'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard'],
     'Research Head' => ['research_head', 'research_head', 'research_head.dashboard'],
     'Research Office' => ['research_coordinator', 'research_office', 'research_coordinator.dashboard'],
-    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard'],
+    'Research Secretary' => ['research_office_secretary', 'research_secretary', 'research_secretary.dashboard'],
 ]);
 
 test('fast switching rejects an unavailable workspace without changing the session', function () {
@@ -308,11 +308,11 @@ test('fast switching keeps the legacy role in sync and enforces workspace route 
 });
 
 test('coordinator and secretary workspaces stay separate for an account with both roles', function () {
-    foreach (['research_coordinator', 'research_secretary'] as $role) {
+    foreach (['research_coordinator', 'research_office_secretary'] as $role) {
         Role::findOrCreate($role);
     }
     $user = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $user->assignRole(['faculty', 'research_coordinator', 'research_secretary']);
+    $user->assignRole(['faculty', 'research_coordinator', 'research_office_secretary']);
 
     $this->actingAs($user)->get(route('role-selection.show'))
         ->assertRedirect(route('workspace.select'));
@@ -336,5 +336,5 @@ test('coordinator and secretary workspaces stay separate for an account with bot
     $this->get(route('research_coordinator.dashboard'))->assertOk();
     $this->get(route('research_secretary.dashboard'))->assertForbidden();
 
-    expect($user->refresh()->hasAllRoles(['faculty', 'research_coordinator', 'research_secretary']))->toBeTrue();
+    expect($user->refresh()->hasAllRoles(['faculty', 'research_coordinator', 'research_office_secretary']))->toBeTrue();
 });

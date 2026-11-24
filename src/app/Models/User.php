@@ -47,6 +47,9 @@ class User extends Authenticatable
 
     public const WORKSPACE_RESEARCH_OFFICE = 'research_office';
 
+    public const ROLE_RESEARCH_OFFICE_SECRETARY = 'research_office_secretary';
+
+    /** Workspace key used by existing sessions, saved preferences, and notifications. */
     public const WORKSPACE_RESEARCH_SECRETARY = 'research_secretary';
 
     /** @use HasFactory<UserFactory> */
@@ -180,7 +183,7 @@ class User extends Authenticatable
             $available = [...$available, self::WORKSPACE_FACULTY_RESEARCHER, self::WORKSPACE_FACULTY];
         }
 
-        if ($assignedRoles->contains(self::WORKSPACE_RESEARCH_SECRETARY)) {
+        if ($assignedRoles->contains(self::ROLE_RESEARCH_OFFICE_SECRETARY)) {
             $available[] = self::WORKSPACE_RESEARCH_SECRETARY;
         }
 

@@ -142,7 +142,7 @@
                         @foreach ($members as $member)
                             @php
                                 $isCoordinator = $member->hasRole('research_coordinator');
-                                $isSecretary = $member->hasRole('research_secretary');
+                                $isSecretary = $member->hasRole(\App\Models\User::ROLE_RESEARCH_OFFICE_SECRETARY);
                                 $isResearchHead = $member->hasRole('research_head');
                                 $memberCollege = array_search($member->college, $colleges, true) ?: '';
                                 $memberFilter = ['college' => $memberCollege, 'search' => Str::lower($member->name.' '.$member->email)];

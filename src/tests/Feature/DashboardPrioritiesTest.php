@@ -57,7 +57,7 @@ test('office and secretary dashboards show accessible notices oldest first with 
     }
 })->with([
     ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.dashboard', 'office'],
-    ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard', 'secretary'],
+    ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard', 'secretary'],
 ]);
 
 test('office review queue distinguishes actionable LREC reviews from proposals waiting on others', function () {
@@ -76,9 +76,9 @@ test('office review queue distinguishes actionable LREC reviews from proposals w
 });
 
 test('office secretary dashboard links to budget monitoring without assigning budget entry tasks', function () {
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $operator = User::factory()->create(['college' => 'CICS']);
-    $operator->assignRole('research_secretary');
+    $operator->assignRole('research_office_secretary');
     $owner = User::factory()->create(['college' => 'CICS']);
     $project = TopicProposal::create(['user_id' => $owner->id, 'research_secretary_id' => $operator->id,
         'title' => 'Laboratory project awaiting financial entry', 'status' => 'approved', 'notice_to_proceed_issued_at' => now()]);
@@ -155,5 +155,5 @@ test('release queues do not present proposal creation as an unrecorded clearance
         ->get(route($route))->assertOk()->assertSee('Clearance date unavailable')->assertDontSee('5 days waiting');
 })->with([
     ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.dashboard'],
-    ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard'],
+    ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard'],
 ]);

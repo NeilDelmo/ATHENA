@@ -47,7 +47,7 @@ test('research coordinators still see their dashboard when their college has no 
         ->assertOk()
         ->assertSee('data-workspace-header-banner', false)
         ->assertSee('Coordinator dashboard')
-        ->assertSee('Your college at a glance')->assertSee(User::COLLEGES['CICS'])
+        ->assertSee('data-dashboard-metrics', false)->assertSee(User::COLLEGES['CICS'])
         ->assertSee('College members')
         ->assertSee('Quarterly Reports')
         ->assertSee('data-dashboard-layout="office-overview"', false)

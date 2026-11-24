@@ -8,6 +8,29 @@ import { chromium, expect } from '@playwright/test';
 const read = path => readFileSync(resolve(path), 'utf8');
 const script = name => read(`resources/js/${name}.js`).replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
 
+test('secretary dashboard cards and secondary actions use neutral surfaces', async () => {
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        for (const dark of [false, true]) {
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${read('resources/css/secretary-workspace.css')}</style>
+                <main class="secretary-workspace" data-secretary-workspace="dashboard">
+                    <section class="secretary-panel"><header class="secretary-section-heading">Report reviews</header>
+                        <a class="secretary-button-secondary">View all</a>
+                    </section>
+                    <a class="secretary-target-link">Budget monitoring</a>
+                </main></html>`);
+            const surface = dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)';
+            await expect(page.locator('.secretary-panel')).toHaveCSS('background-color', surface);
+            await expect(page.locator('.secretary-target-link')).toHaveCSS('background-color', surface);
+            await expect(page.locator('.secretary-button-secondary')).toHaveCSS('background-color', surface);
+            await expect(page.locator('.secretary-section-heading')).toHaveCSS('background-color', dark ? 'rgb(23, 34, 53)' : 'rgb(247, 248, 250)');
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('secretary review decisions show compact instructions only when returning reports', { timeout: 120000 }, async () => {
     execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectReportSecretaryReviewUiTest.php', '--filter=secretary report decisions use explicit choices'], {
         encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
@@ -101,7 +124,7 @@ test('secretary pages stay focused, navigate in one tab, and work on phones and 
                     const name = url.pathname.split('/').at(-1);
                     if (!fragments[name]) return route.abort();
                     const fragment = fragments[name === 'reports' ? `reports-${url.searchParams.get('type') || 'all'}` : name];
-                    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><html class="${dark ? 'dark' : ''}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles}\n[x-cloak]{display:none!important}.secretary-test-shell{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh;background:${dark ? '#0b1220' : '#f5f7fa'}}.secretary-test-sidebar{padding:32px 12px;border-right:1px solid ${dark ? '#2b374b' : '#e4e7ec'};background:${dark ? '#0f172a' : 'white'}}.secretary-test-main{padding:20px 32px 32px;min-width:0}.secretary-test-main>header{margin-bottom:20px}.secretary-test-brand{display:block;margin:0 16px 40px;color:${dark ? '#f4a8b6' : '#7a0019'};font-size:24px;font-weight:800;letter-spacing:.12em}@media(max-width:900px){.secretary-test-shell{grid-template-columns:64px minmax(0,1fr)}.secretary-test-sidebar{padding:24px 6px}.secretary-test-sidebar nav :is(p,span),.secretary-test-brand{display:none}.secretary-test-sidebar nav a{padding:12px;justify-content:center}.secretary-test-main{padding:16px 12px}}</style></head><body class="font-sans" x-data><div class="secretary-test-shell"><aside class="secretary-test-sidebar"><span class="secretary-test-brand">ATHENA</span>${fragment.nav}</aside><main class="secretary-test-main"><header>${fragment.header}</header>${fragment.content}</main></div><script>${runtime}\ndocument.addEventListener('alpine:init',()=>{Alpine.store('sidebar',{open:${width >= 900},setOpen(value){this.open=value}});Alpine.data('proposalAssessmentPreview',proposalAssessmentPreview)});</script><script src="/alpine.js"></script></body></html>` });
+                    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><html class="${dark ? 'dark' : ''}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles}\n[x-cloak]{display:none!important}.secretary-test-shell{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh;background:${dark ? '#0b1220' : '#f5f7fa'}}.secretary-test-sidebar{padding:32px 12px;border-right:1px solid ${dark ? '#2b374b' : '#e4e7ec'};background:${dark ? '#0f172a' : 'white'}}.secretary-test-main{padding:20px 32px 32px;min-width:0}.secretary-test-main>header{margin-bottom:20px}.secretary-test-brand{display:block;margin:0 16px 40px;color:${dark ? '#f4a8b6' : '#7a0019'};font-size:24px;font-weight:800;letter-spacing:.12em}@media(max-width:900px){.secretary-test-shell{grid-template-columns:64px minmax(0,1fr)}.secretary-test-sidebar{padding:24px 6px}.secretary-test-sidebar nav :is(p,span),.secretary-test-brand{display:none}.secretary-test-sidebar nav a{padding:12px;justify-content:center}.secretary-test-main{padding:24px 16px}}</style></head><body class="font-sans" x-data><div class="secretary-test-shell"><aside class="secretary-test-sidebar"><span class="secretary-test-brand">ATHENA</span>${fragment.nav}</aside><main class="secretary-test-main"><header>${fragment.header}</header>${fragment.content}</main></div><script>${runtime}\ndocument.addEventListener('alpine:init',()=>{Alpine.store('sidebar',{open:${width >= 900},setOpen(value){this.open=value}});Alpine.data('proposalAssessmentPreview',proposalAssessmentPreview)});</script><script src="/alpine.js"></script></body></html>` });
                 });
                 for (const name of names) {
                     await page.goto(`http://localhost/research-secretary/${name}`);
@@ -114,23 +137,19 @@ test('secretary pages stay focused, navigate in one tab, and work on phones and 
                         assert.ok(await page.locator('[data-secretary-priority-list] article').count() <= 4);
                         const summary = page.getByRole('region', { name: 'Office workload' });
                         await expect(summary.locator('dt')).toHaveCount(4);
-                        assert.ok((await summary.boundingBox()).height <= (width >= 900 ? 130 : 260), 'Workload summary must leave room for report reviews');
-                        for (const metric of await summary.locator('dl > div').all()) {
-                            await expect(metric).toHaveCSS('background-color', 'rgb(122, 0, 25)');
-                            await expect(metric.locator('svg')).toHaveCount(1);
+                        if (width >= 900) assert.ok((await summary.boundingBox()).height <= 180, 'Workload summary must leave room for report reviews');
+                        for (const [index, metric] of (await summary.locator('dl > div').all()).entries()) {
+                            await expect(metric).toHaveCSS('background-color', index === 0 ? 'rgb(122, 0, 25)' : dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
+                            await expect(metric.locator('dt svg')).toHaveCount(1);
                         }
-                        for (const heading of await page.locator('.secretary-section-heading').all()) {
-                            await expect(heading).toHaveCSS('background-color', dark ? 'rgb(53, 29, 42)' : 'rgb(247, 231, 235)');
-                            await expect(heading.locator('h2 svg')).toHaveCount(1);
-                        }
-                        for (const shortcut of await page.locator('.secretary-target-link').all()) {
-                            await expect(shortcut).toHaveCSS('background-color', dark ? 'rgb(53, 29, 42)' : 'rgb(247, 231, 235)');
+                        for (const panel of await page.locator('[data-secretary-workspace] .dashboard-panel').all()) {
+                            await expect(panel).toHaveCSS('background-color', dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
                         }
                         for (const action of await page.locator('[data-secretary-workspace] a, [data-workspace-header-banner] a').all()) {
                             assert.ok(await action.locator('svg').count() > 0, 'Dashboard actions need recognizable icons');
                             await expect(action).toHaveCSS('text-decoration-line', 'none');
                         }
-                        await expect(page.getByRole('link', { name: 'Review reports', exact: true })).toHaveCount(1);
+                        await expect(page.locator('[data-workspace-header-banner]').getByRole('link', { name: 'Review reports', exact: true })).toHaveCount(1);
                         await expect(page.locator('[data-secretary-workspace]').getByRole('link', { name: /^Projects/ })).toHaveCount(0);
                     }
                     if (name === 'projects') {

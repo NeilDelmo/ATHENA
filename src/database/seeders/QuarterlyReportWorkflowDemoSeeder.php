@@ -40,7 +40,7 @@ class QuarterlyReportWorkflowDemoSeeder extends Seeder
         }
         $coordinator = User::role('research_coordinator')->whereNotNull('college')->where('college', '!=', '')->orderBy('id')->firstOrFail();
         $head = User::role('research_head')->orderBy('id')->firstOrFail();
-        $secretary = User::role('research_secretary')->where('college', $coordinator->college)->orderBy('id')->firstOrFail();
+        $secretary = User::role(User::ROLE_RESEARCH_OFFICE_SECRETARY)->where('college', $coordinator->college)->orderBy('id')->firstOrFail();
         $faculty = User::role('faculty_researcher')->where('college', $coordinator->college)->orderBy('id')->limit(2)->get();
         if ($faculty->count() !== 2) {
             throw new RuntimeException('The quarterly sample needs two existing Faculty Researchers in the coordinator college.');

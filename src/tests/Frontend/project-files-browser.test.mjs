@@ -8,7 +8,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
-test('project folders preserve the folder grid, mouse scrolling, previews and queued PDF uploads', async () => {
+test('project folders preserve the folder grid, mouse scrolling, previews and read-only browsing', async () => {
     if (process.env.ATHENA_FILES_FIXTURE_READY !== '1') {
         execFileSync('php', ['vendor/pestphp/pest/bin/pest', '--compact', 'tests/Feature/ProjectDocumentLibraryTest.php', '--filter=faculty researcher files use an inline'], {
             encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
@@ -102,7 +102,7 @@ test('project folders preserve the folder grid, mouse scrolling, previews and qu
                 };
                 const drawerState = () => fileBrowser.evaluate(element => {
                     const state = Alpine.$data(element);
-                    return { inline: state.inline, open: state.open, view: state.view, size: state.size, category: state.activeCategory, selected: state.selectedItem, queued: state.selectedFiles.map(file => file.name), error: state.fileError };
+                    return { inline: state.inline, open: state.open, view: state.view, size: state.size, category: state.activeCategory, selected: state.selectedItem };
                 });
                 const unlocked = async () => {
                     assert.equal(await page.locator('body').evaluate(body => body.classList.contains('overflow-hidden') || body.classList.contains('overflow-y-hidden')), false);
@@ -238,34 +238,14 @@ test('project folders preserve the folder grid, mouse scrolling, previews and qu
                 await page.keyboard.press('Escape');
                 await unlocked();
 
-                await fileBrowser.getByRole('button', { name: 'Add PDF files', exact: false }).click();
-                const upload = fileBrowser.locator('#project-file-upload');
-                await expect(upload).toBeVisible();
-                await upload.locator('input[type="file"]').setInputFiles({ name: 'supporting-evidence.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\nEvidence') });
-                const dropZone = upload.locator('label:has(input[type="file"])');
-                await dropZone.evaluate(element => {
-                    const transfer = new DataTransfer();
-                    transfer.items.add(new File(['%PDF-1.7\nSecond evidence'], 'second-evidence.pdf', { type: 'application/pdf' }));
-                    transfer.items.add(new File(['image'], 'ordinary-image.png', { type: 'image/png' }));
-                    element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
-                });
-                assert.deepEqual((await drawerState()).queued, ['supporting-evidence.pdf', 'second-evidence.pdf']);
-                assert.match((await drawerState()).error, /1 non-PDF file was not added/);
-                await expect(upload.getByRole('button', { name: 'Upload 2 PDFs', exact: true })).toBeEnabled();
-                assert.equal(await upload.locator('input[type="file"]').evaluate(input => input.files.length), 2);
-                await upload.getByRole('button', { name: 'Remove second-evidence.pdf', exact: true }).click();
-                assert.deepEqual((await drawerState()).queued, ['supporting-evidence.pdf']);
-                await expect(upload.getByRole('button', { name: 'Upload 1 PDF', exact: true })).toBeEnabled();
+                await expect(fileBrowser.getByRole('button', { name: 'Add PDF files', exact: false })).toHaveCount(0);
+                await expect(fileBrowser.locator('#project-file-upload')).toHaveCount(0);
                 const selectedBeforeLayout = (await drawerState()).selected;
                 await chooseView(proposal, 'Large icons');
                 await chooseView(proposal, 'Details');
                 await expect(proposal.locator('..')).toHaveClass('workspace-items-list');
                 assert.equal((await drawerState()).selected, selectedBeforeLayout);
                 assert.equal((await drawerState()).category, 'proposal_papers');
-                assert.deepEqual((await drawerState()).queued, ['supporting-evidence.pdf']);
-                assert.equal(await upload.locator('input[type="file"]').evaluate(input => input.files.length), 1);
-                assert.equal(posts, 0);
-                await fileBrowser.getByRole('button', { name: 'Add PDF files', exact: false }).click();
 
                 const recordMenu = page.locator('[data-project-record-menu]');
                 await recordMenu.locator('summary').click();

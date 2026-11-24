@@ -12,14 +12,15 @@ beforeEach(function () {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
     $this->withoutVite();
 
-    foreach (['faculty', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
     $this->editor = function (string $role = 'research_head'): User {
         $user = User::factory()->create();
         $user->assignRole($role);
-        $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $role]);
+        $workspace = $role === User::ROLE_RESEARCH_OFFICE_SECRETARY ? User::WORKSPACE_RESEARCH_SECRETARY : $role;
+        $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
 
         return $user;
     };
@@ -102,7 +103,7 @@ test('head and secretary can record every research indicator with college alloca
         $component->call('editTargets');
         File::put(storage_path('framework/testing/target-board-editor.html'), $component->html());
     }
-})->with(['research_head', 'research_secretary']);
+})->with(['research_head', 'research_office_secretary']);
 
 test('the target plan overview counts configured indicators and unique assigned colleges including zero', function () {
     ($this->editor)();
@@ -438,5 +439,5 @@ test('research workspaces provide the shared target board at their designated en
 })->with([
     'head' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, 'research_head.targets.index'],
     'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.targets.index'],
-    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.targets.index'],
+    'secretary' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.targets.index'],
 ]);

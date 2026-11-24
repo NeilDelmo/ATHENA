@@ -224,14 +224,14 @@ class ProjectBudgetUtilizationController extends Controller
 
             $lockedTopic->update(['research_secretary_id' => $secretaryId]);
             $lockedTopic->collaborators()
-                ->where('project_role', TopicCollaborator::ROLE_SECRETARY)
+                ->where('project_role', TopicCollaborator::ROLE_PROJECT_SECRETARY)
                 ->update(['project_role' => null]);
 
             if ($secretaryId !== null) {
                 $lockedTopic->collaborators()
                     ->where('user_id', $secretaryId)
                     ->whereNotNull('accepted_at')
-                    ->update(['project_role' => TopicCollaborator::ROLE_SECRETARY]);
+                    ->update(['project_role' => TopicCollaborator::ROLE_PROJECT_SECRETARY]);
             }
         });
 

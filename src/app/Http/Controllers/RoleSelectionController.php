@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SelectActiveRoleRequest;
+use App\Models\User;
 use App\Support\WorkspaceLocation;
 use App\Support\WorkspacePreference;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +17,7 @@ class RoleSelectionController extends Controller
     {
         $user = $request->user();
 
-        if ($user->hasRole('research_secretary')) {
+        if ($user->hasRole(User::ROLE_RESEARCH_OFFICE_SECRETARY)) {
             return redirect()->route('workspace.select');
         }
 

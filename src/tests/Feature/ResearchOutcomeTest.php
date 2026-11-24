@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_coordinator', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_coordinator', 'research_head', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->leader = User::factory()->create(['college' => 'CICS']);

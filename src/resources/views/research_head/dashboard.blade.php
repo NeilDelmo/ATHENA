@@ -20,7 +20,7 @@
         </x-page-header>
     </x-slot>
 
-    <div class="-mx-4 -my-6 min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8" data-dashboard-palette="maroon-slate-white" data-research-head-dashboard>
+    <div class="role-dashboard" data-dashboard-palette="maroon-slate-white" data-research-head-dashboard>
         @if (session('success'))
             <div class="mb-4 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
                 <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>

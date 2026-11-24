@@ -661,9 +661,9 @@ test('a research head can confirm completed signing while Notice to Proceed rele
 
     $faculty = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $faculty->assignRole('faculty');
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $office->assignRole('research_secretary');
+    $office->assignRole('research_office_secretary');
     $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
         'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
     ]);
@@ -1676,9 +1676,9 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $faculty = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $faculty->assignRole('faculty');
-    Role::firstOrCreate(['name' => 'research_secretary']);
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $office->assignRole('research_secretary');
+    $office->assignRole('research_office_secretary');
     $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
         'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
     ]);

@@ -9,7 +9,7 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     $this->withoutVite();
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 });
@@ -30,12 +30,12 @@ test('workspace choices are saved in a persistent encrypted account scoped cooki
     ['research_head', 'research_head'],
     ['faculty_researcher', 'faculty_researcher'],
     ['research_coordinator', 'research_office'],
-    ['research_secretary', 'research_secretary'],
+    ['research_office_secretary', 'research_secretary'],
 ]);
 
 test('a saved workspace restores the shared dashboard after session selection is lost', function (string $workspace, string $dashboard) {
     $user = User::factory()->create();
-    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_secretary']);
+    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_office_secretary']);
 
     $this->actingAs($user)->withCookie('athena_workspace', $user->id.':'.$workspace)
         ->get(route('dashboard'))->assertRedirect(route($dashboard))
@@ -62,7 +62,7 @@ test('an explicit workspace selection takes priority over a saved preference', f
 
 test('the latest explicit workspace switch remains selected after session loss', function (string $workspace, string $dashboard) {
     $user = User::factory()->create();
-    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_secretary']);
+    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_office_secretary']);
     Auth::login($user, remember: true);
     $recallerName = Auth::guard('web')->getRecallerName();
     $recaller = app('cookie')->queued($recallerName)->getValue();
@@ -91,7 +91,7 @@ test('the latest explicit workspace switch remains selected after session loss',
 
 test('the last explicit workspace survives loss of both the session selection and preference cookie', function (string $workspace, string $dashboard) {
     $user = User::factory()->create();
-    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_secretary']);
+    $user->assignRole(['research_head', 'faculty_researcher', 'research_coordinator', 'research_office_secretary']);
     Auth::login($user, remember: true);
     $recallerName = Auth::guard('web')->getRecallerName();
     $recaller = app('cookie')->queued($recallerName)->getValue();

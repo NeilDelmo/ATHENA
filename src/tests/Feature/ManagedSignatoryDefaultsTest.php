@@ -10,7 +10,7 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     $this->withoutVite();
-    foreach (['faculty', 'research_head', 'research_secretary', 'research_coordinator'] as $role) {
+    foreach (['faculty', 'research_head', 'research_office_secretary', 'research_coordinator'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->faculty = User::factory()->create();
@@ -38,7 +38,7 @@ test('research head and secretary persist defaults for every proposal without fa
     $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.show', $this->draft))->assertOk()->assertDontSee('Choose signatories');
     $this->get(route('signatories.edit', $this->draft))->assertForbidden();
     $this->put(route('signatories.select', $this->draft), ['lock_version' => 0, 'signatories' => ['certified_by' => $person->id]])->assertForbidden();
-})->with(['research_head', 'research_secretary']);
+})->with(['research_head', 'research_office_secretary']);
 
 test('faculty and coordinator cannot edit institutional signature defaults', function (string $role) {
     $user = User::factory()->create();
@@ -107,9 +107,9 @@ test('signatory board offers institutional names and active directory names with
     }
 });
 
-test('head and secretary can reuse a directory name in any signature field without moving its source', function (string $workspace) {
+test('head and secretary can reuse a directory name in any signature field without moving its source', function (string $role) {
     $officer = User::factory()->create();
-    $officer->assignRole($workspace);
+    $officer->assignRole($role);
     $source = ProposalSignatory::create(['role_key' => 'verified_by', 'name' => 'Shared Office Signer', 'position' => 'Source designation', 'active' => true]);
     $existing = ProposalSignatory::create(['role_key' => 'certified_by', 'name' => 'Shared Office Signer', 'position' => 'Older designation', 'active' => true]);
     $former = ProposalSignatory::create(['role_key' => 'certified_by', 'name' => 'Former Budget Signer', 'position' => 'Budget designation', 'active' => true, 'is_default' => true]);
@@ -126,7 +126,7 @@ test('head and secretary can reuse a directory name in any signature field witho
         ->and($former->fresh()->is_default)->toBeFalse()
         ->and(ProposalSignatory::query()->where('role_key', 'approved_by_name')->where('is_default', true)->sole()->name)->toBe('Shared Office Signer')
         ->and($this->draft->fresh()->signatoryFields('line_item_budget'))->toBe(['certified_by' => 'Shared Office Signer', 'certified_role' => 'Older designation']);
-})->with(['research_head', 'research_secretary']);
+})->with(['research_head', 'research_office_secretary']);
 
 test('a configured institutional name can be assigned to a different signature field', function () {
     $this->actingAs($this->head)->put('/research-head/signatories/defaults', ['defaults' => [

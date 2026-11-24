@@ -62,7 +62,11 @@ $users = [];
 $accounts = [];
 $roles = ['faculty', 'faculty_researcher', 'research_head', 'research_office', 'research_secretary', 'vcrdes'];
 foreach ($roles as $workspace) {
-    $role = $workspace === 'research_office' ? 'research_coordinator' : $workspace;
+    $role = match ($workspace) {
+        User::WORKSPACE_RESEARCH_OFFICE => 'research_coordinator',
+        User::WORKSPACE_RESEARCH_SECRETARY => User::ROLE_RESEARCH_OFFICE_SECRETARY,
+        default => $workspace,
+    };
     Role::findOrCreate($role, 'web');
     for ($i = 1; $i <= $allocation[$workspace]; $i++) {
         $account = User::factory()->create([

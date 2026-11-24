@@ -46,7 +46,7 @@ Storage::disk('local')->put('functional/reference.pdf', $pdf);
 Storage::disk('local')->put('functional/budget-report.pdf', $pdf);
 $document = ProjectDocument::create([
     'topic_id' => $projects['budget']->id, 'uploaded_by' => $owner,
-    'category' => array_key_first(ProjectDocument::uploadCategoryOptions()),
+    'category' => ProjectDocument::CATEGORY_PROPOSAL_PAPERS,
     'title' => 'Functional reference PDF',
     'file_path' => 'functional/reference.pdf', 'original_filename' => 'reference.pdf',
     'mime_type' => 'application/pdf', 'file_size' => strlen($pdf), 'checksum' => hash('sha256', $pdf),

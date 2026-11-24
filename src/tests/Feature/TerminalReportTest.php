@@ -40,7 +40,7 @@ beforeEach(function () {
     };
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
-    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 

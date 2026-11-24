@@ -27,7 +27,7 @@ test('workspaces without sidebar badges skip unread notification queries', funct
         ->and($queries->filter(fn (array $query): bool => str_contains($query['query'], 'from `notifications`')))->toHaveCount(0);
 })->with([
     ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE],
-    ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
+    ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
 ]);
 
 test('the notification page shares its unread count with the header only within each request', function () {

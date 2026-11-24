@@ -303,9 +303,6 @@ Route::middleware(['auth', 'workspace:research_office|research_secretary'])->gro
     Route::get('/topics/{topic}/notice-to-proceed/unsigned', [NoticeToProceedController::class, 'downloadUnsigned'])->name('topics.notice-to-proceed.download-unsigned');
     Route::post('/topics/{topic}/notice-to-proceed/signed', [NoticeToProceedController::class, 'uploadSigned'])->name('topics.notice-to-proceed.upload-signed');
 });
-Route::post('/topics/{topic}/documents', [ProjectDocumentController::class, 'store'])
-    ->middleware(['auth', 'workspace:faculty|faculty_researcher'])
-    ->name('topics.documents.store');
 Route::scopeBindings()->middleware('auth')->group(function () {
     Route::get('/topics/{topic}/documents/{projectDocument}/view', [ProjectDocumentController::class, 'view'])
         ->name('topics.documents.view');

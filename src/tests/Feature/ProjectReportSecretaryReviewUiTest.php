@@ -10,15 +10,15 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     $this->withoutVite();
     $this->travelTo(now()->setDate(2026, 4, 15));
-    foreach (['faculty_researcher', 'research_secretary', 'research_head'] as $role) {
+    foreach (['faculty_researcher', 'research_office_secretary', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->owner = User::factory()->create(['college' => 'CICS']);
     $this->owner->assignRole('faculty_researcher');
     $this->secretary = User::factory()->create(['college' => 'CICS']);
-    $this->secretary->assignRole('research_secretary');
+    $this->secretary->assignRole('research_office_secretary');
     $this->otherSecretary = User::factory()->create(['college' => 'CTE']);
-    $this->otherSecretary->assignRole('research_secretary');
+    $this->otherSecretary->assignRole('research_office_secretary');
     $this->teamSecretary = User::factory()->create(['college' => 'CICS']);
     $this->teamSecretary->assignRole('faculty_researcher');
     $this->head = User::factory()->create();

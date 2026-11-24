@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -32,7 +32,7 @@ beforeEach(function () {
     $this->faculty = User::factory()->create(['name' => 'Lead Faculty', 'college' => User::COLLEGES['CICS']]);
     $this->faculty->assignRole('faculty');
     $this->signingStaff = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $this->signingStaff->assignRole('research_secretary');
+    $this->signingStaff->assignRole('research_office_secretary');
     $this->asSigningStaff = fn () => $this->actingAs($this->signingStaff)->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY,
     ]);
@@ -1436,10 +1436,11 @@ test('a cleared proposal moves to final signing without a manual approval step',
     $coordinator = User::factory()->create(['college' => $this->faculty->college]);
     $coordinator->assignRole('research_coordinator');
     $outsideSecretary = User::factory()->create(['college' => 'CTE']);
-    $outsideSecretary->assignRole('research_secretary');
+    $outsideSecretary->assignRole('research_office_secretary');
     $this->topic->update([
         'status' => TopicProposal::STATUS_LREC_REVIEW,
         'review_stage' => 'lrec',
+        'research_secretary_id' => $outsideSecretary->id,
     ]);
 
     $reviewPage = $this->actingAs($this->head)
@@ -1501,7 +1502,7 @@ test('a cleared proposal moves to final signing without a manual approval step',
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
         ->assertSessionHas('topic_tab', 'review')
-        ->assertSessionHas('success', 'LREC cleared. The Research Secretary will prepare and release the signed documents and Notice to Proceed.');
+        ->assertSessionHas('success', 'LREC cleared. The Research Office Secretary will prepare and release the signed documents and Notice to Proceed.');
 
     expect($this->signingStaff->notifications()->sole()->data['title'])->toBe('Notice to Proceed ready to prepare')
         ->and($coordinator->notifications()->count())->toBe(0)
@@ -1720,7 +1721,7 @@ test('final release stays locked until every required signed PDF is uploaded', f
     ])->actingAs($this->head)
         ->patch(route('research_head.topics.finalizeApproval', $this->topic))
         ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
-        ->assertSessionHas('success', 'Signed papers are ready. The Research Secretary will upload the signed Notice to Proceed and release the project to faculty.');
+        ->assertSessionHas('success', 'Signed papers are ready. The Research Office Secretary will upload the signed Notice to Proceed and release the project to faculty.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()

@@ -202,32 +202,21 @@
 
                             <fieldset x-bind:data-work-plan-schedule="entry.id" x-bind:aria-describedby="`schedule-help-${entry.id}`" class="mt-5">
                                 <legend class="text-base font-semibold text-gray-900 dark:text-white">Gantt Schedule <x-required-mark /></legend>
-                                <p x-bind:id="`schedule-help-${entry.id}`" class="mt-2 text-base text-gray-600 dark:text-slate-400">Click a month to set the end. The range starts at M1 unless you choose a different start month.</p>
+                                <p x-bind:id="`schedule-help-${entry.id}`" class="mt-2 text-base text-gray-600 dark:text-slate-400">Choose a start month or leave it blank to start at M1. Select the end month in the grid.</p>
                                 <template x-for="month in entry.months" :key="month">
                                     <input type="hidden" x-bind:name="`entries[${index}][months][]`" x-bind:value="month">
                                 </template>
                                 <template x-if="isEntryExpanded(entry)">
                                     <div class="mt-3 grid gap-4">
-                                        <div class="grid grid-cols-2 gap-3">
-                                            <label class="grid min-w-0 gap-1.5 text-base font-semibold text-gray-700 dark:text-slate-300">
-                                                <span>Start month</span>
-                                                <select data-work-plan-range-start x-model.number="entry.rangeStart" x-init="$nextTick(() => { $el.value = entry.rangeStart })" x-on:input.stop x-on:change.stop="updateMonthRange(index)" class="block min-h-11 w-full min-w-0 rounded-lg border-gray-300 bg-white text-base font-normal text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                                                    <option value="" disabled>Select</option>
-                                                    <template x-for="month in months" :key="month">
-                                                        <option x-bind:value="month" x-text="monthRangeLabel(month)"></option>
-                                                    </template>
-                                                </select>
-                                            </label>
-                                            <label class="grid min-w-0 gap-1.5 text-base font-semibold text-gray-700 dark:text-slate-300">
-                                                <span>End month</span>
-                                                <select x-model.number="entry.rangeEnd" x-init="$nextTick(() => { $el.value = entry.rangeEnd })" x-on:input.stop x-on:change.stop="selectScheduleEnd(index, Number($event.target.value))" class="block min-h-11 w-full min-w-0 rounded-lg border-gray-300 bg-white text-base font-normal text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                                                    <option value="" disabled>Select</option>
-                                                    <template x-for="month in months" :key="month">
-                                                        <option x-bind:value="month" x-bind:disabled="month < entry.rangeStart" x-text="monthRangeLabel(month)"></option>
-                                                    </template>
-                                                </select>
-                                            </label>
-                                        </div>
+                                        <label class="grid w-full max-w-xs gap-1.5 text-base font-semibold text-gray-700 dark:text-slate-300">
+                                            <span>Start month</span>
+                                            <select data-work-plan-range-start x-model.number="entry.rangeStart" x-init="$nextTick(() => { $el.value = entry.rangeStart })" x-on:input.stop x-on:change.stop="updateMonthRange(index)" class="block min-h-11 w-full min-w-0 rounded-lg border-gray-300 bg-white text-base font-normal text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                                                <option value="" disabled>Select</option>
+                                                <template x-for="month in months" :key="month">
+                                                    <option x-bind:value="month" x-text="monthRangeLabel(month)"></option>
+                                                </template>
+                                            </select>
+                                        </label>
                                         <div x-show="scheduleHasGaps(entry)" x-cloak class="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                                             <p>This saved schedule has gaps. Choose a continuous range before preparing Attachment A.</p>
                                             <button type="button" class="secondary-action" x-on:click="fillScheduleGaps(index)">Fill gaps</button>

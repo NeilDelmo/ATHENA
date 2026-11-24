@@ -24,7 +24,7 @@ test('completed projects cannot change or remove their project secretary', funct
         'name' => $secretary->name,
         'email' => $secretary->email,
         'accepted_at' => now()->subYear(),
-        'project_role' => TopicCollaborator::ROLE_SECRETARY,
+        'project_role' => TopicCollaborator::ROLE_PROJECT_SECRETARY,
     ]);
     $replacementMembership = $topic->collaborators()->create([
         'user_id' => $replacement->id,
@@ -41,7 +41,7 @@ test('completed projects cannot change or remove their project secretary', funct
         ->assertForbidden();
 
     expect($topic->fresh()->research_secretary_id)->toBe($secretary->id)
-        ->and($secretaryMembership->fresh()->project_role)->toBe(TopicCollaborator::ROLE_SECRETARY)
+        ->and($secretaryMembership->fresh()->project_role)->toBe(TopicCollaborator::ROLE_PROJECT_SECRETARY)
         ->and($replacementMembership->fresh()->project_role)->toBeNull();
 })->with([
     'change secretary' => false,

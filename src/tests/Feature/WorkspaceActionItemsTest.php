@@ -23,7 +23,7 @@ function actionNarrativeReport(TopicProposal $topic, User $user, array $override
 }
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_secretary', 'research_coordinator'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_office_secretary', 'research_coordinator'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->withoutVite();
@@ -61,9 +61,9 @@ test('pending actions follow the active workspace and never expose unrelated pro
 
 test('report tasks move from secretary to head and disappear after acceptance', function () {
     $secretary = User::factory()->create(['college' => 'College A']);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $outsideSecretary = User::factory()->create(['college' => 'College B']);
-    $outsideSecretary->assignRole('research_secretary');
+    $outsideSecretary->assignRole('research_office_secretary');
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $topic = TopicProposal::create(['user_id' => $this->faculty->id, 'title' => 'Report project', 'status' => 'approved', 'project_status' => 'ongoing', 'notice_to_proceed_issued_at' => now()]);
@@ -101,7 +101,7 @@ test('research office actions respect college routing and leave notice issuance 
         ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(1, 'pending_actions')->assertDontSee('Release project');
     $this->actingAs($outsideOffice)->getJson(route('notifications.index'))->assertOk()->assertJsonCount(0, 'pending_actions')->assertDontSee('LREC project')->assertDontSee('Release project');
     $secretary = User::factory()->create(['college' => 'College A']);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->getJson(route('notifications.index'))->assertOk()->assertJsonCount(1, 'pending_actions')
         ->assertJsonPath('pending_actions.0.url', route('topics.show', $release).'#notice-to-proceed');

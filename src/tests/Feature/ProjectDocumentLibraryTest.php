@@ -228,7 +228,7 @@ test('report folder access distinguishes the office secretary from proposal sign
     $canReviewReports ? $response->assertOk() : $response->assertForbidden();
 })->with([
     ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, false],
-    ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, true],
+    ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, true],
 ]);
 
 test('generated GAD and screening templates have their own folder category, apart from completed reviews', function () {
@@ -268,8 +268,7 @@ test('generated GAD and screening templates have their own folder category, apar
         ->and($documents->firstWhere('key', 'proposal-version-file-'.$completed->id)['category'])
         ->toBe(ProjectDocument::CATEGORY_REVIEWS_RESPONSES)
         ->and($library['categories']->firstWhere('key', ProjectDocument::CATEGORY_ASSESSMENT_FORMS)['count'])
-        ->toBe(2)
-        ->and($library['uploadCategories'])->not->toHaveKey(ProjectDocument::CATEGORY_ASSESSMENT_FORMS);
+        ->toBe(2);
 
     foreach ($templates as $template) {
         expect($documents->firstWhere('key', 'proposal-version-file-'.$template->id)['category'])
@@ -332,29 +331,19 @@ test('historical Comment Response entries retain their review and version after 
         ->and($papers->firstWhere('key', 'comment-response-review-'.$laterReview->id.'-'.CommentResponseFeedback::FORM_RESEARCH_HEAD)['source'])->toBe('Version 2 · LREC');
 });
 
-test('the faculty project leader can drag multiple PDFs into a categorized project folder', function () {
-    $response = $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
-    ])->actingAs($this->faculty)->post(route('topics.documents.store', $this->topic), [
-        'category' => ProjectDocument::CATEGORY_REVIEWS_RESPONSES,
-        'note' => 'Corrected after the generated form used an outdated logo.',
-        'documents' => [
-            UploadedFile::fake()->createWithContent('corrected-checklist.pdf', "%PDF-1.7\ncorrected checklist"),
-            UploadedFile::fake()->createWithContent('comment-response.pdf', "%PDF-1.7\ncomment response"),
-        ],
-    ]);
-
-    $response
-        ->assertRedirect(route('topics.show', $this->topic).'#project-files')
-        ->assertSessionHas('project_documents_open', true);
-
-    $documents = $this->topic->projectDocuments()->oldest()->get();
-
-    expect($documents)->toHaveCount(2)
-        ->and($documents->pluck('category')->unique()->all())->toBe([ProjectDocument::CATEGORY_REVIEWS_RESPONSES])
-        ->and($documents->pluck('uploaded_by')->unique()->all())->toBe([$this->faculty->id]);
-
-    Storage::disk('local')->assertExists($documents->pluck('file_path')->all());
+test('faculty can browse existing project files without a standalone upload form', function () {
+    foreach (['corrected-checklist.pdf', 'comment-response.pdf'] as $filename) {
+        $path = 'project-documents/'.$this->topic->id.'/'.$filename;
+        Storage::disk('local')->put($path, "%PDF-1.7\nSaved project document");
+        ProjectDocument::factory()->create([
+            'topic_id' => $this->topic->id,
+            'uploaded_by' => $this->faculty->id,
+            'category' => ProjectDocument::CATEGORY_REVIEWS_RESPONSES,
+            'note' => 'Corrected after the generated form used an outdated logo.',
+            'file_path' => $path,
+            'original_filename' => $filename,
+        ]);
+    }
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
@@ -364,6 +353,8 @@ test('the faculty project leader can drag multiple PDFs into a categorized proje
         ->assertSee('id="project-files-tab-button"', false)
         ->assertSee('data-project-document-browser', false)
         ->assertDontSee('data-project-documents-floating-trigger', false)
+        ->assertDontSee('Add PDF files')
+        ->assertDontSee('project-file-upload', false)
         ->assertSee('Reviews &amp; responses', false)
         ->assertSee('corrected-checklist.pdf')
         ->assertSee('comment-response.pdf')
@@ -381,7 +372,7 @@ test('faculty researcher files use an inline folder browser with the shared post
     Storage::disk('local')->put('narrative-progress-reports/terminal.pdf', "%PDF-1.7\nterminal report");
     $report = $this->topic->narrativeReports()->create([
         'submitted_by' => $this->faculty->id, 'report_type' => 'terminal', 'submission_date' => '2026-06-30',
-        'submitted_at' => now(), 'researchers' => $this->faculty->name,
+        'submitted_at' => now(), 'review_stage' => 'head', 'researchers' => $this->faculty->name,
         'implementation_start' => '2025-06-01', 'implementation_end' => '2026-06-30',
         'budget' => 25000, 'funding_agency' => 'University', 'accomplishment_summary' => 'Demonstration completed.',
         'introduction' => 'Demonstration research.', 'objectives' => 'Demonstrate project files.',
@@ -395,7 +386,7 @@ test('faculty researcher files use an inline folder browser with the shared post
         ->assertSee('id="project-files-tab-button"', false)
         ->assertSee('data-project-document-browser', false)
         ->assertDontSee('data-project-documents-floating-trigger', false)
-        ->assertSee('Add PDF files')
+        ->assertDontSee('Add PDF files')
         ->assertSee('@wheel="resizeWithWheel($event)"', false)
         ->assertSee('@contextmenu="openViewMenu($event)"', false)
         ->assertDontSee('aria-label="Item size"', false);
@@ -415,7 +406,7 @@ test('faculty researcher files use an inline folder browser with the shared post
         ->and(trim($xpath->query('//*[@id="project-files-tab-button"]')->item(0)->textContent))->toBe('Folders 2')
         ->and($xpath->query($files.'//*[@data-project-document-key="proposal-version-file-'.$paper->id.'"]')->length)->toBe(1)
         ->and($xpath->query($files.'//*[@data-project-document-key="terminal-report-poster-'.$report->id.'-0"]//img')->length)->toBe(1)
-        ->and($xpath->query($files.'//form[@id="project-file-upload"]')->length)->toBe(1)
+        ->and($xpath->query($files.'//form[@id="project-file-upload"]')->length)->toBe(0)
         ->and($xpath->query($files.'//*[@data-pdf-annotation-config]')->length)->toBe(2);
     $menu = $xpath->query($files.'//*[@role="menu" and @aria-label="View"]')->item(0);
     expect($menu)->not->toBeNull();
@@ -446,58 +437,39 @@ test('faculty researcher files use an inline folder browser with the shared post
     }
 });
 
-test('project PDF upload feedback reopens the inline Files tab', function (bool $hasErrors) {
-    $session = [
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
-        'project_documents_open' => ! $hasErrors,
-    ];
-    $this->actingAs($this->faculty)->withSession($session);
-    if ($hasErrors) {
-        $this->from(route('topics.show', $this->topic))
-            ->post(route('topics.documents.store', $this->topic), [
-                'category' => ProjectDocument::CATEGORY_SUPPORTING_FILES,
-                'documents' => [UploadedFile::fake()->create('notes.docx', 20, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
-            ])->assertSessionHasErrors(['documents.0'], null, 'projectDocuments');
-        $this->withCookie(config('session.cookie'), $this->app['session']->getId());
-    }
-    $response = $this->get(route('topics.show', $this->topic))->assertSuccessful();
-    $dom = new DOMDocument;
-    @$dom->loadHTML($response->getContent());
-    $xpath = new DOMXPath($dom);
-    expect($xpath->query('//*[@data-topic-workspace]')->item(0)->getAttribute('x-data'))->toContain("activeTopicTab: 'files'");
-    if ($hasErrors) {
-        $response->assertSee('Every project file must be a PDF.');
-    }
-})->with(['successful upload' => false, 'invalid upload' => true]);
-
-test('project document uploads accept only PDFs and no more than ten files', function () {
-    $response = $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
-    ])->actingAs($this->faculty)
-        ->from(route('topics.show', $this->topic))
-        ->post(route('topics.documents.store', $this->topic), [
-            'category' => ProjectDocument::CATEGORY_SUPPORTING_FILES,
-            'documents' => [UploadedFile::fake()->create('notes.docx', 20, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
+test('project folders cannot receive direct uploads in faculty workspaces', function (string $workspace) {
+    if ($workspace === User::WORKSPACE_FACULTY_RESEARCHER) {
+        $this->faculty->assignRole('faculty_researcher');
+        $this->topic->update([
+            'status' => 'approved',
+            'project_status' => 'ongoing',
+            'notice_to_proceed_issued_at' => now(),
         ]);
+    }
 
-    $response->assertSessionHasErrors(['documents.0'], null, 'projectDocuments');
+    $this->actingAs($this->faculty)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
+        ->post(route('topics.show', $this->topic).'/documents', [
+            'category' => ProjectDocument::CATEGORY_SUPPORTING_FILES,
+            'documents' => [UploadedFile::fake()->createWithContent('support.pdf', "%PDF-1.7\nsupport")],
+        ])->assertNotFound();
+
     expect($this->topic->projectDocuments()->count())->toBe(0);
-});
+})->with([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
 
-test('another faculty member cannot add files to a project they do not own', function () {
+test('another faculty member cannot read existing files in a project they do not own', function () {
     $otherFaculty = User::factory()->create();
     $otherFaculty->assignRole('faculty');
+    $document = ProjectDocument::factory()->create([
+        'topic_id' => $this->topic->id,
+        'uploaded_by' => $this->faculty->id,
+    ]);
+    Storage::disk('local')->put($document->file_path, "%PDF-1.7\nprivate");
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
     ])->actingAs($otherFaculty)
-        ->post(route('topics.documents.store', $this->topic), [
-            'category' => ProjectDocument::CATEGORY_OTHER,
-            'documents' => [UploadedFile::fake()->createWithContent('private.pdf', "%PDF-1.7\nprivate")],
-        ])
+        ->get(route('topics.documents.download', [$this->topic, $document]))
         ->assertForbidden();
-
-    expect($this->topic->projectDocuments()->count())->toBe(0);
 });
 
 test('the folder aggregates proposal papers and the released Notice to Proceed', function () {

@@ -9,7 +9,7 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     $this->withoutVite();
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_office_secretary'] as $role) {
         Role::findOrCreate($role, 'web');
     }
     $this->researcher = User::factory()->create(['college' => 'CICS']);
@@ -42,7 +42,7 @@ test('live topic status is private and follows current workspace project access'
     $this->topic->collaborators()->create(['user_id' => $outsider->id, 'name' => $outsider->name, 'email' => $outsider->email, 'accepted_at' => now()]);
     $this->getJson($this->url)->assertSuccessful();
     $secretary = User::factory()->create(['college' => 'CAS']);
-    $secretary->assignRole('research_secretary');
+    $secretary->assignRole('research_office_secretary');
     $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])->getJson($this->url)->assertForbidden();
     $secretary->update(['college' => 'CICS']);
     $this->getJson($this->url)->assertSuccessful();
@@ -77,7 +77,7 @@ test('office secretary live status and snapshots include terminal reports', func
         'results_discussion' => 'Results', 'photos' => [],
     ]);
     $secretary = User::factory()->create(['college' => 'CICS']);
-    $secretary->assignRole(['research_secretary', 'faculty_researcher']);
+    $secretary->assignRole(['research_office_secretary', 'faculty_researcher']);
     $this->topic->collaborators()->create([
         'user_id' => $secretary->id, 'name' => $secretary->name, 'email' => $secretary->email, 'accepted_at' => now(),
     ]);

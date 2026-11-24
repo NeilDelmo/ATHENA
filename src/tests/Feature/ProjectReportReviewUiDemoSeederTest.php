@@ -13,7 +13,7 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     Storage::fake('local');
     Notification::fake();
-    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_office_secretary'] as $role) {
         Role::findOrCreate($role, 'web');
     }
     $this->head = User::factory()->create();
@@ -84,8 +84,8 @@ test('existing sample reports demonstrate office checking corrections clearance 
 
     $this->seed(ProjectReportReviewUiDemoSeeder::class);
     expect($pending->fresh()->review_stage)->toBe('secretary');
-    $secretary = User::role('research_secretary')->where('college', User::COLLEGES['CICS'])->sole();
-    expect($secretary->getRoleNames()->all())->toBe(['research_secretary'])
+    $secretary = User::role('research_office_secretary')->where('college', User::COLLEGES['CICS'])->sole();
+    expect($secretary->getRoleNames()->all())->toBe(['research_office_secretary'])
         ->and($secretary->id)->not->toBeIn([$this->author->id, $this->head->id]);
     foreach ([$accepted, $completed] as $report) {
         expect($report->refresh()->review_stage)->toBe('head')->and($report->review_status)->toBe('reviewed')
@@ -114,7 +114,7 @@ test('existing sample reports demonstrate office checking corrections clearance 
             'review_stage', 'review_status', 'research_head_remarks', 'reviewed_by', 'reviewed_at',
             'secretary_remarks', 'secretary_reviewed_by', 'secretary_reviewed_at', 'forwarded_at', 'updated_at',
         ]))->all())->toBe($content)
-        ->and(User::role('research_secretary')->count())->toBe(1)
+        ->and(User::role('research_office_secretary')->count())->toBe(1)
         ->and($this->author->fresh()->getRoleNames()->all())->toBe(['faculty_researcher']);
     foreach ($files as $path => $bytes) {
         expect(Storage::disk('local')->get($path))->toBe($bytes);

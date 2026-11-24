@@ -66,14 +66,6 @@ class ProjectDocument extends Model
         ];
     }
 
-    /** @return array<string, string> */
-    public static function uploadCategoryOptions(): array
-    {
-        return collect(self::categoryOptions())
-            ->except([self::CATEGORY_ASSESSMENT_FORMS, self::CATEGORY_NOTICE_TO_PROCEED, self::CATEGORY_ACCOMPLISHMENT_EVIDENCE])
-            ->all();
-    }
-
     public function categoryLabel(): string
     {
         return self::categoryOptions()[$this->category] ?? 'Other files';

@@ -21,15 +21,15 @@ beforeEach(function () {
     Storage::fake('local');
     $this->withoutVite();
     $this->travelTo(CarbonImmutable::parse('2026-04-15'));
-    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->author = User::factory()->create(['college' => 'College of Engineering']);
     $this->author->assignRole('faculty_researcher');
     $this->officeSecretary = User::factory()->create(['college' => $this->author->college]);
-    $this->officeSecretary->assignRole('research_secretary');
+    $this->officeSecretary->assignRole('research_office_secretary');
     $this->otherSecretary = User::factory()->create(['college' => 'College of Education']);
-    $this->otherSecretary->assignRole('research_secretary');
+    $this->otherSecretary->assignRole('research_office_secretary');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
     $call = ResearchCall::create([

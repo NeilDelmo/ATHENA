@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -335,7 +335,7 @@ dataset('collaboration invitation workspaces', [
     'Faculty Researcher' => [User::WORKSPACE_FACULTY_RESEARCHER, ['faculty_researcher'], 'faculty.dashboard'],
     'Research Head' => [User::WORKSPACE_RESEARCH_HEAD, ['research_head'], 'research_head.dashboard'],
     'Research Coordinator' => [User::WORKSPACE_RESEARCH_OFFICE, ['faculty', 'research_coordinator'], 'research_coordinator.dashboard'],
-    'Research Office Secretary' => [User::WORKSPACE_RESEARCH_SECRETARY, ['faculty', 'research_secretary'], 'research_secretary.dashboard'],
+    'Research Office Secretary' => [User::WORKSPACE_RESEARCH_SECRETARY, ['faculty', 'research_office_secretary'], 'research_secretary.dashboard'],
 ]);
 
 test('collaboration invitation review and acceptance preserve the selected workspace', function (string $workspace, array $roles, string $dashboard) {

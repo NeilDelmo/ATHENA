@@ -8,7 +8,7 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     $this->withoutVite();
 
-    foreach (['faculty', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
+    foreach (['faculty', 'research_head', 'research_coordinator', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -228,7 +228,7 @@ test('members without a college have a disabled coordinator control', function (
 
 test('the directory exposes secretary and coordinator roles independently', function () {
     $member = User::factory()->create(['name' => 'Office Secretary', 'college' => User::COLLEGES['CICS']]);
-    $member->assignRole(['research_secretary', 'research_coordinator']);
+    $member->assignRole(['research_office_secretary', 'research_coordinator']);
 
     $response = $this->actingAs($this->researchHead)
         ->get(route('research_head.faculty-directory.index'))
@@ -252,7 +252,7 @@ test('directory separates member roles from college status and keeps assignment 
         'email' => 'awaiting.college@g.batstate-u.edu.ph',
         'college' => null,
     ]);
-    $member->assignRole('research_secretary');
+    $member->assignRole('research_office_secretary');
     $coordinator = User::factory()->create([
         'name' => 'College Research Coordinator',
         'email' => 'coordinator@g.batstate-u.edu.ph',
@@ -290,44 +290,44 @@ test('secretary assignments preserve coordinator and faculty roles', function ()
     $member = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $member->assignRole(['faculty', 'research_coordinator']);
     $otherSecretary = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $otherSecretary->assignRole('research_secretary');
+    $otherSecretary->assignRole('research_office_secretary');
 
     $this->actingAs($this->researchHead)
         ->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'assign'])
         ->assertRedirect()->assertSessionHasNoErrors()
         ->assertSessionHas('status', $member->name.' is now a Research Office Secretary.');
 
-    expect($member->refresh()->hasAllRoles(['faculty', 'research_coordinator', 'research_secretary']))->toBeTrue()
-        ->and($otherSecretary->refresh()->hasRole('research_secretary'))->toBeTrue();
+    expect($member->refresh()->hasAllRoles(['faculty', 'research_coordinator', 'research_office_secretary']))->toBeTrue()
+        ->and($otherSecretary->refresh()->hasRole('research_office_secretary'))->toBeTrue();
 
     $this->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'remove'])
         ->assertRedirect()->assertSessionHasNoErrors()
         ->assertSessionHas('status', $member->name.' is no longer a Research Office Secretary.');
 
-    expect($member->refresh()->hasRole('research_secretary'))->toBeFalse()
+    expect($member->refresh()->hasRole('research_office_secretary'))->toBeFalse()
         ->and($member->hasAllRoles(['faculty', 'research_coordinator']))->toBeTrue()
-        ->and($otherSecretary->refresh()->hasRole('research_secretary'))->toBeTrue();
+        ->and($otherSecretary->refresh()->hasRole('research_office_secretary'))->toBeTrue();
 });
 
 test('replacing and removing coordinators preserves secretary roles', function () {
     $previous = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $previous->assignRole(['research_coordinator', 'research_secretary']);
+    $previous->assignRole(['research_coordinator', 'research_office_secretary']);
     $member = User::factory()->create(['college' => User::COLLEGES['CICS']]);
-    $member->assignRole('research_secretary');
+    $member->assignRole('research_office_secretary');
 
     $this->actingAs($this->researchHead)
         ->patch(route('research_head.faculty-directory.coordinator', $member), ['action' => 'assign'])
         ->assertRedirect()->assertSessionHasNoErrors();
 
     expect($previous->refresh()->hasRole('research_coordinator'))->toBeFalse()
-        ->and($previous->hasRole('research_secretary'))->toBeTrue()
-        ->and($member->refresh()->hasAllRoles(['research_coordinator', 'research_secretary']))->toBeTrue();
+        ->and($previous->hasRole('research_office_secretary'))->toBeTrue()
+        ->and($member->refresh()->hasAllRoles(['research_coordinator', 'research_office_secretary']))->toBeTrue();
 
     $this->patch(route('research_head.faculty-directory.coordinator', $member), ['action' => 'remove'])
         ->assertRedirect()->assertSessionHasNoErrors();
 
     expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse()
-        ->and($member->hasRole('research_secretary'))->toBeTrue();
+        ->and($member->hasRole('research_office_secretary'))->toBeTrue();
 });
 
 test('secretary assignments require the research head workspace', function (string $role, string $workspace) {
@@ -339,24 +339,24 @@ test('secretary assignments require the research head workspace', function (stri
         ->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'assign'])
         ->assertForbidden();
 
-    expect($member->refresh()->hasRole('research_secretary'))->toBeFalse();
+    expect($member->refresh()->hasRole('research_office_secretary'))->toBeFalse();
 })->with([
     'faculty' => ['faculty', User::WORKSPACE_FACULTY],
     'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE],
-    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
+    'secretary' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY],
     'research head working as faculty' => ['research_head', User::WORKSPACE_FACULTY],
 ]);
 
 test('secretary assignments reject invalid actions without changing roles', function () {
     $member = User::factory()->create();
-    $member->assignRole('research_secretary');
+    $member->assignRole('research_office_secretary');
 
     $this->actingAs($this->researchHead)
         ->from(route('research_head.faculty-directory.index'))
         ->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'replace'])
         ->assertRedirect(route('research_head.faculty-directory.index'))->assertSessionHasErrors('action');
 
-    expect($member->refresh()->hasRole('research_secretary'))->toBeTrue();
+    expect($member->refresh()->hasRole('research_office_secretary'))->toBeTrue();
 });
 
 test('secretaries can be assigned without a coordinator college requirement', function () {
@@ -367,7 +367,7 @@ test('secretaries can be assigned without a coordinator college requirement', fu
         ->patch('/research-head/faculty-directory/'.$member->id.'/secretary', ['action' => 'assign'])
         ->assertRedirect()->assertSessionHasNoErrors();
 
-    expect($member->refresh()->hasAllRoles(['faculty', 'research_secretary']))->toBeTrue()
+    expect($member->refresh()->hasAllRoles(['faculty', 'research_office_secretary']))->toBeTrue()
         ->and($member->hasRole('research_coordinator'))->toBeFalse();
 });
 

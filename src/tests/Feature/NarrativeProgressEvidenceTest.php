@@ -26,13 +26,13 @@ beforeEach(function () {
     Storage::fake('local');
     Role::findOrCreate('faculty_researcher', 'web');
     Role::findOrCreate('research_head', 'web');
-    Role::findOrCreate('research_secretary', 'web');
+    Role::findOrCreate('research_office_secretary', 'web');
     $this->researcher = User::factory()->create(['college' => 'College of Engineering']);
     $this->researcher->assignRole('faculty_researcher');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
     $this->officeSecretary = User::factory()->create(['college' => $this->researcher->college]);
-    $this->officeSecretary->assignRole('research_secretary');
+    $this->officeSecretary->assignRole('research_office_secretary');
     $this->topic = TopicProposal::create([
         'user_id' => $this->researcher->id, 'title' => 'Narrative evidence project',
         'status' => 'approved', 'project_status' => 'ongoing',

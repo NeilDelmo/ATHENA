@@ -9,7 +9,7 @@
     $linkClass = 'relative flex min-h-11 w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
     $activeClass = '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand dark:!bg-rose-950/40 dark:!text-rose-200';
 @endphp
-<nav aria-label="Research Secretary navigation" data-research-secretary-navigation class="space-y-1">
+<nav aria-label="Research Office Secretary navigation" data-research-secretary-navigation class="space-y-1">
     <p x-show="$store.sidebar.open" class="mb-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Research office</p>
     @foreach ($links as [$label, $routeName, $icon])
         <a wire:navigate wire:current.exact="{{ $activeClass }}" href="{{ route($routeName) }}" @if (request()->routeIs($routeName)) aria-current="page" @endif

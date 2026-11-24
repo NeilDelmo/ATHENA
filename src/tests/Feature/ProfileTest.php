@@ -132,7 +132,7 @@ test('missing college reminders appear across workspaces', function (string $rol
     'researcher' => ['faculty_researcher', User::WORKSPACE_FACULTY_RESEARCHER, 'faculty.dashboard', null, '#college'],
     'head' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, 'research_head.dashboard', null, '#college'],
     'coordinator' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, 'research_coordinator.dashboard', null, '#college-locked'],
-    'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard', null, '#college'],
+    'secretary' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, 'research_secretary.dashboard', null, '#college'],
     'empty college' => ['faculty', User::WORKSPACE_FACULTY, 'faculty.dashboard', '', '#college'],
     'whitespace college' => ['faculty', User::WORKSPACE_FACULTY, 'faculty.dashboard', '   ', '#college'],
 ]);
@@ -332,8 +332,8 @@ test('account profiles focus on reusable details across workspaces', function (s
     'head call' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, true],
     'office independent' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, false],
     'office call' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, true],
-    'secretary independent' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, false],
-    'secretary call' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, true],
+    'secretary independent' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, false],
+    'secretary call' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY, true],
 ]);
 
 test('users can save reusable proposal and curriculum vitae details', function () {

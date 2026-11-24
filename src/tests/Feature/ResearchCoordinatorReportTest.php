@@ -15,7 +15,7 @@ beforeEach(function () {
     $this->withoutVite();
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(9, 0));
 
-    foreach (['research_coordinator', 'faculty', 'research_secretary'] as $role) {
+    foreach (['research_coordinator', 'faculty', 'research_office_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -570,7 +570,7 @@ test('faculty and secretary accounts cannot enter coordinator reporting', functi
         $this->get(route('research_coordinator.reports.'.$action))->assertForbidden();
     }
     $this->postJson(route('research_coordinator.reports.store'), ($this->reportInput)())->assertForbidden();
-})->with(['faculty' => ['faculty', User::WORKSPACE_FACULTY], 'secretary' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY]]);
+})->with(['faculty' => ['faculty', User::WORKSPACE_FACULTY], 'secretary' => ['research_office_secretary', User::WORKSPACE_RESEARCH_SECRETARY]]);
 
 test('college report queries and writes stay within the active coordinators college', function () {
     $other = CollegeQuarterlyReport::factory()->create([
