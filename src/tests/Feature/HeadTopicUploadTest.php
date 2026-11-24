@@ -9,6 +9,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\CommentResponseFeedback;
 use App\Services\ProposalFormVerifier;
+use App\Services\ProposalPackageService;
 use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Process;
@@ -1317,7 +1318,94 @@ describe('screening narrative transcription', function () {
     });
 });
 
+test('LREC cannot clear a version for signing without a valid co-evaluator endorsement', function () {
+    recordApprovedProposalAssessments($this->version, null);
+    $this->topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertDontSee('Clear for signing');
+
+    $this->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+        'lrec_clearance_confirmed' => '1',
+    ])->assertSessionHasErrors('status');
+
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_REVIEW);
+});
+
+test('an endorsed screening DOCX carries forward with its unchanged LREC revision form', function () {
+    $initial = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)->sole();
+    $path = 'assessments/accepted-screening.docx';
+    Storage::disk('local')->put($path, 'Completed screening form');
+    $evaluation = $this->version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 30,
+        'file_path' => $path,
+        'original_filename' => 'accepted-screening.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'source_version_file_id' => $initial->id,
+        'source_data' => [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            'narrative_evaluation' => 'The sampling procedure is suitable.',
+            'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
+        ],
+    ]);
+
+    $revision = $this->version->replicate()->fill(['version_number' => 2, 'submission_type' => 'revision']);
+    $this->topic->versions()->save($revision);
+    $packages = app(ProposalPackageService::class);
+    $revision->files()->createMany($packages->revisionSnapshot($this->version, [], $this->topic));
+    $packages->carryForwardAssessments($this->version, $revision, [ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION]);
+
+    $currentInitial = $revision->files()->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)->sole();
+    $carried = $revision->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+    expect($carried->source_version_file_id)->toBe($currentInitial->id)
+        ->and($carried->source_data['carried_from_version_file_id'])->toBe($evaluation->id);
+
+    $carried->delete();
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'review_stage' => 'lrec']);
+    $migration = require database_path('migrations/2026_11_24_220106_restore_endorsed_lrec_screening_documents.php');
+    $migration->up();
+    expect($revision->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->exists())->toBeFalse();
+
+    $previousProposal = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $revisedProposal = $revision->files()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $revision->files()->create([
+        'source_version_file_id' => $revisedProposal->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => $evaluation->position,
+        'file_path' => $revisedProposal->file_path,
+        'original_filename' => 'signed-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED],
+    ]);
+    $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+        'review_stage' => 'lrec',
+    ])->fileRevisions()->create([
+        'proposal_version_file_id' => $previousProposal->id,
+        'resolved_by_version_file_id' => $revisedProposal->id,
+        'document_type' => $previousProposal->document_type,
+        'original_filename' => $previousProposal->original_filename,
+        'revision_note' => 'Clarify the evaluation procedure.',
+        'resolved_at' => now(),
+    ]);
+
+    $migration->up();
+    $migration->up();
+    $restored = $revision->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+    expect($restored->source_version_file_id)->toBe($currentInitial->id)
+        ->and($restored->position)->toBe($evaluation->position + 1)
+        ->and($restored->source_data['carried_from_version_file_id'])->toBe($evaluation->id)
+        ->and($this->topic->fresh()->hasIssuedNoticeToProceed())->toBeFalse();
+});
+
 test('replacing a signed copy preserves the superseded audit record before final release', function () {
+    recordApprovedProposalAssessments($this->version);
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
 
     $this->topic->update([
@@ -1374,6 +1462,7 @@ test('replacing a signed copy preserves the superseded audit record before final
 });
 
 test('Research Head can return a signing-stage paper to revision and supersede its signed copy', function () {
+    recordApprovedProposalAssessments($this->version);
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
     $this->topic->update([
@@ -1433,6 +1522,7 @@ test('Research Head can return a signing-stage paper to revision and supersede i
 });
 
 test('a cleared proposal moves to final signing without a manual approval step', function () {
+    recordApprovedProposalAssessments($this->version);
     $coordinator = User::factory()->create(['college' => $this->faculty->college]);
     $coordinator->assignRole('research_coordinator');
     $outsideSecretary = User::factory()->create(['college' => 'CTE']);
@@ -1541,6 +1631,7 @@ test('a cleared proposal moves to final signing without a manual approval step',
 });
 
 test('review decision buttons require their matching clearance checkbox', function () {
+    recordApprovedProposalAssessments($this->version);
     $this->topic->update([
         'status' => TopicProposal::STATUS_LREC_REVIEW,
         'review_stage' => 'lrec',
@@ -1585,6 +1676,7 @@ test('review decision buttons require their matching clearance checkbox', functi
 });
 
 test('final signing always requires the fixed five-paper signing package', function () {
+    recordApprovedProposalAssessments($this->version);
     $this->topic->update([
         'status' => TopicProposal::STATUS_LREC_REVIEW,
         'review_stage' => 'lrec',
@@ -1609,6 +1701,7 @@ test('final signing always requires the fixed five-paper signing package', funct
 });
 
 test('signed copies are limited to signature papers in the signing stage', function () {
+    recordApprovedProposalAssessments($this->version);
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
     $expenseBreakdown = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->sole();
 
@@ -1656,6 +1749,7 @@ test('signed copies are limited to signature papers in the signing stage', funct
 });
 
 test('final release stays locked until every required signed PDF is uploaded', function () {
+    recordApprovedProposalAssessments($this->version);
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
     $this->topic->update([
@@ -1936,6 +2030,7 @@ test('a dual-role proposal owner only sees the faculty revision module in a facu
 });
 
 test('the shared document list records Research Head uploads', function () {
+    recordApprovedProposalAssessments($this->version);
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
     $this->topic->update([

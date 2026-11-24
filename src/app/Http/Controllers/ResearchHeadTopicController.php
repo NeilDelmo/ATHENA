@@ -239,6 +239,13 @@ class ResearchHeadTopicController extends Controller
                 throw ValidationException::withMessages(['status' => 'The GAD assessment or co-evaluator review changed. Reload the proposal and review the latest results before continuing.']);
             }
 
+            if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
+                && ! app(ProposalSignatureWorkflow::class)->hasApprovedAssessments($lockedVersion)) {
+                throw ValidationException::withMessages([
+                    'status' => 'The latest version needs a signed passing GAD assessment and a co-evaluator’s For Endorsement recommendation before continuing.',
+                ]);
+            }
+
             $reviewStage = $reviewedTopic->review_stage;
             $reviewedTopic->update([
                 'status' => $validated['status'],
@@ -426,6 +433,10 @@ class ResearchHeadTopicController extends Controller
     ): RedirectResponse {
         abort_unless($topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE, 422);
         $version = $topic->latestVersion()->with('files')->firstOrFail();
+        if (! $signatureWorkflow->hasApprovedAssessments($version)) {
+            throw ValidationException::withMessages(['status' => 'Complete the GAD and co-evaluator assessments for the latest version before preparing the final release.']);
+        }
+
         if (! $signatureWorkflow->isComplete($version)) {
             throw ValidationException::withMessages(['status' => 'Upload every required signed paper before preparing the final release.']);
         }

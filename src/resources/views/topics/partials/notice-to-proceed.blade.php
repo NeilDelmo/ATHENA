@@ -1,7 +1,7 @@
 @php($noticePreparedForSigning = $topic->hasPreparedNoticeToProceed())
 
 <section id="notice-to-proceed" class="ntp-workspace scroll-mt-32 rounded-2xl border border-slate-200">
-    <div class="rounded-t-2xl border-b border-t-4 border-slate-200 border-t-brand bg-slate-50 px-5 py-6 dark:border-b-slate-700 dark:bg-slate-900 sm:px-7">
+    <div class="rounded-t-2xl border-b border-slate-200 bg-slate-50 px-5 py-6 dark:border-slate-700 dark:bg-slate-900 sm:px-7">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <h3 tabindex="-1" class="text-2xl font-semibold tracking-tight text-gray-950 focus:outline-none">Notice to Proceed</h3>
@@ -14,7 +14,10 @@
                         @endif.
                         {{ $topic->isCompletedProject() ? 'This notice remains part of the completed project archive.' : 'Project monitoring is now open.' }}
                     </p>
-                @elseif ($noticePreparedForSigning && $canManageNoticeToProceed)
+                @elseif ($canManageNoticeToProceed && $noticeToProceedForm === null)
+                    <p class="mt-2 text-base font-semibold text-gray-950">Waiting for assessment clearance</p>
+                    <p class="mt-1 max-w-3xl text-base leading-6 text-gray-600">The latest proposal version needs a signed passing GAD assessment and the co-evaluator’s For Endorsement recommendation.</p>
+                @elseif ($noticePreparedForSigning && $noticeToProceedForm !== null)
                     <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Review the saved details below, then download the unsigned PDF for signatures and upload the signed copy at the bottom.</p>
                 @else
                     <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">The Research Office Secretary prepares the unsigned PDF, obtains signatures, and uploads the signed copy.</p>
@@ -28,7 +31,7 @@
                         <span>Download signed PDF</span>
                     </a>
                 </div>
-            @elseif ($noticePreparedForSigning && $canManageNoticeToProceed)
+            @elseif ($noticePreparedForSigning && $noticeToProceedForm !== null)
                 <a href="{{ route('topics.notice-to-proceed.download-unsigned', $topic) }}" class="rh-button-secondary !min-h-12 !text-base shrink-0 gap-2">
                     <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                     <span>Download unsigned PDF</span>

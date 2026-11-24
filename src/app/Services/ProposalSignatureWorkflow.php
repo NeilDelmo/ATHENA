@@ -50,17 +50,49 @@ class ProposalSignatureWorkflow
     public function signedCopiesBySource(ProposalVersion $version): Collection
     {
         $requiredFiles = $this->requiredFiles($version)->keyBy('id');
-        $uploads = $version->files
+        $uploads = $this->storedUploads($version, $requiredFiles);
+
+        return $this->approvedAssessmentCopies($requiredFiles, $uploads)->replace($uploads
+            ->filter(fn (ProposalVersionFile $file): bool => $file->mime_type === 'application/pdf'
+                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+            ->keyBy('source_version_file_id'));
+    }
+
+    /** @return Collection<int, ProposalVersionFile> */
+    public function approvedAssessmentCopiesBySource(ProposalVersion $version): Collection
+    {
+        $sources = $this->requiredFiles($version)
+            ->whereIn('document_type', ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
+            ->keyBy('id');
+
+        return $this->approvedAssessmentCopies($sources, $this->storedUploads($version, $sources));
+    }
+
+    public function hasApprovedAssessments(ProposalVersion $version): bool
+    {
+        return collect(ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
+            ->diff($this->approvedAssessmentCopiesBySource($version)->pluck('source_data.target_document_type'))
+            ->isEmpty();
+    }
+
+    /** @return Collection<int, ProposalVersionFile> */
+    private function storedUploads(ProposalVersion $version, Collection $sources): Collection
+    {
+        return $version->files
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
             ->reject->isSuperseded()
             ->sortByDesc('id')
             ->unique(fn (ProposalVersionFile $file): string => $file->source_version_file_id.':'.($file->source_data['purpose'] ?? ''))
-            ->filter(fn (ProposalVersionFile $file): bool => $requiredFiles->has($file->source_version_file_id)
-                && $file->mime_type === 'application/pdf'
+            ->filter(fn (ProposalVersionFile $file): bool => $sources->has($file->source_version_file_id)
                 && filled($file->file_path)
                 && Storage::disk('local')->exists($file->file_path));
+    }
 
-        $assessmentCopies = $uploads
+    /** @return Collection<int, ProposalVersionFile> */
+    private function approvedAssessmentCopies(Collection $requiredFiles, Collection $uploads): Collection
+    {
+        return $uploads
+            ->whereIn('mime_type', ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
             ->filter(function (ProposalVersionFile $file) use ($requiredFiles): bool {
                 $sourceType = $requiredFiles->get($file->source_version_file_id)->document_type;
                 $data = $file->source_data ?? [];
@@ -81,10 +113,6 @@ class ProposalSignatureWorkflow
                 };
             })
             ->keyBy('source_version_file_id');
-
-        return $assessmentCopies->replace($uploads
-            ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
-            ->keyBy('source_version_file_id'));
     }
 
     /** @return Collection<int, ProposalVersionFile> */

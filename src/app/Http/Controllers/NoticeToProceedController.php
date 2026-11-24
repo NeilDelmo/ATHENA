@@ -236,6 +236,13 @@ class NoticeToProceedController extends Controller
                 'notice_to_proceed' => 'Complete the LREC review and proceed to signing before preparing the Notice to Proceed.',
             ]);
         }
+
+        $version = $topic->latestVersion()->with('files')->first();
+        if ($version === null || ! app(ProposalSignatureWorkflow::class)->hasApprovedAssessments($version)) {
+            throw ValidationException::withMessages([
+                'notice_to_proceed' => 'The latest version needs a signed passing GAD assessment and a co-evaluator’s For Endorsement recommendation before preparing or releasing the Notice to Proceed.',
+            ]);
+        }
     }
 
     private function ensureNoticeCanBePrepared(TopicProposal $topic): void

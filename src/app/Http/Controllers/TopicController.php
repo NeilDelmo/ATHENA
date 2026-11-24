@@ -353,7 +353,13 @@ class TopicController extends Controller
         $headUploadWorkspace = ($request->user()->isUsingWorkspace('research_head') || $request->user()->can('viewSigningDocuments', $topic))
             ? $this->headUploadWorkspaceData($topic, $latestVersion)
             : null;
-        $noticeToProceedForm = $request->user()->can('manageNoticeToProceed', $topic)
+        $canManageNoticeToProceed = $request->user()->can('manageNoticeToProceed', $topic);
+        $hasApprovedAssessments = ($headUploadWorkspace !== null
+                || $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
+                || $topic->isAwaitingNoticeToProceed())
+            && $latestVersion !== null
+            && $this->signatureWorkflow->hasApprovedAssessments($latestVersion);
+        $noticeToProceedForm = $canManageNoticeToProceed && $hasApprovedAssessments
             ? $this->noticeToProceedDataService->defaults($topic)
             : null;
 
@@ -404,11 +410,13 @@ class TopicController extends Controller
                 && ($topic->status !== TopicProposal::STATUS_GAD_REVIEW || ($gadNeedsRevision
                     ? $decision === 'revision_requested'
                     : (($headUploadWorkspace['gadPassed'] ?? false) && $coEvaluatorReviewComplete)))
-                && ($decision !== TopicProposal::STATUS_LREC_QUEUED || $canSendToLrec))->all()
+                && ($decision !== TopicProposal::STATUS_LREC_QUEUED || $canSendToLrec)
+                && ($decision !== TopicProposal::STATUS_READY_FOR_SIGNATURE || $hasApprovedAssessments))->all()
             : [];
 
         return view('topics.show', compact(
             'researchHeadDecisionOptions',
+            'hasApprovedAssessments',
             'commentResponseRows',
             'latestRevisionReview',
             'topic',

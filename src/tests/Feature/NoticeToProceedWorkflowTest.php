@@ -10,6 +10,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalSignatureWorkflow;
+use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
@@ -120,6 +121,7 @@ test('the notice form keeps editable details visible above the signed upload', f
     }
     expect($section)->not->toBeNull()
         ->and($section->getAttribute('class'))->toContain('ntp-workspace');
+    expect($xpath->query('.//*[contains(@class, "border-t-brand")]', $section)->length)->toBe(0);
     expect($xpath->query('.//*[contains(@class, "bg-gray-950") or contains(@class, "bg-gradient-to-l")]', $section)->length)->toBe(0);
     expect($xpath->query('.//h4', $section)->item(0)->textContent)->toBe('Project details');
     expect($xpath->query('.//h4', $section)->item(1)->textContent)->toBe('Approval record');
@@ -141,6 +143,37 @@ test('the notice form keeps editable details visible above the signed upload', f
         file_put_contents(storage_path('framework/testing/notice-form-layout.html'), $response->getContent());
     }
 })->with(['new notice' => false, 'saved notice' => true]);
+
+test('an existing signing record without an endorsed evaluation cannot prepare or release a notice', function (?string $recommendation) {
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
+    $version = $this->topic->latestVersion()->firstOrFail();
+    $evaluation = $version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+    if ($recommendation === null) {
+        $evaluation->delete();
+    } else {
+        $evaluation->update(['source_data' => [...$evaluation->source_data, 'recommended_action' => $recommendation]]);
+    }
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+    $this->topic->update(['notice_to_proceed_data' => $payload]);
+
+    $this->actingAs($this->staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
+    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertSessionHasErrors('notice_to_proceed');
+    $this->postJson(route('topics.notice-to-proceed.preview', $this->topic), $payload)->assertUnprocessable()->assertJsonValidationErrors('notice_to_proceed');
+    $this->getJson(route('topics.notice-to-proceed.download-unsigned', $this->topic))->assertUnprocessable()->assertJsonValidationErrors('notice_to_proceed');
+    $this->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
+        'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
+    ])->assertSessionHasErrors('notice_to_proceed');
+    $this->get(route('topics.show', $this->topic))->assertOk()
+        ->assertSee('Waiting for assessment clearance')
+        ->assertDontSee('data-notice-to-proceed-autosave-form', false)
+        ->assertDontSee('data-notice-signed-upload', false);
+    expect($this->topic->fresh()->hasIssuedNoticeToProceed())->toBeFalse();
+})->with([
+    'missing evaluation' => null,
+    'minor revision' => InitialScreeningSubmissionOrder::MINOR_REVISION,
+    'major revision' => InitialScreeningSubmissionOrder::MAJOR_REVISION,
+]);
 
 test('the signed Notice to Proceed promotes the faculty member and opens monitoring', function () {
     completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
@@ -373,6 +406,7 @@ test('notice previews return structured validation errors to the editor', functi
 });
 
 test('the secretary can preview a Notice to Proceed without issuing it', function () {
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';
 
@@ -396,6 +430,7 @@ test('the secretary can preview a Notice to Proceed without issuing it', functio
 });
 
 test('Notice to Proceed autosave persists the LREC resolution number', function () {
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = 'LREC-2026-014';
 
@@ -433,6 +468,7 @@ test('Notice to Proceed autosave persists the LREC resolution number', function 
 });
 
 test('a signed Notice to Proceed cannot be uploaded until its unsigned notice is prepared', function () {
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY,
     ])->actingAs($this->staff)
@@ -603,7 +639,7 @@ test('only the secretary workspace can prepare generate or release notices', fun
 test('staff and secretary signing queues are limited to cleared accessible projects', function (string $role, string $workspace, string $dashboard) {
     $operator = User::factory()->create(['college' => 'CICS']);
     $operator->assignRole($role);
-    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
     $otherOwner = User::factory()->create(['college' => 'CTE']);
     $otherProject = TopicProposal::create(['user_id' => $otherOwner->id, 'title' => 'Other college signing project', 'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'estimated_budget' => 5000, 'estimated_duration_months' => 6]);
     $pendingProject = TopicProposal::create(['user_id' => $this->faculty->id, 'title' => 'Unreviewed college project', 'status' => 'pending', 'estimated_budget' => 5000, 'estimated_duration_months' => 6]);
@@ -773,8 +809,21 @@ function completeSignedProposalPackage(TopicProposal $topic, User $faculty, User
             'checksum' => hash('sha256', "signed-{$documentType}"),
             'uploaded_by' => $head->id,
             'source_data' => [
-                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
                 'target_document_type' => $documentType,
+                ...match ($documentType) {
+                    ProposalVersionFile::TYPE_GAD_CHECKLIST => [
+                        'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                        'gad_outcome' => 'passed',
+                        'gad_score' => 12,
+                        'gad_signature_confirmed' => true,
+                    ],
+                    ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM => [
+                        'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+                        'narrative_evaluation' => 'The co-evaluator endorses this proposal.',
+                        'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
+                    ],
+                    default => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED],
+                },
             ],
         ]);
     }

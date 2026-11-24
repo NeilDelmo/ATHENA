@@ -580,6 +580,7 @@ test('signing automatically requires five papers and exempts CV and expense brea
             'mime_type' => 'application/pdf', 'file_size' => 20,
         ]);
     }
+    recordApprovedProposalAssessments($version);
     $exemptFiles = $version->files()->whereIn('document_type', ['curriculum_vitae', 'expense_breakdown'])->get();
     $payload = ['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'lrec_clearance_confirmed' => '1'];
     if ($sendOldSelection) {

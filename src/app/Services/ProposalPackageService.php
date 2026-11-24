@@ -142,24 +142,32 @@ class ProposalPackageService
         $sourceFiles = $version->files()->where('is_carried_forward', true)
             ->whereIn('document_type', ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
             ->get()->keyBy('source_version_file_id');
-        $assessments = $this->signatureWorkflow->signedCopiesBySource($previousVersion)
-            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, $purposes, true));
+        $assessments = $this->signatureWorkflow->approvedAssessmentCopiesBySource($previousVersion)
+            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, $purposes, true))
+            ->sortBy('position');
+        $existingUploads = $version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->get();
+        $position = (int) $existingUploads->max('position');
 
         foreach ($assessments as $assessment) {
             $sourceFile = $sourceFiles->get($assessment->source_version_file_id);
-            if (! $sourceFile) {
+            if (! $sourceFile || $existingUploads->contains(fn (ProposalVersionFile $file): bool => $file->source_version_file_id === $sourceFile->id
+                && ($file->source_data['purpose'] ?? null) === $assessment->source_data['purpose'])) {
                 continue;
             }
 
             $version->files()->create([
                 ...$this->carriedFileAttributes($assessment),
                 'source_version_file_id' => $sourceFile->id,
+                'position' => ++$position,
+                'uploaded_by' => $assessment->uploaded_by,
                 'source_data' => [
                     ...($assessment->source_data ?? []),
                     'carried_from_version_file_id' => $assessment->id,
                 ],
             ]);
         }
+
+        $version->unsetRelation('files');
     }
 
     /** @return array<string, mixed> */

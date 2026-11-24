@@ -3475,6 +3475,7 @@ test('an rrl backed proposal completes submission revision approval notice and m
     $revisedDetailedProposal = $revisedVersion->files
         ->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
 
+    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
     foreach ([
         ProposalVersionFile::TYPE_GAD_CHECKLIST => ['purpose' => 'gad_assessment', 'gad_signature_confirmed' => true, 'gad_outcome' => 'passed', 'gad_score' => 12],
@@ -3501,7 +3502,6 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->assertRedirect(route('research_head.dashboard'))
         ->assertSessionHasNoErrors();
 
-    Role::firstOrCreate(['name' => 'research_office_secretary']);
     $this->faculty->update(['college' => User::COLLEGES['CAS']]);
     $office = User::factory()->create(['college' => User::COLLEGES['CAS']]);
     $office->assignRole('research_office_secretary');

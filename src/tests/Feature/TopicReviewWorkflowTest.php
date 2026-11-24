@@ -684,6 +684,7 @@ test('a research head can confirm completed signing while Notice to Proceed rele
         'decision' => 'revision_requested',
         'comment' => 'Make a small methodology revision.',
     ]);
+    recordApprovedProposalAssessments($version);
 
     $response = $this->actingAs($head)
         ->from(route('research_head.dashboard'))
@@ -694,7 +695,7 @@ test('a research head can confirm completed signing while Notice to Proceed rele
 
     $response->assertRedirect(route('research_head.dashboard'))->assertSessionHasNoErrors();
 
-    foreach ($version->files()->get() as $signatureFile) {
+    foreach (app(ProposalSignatureWorkflow::class)->requiredFiles($version) as $signatureFile) {
         $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
             ->post(route('topics.head-uploads.store', $topic), [
                 'source_file_id' => $signatureFile->id,
@@ -789,6 +790,7 @@ test('legacy review records do not block the Research Head from starting final s
         'status' => 'for_final_decision', 'review_stage' => 'lrec',
     ]);
     $version = createTopicReviewSubmission($topic, $faculty, true);
+    recordApprovedProposalAssessments($version);
     $topic->expertAssignments()->create([
         'expert_id' => $legacyReviewer->id,
         'assigned_by' => $head->id,
@@ -1856,6 +1858,7 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $latestVersion = $topic->latestVersion()->with('files')->firstOrFail();
     $topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
+    recordApprovedProposalAssessments($latestVersion);
     $signatureFileIds = $latestVersion->files
         ->whereIn('document_type', [
             ProposalVersionFile::TYPE_DETAILED_PROPOSAL,

@@ -1,7 +1,11 @@
 <?php
 
+use App\Models\ProposalVersion;
+use App\Models\ProposalVersionFile;
+use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /*
@@ -48,4 +52,41 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+function recordApprovedProposalAssessments(ProposalVersion $version, ?string $recommendation = InitialScreeningSubmissionOrder::FOR_ENDORSEMENT): void
+{
+    $assessments = [
+        ProposalVersionFile::TYPE_GAD_CHECKLIST => [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_signature_confirmed' => true,
+            'gad_outcome' => 'passed',
+            'gad_score' => 12,
+        ],
+    ];
+    if ($recommendation !== null) {
+        $assessments[ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM] = [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'narrative_evaluation' => 'The co-evaluator completed the review.',
+            'recommended_action' => $recommendation,
+        ];
+    }
+
+    $position = (int) $version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->max('position');
+    foreach ($assessments as $documentType => $assessment) {
+        $source = $version->files()->where('document_type', $documentType)->sole();
+        $path = "assessments/{$version->id}/{$documentType}.pdf";
+        Storage::disk('local')->put($path, '%PDF-1.7 completed assessment');
+        $version->files()->create([
+            'source_version_file_id' => $source->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => ++$position,
+            'file_path' => $path,
+            'original_filename' => basename($path),
+            'mime_type' => 'application/pdf',
+            'source_data' => ['target_document_type' => $documentType, ...$assessment],
+        ]);
+    }
+
+    $version->unsetRelation('files');
 }

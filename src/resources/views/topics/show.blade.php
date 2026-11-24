@@ -559,6 +559,8 @@
                     <p class="mt-2 max-w-4xl text-sm leading-6 text-gray-700">
                         @if ($topic->status === 'revision_requested')
                             The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
+                        @elseif (! $hasApprovedAssessments && ($topic->isAwaitingNoticeToProceed() || $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE))
+                            The Research Head needs to verify the assessments for the latest proposal version before the Notice to Proceed can be issued.
                         @elseif ($topic->isAwaitingNoticeToProceed())
                             Final signing is complete. Wait for the Research Office Secretary to issue the Notice to Proceed before beginning the project or entering monitoring.
                         @elseif ($topic->isCompletedProject())
@@ -806,7 +808,17 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
-                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : ($canManageNoticeToProceed ? 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.' : 'Review is complete. The Research Office Secretary will prepare the Notice to Proceed and upload the signed documents for release.') }}</p>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">
+                            @if ($topic->hasIssuedNoticeToProceed())
+                                The signed proposal papers and Notice to Proceed are ready for faculty.
+                            @elseif (! $hasApprovedAssessments)
+                                Release is paused until the assessments for the latest version are complete.
+                            @elseif ($canManageNoticeToProceed)
+                                Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.
+                            @else
+                                Review is complete. The Research Office Secretary will prepare the Notice to Proceed and upload the signed documents for release.
+                            @endif
+                        </p>
                     </div>
                 </div>
                 @if (($isResearchHead || $canViewSigningDocuments) && $headUploadWorkspace)
