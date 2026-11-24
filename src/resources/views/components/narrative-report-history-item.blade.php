@@ -10,6 +10,7 @@
     $figureNumber = 1;
     $isDemo = str_starts_with($report->accomplishment_summary ?? '', 'UI DEMONSTRATION');
     $hasSecretaryReview = ($report->secretary_remarks || $canSecretaryReview || $errors->has('review'));
+    $secretaryTerminalReview = $isTerminalReport && $canSecretaryReview;
 @endphp
 
 <article id="{{ $reportId }}" {{ $attributes->class(['report-reader scroll-mt-36 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900']) }} data-narrative-report-card data-live-report-key="{{ \App\Services\TopicLiveStatus::reportKey($report) }}" data-live-report-scope="{{ \App\Services\TopicLiveStatus::reportScope($report->topic, $report) }}">
@@ -28,7 +29,7 @@
         <div data-report-reader-actions class="flex shrink-0 flex-wrap items-center gap-2">
             <button type="button" @click="$dispatch('open-modal', 'narrative-pdf-{{ $report->id }}')" aria-label="Preview PDF" title="Preview PDF" aria-haspopup="dialog" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
                 <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.5-7.5 9.75-7.5 9.75 7.5 9.75 7.5-3.5 7.5-9.75 7.5S2.25 12 2.25 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-                <span class="sr-only sm:not-sr-only">Preview PDF</span>
+                <span @class(['sr-only sm:not-sr-only' => ! $secretaryTerminalReview])>Preview PDF</span>
             </button>
             <a href="{{ route('project-narrative-reports.download', $report) }}" aria-label="Download {{ strtolower($report->report_label) }} PDF" title="Download PDF" class="monitoring-report-control">
                 <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg>
@@ -42,6 +43,11 @@
     @if ($isDemo)
         <p class="border-b border-slate-100 px-5 py-2 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:px-8">Sample report · Illustrative figures and findings.</p>
     @endif
+    @if ($secretaryTerminalReview)
+        <section id="{{ $reportId }}-secretary-review" class="border-b border-slate-200 bg-slate-50/70 px-5 py-5 dark:border-slate-700 dark:bg-slate-950/40 sm:px-8" aria-label="Research Office Secretary review">
+            <x-implementation-report-secretary-review :topic="$report->topic" :report="$report" />
+        </section>
+    @endif
     <div class="report-reader-layout">
         <nav data-report-reader-navigation aria-label="{{ $report->report_label }} sections" class="report-reader-navigation">
             <a href="#{{ $reportId }}-accomplishments">Accomplishments</a>
@@ -50,8 +56,8 @@
                     <a href="#{{ $reportId }}-{{ $field }}">{{ $label }}</a>
                 @endif
             @endforeach
-            @if ($canReview || $report->research_head_remarks)<a href="#{{ $reportId }}-review">{{ $canReview ? 'Review' : 'Remarks' }}</a>@endif
-            @if ($hasSecretaryReview)<a href="#{{ $reportId }}-secretary-review">Research Office Secretary review</a>@endif
+            @if (! $secretaryTerminalReview && ($canReview || $report->research_head_remarks))<a href="#{{ $reportId }}-review">{{ $canReview ? 'Review' : 'Remarks' }}</a>@endif
+            @if ($hasSecretaryReview && ! $secretaryTerminalReview)<a href="#{{ $reportId }}-secretary-review">Research Office Secretary review</a>@endif
         </nav>
         <div class="min-w-0" data-narrative-report-content>
             <div class="px-5 py-5 sm:px-8">
@@ -114,12 +120,12 @@
                     </section>
                 @endif
             </div>
-        @if ($hasSecretaryReview)
+        @if ($hasSecretaryReview && ! $secretaryTerminalReview)
             <section id="{{ $reportId }}-secretary-review" class="scroll-mt-36 border-t border-slate-100 px-5 py-7 dark:border-slate-800 sm:px-8" aria-label="Research Office Secretary review">
                 <x-implementation-report-secretary-review :topic="$report->topic" :report="$report" />
             </section>
         @endif
-        @if ($canReview || $report->research_head_remarks)
+        @if (! $secretaryTerminalReview && ($canReview || $report->research_head_remarks))
             <section id="{{ $reportId }}-review" class="scroll-mt-36 border-t border-slate-100 px-5 py-7 dark:border-slate-800 sm:px-8" aria-label="Research Head review">
                 <div class="space-y-5">
                     @if ($canReview)

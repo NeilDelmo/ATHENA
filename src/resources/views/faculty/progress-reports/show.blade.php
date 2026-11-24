@@ -2,6 +2,7 @@
     @php
         $liveState = app(\App\Services\TopicLiveStatus::class)->forTopic($topic, Auth::user());
         $liveSnapshot = ['proposal' => $liveState['proposal']['scope'], 'reports' => array_map(fn ($record) => $record['scope'], $liveState['reports'])];
+        $returnToTerminalQueue = $report->report_type === 'terminal' && Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_SECRETARY);
     @endphp
     <x-slot name="header">
         <x-page-header :title="$topic->title" class="project-page-header report-page-header mx-auto max-w-6xl" />
@@ -17,7 +18,7 @@
             fixed
             x-show="!$store.researchAssistant.drawerOpen && !$store.researchAssistant.workspaceOpen"
             x-cloak
-            href="{{ route('topics.show', $topic) }}#narrative-report-{{ $report->id }}"
-        >Back to monitoring</x-back-link>
+            :href="$returnToTerminalQueue ? route('research_secretary.reports.index', ['type' => 'terminal']) : route('topics.show', $topic).'#narrative-report-'.$report->id"
+        >{{ $returnToTerminalQueue ? 'Back to report reviews' : 'Back to monitoring' }}</x-back-link>
     </div>
 </x-app-layout>

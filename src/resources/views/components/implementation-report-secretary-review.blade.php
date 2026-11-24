@@ -7,6 +7,7 @@
         && $topic->isMonitoringAvailable()
         && $report->isAwaitingSecretaryReview()
         && $report->isLatestSubmittedVersion();
+    $terminalReview = ! $isMonitoringTool && $report->report_type === 'terminal';
 @endphp
 
 @error('review')<p role="alert" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base font-medium text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{{ $message }}</p>@enderror
@@ -20,21 +21,39 @@
 @endif
 
 @if ($canReview)
-    <form method="POST" action="{{ route($isMonitoringTool ? 'research_secretary.monitoring-reports.review' : 'research_secretary.narrative-reports.review', $report) }}" class="space-y-4 border-t border-slate-200 pt-4 dark:border-slate-700" x-data="{ decision: @js(old('decision', 'forward')) }" data-secretary-report-review>
+    <form method="POST" action="{{ route($isMonitoringTool ? 'research_secretary.monitoring-reports.review' : 'research_secretary.narrative-reports.review', $report) }}" @class(['space-y-4', 'border-t border-slate-200 pt-4 dark:border-slate-700' => ! $terminalReview, 'mt-4' => $terminalReview && ($report->secretary_remarks || $errors->has('review'))]) x-data="{ decision: @js(old('decision', 'forward')) }" data-secretary-report-review>
         @csrf
         @method('PATCH')
-        <h4 class="text-base font-semibold text-slate-950 dark:text-white">Research Office Secretary review</h4>
-        <fieldset class="flex flex-wrap gap-3">
+        @if ($terminalReview)
+            <div class="space-y-1">
+                <h3 class="text-base font-semibold text-slate-950 dark:text-white">Review Terminal Report</h3>
+                <p class="text-sm leading-6 text-slate-600 dark:text-slate-300">Use Preview PDF above to check the submitted report, then choose where it should go.</p>
+            </div>
+            @if ($report->research_head_remarks)
+                <div class="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+                    <h4 class="font-semibold text-slate-950 dark:text-white">Research Head concerns</h4>
+                    <p class="mt-1 whitespace-pre-line break-words leading-6 text-slate-700 dark:text-slate-200">{{ $report->research_head_remarks }}</p>
+                </div>
+            @endif
+        @else
+            <h4 class="text-base font-semibold text-slate-950 dark:text-white">Research Office Secretary review</h4>
+        @endif
+        <fieldset @class(['gap-3', 'grid sm:grid-cols-2' => $terminalReview, 'flex flex-wrap' => ! $terminalReview])>
             <legend class="sr-only">Review decision</legend>
             @foreach (['forward' => 'Forward to Research Head', 'revision_requested' => 'Return for corrections'] as $value => $label)
-                <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
-                    <input type="radio" name="decision" value="{{ $value }}" x-model="decision" required @checked(old('decision', 'forward') === $value) class="h-4 w-4 border-slate-300 text-brand focus:ring-brand dark:border-slate-600">
-                    <span>{{ $label }}</span>
+                <label @class(['inline-flex min-h-11 cursor-pointer gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200', 'items-start' => $terminalReview, 'items-center' => ! $terminalReview])>
+                    <input type="radio" name="decision" value="{{ $value }}" x-model="decision" required @checked(old('decision', 'forward') === $value) @if ($terminalReview) aria-labelledby="{{ $reviewId }}-{{ $value }}-label" aria-describedby="{{ $reviewId }}-{{ $value }}-help" @endif @class(['h-4 w-4 shrink-0 border-slate-300 text-brand focus:ring-brand dark:border-slate-600', 'mt-1' => $terminalReview])>
+                    <span>
+                        <span @if ($terminalReview) id="{{ $reviewId }}-{{ $value }}-label" class="font-semibold" @endif>{{ $label }}</span>
+                        @if ($terminalReview)
+                            <span id="{{ $reviewId }}-{{ $value }}-help" class="mt-0.5 block text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $value === 'forward' ? 'Send the checked report to the Research Head for review.' : 'Send instructions to the project leader so they can revise and resubmit.' }}</span>
+                        @endif
+                    </span>
                 </label>
             @endforeach
         </fieldset>
         @error('decision')<p class="text-base font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-        <div x-cloak x-show="decision === 'revision_requested'" class="max-w-2xl">
+        <div x-cloak x-show="decision === 'revision_requested'" @class(['max-w-2xl' => ! $terminalReview])>
             <label for="{{ $reviewId }}-remarks" class="block text-base font-semibold text-slate-700 dark:text-slate-200">Correction instructions</label>
             <textarea id="{{ $reviewId }}-remarks" name="secretary_remarks" rows="2" maxlength="5000" x-bind:required="decision === 'revision_requested'" x-bind:disabled="decision !== 'revision_requested'" placeholder="Describe what the project leader needs to correct." class="mt-2 block w-full resize-y rounded-lg border-slate-300 bg-white text-base font-normal leading-6 text-slate-900 focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-900 dark:text-white">{{ old('secretary_remarks', $report->secretary_remarks) }}</textarea>
             @error('secretary_remarks')<p class="mt-2 text-base font-medium text-red-700 dark:text-red-300">{{ $message }}</p>@enderror

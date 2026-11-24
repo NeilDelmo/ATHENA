@@ -10,7 +10,9 @@
                 @php
                     $monitoring = $report instanceof \App\Models\ProjectProgressReport;
                     $previewUrl = route($monitoring ? 'project-progress.monitoring-tool.view' : 'project-narrative-reports.view', $report);
-                    $reportUrl = route('topics.show', $report->topic).'#'.($monitoring ? 'monitoring-tool-' : 'narrative-report-').$report->id;
+                    $reportUrl = ! $monitoring && $report->report_type === 'terminal'
+                        ? route('project-narrative-reports.show', $report)
+                        : route('topics.show', $report->topic).'#'.($monitoring ? 'monitoring-tool-' : 'narrative-report-').$report->id;
                 @endphp
                 <article class="{{ $compact ? 'dashboard-queue-row' : 'secretary-report-row' }}" data-secretary-report-kind="{{ $monitoring ? 'monitoring' : $report->report_type }}">
                     <span class="{{ $compact ? 'dashboard-icon' : 'secretary-file-mark' }}" aria-hidden="true"><x-report-library-icon name="{{ $monitoring ? 'list' : 'publication' }}" class="h-5 w-5" /></span>

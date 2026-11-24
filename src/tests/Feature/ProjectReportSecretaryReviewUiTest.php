@@ -181,13 +181,27 @@ test('Head concerns and terminal reports use the same office review process', fu
         ->assertSee('Verify the supporting evidence.')->assertSee('The submitted report PDF is unavailable.')
         ->assertSee(route('research_secretary.narrative-reports.review', $progress), false);
 
-    $terminal = ProjectNarrativeReport::create([...$this->progressData, 'report_type' => 'terminal']);
+    $terminal = ProjectNarrativeReport::create([
+        ...$this->progressData, 'report_type' => 'terminal',
+        'research_head_remarks' => 'Confirm the final accomplishment figures.',
+    ]);
+    $terminalUrl = route('project-narrative-reports.show', $terminal);
+    $this->get(route('research_secretary.dashboard'))->assertOk()
+        ->assertSee('href="'.$terminalUrl.'"', false);
     $this->get(route('research_secretary.reports.index', ['type' => 'terminal']))->assertOk()
         ->assertViewHas('reportReviewTasks', fn ($reports) => $reports->count() === 1 && $reports->first()->is($terminal))
-        ->assertSee('Terminal report')->assertSee('data-secretary-report-kind="terminal"', false);
-    $this->get(route('project-narrative-reports.show', $terminal))->assertOk()
+        ->assertSee('Terminal report')->assertSee('data-secretary-report-kind="terminal"', false)
+        ->assertSee('href="'.$terminalUrl.'"', false);
+    $this->get($terminalUrl)->assertOk()
         ->assertSee('Forward to Research Head')->assertSee('Return for corrections')
-        ->assertSee(route('research_secretary.narrative-reports.review', $terminal), false);
+        ->assertSee(route('research_secretary.narrative-reports.review', $terminal), false)
+        ->assertSeeText('Back to report reviews')
+        ->assertSeeInOrder([
+            'aria-label="Preview PDF"',
+            'Review Terminal Report',
+            'Confirm the final accomplishment figures.',
+            'data-narrative-report-content',
+        ], false);
     $terminal->update(['review_stage' => 'head']);
     $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('project-narrative-reports.show', $terminal))->assertOk()
