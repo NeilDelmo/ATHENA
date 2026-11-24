@@ -77,9 +77,11 @@ test('RMS combines only current submitted college snapshots for the selected qua
 });
 
 test('RMS supplements are bound to their submitted source version and cannot replace the source college', function () {
-    $report = CollegeQuarterlyReport::factory()->create(['college' => 'College A', 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now()]);
+    $college = User::COLLEGES['CICS'];
+    $report = CollegeQuarterlyReport::factory()->create(['college' => $college, 'reporting_year' => 2026, 'reporting_quarter' => 3, 'submitted_at' => now()]);
     $submission = CollegeQuarterlyReportSubmission::factory()->create(['report_id' => $report->id,
-        'snapshot' => ['manual_presentations' => [['id' => 'same-row', 'research_title' => 'Original title', 'event' => 'Forum', 'personnel' => 'Presenter', 'date' => '2026-08-01', 'place' => 'Venue']]],
+        'snapshot' => ['college' => User::COLLEGES['CAS'],
+            'manual_presentations' => [['id' => 'same-row', 'research_title' => 'Original title', 'event' => 'Forum', 'personnel' => 'Presenter', 'date' => '2026-08-01', 'place' => 'Venue']]],
     ]);
     $service = app(RmsQuarterlyReportData::class);
     $original = $service->build(2026, 3);
@@ -87,7 +89,9 @@ test('RMS supplements are bound to their submitted source version and cannot rep
     $details = [$key => ['source_of_fund' => 'Non-funded', 'project_status' => 'Completed', 'college' => 'Forged college', 'authors' => 'Named author']];
     $filled = $service->build(2026, 3, $details);
     expect($filled['presentations'][0]['values']['source_of_fund'])->toBe('Non-funded')
-        ->and($filled['presentations'][0]['values']['college'])->toBe('College A')
+        ->and($filled['presentations'][0]['values']['college'])->toBe($college)
+        ->and($filled['sources'][0]['college'])->toBe($college)
+        ->and($filled['missing_colleges'])->not->toContain($college)
         ->and($filled['presentations'][0]['values']['authors'])->toBe('Named author')
         ->and($filled['presentations'][0]['missing'])->not->toContain('Funded Project Status')
         ->and($filled['source_token'])->toBe($original['source_token']);

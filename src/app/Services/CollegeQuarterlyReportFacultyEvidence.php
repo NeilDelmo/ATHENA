@@ -25,8 +25,8 @@ class CollegeQuarterlyReportFacultyEvidence
             ->where('notice_to_proceed_issued_at', '<=', $period['end'])
             ->forCollege($coordinator->college)
             ->with([
-                'progressReports' => fn ($reports) => $reports->visibleToResearchHead()->with('submitter'),
-                'narrativeReports' => fn ($reports) => $reports->visibleToResearchHead()->with('submitter'),
+                'progressReports' => fn ($reports) => $reports->submitted()->with('submitter'),
+                'narrativeReports' => fn ($reports) => $reports->submitted()->where('report_type', 'progress')->with('submitter'),
             ])
             ->orderBy('title')->orderBy('id')->get()
             ->flatMap(fn (TopicProposal $topic): array => $this->evidence->forProject($topic, $period['start'], $period['end']))

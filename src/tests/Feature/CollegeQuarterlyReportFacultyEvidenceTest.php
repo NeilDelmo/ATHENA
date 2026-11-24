@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\CollegeQuarterlyReport;
+use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
+use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\CollegeQuarterlyReportData;
@@ -81,14 +83,42 @@ test('submitted faculty image proof appears in accomplishment form print and Wor
     }
 });
 
-test('college report evidence imports wait for office secretary forwarding', function () {
+test('submitted quarterly report evidence reaches the coordinator and office secretary together', function () {
     $proof = ($this->proof)('awaiting-office.png');
-    $report = ($this->monitoring)([$proof], ['review_stage' => 'secretary']);
-    $service = app(CollegeQuarterlyReportFacultyEvidence::class);
+    $report = ($this->monitoring)([$proof], ['review_stage' => 'secretary', 'review_status' => 'pending']);
+    $file = UploadedFile::fake()->image('progress-proof.png');
+    $progressProof = [
+        'id' => (string) Str::uuid(), 'name' => 'progress-proof.png', 'mime_type' => 'image/png',
+        'path' => $file->store('narrative-progress-reports/'.$this->project->id.'/evidence', 'local'),
+        'size' => $file->getSize(), 'checksum' => hash_file('sha256', $file->getRealPath()),
+    ];
+    $progress = $this->project->narrativeReports()->create([
+        'submitted_by' => $this->faculty->id, 'report_type' => 'progress', 'reporting_date' => '2026-09-30',
+        'reporting_quarter' => 3, 'submission_date' => now(), 'submitted_at' => now(),
+        'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+        'review_status' => ProjectNarrativeReport::STATUS_PENDING, 'review_stage' => 'secretary',
+        'researchers' => $this->faculty->name, 'implementation_start' => '2026-01-01', 'implementation_end' => '2026-12-31',
+        'budget' => 1000, 'funding_agency' => 'University', 'accomplishment_summary' => 'Validated the pilot results.',
+        'introduction' => 'The pilot review.', 'objectives' => 'Validate the pilot results.',
+        'methodology' => 'Cross-check pilot records.', 'results_discussion' => 'Pilot records checked.', 'photos' => [],
+        'accomplishments' => [['objective' => 'Validate the pilot results', 'evidence' => [$progressProof]]],
+    ]);
 
-    expect($service->forQuarter($this->coordinator, 2026, 3))->toBe([]);
-    $report->update(['review_stage' => 'head', 'forwarded_at' => now()]);
-    expect(array_column($service->forQuarter($this->coordinator, 2026, 3), 'path'))->toBe([$proof['path']]);
+    expect($report->isAwaitingSecretaryReview())->toBeTrue()
+        ->and($progress->isAwaitingSecretaryReview())->toBeTrue();
+    $this->get(route('research_coordinator.reports.index', $this->period))->assertOk()
+        ->assertViewHas('reportEvidence', fn (array $evidence): bool => array_column($evidence, 'path') === [$proof['path'], $progressProof['path']]);
+    $monitoringEvidence = route('project-progress.evidence', [$this->project, $proof['id']]);
+    $progressEvidence = route('project-narrative-reports.evidence', [$this->project, $progressProof['id']]);
+    $this->get($monitoringEvidence)->assertDownload('awaiting-office.png');
+    $this->get($progressEvidence)->assertDownload('progress-proof.png');
+
+    Role::findOrCreate('research_head', 'web');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $this->get($monitoringEvidence)->assertNotFound();
+    $this->get($progressEvidence)->assertNotFound();
 });
 
 test('faculty evidence collection respects college notice and calendar quarter', function () {
@@ -101,6 +131,23 @@ test('faculty evidence collection respects college notice and calendar quarter',
     $this->project->update(['notice_to_proceed_issued_at' => '2026-01-01']);
     $this->faculty->update(['college' => User::COLLEGES['CTE']]);
     expect(app(CollegeQuarterlyReportFacultyEvidence::class)->forQuarter($this->coordinator, 2026, 3))->toBe([]);
+
+    $version = $this->project->versions()->create([
+        'submitted_by' => $this->faculty->id, 'version_number' => 1, 'submission_type' => 'initial',
+        'title' => $this->project->title, 'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf',
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL, 'file_path' => 'proposal.pdf',
+        'original_filename' => 'proposal.pdf', 'source_data' => ['proponent_college' => 'CICS'],
+    ]);
+    $otherCoordinator = User::factory()->create(['college' => User::COLLEGES['CTE']]);
+    $otherCoordinator->assignRole('research_coordinator');
+    $evidence = app(CollegeQuarterlyReportFacultyEvidence::class);
+    $data = app(CollegeQuarterlyReportData::class);
+    expect(array_column($evidence->forQuarter($this->coordinator, 2026, 3), 'original_filename'))->toBe(['inside.png'])
+        ->and($evidence->forQuarter($otherCoordinator, 2026, 3))->toBe([])
+        ->and(array_column($data->build($this->coordinator, 2026, 3)['research'], 0))->toBe([$this->project->title])
+        ->and($data->build($otherCoordinator, 2026, 3)['research'])->toBe([]);
 });
 
 test('submitted accomplishment reports freeze faculty proof independently of later source changes', function () {

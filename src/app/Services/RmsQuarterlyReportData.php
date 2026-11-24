@@ -76,7 +76,7 @@ class RmsQuarterlyReportData
                 continue;
             }
             $snapshot = $submission?->snapshot ?? $report->snapshot ?? [];
-            $college = (string) ($snapshot['college'] ?? $report->college);
+            $college = $report->college;
             $sourceId = $submission !== null ? 's'.$submission->id : 'r'.$report->id;
             $sources[] = [$report->id, $submission?->id, $report->submitted_at->toISOString(), $snapshot];
             $data['sources'][] = [

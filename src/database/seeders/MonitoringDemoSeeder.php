@@ -96,35 +96,117 @@ class MonitoringDemoSeeder extends Seeder
         }
     }
 
-    private function project(ResearchCall $call, User $faculty, User $head, User $secretary, bool $completed): TopicProposal
+    /** @return array{review: TopicProposal, completed: TopicProposal} */
+    public function seedWalkthrough(int $sourceId): array
     {
-        $months = $completed ? 6 : 12;
-        $end = $completed ? '2026-06-30' : '2026-12-31';
+        $this->storedPaths = [];
+
+        try {
+            return DB::transaction(function () use ($sourceId): array {
+                $source = TopicProposal::query()->with('user')->lockForUpdate()->findOrFail($sourceId);
+                $faculty = $source->user;
+                if (! $source->hasIssuedNoticeToProceed() || ! $faculty?->hasRole('faculty_researcher') || blank($faculty->college)) {
+                    throw new RuntimeException('Choose an issued demo proposal owned by a Faculty Researcher with an assigned college.');
+                }
+
+                $existing = TopicProposal::query()->where('notice_to_proceed_data->walkthrough_source_topic_id', $sourceId)->get()
+                    ->keyBy(fn (TopicProposal $project): string => $project->notice_to_proceed_data['walkthrough_case'] ?? 'review');
+                $head = User::role('research_head')->orderBy('id')->firstOrFail();
+                $secretary = User::role(User::ROLE_RESEARCH_OFFICE_SECRETARY)->where('college', $faculty->college)->orderBy('id')->firstOrFail();
+                $review = $existing->get('review') ?? $this->project(null, $faculty, $head, $secretary, completed: false, walkthroughSourceId: $sourceId);
+                $completed = $existing->get('completed') ?? $this->project(null, $faculty, $head, $secretary, completed: true, walkthroughSourceId: $sourceId);
+
+                $coordinator = User::role('research_coordinator')->where('college', $faculty->college)->orderBy('id')->first();
+                if ($coordinator !== null) {
+                    CollegeQuarterlyReport::firstOrCreate(['college' => $coordinator->college, 'reporting_year' => 2026, 'reporting_quarter' => 2], [
+                        'prepared_by' => $coordinator->id,
+                        'presentations' => [[
+                            'id' => (string) Str::uuid(),
+                            'event' => 'Community Water Quality Toolkit Orientation',
+                            'research_title' => $completed->title,
+                            'date' => '2026-06-25',
+                            'place' => 'ARASOF-Nasugbu Campus',
+                            'personnel' => $faculty->name,
+                            'project_id' => $completed->id,
+                        ]],
+                        'other_accomplishments' => 'The research team demonstrated the recording and validation workflow and prepared a reference guide for community users.',
+                    ]);
+                }
+
+                return ['review' => $review, 'completed' => $completed];
+            });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($this->storedPaths);
+
+            throw $exception;
+        }
+    }
+
+    private function project(?ResearchCall $call, User $faculty, User $head, User $secretary, bool $completed, ?int $walkthroughSourceId = null): TopicProposal
+    {
+        $walkthrough = $walkthroughSourceId !== null;
+        $energyWalkthrough = $walkthrough && ! $completed;
+        $months = $completed || $walkthrough ? 6 : 12;
+        $end = $months === 6 ? '2026-06-30' : '2026-12-31';
         $topic = TopicProposal::create([
-            'research_call_id' => $call->id, 'user_id' => $faculty->id,
-            'title' => $completed ? '[DEMO] Community Water Quality Toolkit' : '[DEMO] Campus Energy Monitoring',
-            'description' => '['.self::MARKER.'] Fictional end-to-end example. Proposal papers, reviews, approvals, signatures and results are simulated for demonstration only.',
+            'research_call_id' => $call?->id, 'user_id' => $faculty->id,
+            'title' => match (true) {
+                $energyWalkthrough => 'Campus Laboratory Energy Monitoring Dashboard',
+                $walkthrough => 'Community Water Quality Monitoring Toolkit',
+                $completed => '[DEMO] Community Water Quality Toolkit',
+                default => '[DEMO] Campus Energy Monitoring',
+            },
+            'description' => match (true) {
+                $energyWalkthrough => 'The project develops a dashboard for tracking electricity use in campus computing laboratories. The reporting walkthrough uses simulated readings and review records.',
+                $walkthrough => 'The project evaluates a toolkit for recording and sharing community water quality readings. The archive contains simulated readings, reviews, approvals, and outcome records.',
+                default => '['.self::MARKER.'] Fictional end-to-end example. Proposal papers, reviews, approvals, signatures and results are simulated for demonstration only.',
+            },
             'estimated_budget' => 75000, 'estimated_duration_months' => $months, 'status' => 'pending', 'created_at' => '2025-12-01 09:00:00',
         ]);
         $common = ['project_title' => $topic->title, 'project_leader' => $faculty->name,
             'planned_start' => '2026-01-01', 'planned_end' => $end, 'total_duration_months' => $months,
             'prepared_by' => $faculty->name, 'verified_by' => 'DEMO verifier', 'verified_role' => 'Demonstration only'];
-        $entries = [
+        $entries = $energyWalkthrough ? [
+            ['objective' => 'Establish an electricity use baseline for the computing laboratories.', 'activity' => 'Record meter readings, reconcile room schedules, and document peak demand.', 'expected_output' => 'Validated laboratory energy baseline', 'months' => range(1, 3)],
+            ['objective' => 'Evaluate a dashboard that flags high consumption outside teaching hours.', 'activity' => 'Build the dashboard, verify readings, and pilot the alerts with laboratory staff.', 'expected_output' => 'Pilot dashboard, validation log, and operator guide', 'months' => range(4, 6)],
+        ] : [
             ['objective' => 'DEMO: Establish baseline needs.', 'activity' => 'DEMO: Baseline assessment', 'expected_output' => 'DEMO baseline dataset', 'months' => range(1, $completed ? 3 : 6)],
             ['objective' => 'DEMO: Validate the prototype.', 'activity' => 'DEMO: Pilot and evaluation', 'expected_output' => 'DEMO validated toolkit and adoption guide', 'months' => range($completed ? 4 : 7, $months)],
         ];
+        if ($walkthrough && $completed) {
+            $entries = [
+                ['objective' => 'Establish a baseline for community water sampling.', 'activity' => 'Map collection sites and validate the observation form with field users.', 'expected_output' => 'Sampling map and baseline observation log', 'months' => range(1, 3)],
+                ['objective' => 'Pilot a toolkit for recording and sharing water quality readings.', 'activity' => 'Validate the recording workflow and orient community users.', 'expected_output' => 'Validated water quality toolkit and user guide', 'months' => range(4, 6)],
+            ];
+        }
+        $supplies = match (true) {
+            $energyWalkthrough => 'Energy meter accessories and pilot supplies',
+            $walkthrough => 'Water sampling and field validation supplies',
+            default => 'DEMO prototype supplies',
+        };
         $expense = ['project_title' => $topic->title, 'items' => [[
             'category' => 'mooe', 'account' => 'Supplies and Materials Expenses', 'sub_account' => 'Other Supplies and Materials Expenses',
-            'particulars' => 'DEMO prototype supplies', 'details' => 'Fictional supplies', 'purpose' => 'Pilot evaluation', 'unit' => 'lot', 'quantity' => 1, 'unit_cost' => 75000,
+            'particulars' => $supplies, 'details' => $walkthrough ? 'Materials for equipment setup and pilot evaluation' : 'Fictional supplies',
+            'purpose' => 'Pilot evaluation', 'unit' => 'lot', 'quantity' => 1, 'unit_cost' => 75000,
         ]]];
         $budget = [...$common, 'leader_campus' => 'ARASOF-Nasugbu', 'leader_college' => $faculty->college,
-            'custom_mooe_items' => [['particular' => 'DEMO prototype supplies', 'amount' => 75000]], 'certified_by' => 'DEMO certifier', 'certified_role' => 'Demonstration only'];
+            'custom_mooe_items' => [['particular' => $supplies, 'amount' => 75000]], 'certified_by' => 'DEMO certifier', 'certified_role' => 'Demonstration only'];
         $detail = [...$common, 'proponent_college' => $faculty->college, 'proponent_campus' => 'ARASOF-Nasugbu', 'sdgs' => [6, 9, 11],
             'general_objective' => 'DEMO: Develop and evaluate '.$topic->title.'.', 'specific_objectives' => array_column($entries, 'objective'),
             'executive_brief' => 'DEMO ONLY: A fictional pilot study demonstrating a complete research workflow.',
             'rationale' => 'DEMO ONLY: Establish the baseline and validate a practical prototype.',
             'methodology' => ['research_design' => 'DEMO: Developmental research with baseline and pilot evaluation.', 'specific_methods' => 'DEMO: Record baseline observations, build a prototype, and evaluate pilot results.', 'data_analysis' => 'DEMO: Compare baseline and pilot measurements.'],
             'references' => 'DEMO ONLY: No real sources or findings are claimed.'];
+        if ($energyWalkthrough) {
+            $detail = [...$detail,
+                'general_objective' => 'Develop and evaluate a dashboard that tracks laboratory electricity use against teaching schedules.',
+                'executive_brief' => 'The study establishes a baseline, pilots an energy dashboard, and evaluates its alerts against meter logs.',
+                'rationale' => 'Laboratory staff need a way to distinguish scheduled teaching demand from avoidable after-hours use.',
+                'methodology' => ['research_design' => 'Development and pilot validation.',
+                    'specific_methods' => 'Collect meter logs and timetables, verify dashboard totals, and review alerts with laboratory staff.',
+                    'data_analysis' => 'Compare recorded and displayed totals and document discrepancies and common false alerts.'],
+            ];
+        }
         $sources = [
             'detailed-proposal' => [DetailedProposalDocumentService::class, DetailedProposalData::fromValidated($detail, ['mooe_total' => 75000])],
             'work-plan' => [WorkPlanDocumentService::class, WorkPlanData::fromValidated([...$common, 'entries' => $entries])],
@@ -183,15 +265,16 @@ class MonitoringDemoSeeder extends Seeder
             }
         }
         $topic->update(['project_status' => 'ongoing', 'signed_approval_path' => $primary['file_path'],
-            'notice_to_proceed_issued_by' => $head->id, 'notice_to_proceed_issued_at' => '2025-12-31 09:00:00',
+            'notice_to_proceed_issued_by' => $walkthrough ? $secretary->id : $head->id, 'notice_to_proceed_issued_at' => '2025-12-31 09:00:00',
             'notice_to_proceed_data' => ['notice_date' => '2025-12-31', 'project_title' => $topic->title, 'researcher_names' => [$faculty->name],
                 'approved_start_date' => '2026-01-01', 'approved_end_date' => $end, 'approved_duration_months' => $months,
-                'approved_budget' => '75000.00', 'resolution_number' => 'DEMO-SIMULATED', 'resolution_year' => 2025]]);
+                'approved_budget' => '75000.00', 'resolution_number' => 'DEMO-SIMULATED', 'resolution_year' => 2025,
+                ...($walkthrough ? ['walkthrough_source_topic_id' => $walkthroughSourceId, 'walkthrough_case' => $completed ? 'completed' : 'review'] : [])]]);
         $notice = app(NoticeToProceedDataService::class);
         $pdf = app(DocumentPdfConverter::class)->convertDocx(app(NoticeToProceedDocumentService::class)->generate($notice->documentValues($notice->defaults($topic->fresh()))));
         $path = $this->store($topic, 'DEMO-notice-to-proceed.pdf', $pdf);
         $topic->update(['notice_to_proceed_path' => $path, 'notice_to_proceed_original_filename' => basename($path)]);
-        $this->reports($topic->fresh(), $head, $secretary, $completed);
+        $this->reports($topic->fresh(), $head, $secretary, $completed, $walkthrough);
         if ($completed) {
             $topic->update(['project_status' => 'completed']);
             $topic->researchOutcome()->create(['leader_id' => $faculty->id, 'funding_source' => 'school', 'labels' => ['presentation', 'utilization'], 'lock_version' => 1]);
@@ -200,44 +283,58 @@ class MonitoringDemoSeeder extends Seeder
         return $topic->fresh();
     }
 
-    private function reports(TopicProposal $topic, User $head, User $secretary, bool $completed): void
+    private function reports(TopicProposal $topic, User $head, User $secretary, bool $completed, bool $walkthrough): void
     {
         $schedule = app(MonitoringQuarterService::class);
         $window = $schedule->reportingWindow($topic);
-        foreach ($schedule->projectPeriods($topic)->take($completed ? 2 : 3) as $period) {
+        $trackingPrefix = $walkthrough ? 'MON' : 'DEMO';
+        foreach ($schedule->projectPeriods($topic)->take($completed || $walkthrough ? 2 : 3) as $period) {
             $date = $period['end']->toDateString();
             $review = ['review_stage' => 'head', 'review_status' => 'reviewed', 'submission_status' => 'submitted',
                 'submitted_at' => $period['end']->addDay(), 'secretary_reviewed_by' => $secretary->id, 'secretary_reviewed_at' => $period['end']->addDays(2),
                 'forwarded_at' => $period['end']->addDays(2), 'reviewed_by' => $head->id, 'reviewed_at' => $period['end']->addDays(3),
                 'research_head_remarks' => 'DEMO ONLY: Simulated report acceptance.', 'secretary_remarks' => 'DEMO ONLY: Simulated completeness checking.'];
+            if ($walkthrough && ! $completed && $period['quarter'] === 2) {
+                $review = ['review_stage' => 'secretary', 'review_status' => 'pending', 'submission_status' => 'submitted', 'submitted_at' => $review['submitted_at']];
+            }
+            $walkthroughFinding = match (true) {
+                $completed && $period['quarter'] === 1 => 'Mapped the collection sites and checked the baseline field log for missing or inconsistent readings.',
+                $completed => 'Validated the recording workflow at the pilot sites and prepared the community user guide.',
+                $period['quarter'] === 1 => 'Reconciled the laboratory meter logs with room timetables and identified the highest-demand teaching periods.',
+                default => 'Verified hourly totals against source logs, adjusted the after-hours alert threshold, and prepared the operator guide.',
+            };
             $proof = $this->evidence($topic, $date);
-            $rows = array_map(function (array $row) use ($period, $proof): array {
+            $rows = array_map(function (array $row) use ($period, $proof, $walkthrough, $walkthroughFinding): array {
                 $elapsed = min(count($row['work_plan_months']), max(0, $period['quarter'] * 3 - min($row['work_plan_months']) + 1));
                 $fraction = $elapsed / count($row['work_plan_months']);
 
-                return [...$row, 'actual_accomplishment' => 'DEMO: '.round($fraction * 100).'% of this activity completed in the fictional pilot.',
+                return [...$row, 'actual_accomplishment' => $walkthrough ? $walkthroughFinding : 'DEMO: '.round($fraction * 100).'% of this activity completed in the fictional pilot.',
                     'accomplished_percentage' => round((float) $row['percent_weight'] * $fraction, 2),
-                    'findings' => $fraction >= 1 ? 'DEMO: Scheduled activity completed.' : 'DEMO: Activity continues next quarter.', 'evidence' => [$proof]];
+                    'findings' => $walkthrough ? $walkthroughFinding : ($fraction >= 1 ? 'DEMO: Scheduled activity completed.' : 'DEMO: Activity continues next quarter.'), 'evidence' => [$proof]];
             }, app(ApprovedWorkPlanMonitoringService::class)->defaultsForDate($topic, $date));
             $tool = $topic->progressReports()->create([
                 'submitted_by' => $topic->user_id, 'reporting_date' => $date, 'reporting_year' => 2026, 'reporting_quarter' => $period['quarter'],
                 'period_start' => $period['start'], 'period_end' => $period['end'], 'version_number' => 1,
-                'tracking_number' => 'DEMO-'.$topic->id.'-Q'.$period['quarter'].'-TOOL', 'progress_percentage' => min(100, (int) round($period['quarter'] * ($completed ? 50 : 25))),
-                'accomplishments' => implode(' ', array_column($rows, 'actual_accomplishment')), 'issues' => 'DEMO: No unresolved issues for this period.',
-                'work_plan' => $rows, 'budget_utilization' => [['type' => 'Purchase Request', 'details' => 'DEMO supplies', 'amount_requested' => 10000, 'actual_amount' => 9000, 'remarks' => 'Fictional amounts.']],
+                'tracking_number' => $trackingPrefix.'-'.$topic->id.'-Q'.$period['quarter'].'-TOOL', 'progress_percentage' => min(100, $period['quarter'] * ($completed || $walkthrough ? 50 : 25)),
+                'accomplishments' => implode(' ', array_column($rows, 'actual_accomplishment')), 'issues' => $walkthrough ? 'No unresolved issues for this period.' : 'DEMO: No unresolved issues for this period.',
+                'work_plan' => $rows, 'budget_utilization' => [['type' => 'Purchase Request', 'details' => $walkthrough ? 'Field equipment and validation supplies' : 'DEMO supplies',
+                    'amount_requested' => 10000, 'actual_amount' => 9000, 'remarks' => $walkthrough ? 'Delivered and reconciled against the purchase request.' : 'Fictional amounts.']],
                 'budget_prepared_by' => $topic->user_id, 'budget_prepared_at' => $period['end'], ...$review,
             ]);
             $this->reportPdf($tool);
             $progress = $topic->narrativeReports()->create([
                 'submitted_by' => $topic->user_id, 'report_type' => 'progress', 'submission_date' => $period['end']->addDay(),
                 'reporting_date' => $date, 'reporting_quarter' => $period['quarter'], 'period_start' => $period['start'], 'period_end' => $period['end'],
-                'tracking_number' => 'DEMO-'.$topic->id.'-Q'.$period['quarter'].'-PROGRESS', 'version_number' => 1,
+                'tracking_number' => $trackingPrefix.'-'.$topic->id.'-Q'.$period['quarter'].'-PROGRESS', 'version_number' => 1,
+                ...($walkthrough ? ['monitoring_report_id' => $tool->id] : []),
                 'researchers' => $topic->user->name, 'implementation_start' => $window['start'], 'implementation_end' => $window['end'],
-                'budget' => 75000, 'funding_agency' => 'DEMO school-funded research', 'accomplishment_summary' => $tool->accomplishments,
+                'budget' => 75000, 'funding_agency' => $walkthrough ? 'Campus research allocation' : 'DEMO school-funded research', 'accomplishment_summary' => $tool->accomplishments,
                 'accomplishments' => array_map(fn (array $row): array => ['objective' => $row['objective'], 'target' => $row['physical_target'], 'actual' => $row['actual_accomplishment']], $rows),
-                'introduction' => 'DEMO ONLY: Fictional implementation of '.$topic->title, 'rationale' => 'DEMO: Demonstrate the approved plan.',
-                'objectives' => implode("\n", array_column($rows, 'objective')), 'methodology' => 'DEMO: Baseline and pilot measurements.',
-                'results_discussion' => 'DEMO: Scheduled targets were achieved; no real findings are claimed.', 'photos' => [], ...$review,
+                'introduction' => $walkthrough ? 'This quarterly report covers the approved activities for '.$topic->title.'.' : 'DEMO ONLY: Fictional implementation of '.$topic->title,
+                'rationale' => $walkthrough ? 'Documenting the baseline and pilot results gives operators a reliable reference for using the toolkit.' : 'DEMO: Demonstrate the approved plan.',
+                'objectives' => implode("\n", array_column($rows, 'objective')),
+                'methodology' => $walkthrough ? 'Review the source readings, cross-check the observation log, and verify the pilot outputs against the approved activities.' : 'DEMO: Baseline and pilot measurements.',
+                'results_discussion' => $walkthrough ? $walkthroughFinding : 'DEMO: Scheduled targets were achieved; no real findings are claimed.', 'photos' => [], ...$review,
             ]);
             $this->reportPdf($progress);
         }
@@ -251,12 +348,16 @@ class MonitoringDemoSeeder extends Seeder
                 'bibliography' => 'DEMO ONLY: Internal demonstration proposal, approved Work Plan, Q1 and Q2 Monitoring Tools and Progress Reports.',
                 'signatories' => collect(TerminalReportRules::SIGNATORY_ROLES)->map(fn (array $role): array => ['name' => 'DEMO '.$role[1], 'date_signed' => '2026-07-08'])->all()];
             $terminal = $progress->replicate(['official_pdf_path', 'official_pdf_filename', 'official_pdf_checksum', 'official_pdf_size']);
-            $terminal->fill(['report_type' => 'terminal', 'tracking_number' => 'DEMO-'.$topic->id.'-TERMINAL', 'submission_date' => '2026-07-05',
+            $terminal->fill(['report_type' => 'terminal', 'tracking_number' => $trackingPrefix.'-'.$topic->id.'-TERMINAL', 'submission_date' => '2026-07-05',
                 'reporting_date' => null, 'reporting_quarter' => null, 'period_start' => null, 'period_end' => null,
+                'monitoring_report_id' => null,
                 'accomplishments' => $defaults['accomplishments'], 'objectives' => $defaults['objectives'],
                 'accomplishment_summary' => implode(' ', array_column($defaults['accomplishments'], 'actual')),
-                'review_stage' => null, 'secretary_reviewed_by' => null, 'secretary_reviewed_at' => null, 'secretary_remarks' => null, 'forwarded_at' => null,
+                'review_stage' => $walkthrough ? 'head' : null, 'secretary_reviewed_by' => $walkthrough ? $secretary->id : null,
+                'secretary_reviewed_at' => $walkthrough ? '2026-07-06 09:00:00' : null, 'secretary_remarks' => $walkthrough ? 'The attachments and required sections are complete.' : null,
+                'forwarded_at' => $walkthrough ? '2026-07-06 09:00:00' : null,
                 'submitted_at' => '2026-07-05 09:00:00', 'reviewed_at' => '2026-07-07 09:00:00',
+                ...($walkthrough ? ['photos' => $this->terminalPhotos($topic, $proof)] : []),
                 'terminal_data' => $terminalData])->save();
             $this->reportPdf($terminal);
             $terminal->update(['terminal_data' => [...$terminal->terminal_data, 'signed_copy' => [
@@ -340,6 +441,40 @@ class MonitoringDemoSeeder extends Seeder
             'starts_on' => '2025-11-01', 'ends_on' => '2026-10-31', 'projects_target' => 14, 'faculty_target' => 14,
             'publications_target' => 14, 'indicators' => $indicators, 'updated_by' => $head->id,
         ]);
+    }
+
+    /** @param array<string, mixed> $proof
+     * @return list<array<string, mixed>>
+     */
+    private function terminalPhotos(TopicProposal $topic, array $proof): array
+    {
+        $poster = imagecreatetruecolor(440, 240);
+        $background = imagecolorallocate($poster, 240, 249, 250);
+        $ink = imagecolorallocate($poster, 15, 37, 53);
+        $accent = imagecolorallocate($poster, 0, 106, 116);
+        $white = imagecolorallocate($poster, 255, 255, 255);
+        imagefill($poster, 0, 0, $background);
+        imagefilledrectangle($poster, 0, 0, 440, 29, $accent);
+        imagestring($poster, 3, 18, 9, 'COMMUNITY RESEARCH | PROJECT POSTER', $white);
+        imagestring($poster, 5, 18, 61, $topic->title, $ink);
+        imagestring($poster, 3, 18, 95, 'January - June 2026', $ink);
+        foreach (['Map sites', 'Record readings', 'Share results'] as $index => $label) {
+            $left = 18 + $index * 139;
+            imagefilledrectangle($poster, $left, 136, $left + 124, 180, $accent);
+            imagestring($poster, 3, $left + 9, 151, $label, $white);
+        }
+        imagestring($poster, 3, 18, 207, 'Illustrative field workflow', $ink);
+        ob_start();
+        imagepng(imagescale($poster, 880, 480));
+        $contents = ob_get_clean();
+
+        return [
+            ['path' => $this->store($topic, 'water-quality-project-poster.png', $contents), 'original_name' => 'water-quality-project-poster.png',
+                'mime_type' => 'image/png', 'size' => strlen($contents), 'section' => 'cover', 'after_paragraph' => 0,
+                'caption' => 'Community water quality toolkit project poster'],
+            ['path' => $proof['path'], 'original_name' => $proof['name'], 'mime_type' => $proof['mime_type'], 'size' => $proof['size'],
+                'section' => 'results_discussion', 'after_paragraph' => 0, 'caption' => 'Pilot observation log reused from the second-quarter Monitoring Tool'],
+        ];
     }
 
     private function reportPdf(ProjectProgressReport|ProjectNarrativeReport $report): void

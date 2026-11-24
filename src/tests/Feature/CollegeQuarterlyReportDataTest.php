@@ -317,7 +317,7 @@ test('quarterly research loads only the latest summary records for each project'
     }
 });
 
-test('automatic college research progress waits for office secretary forwarding', function () {
+test('coordinators see reported progress immediately while the secretary is checking it', function () {
     $topic = ($this->project)();
     ProjectProgressReport::create([
         'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
@@ -333,14 +333,15 @@ test('automatic college research progress waits for office secretary forwarding'
     ]);
     $service = app(CollegeQuarterlyReportData::class);
 
-    expect($service->build($this->coordinator, 2026, 2)['research'][0][3])->toBe('Ongoing (20% reported)');
+    expect($pending->isAvailableToResearchHead())->toBeFalse()
+        ->and($service->build($this->coordinator, 2026, 2)['research'][0][3])->toBe('Ongoing (80% reported)');
 
     $pending->update(['review_stage' => 'head', 'forwarded_at' => now()]);
 
     expect($service->build($this->coordinator, 2026, 2)['research'][0][3])->toBe('Ongoing (80% reported)');
 });
 
-test('automatic college research uses the latest visible revision within the latest reporting period', function (string $stage, string $submissionStatus, int $expectedProgress) {
+test('automatic college research uses the latest submitted revision within the latest reporting period', function (string $stage, string $submissionStatus, int $expectedProgress) {
     $topic = ($this->project)();
     $original = ProjectProgressReport::create([
         'topic_id' => $topic->id, 'submitted_by' => $this->owner->id,
@@ -370,5 +371,5 @@ test('automatic college research uses the latest visible revision within the lat
 })->with([
     'forwarded correction' => ['head', 'submitted', 90],
     'prepared correction' => ['head', 'prepared', 75],
-    'awaiting office review' => ['secretary', 'submitted', 75],
+    'awaiting office review' => ['secretary', 'submitted', 90],
 ]);

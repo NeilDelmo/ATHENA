@@ -36,7 +36,7 @@ class CollegeQuarterlyReportData
                 'versions.files' => fn (HasMany $files): HasMany => $files
                     ->whereIn('document_type', [ProposalVersionFile::TYPE_DETAILED_PROPOSAL, ProposalVersionFile::TYPE_LINE_ITEM_BUDGET, ProposalVersionFile::TYPE_WORK_PLAN])
                     ->select(['id', 'proposal_version_id', 'document_type', 'source_data']),
-                'progressReports' => fn (HasMany $reports): HasMany => $reports->submitted()->visibleToResearchHead()->where('reporting_date', '<=', $period['end']->toDateString())
+                'progressReports' => fn (HasMany $reports): HasMany => $reports->submitted()->where('reporting_date', '<=', $period['end']->toDateString())
                     ->select(['id', 'topic_id', 'progress_percentage'])
                     ->reorder()->orderByRaw('COALESCE(period_end, reporting_date) DESC')->orderByDesc('version_number')->orderByDesc('id')->limit(1),
             ])->orderBy('title')->orderBy('id')->get();

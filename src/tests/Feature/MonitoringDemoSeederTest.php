@@ -11,6 +11,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\MonitoringQuarterService;
 use App\Services\ProjectArchive;
+use App\Services\ProjectReportReviewService;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\ResearchHeadAnalytics;
 use App\Services\RmsQuarterlyReportStatus;
@@ -33,6 +34,80 @@ beforeEach(function () {
         $this->{$role} = $user;
     }
     $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx', 'convertXlsx')->andReturn("%PDF-1.4\nDEMO\n%%EOF");
+});
+
+test('a past-quarter walkthrough covers active monitoring completed projects and college reporting', function () {
+    $source = TopicProposal::create([
+        'user_id' => $this->faculty_researcher->id,
+        'title' => 'Existing project',
+        'status' => 'approved',
+        'project_status' => 'ongoing',
+        'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_path' => 'existing-notice.pdf',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-10-01', 'approved_end_date' => '2027-03-31'],
+    ]);
+    $this->artisan('monitoring:seed-walkthrough', ['source' => $source->id])->assertSuccessful();
+    $project = TopicProposal::where('title', 'Campus Laboratory Energy Monitoring Dashboard')->sole();
+    $completed = TopicProposal::whereKeyNot([$source->id, $project->id])->sole();
+    $terminal = $completed->narrativeReports()->where('report_type', 'terminal')->sole();
+    $schedule = app(MonitoringQuarterService::class);
+    expect($project->title)->toBe('Campus Laboratory Energy Monitoring Dashboard')
+        ->and($project->user_id)->toBe($source->user_id)
+        ->and($project->project_status)->toBe('ongoing')
+        ->and($schedule->canSubmitForDate($project, '2026-06-30'))->toBeTrue()
+        ->and($schedule->canSubmitTerminal($project))->toBeTrue()
+        ->and($schedule->missingTerminalReportPeriods($project))->toBe([])
+        ->and($project->progressReports()->reorder('reporting_date')->pluck('review_stage')->all())->toBe(['head', 'secretary'])
+        ->and($project->narrativeReports()->reorder('reporting_date')->pluck('review_status')->all())->toBe(['reviewed', 'pending'])
+        ->and($project->narrativeReports()->reorder('reporting_date')->pluck('monitoring_report_id')->all())
+        ->toBe($project->progressReports()->reorder('reporting_date')->pluck('id')->all())
+        ->and($schedule->canSubmitForDate($source, '2026-12-31'))->toBeFalse()
+        ->and($source->progressReports()->count())->toBe(0)
+        ->and($completed->project_status)->toBe('completed')
+        ->and($completed->latestProgressReportForResearchHead()->value('progress_percentage'))->toBe(100)
+        ->and($schedule->missingTerminalReportPeriods($completed))->toBe([])
+        ->and($terminal->review_status)->toBe('reviewed')
+        ->and(app(ProjectReportReviewService::class)->hasAvailableSignedCopy($terminal))->toBeTrue()
+        ->and($completed->researchOutcome->labels)->toContain('presentation', 'utilization')
+        ->and(CollegeQuarterlyReport::sole()->submitted_at)->toBeNull()
+        ->and(CollegeQuarterlyReport::sole()->presentations[0]['project_id'])->toBe($completed->id)
+        ->and(RmsQuarterlyReport::count())->toBe(0)
+        ->and(User::count())->toBe(4);
+    foreach ([...$project->progressReports, ...$project->narrativeReports] as $report) {
+        Storage::disk('local')->assertExists($report->official_pdf_path);
+    }
+    expect(collect($terminal->photos)->pluck('section')->all())->toBe(['cover', 'results_discussion']);
+    foreach ($terminal->photos as $photo) {
+        Storage::disk('local')->assertExists($photo['path']);
+    }
+    $this->actingAs($this->research_office_secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('research_secretary.reports.index'))
+        ->assertOk()
+        ->assertSeeText($project->title);
+    $this->actingAs($this->faculty_researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('project-narrative-reports.create', ['topic' => $project, 'report_type' => 'terminal']))
+        ->assertOk()
+        ->assertSeeText('Terminal Report');
+    $this->actingAs($this->research_coordinator)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+        ->get(route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 2]))
+        ->assertOk()
+        ->assertSeeText($project->title)
+        ->assertSeeText($completed->title);
+    $this->actingAs($this->research_head)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('research_head.completed-projects.index'))
+        ->assertOk()
+        ->assertSeeText($completed->title);
+    $project->update(['description' => 'Updated walkthrough notes']);
+    CollegeQuarterlyReport::sole()->update(['other_accomplishments' => 'Coordinator saved edits']);
+    $this->artisan('monitoring:seed-walkthrough', ['source' => $source->id])->assertSuccessful();
+    expect(TopicProposal::count())->toBe(3)
+        ->and($project->fresh()->description)->toBe('Updated walkthrough notes')
+        ->and(CollegeQuarterlyReport::sole()->other_accomplishments)->toBe('Coordinator saved edits');
+    Notification::assertNothingSent();
 });
 
 test('monitoring demo connects proposal history to reviewed reports archives labels college reports and RMS export', function () {
