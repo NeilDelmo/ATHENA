@@ -51,9 +51,9 @@
                                 <tbody>
                                     @foreach ($report->accomplishments ?? [] as $accomplishment)
                                         <tr>
-                                            <td class="progress-report-pre-line">{{ $accomplishment['objective'] }}</td>
-                                            <td class="progress-report-pre-line">{{ $accomplishment['target'] }}</td>
-                                            <td class="progress-report-pre-line">{{ $accomplishment['actual'] }}</td>
+                                            <td class="progress-report-pre-line">{{ $accomplishment['objective'] ?? '' }}</td>
+                                            <td class="progress-report-pre-line">{{ $accomplishment['target'] ?? '' }}</td>
+                                            <td class="progress-report-pre-line">{{ $accomplishment['actual'] ?? '' }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>

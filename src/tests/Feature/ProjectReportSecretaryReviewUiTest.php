@@ -260,6 +260,7 @@ test('forwarded reports offer a distinct Head decision panel with notes and clea
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
     expect($xpath->query('//*[@data-head-report-review]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-monitoring-report-detail or @data-progress-report-detail]/*[@data-head-report-review]')->length)->toBe(2)
         ->and($xpath->query('//*[@data-head-report-review]//input[@type="radio" and @name="review_status"]')->length)->toBe(4)
         ->and($xpath->query('//*[@data-head-report-review]//textarea[@rows="3" and @name="research_head_remarks"]')->length)->toBe(2)
         ->and($xpath->query('//*[@data-head-report-review]//select')->length)->toBe(0);

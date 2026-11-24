@@ -18,7 +18,7 @@
         @endif
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <p class="text-sm font-black text-gray-950 dark:text-white">{{ $reportLabel }} PDF prepared</p>
+                <p class="text-sm font-semibold text-gray-950 dark:text-white">{{ $reportLabel }} PDF prepared</p>
                 @if ($preparedReport->reporting_period_label)<p class="mt-2 text-base font-semibold text-red-700 dark:text-red-300">{{ $preparedReport->reporting_period_label }} · Version {{ $preparedReport->version_number }}</p>@endif
                 <p class="mt-1 max-w-2xl text-sm leading-6 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Office Secretary. The secretary checks it and handles corrections before forwarding it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
@@ -139,6 +139,7 @@
     <x-monitoring-writing-toolbar
         :topic="$topic"
         report-label="Progress Report"
+        figures-id="progress-report-figures"
         panel-id="progress-preview-{{ $topic->id }}"
         form-id="progress-form-{{ $topic->id }}"
         save-method="saveNarrativeDraft"
@@ -169,7 +170,7 @@
 
         @if ($errors->narrativeProgress->any())
             <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
-                <p class="font-black">Please correct the highlighted progress-report fields.</p>
+                <p class="font-semibold">Please correct the highlighted progress-report fields.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
                     @foreach ($errors->narrativeProgress->all() as $error)
                         <li>{{ $error }}</li>
@@ -178,7 +179,7 @@
             </div>
         @endif
 
-        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes, figures, and accomplishment evidence save privately as a draft. Wait for “Draft saved” before leaving. Attach evidence for each reported accomplishment before submission. Submitted evidence appears in the project folder and the College Accomplishment Report supporting documentation. Evidence stays out of the report preview and downloaded PDF; figures are included in the report.</p>
+        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Attach evidence for each accomplishment before submitting. Reviewers can open these files separately from the PDF.</p>
         <input type="hidden" name="monitoring_report_id" value="{{ $linkedMonitoringReport?->id }}">
         @if ($linkedMonitoringReport)
             <x-progress-report-monitoring :topic="$topic" :monitoring-report="$linkedMonitoringReport" :accomplishments="$accomplishmentRows" />
@@ -288,7 +289,7 @@
         <section class="space-y-4">
             <div>
                 <p class="text-lg font-bold text-gray-900">Narrative sections</p>
-                <p class="mt-1 text-sm text-gray-600">Introduction, rationale, objectives, and methodology start from the approved detailed proposal. Review the methods used this period and write new results. This progress-report format has no separate RRL section.</p>
+                <p class="mt-1 text-sm text-gray-600">Update the proposal text to reflect the work completed this quarter.</p>
             </div>
             @foreach ([
                 'introduction' => 'VII. Introduction',
@@ -303,7 +304,7 @@
             @endforeach
         </section>
 
-        <section class="space-y-4 rounded-xl border border-red-200 bg-red-50/40 p-4 dark:border-red-900 dark:bg-red-950/20" data-progress-report-figures>
+        <section class="space-y-4 rounded-xl border border-red-200 bg-red-50/40 p-4 dark:border-red-900 dark:bg-red-950/20" id="progress-report-figures" data-progress-report-figures>
             <div class="space-y-2">
                 <h3 class="text-xl font-bold text-brand dark:text-red-200">Figures</h3>
                 <p class="text-base leading-7 text-gray-600 dark:text-slate-300">Add diagrams, charts, screenshots, or research photos that support your methods and results. Use a caption for each figure. JPG or PNG, up to 10 MB per file.</p>

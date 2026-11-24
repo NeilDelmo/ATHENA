@@ -357,7 +357,7 @@ test('the faculty monitoring page opens the progress report in a focused form pa
     $this->actingAs($this->researcher)
         ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
-        ->assertSee('Report project accomplishments')
+        ->assertSee('BatStateU-REC-RES-02')
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview paper')
         ->assertSee('Exit monitoring')
@@ -371,10 +371,22 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertSee('VIII. Rationale')
         ->assertSee('X. Results and Discussion')
         ->assertSee('Add figure')
-        ->assertSee('Changes, figures, and accomplishment evidence save privately as a draft.')
-        ->assertSee('Evidence stays out of the report preview and downloaded PDF; figures are included in the report.')
+        ->assertSee('Attach evidence for each accomplishment before submitting.')
+        ->assertSee('Saved for review, excluded from preview and PDF.')
         ->assertSee('data-progress-evidence', false)
         ->assertSee('data-narrative-progress-autosave-form', false);
+});
+
+test('unfinished progress report can be previewed for the selected quarter', function () {
+    $payload = ($this->progressReportPayload)();
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.preview', $this->topic), [
+            'report_type' => 'progress',
+            'reporting_date' => $payload['reporting_date'],
+            'introduction' => 'An unfinished progress report.',
+        ])
+        ->assertSuccessful()->assertSee('An unfinished progress report.');
+    expect(ProjectNarrativeReport::count())->toBe(0);
 });
 
 test('a progress report form auto-saves a private draft without preparing an official PDF', function () {
@@ -458,6 +470,10 @@ test('the progress preview contains the same filled paper as the official templa
         $paperText = implode('', array_map(fn (DOMNode $node): string => $node->textContent, iterator_to_array($xpath->query('/w:document/w:body//w:t'))));
         $normalize = fn (string $text): string => preg_replace('/\s+/u', '', $text);
 
+        $previewFooter = $previewXPath->query('//*[@data-paper-footer]')->item(0);
+        expect($previewFooter)->toBeInstanceOf(DOMElement::class)
+            ->and($normalize($previewFooter->textContent))->toBe('TrackingNo.'.$payload['tracking_number']);
+        $previewFooter->parentNode->removeChild($previewFooter);
         expect($normalize($previewXPath->evaluate('string(//main)')))->toBe($normalize($paperText));
 
         if ($fixtureDirectory = getenv('ATHENA_REPORT_TEMPLATE_FIXTURE_DIRECTORY')) {

@@ -26,7 +26,6 @@
             @endif
 
             <x-implementation-report-secretary-review :topic="$topic" :report="$report" />
-            <x-implementation-report-head-review :topic="$topic" :report="$report" />
 
             <div class="pt-1">
                 <a data-progress-report-reader-link href="{{ route('project-narrative-reports.show', $report) }}" aria-label="Read full Q{{ $quarter }} progress report" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
@@ -37,4 +36,5 @@
         </div>
         <x-submitted-report-document name="progress-paper-{{ $report->id }}" modal-name="narrative-pdf-{{ $report->id }}" title="Submitted progress report paper" :preview-url="route('project-narrative-reports.view', $report)" :download-url="route('project-narrative-reports.download', $report)" :viewer-label="'Q'.$quarter.' progress report paper'" />
     </div>
+    <x-implementation-report-head-review :topic="$topic" :report="$report" />
 </div>

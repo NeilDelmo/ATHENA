@@ -326,6 +326,10 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         @apply w-full max-w-[16rem];
     }
 
+    .quarter-report-document > [data-head-report-review] {
+        @apply mt-6;
+    }
+
     .quarter-report-download {
         @apply inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-base font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
     }

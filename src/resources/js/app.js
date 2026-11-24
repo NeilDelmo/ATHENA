@@ -376,7 +376,7 @@ function initializeSemanticEditors() {
         editor.contentEditable = 'true';
         editor.setAttribute('role', 'textbox');
         editor.setAttribute('aria-multiline', 'true');
-        editor.setAttribute('aria-label', textarea.labels?.[0]?.textContent?.trim() || textarea.getAttribute('aria-label') || textarea.name || 'Writing field');
+        editor.setAttribute('aria-label', textarea.getAttribute('aria-label') || textarea.labels?.[0]?.textContent?.trim() || textarea.name || 'Writing field');
         editor.innerHTML = sanitizedSemanticHtml(textarea.value, sharedToolbar);
         textarea._semanticEditor = editor;
         const actions = [
@@ -5640,9 +5640,11 @@ Alpine.data('fileDropzone', (config = {}) => ({
 }));
 
 const documentPreviewForm = (config = {}) => {
-    const paperPreview = proposalPaperPreviewWorkspace({ canPrint: true, workspaceSelector: '[data-monitoring-paper-workspace]' });
+    const paperPreview = proposalPaperPreviewWorkspace({ initiallyOpen: true, canPrint: true, workspaceSelector: '[data-monitoring-paper-workspace]' });
     return {
+        ...(config.writingTools ? documentWritingToolbar() : {}),
         ...paperPreview,
+        previewFullscreenReturnLabel: 'Back to editor',
         previewTitle: config.previewTitle || 'Report preview',
         submitting: false,
         previewHtml: '',
@@ -6217,6 +6219,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     ...documentPreviewForm({
         ...config,
+        allowIncompletePreview: true,
         validationMessage: 'Please review the progress-report information.',
         failureMessage: 'The progress-report preview could not be generated. Please try again.',
     }),

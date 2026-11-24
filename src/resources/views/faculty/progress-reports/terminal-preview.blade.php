@@ -32,7 +32,7 @@ body{margin:0;background:#e5e7eb;color:#111;font:11pt/1.45 'Times New Roman',ser
 @endif
 <h1>{{ $title }}</h1><p>{{ $report->researchers }}</p><p>{{ $date($report->implementation_start) }} – {{ $date($report->implementation_end) }}</p><p>Approved funding: PHP {{ number_format((float) $report->budget, 2) }}</p></section>
 <section><h2>II. Project Details</h2><p><strong>Title:</strong> {{ $title }}</p><p><strong>Author/s:</strong><br>{{ $report->researchers }}</p><p>Approved duration: {{ $date($data['approved_start'] ?? null) }} – {{ $date($data['approved_end'] ?? null) }} ({{ $data['approved_duration_months'] ?? '' }} months)</p><p>Actual duration: {{ $date($report->implementation_start) }} – {{ $date($report->implementation_end) }}</p><p>Approved budget: PHP {{ number_format((float) $report->budget, 2) }}<br>Total expenditure: PHP {{ number_format((float) ($data['total_expenditure'] ?? 0), 2) }}<br>Percent utilization: {{ (float) $report->budget > 0 ? number_format((float) ($data['total_expenditure'] ?? 0) / (float) $report->budget * 100, 2).'%' : 'N/A (no approved funding)' }}</p><p>Collaborating agency: {{ ($data['collaborating_agency'] ?? '') ?: 'None' }}</p></section>
-<section><h2>III. Summary of Accomplishment</h2><table><thead><tr><th>Objectives</th><th>Target Accomplishments</th><th>Actual Accomplishments</th></tr></thead><tbody>@foreach ($report->accomplishments as $row)<tr><td>{{ $row['objective'] }}</td><td>{{ $row['target'] }}</td><td>{{ $row['actual'] }}</td></tr>@endforeach</tbody></table></section>
+<section><h2>III. Summary of Accomplishment</h2><table><thead><tr><th>Objectives</th><th>Target Accomplishments</th><th>Actual Accomplishments</th></tr></thead><tbody>@foreach ($report->accomplishments as $row)<tr><td>{{ $row['objective'] ?? '' }}</td><td>{{ $row['target'] ?? '' }}</td><td>{{ $row['actual'] ?? '' }}</td></tr>@endforeach</tbody></table></section>
 @foreach ($sections as [$heading, $text, $section])
     @php
         $blocks = $rich->blocks($text);
@@ -56,7 +56,7 @@ body{margin:0;background:#e5e7eb;color:#111;font:11pt/1.45 'Times New Roman',ser
     </section>
 @endforeach
 <section class="signatures"><h2>Prepared by:</h2>
-    @foreach ($data['authors'] ?? [] as $author)<div class="signature"><p>______________________________</p><p>{{ $author['name'] }}</p><p>{{ $author['role'] }}</p><p>Date signed: {{ $date($author['date_signed'] ?? null) }}</p></div>@endforeach
+    @foreach ($data['authors'] ?? [] as $author)<div class="signature"><p>______________________________</p><p>{{ $author['name'] ?? '' }}</p><p>{{ $author['role'] ?? '' }}</p><p>Date signed: {{ $date($author['date_signed'] ?? null) }}</p></div>@endforeach
     @php($lastGroup = '')
     @foreach (\App\Support\TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role])
         @if ($lastGroup !== $group)<h2>{{ $group }}:</h2>@php($lastGroup = $group)@endif

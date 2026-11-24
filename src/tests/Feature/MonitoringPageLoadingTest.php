@@ -79,6 +79,9 @@ test('monitoring report forms share the proposal toolbar and paper preview besid
         ->and($xpath->query($workspace.'//*[@data-monitoring-action-dock-fixed]')->length)->toBe(0)
         ->and($xpath->query($workspace.'//aside//*[@data-progress-evidence or @data-monitoring-evidence]')->length)->toBe(0)
         ->and($xpath->query($workspace.'//button[@type="submit"]')->length)->toBe(1)
+        ->and($xpath->query($workspace.'//button[@data-proposal-preview-toggle]')->length)->toBe(1)
+        ->and($xpath->query($toolbar.'//*[@data-document-writing-command="undo"]')->length)->toBe($type === 'terminal' ? 1 : 0)
+        ->and($xpath->query($workspace.'//form//*[@data-progress-evidence or @data-monitoring-evidence]')->length)->toBe($type === 'terminal' ? 0 : 1)
         ->and($response->getContent())->not->toContain('View full paper');
 
     $fixtureDirectory = getenv('ATHENA_MONITORING_BROWSER_FIXTURE_DIRECTORY');

@@ -59,28 +59,30 @@ class StoreProjectNarrativeReportRequest extends FormRequest
      */
     public function rules(): array
     {
+        $isPreview = $this->routeIs('project-narrative-reports.preview');
+        $required = $isPreview ? 'nullable' : 'required';
         $rules = [
             'draft_version' => ['sometimes', 'integer', 'min:0'],
             'draft_id' => ['sometimes', 'integer', 'min:0'],
             ...app(ProgressReportEvidenceService::class)->rules($this),
             ...app(ReportFigureDraftService::class)->rules($this),
             'reporting_date' => [Rule::excludeIf($this->input('report_type') === 'terminal'), 'required', 'date_format:Y-m-d'],
-            'submission_date' => ['required', 'date', 'before_or_equal:today'],
+            'submission_date' => [$required, 'date', 'before_or_equal:today'],
             'report_type' => ['required', Rule::in(['progress', 'terminal'])],
             'tracking_number' => ['nullable', 'string', 'max:100'],
-            'researchers' => ['required', 'string', 'max:1000'],
-            'implementation_start' => ['required', 'date'],
-            'implementation_end' => ['required', 'date', 'after_or_equal:implementation_start'],
-            'funding_agency' => ['required', 'string', 'max:255'],
-            'accomplishments' => ['required', 'array', 'min:1', 'max:1000'],
-            'accomplishments.*.objective' => ['required', 'string', 'max:1000'],
-            'accomplishments.*.target' => ['required', 'string', 'max:2000'],
-            'accomplishments.*.actual' => ['required', 'string', 'max:'.ProgressReportData::MAXIMUM_ACCOMPLISHMENT_LENGTH],
-            'introduction' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
-            'rationale' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
-            'objectives' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
-            'methodology' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
-            'results_discussion' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'researchers' => [$required, 'string', 'max:1000'],
+            'implementation_start' => [$required, 'date'],
+            'implementation_end' => [$required, 'date', ...(! $isPreview || $this->filled('implementation_start') ? ['after_or_equal:implementation_start'] : [])],
+            'funding_agency' => [$required, 'string', 'max:255'],
+            'accomplishments' => [$required, 'array', ...($isPreview ? [] : ['min:1']), 'max:1000'],
+            'accomplishments.*.objective' => [$required, 'string', 'max:1000'],
+            'accomplishments.*.target' => [$required, 'string', 'max:2000'],
+            'accomplishments.*.actual' => [$required, 'string', 'max:'.ProgressReportData::MAXIMUM_ACCOMPLISHMENT_LENGTH],
+            'introduction' => [$required, 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'rationale' => [$required, 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'objectives' => [$required, 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'methodology' => [$required, 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'results_discussion' => [$required, 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'prepared_by_date_signed' => ['nullable', 'date', 'before_or_equal:today'],
         ];
 
@@ -104,11 +106,11 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             $approvedBudget = $topic instanceof TopicProposal
                 ? (float) ($topic->latestVersion?->estimated_budget ?? $topic->estimated_budget ?? 0)
                 : null;
-            $rules = array_merge($rules, TerminalReportRules::rules(false, $approvedBudget));
+            $rules = array_merge($rules, TerminalReportRules::rules($isPreview, $approvedBudget));
             foreach (['introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {
-                $rules[$field] = ['required', 'string', 'max:100000'];
+                $rules[$field] = [$required, 'string', 'max:100000'];
             }
-            if ($this->routeIs('project-narrative-reports.preview')) {
+            if ($isPreview) {
                 $latestPreviewDate = app(MonitoringQuarterService::class)->reportingWindow($topic)['end']->max(CarbonImmutable::today());
                 $rules['implementation_end'][] = 'before_or_equal:'.$latestPreviewDate->toDateString();
             } else {
@@ -119,7 +121,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             $rules['researchers'] = ['nullable', 'string', 'max:10000'];
             $rules['funding_agency'] = ['nullable', 'string', 'max:255'];
             $rules['objectives'] = ['nullable', 'string', 'max:10000'];
-            $rules['accomplishments'] = ['required', 'array', 'max:30'];
+            $rules['accomplishments'] = [$required, 'array', 'max:30'];
             $evidenceKeys = array_keys(app(TerminalReportData::class)->evidence($this->route('topic')));
             $rules['cover_image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
             $rules['reuse_cover_image'] = ['nullable', Rule::in($evidenceKeys)];
@@ -178,15 +180,17 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             if ($this->input('report_type') !== 'terminal' || $validator->errors()->isNotEmpty()) {
                 return;
             }
-            $plain = app(TerminalReportData::class);
-            foreach (['introduction', 'rationale', 'methodology', 'results_discussion', ...array_map(fn ($key) => 'terminal_data.'.$key, TerminalReportRules::NARRATIVES)] as $field) {
-                if ($plain->plain((string) $this->input($field)) === '') {
-                    $validator->errors()->add($field, 'Please enter substantive text for this section.');
+            if (! $this->routeIs('project-narrative-reports.preview')) {
+                $plain = app(TerminalReportData::class);
+                foreach (['introduction', 'rationale', 'methodology', 'results_discussion', ...array_map(fn ($key) => 'terminal_data.'.$key, TerminalReportRules::NARRATIVES)] as $field) {
+                    if ($plain->plain((string) $this->input($field)) === '') {
+                        $validator->errors()->add($field, 'Please enter substantive text for this section.');
+                    }
                 }
-            }
-            $authors = $this->input('terminal_data.authors', []);
-            if (collect($authors)->where('role', 'Project Leader')->count() !== 1) {
-                $validator->errors()->add('terminal_data.authors', 'Identify exactly one project leader.');
+                $authors = $this->input('terminal_data.authors', []);
+                if (collect($authors)->where('role', 'Project Leader')->count() !== 1) {
+                    $validator->errors()->add('terminal_data.authors', 'Identify exactly one project leader.');
+                }
             }
             foreach ($this->input('terminal_data.tables', []) as $index => $table) {
                 foreach ($table['rows'] ?? [] as $row) {

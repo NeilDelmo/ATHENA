@@ -40,6 +40,9 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .proposal-writing-target span { color: var(--proposal-writing-ink); font-weight: 600; }
 .proposal-writing-hint { margin: .375rem 0 0; color: var(--proposal-writing-muted); font-size: .75rem; }
 .proposal-writing-buttons { display: flex; flex-wrap: nowrap; align-items: center; gap: .25rem; min-width: 0; width: 100%; overflow-x: auto; padding: .25rem; }
+[data-monitoring-writing-toolbar] .proposal-writing-buttons { flex-wrap: wrap; overflow: visible; }
+[data-monitoring-writing-toolbar] [data-document-formatting-toolbar] { margin-top: .25rem; }
+[data-monitoring-paper-workspace] :is(textarea, .semantic-rich-text-editor) { font-weight: 400; }
 .proposal-writing-buttons[hidden], .proposal-table-picker[hidden] { display: none; }
 .proposal-writing-buttons button, .proposal-table-picker button,
 .proposal-preview-dock button:not(.proposal-preview-paper-open), .proposal-preview-download,
@@ -102,6 +105,7 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .proposal-writing-columns { display: block; }
 [data-proposal-paper-workspace] .proposal-edit-pane { width: 100%; max-width: 60rem; margin-inline: auto; }
 [data-proposal-paper-workspace] :is(input, select, textarea, .semantic-rich-text-editor) { scroll-margin-top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 3rem) + 2.5rem); }
+[data-monitoring-paper-workspace] .proposal-edit-pane :is(#terminal-figures, #terminal-tables, #progress-report-figures),
 [data-proposal-paper-workspace] .proposal-edit-pane > section,
 [data-proposal-paper-workspace] [data-detailed-proposal-autosave-form] > section {
     border-radius: .625rem;

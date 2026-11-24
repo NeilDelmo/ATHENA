@@ -102,7 +102,7 @@ class ProjectNarrativeReportController extends Controller
         $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
             ? app(TerminalReportData::class)->photos($topic, $validated, $request->allFiles(), true)
             : app(ProgressReportData::class)->photos($topic, $validated, $request->allFiles(), true);
-        $validated['accomplishments'] = array_map(fn (array $row): array => array_intersect_key($row, array_flip(['objective', 'target', 'actual', 'activities'])), $validated['accomplishments']);
+        $validated['accomplishments'] = array_map(fn (array $row): array => array_intersect_key($row, array_flip(['objective', 'target', 'actual', 'activities'])), $validated['accomplishments'] ?? []);
 
         $report = new ProjectNarrativeReport([
             ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),

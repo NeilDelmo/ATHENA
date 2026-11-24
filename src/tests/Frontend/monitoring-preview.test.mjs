@@ -9,17 +9,18 @@ import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
 const read = (path) => readFileSync(resolve(path), 'utf8').replaceAll('\r\n', '\n');
+const fixtureDirectory = resolve(process.env.ATHENA_MONITORING_BROWSER_FIXTURE_DIRECTORY || '../tmp');
 const app = read('resources/js/app.js');
 const previewSource = app.slice(app.indexOf('const documentPreviewForm ='), app.indexOf("Alpine.data('monitoringToolForm',"));
 const controllers = app.slice(app.indexOf("Alpine.data('monitoringToolForm',"), app.indexOf("Alpine.data('noticeToProceedForm',"));
 const datePicker = app.slice(app.indexOf("Alpine.data('datePicker',"), app.indexOf("Alpine.data('dateTimePicker',"));
 const dateHelpers = app.slice(app.indexOf('function normalizeIsoDate('), app.indexOf("Alpine.data('notificationMenu',"));
-const previewHelpers = read('resources/js/proposal-preview-workspace.js').replaceAll('export ', '')
+const previewHelpers = read('resources/js/document-writing-toolbar.js').replaceAll('export ', '')
+    + read('resources/js/proposal-preview-workspace.js').replaceAll('export ', '')
     + read('resources/js/proposal-paper-workspace.js').replace(/^import .+;\n/gm, '').replaceAll('export ', '');
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1kAAAAASUVORK5CYII=', 'base64');
 
 test('monitoring previews use the proposal paper panel with live edits, images and accessible full view', async () => {
-    const fixtureDirectory = resolve('../tmp');
     if (!process.env.ATHENA_MONITORING_USE_EXISTING_FIXTURES) {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/MonitoringPageLoadingTest.php', '--filter=monitoring report forms share'], {
             cwd: resolve('.'), encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
@@ -72,8 +73,15 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await page.waitForFunction(() => Boolean(window.monitorState));
                     const workspace = page.locator('[data-monitoring-paper-workspace]');
                     const form = workspace.locator('form[x-ref="form"]');
-                    assert.equal(await workspace.locator('.proposal-preview-dock').isVisible(), false);
-                    assert.equal(await page.evaluate(() => window.previewRequests.length), 0);
+                    const draftDock = workspace.locator('.proposal-preview-dock');
+                    await draftDock.waitFor({ state: width >= 1024 ? 'visible' : 'hidden' });
+                    if (width >= 1024) {
+                        await page.waitForFunction(() => window.monitorState.previewReady);
+                        await draftDock.getByRole('button', { name: 'Collapse preview', exact: true }).click();
+                        await draftDock.waitFor({ state: 'hidden' });
+                    } else {
+                        assert.equal(await page.evaluate(() => window.previewRequests.length), 0);
+                    }
                     if (type === 'monitoring') {
                         const accomplishments = form.locator('textarea[name$="[actual_accomplishment]"]');
                         assert.ok(await accomplishments.count() > 0);
@@ -82,15 +90,15 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                         await workspace.locator('[data-proposal-preview-toggle]').click();
                         await page.waitForFunction(() => window.monitorState.previewReady && !window.monitorState.previewLoading, null, { timeout: 5000 });
                         const draftPreview = workspace.locator('.proposal-preview-dock');
-                        assert.equal(await draftPreview.isVisible(), true);
-                        if (width < 1024) await draftPreview.getByRole('button', { name: 'Minimize preview', exact: true }).click();
+                        await draftPreview.waitFor({ state: 'visible' });
+                        if (width < 1024) await draftPreview.getByRole('button', { name: 'Back to editor', exact: true }).click();
                         await accomplishments.first().fill('Started the field interviews.');
                         if (width < 1024) await workspace.locator('[data-proposal-preview-toggle]').click();
                         await page.waitForFunction(() => window.monitorState.previewHtml.includes('Started the field interviews.') && window.monitorState.previewReady && !window.monitorState.previewLoading);
                         await draftPreview.frameLocator('iframe').getByText(/Started the field interviews/).waitFor();
                         assert.equal(await form.evaluate(element => element.checkValidity()), false);
                         assert.equal(await accomplishments.first().getAttribute('required'), '');
-                        await draftPreview.getByRole('button', { name: width < 1024 ? 'Minimize preview' : 'Collapse preview', exact: true }).click();
+                        await draftPreview.getByRole('button', { name: width < 1024 ? 'Back to editor' : 'Collapse preview', exact: true }).click();
                     }
                     if (type === 'progress') await page.getByRole('button', { name: 'Add figure', exact: true }).click();
                     const fileName = type === 'progress' ? 'figures[0][image]' : 'cover_image';
@@ -179,7 +187,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     for (let step = 0; step < 5; step++) await dock.getByRole('button', { name: 'Zoom in', exact: true }).click();
                     await dock.getByRole('button', { name: 'Print', exact: true }).focus();
                     await page.keyboard.press('Shift+Tab');
-                    assert.equal(await dock.getByRole('button', { name: 'Minimize preview', exact: true }).evaluate((element) => element === document.activeElement), true);
+                    assert.equal(await dock.getByRole('button', { name: 'Back to editor', exact: true }).evaluate((element) => element === document.activeElement), true);
                     await frame.locator('body').press('Escape');
                     assert.equal(await page.evaluate(() => window.monitorState.previewFullscreen), false);
                     assert.equal(await field.inputValue(), 'First field notes.');
@@ -233,13 +241,14 @@ test('terminal poster and figure uploads show saved state and delayed text saves
                 const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
                 const errors = [];
                 page.on('pageerror', error => errors.push(error.message));
-                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body data-app-shell>${read('../tmp/monitoring-preview-terminal.html')}</body></html>`);
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body data-app-shell>${read(resolve(fixtureDirectory, 'monitoring-preview-terminal.html'))}</body></html>`);
                 await page.locator('[data-assistant-report-editor]').evaluateAll(editors => editors.forEach(editor => editor.remove()));
                 await page.addScriptTag({ content: `${previewHelpers}\n${previewSource}\n${dateHelpers}
                     const uploadRequest=(url,options)=>window.fetch(url,options);
                     const submitFileUploadForm=async(form)=>{form.submit();return true;};
                     window.savedImages={};window.saveCount=0;window.gateSave=true;
                     window.fetch=async(url,options)=>{
+                        if (url.includes('/preview')) return {ok:true,status:200,text:async()=>'<p>Terminal Report preview</p>'};
                         const fields=[...options.body.entries()];const images={};
                         for(const key of ['cover_image','photo_1']) {
                             const file=fields.find(([name])=>name===key)?.[1];

@@ -383,10 +383,11 @@ test('terminal form and preview use final report sections without mandatory imag
         ->assertSee('BatStateU-REC-RES-04')
         ->assertSee('Add figure')
         ->assertSee('Create table')
-        ->assertSee('How the final report is assembled')
+        ->assertDontSee('How the final report is assembled')
+        ->assertDontSee('Terminal report workspace')
         ->assertSee('Approved objectives and final outcomes')
-        ->assertSee('Quarterly records combined below')
-        ->assertSee('Add project poster')
+        ->assertSee('Earlier monitoring reports')
+        ->assertSee('Cover image')
         ->assertSee('Final total expenditure')
         ->assertSee('data-approved-work-plan-objectives', false)
         ->assertSee('data-terminal-cover-image', false)
@@ -508,7 +509,7 @@ test('terminal and progress drafts remain separate and preserve arrays and long 
 test('terminal validates abstract length dates table shape and substantive narratives', function (string $field, mixed $value) {
     $payload = ($this->terminalPayload)();
     data_set($payload, $field, $value);
-    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.preview', $this->topic), $payload)->assertUnprocessable();
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.prepare', $this->topic), $payload)->assertUnprocessable();
     expect(ProjectNarrativeReport::count())->toBe(0);
 })->with([
     'short abstract' => ['terminal_data.abstract', 'Too short'],
@@ -519,6 +520,17 @@ test('terminal validates abstract length dates table shape and substantive narra
     'uneven table' => ['terminal_data.tables.0.rows', [['One cell']]],
     'forged snapshot' => ['terminal_data.approved_budget', 1],
 ]);
+
+test('unfinished terminal report can be previewed but cannot be prepared', function () {
+    $payload = ['report_type' => 'terminal', 'terminal_data' => ['abstract' => 'Draft abstract.']];
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertSee('Draft abstract.');
+    $this->postJson(route('project-narrative-reports.prepare', $this->topic), $payload)
+        ->assertUnprocessable()->assertJsonValidationErrors(['implementation_start', 'terminal_data.abstract']);
+
+    expect(ProjectNarrativeReport::count())->toBe(0);
+});
 
 test('terminal expenditure cannot exceed the approved project budget', function () {
     $this->topic->update(['estimated_budget' => 8600]);

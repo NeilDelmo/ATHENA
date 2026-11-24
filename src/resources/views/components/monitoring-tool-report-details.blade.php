@@ -49,9 +49,8 @@
             @endif
 
             <x-implementation-report-secretary-review :topic="$topic" :report="$report" />
-
-            <x-implementation-report-head-review :topic="$topic" :report="$report" />
         </div>
         <x-submitted-report-document name="monitoring-paper-{{ $report->id }}" modal-name="monitoring-pdf-{{ $report->id }}" title="Submitted monitoring tool paper" :preview-url="route('project-progress.monitoring-tool.view', $report)" :download-url="route('project-progress.monitoring-tool', $report)" :viewer-label="$report->quarter_label.' monitoring tool paper'" />
     </div>
+    <x-implementation-report-head-review :topic="$topic" :report="$report" />
 </div>

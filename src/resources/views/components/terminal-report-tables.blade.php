@@ -8,10 +8,9 @@
     x-data="{ tables: @js($tables) }"
     aria-labelledby="terminal-tables-heading"
 >
-    <div class="flex flex-col gap-4 border-b-2 border-gray-950 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white">
+    <div class="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-slate-700">
         <div>
-            <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Structured evidence</p>
-            <h3 id="terminal-tables-heading" class="text-2xl font-bold text-gray-950 dark:text-white">Research tables</h3>
+            <h3 id="terminal-tables-heading" class="text-lg font-semibold text-gray-950 dark:text-white">Research tables</h3>
             <p class="mt-2 max-w-3xl text-gray-600 dark:text-slate-300">Create a table for methods, measurements, comparisons, or findings. Position 0 places it at the end of the selected section.</p>
         </div>
         <button
@@ -19,7 +18,7 @@
             @click="tables.push({caption:'',section:'results_discussion',after_paragraph:0,headers:['',''],rows:[['','']]}); $dispatch('input')"
             :disabled="tables.length >= 30"
             class="min-h-12 shrink-0 rounded-xl bg-red-700 px-5 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-40"
-        >▦ Create table</button>
+        >Create table</button>
     </div>
 
     <div x-show="tables.length === 0" class="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-800/50">

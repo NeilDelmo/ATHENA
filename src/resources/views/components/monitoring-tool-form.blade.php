@@ -32,12 +32,12 @@
         @endif
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <p class="text-sm font-black text-gray-950 dark:text-white">{{ $preparedReport->quarter_label }} {{ $preparedReport->version_label }} Monitoring Tool PDF prepared</p>
+                <p class="text-sm font-semibold text-gray-950 dark:text-white">{{ $preparedReport->quarter_label }} {{ $preparedReport->version_label }} Monitoring Tool PDF prepared</p>
                 <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Office Secretary. The secretary checks it and handles corrections before forwarding it to the Research Head. To change its contents, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
                 @if ($topic->research_secretary_id)
                     @if ($preparedReport->hasPreparedBudget())
-                        <p class="mt-3 inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-800">Budget confirmed by {{ $preparedReport->budgetPreparer?->name }}</p>
+                        <p class="mt-3 inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-slate-800">Budget confirmed by {{ $preparedReport->budgetPreparer?->name }}</p>
                     @else
                         <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{{ $topic->researchSecretary?->name ?? 'The assigned project secretary' }} has priority for budget utilization, but any authorized project member may complete it.</p>
                     @endif
@@ -130,12 +130,12 @@
     })"
 >
     @if (! $standalone)
-    <header class="flex items-center justify-between gap-3 px-5 py-4 text-sm font-black text-gray-950 dark:text-white">
+    <header class="flex items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-gray-950 dark:text-white">
         <span>
             {{ $revisionReport ? 'Correct '.$revisionReport->quarter_label.' Monitoring Tool' : 'Submit monitoring tool' }}
             <span class="mt-1 block text-xs font-normal text-red-700 dark:text-red-300">BatStateU-REC-RES-03 · Revision 03{{ $revisionReport ? ' · '.$revisionReport->version_label.' is retained as the original submitted report' : '' }}</span>
         </span>
-        <span class="rounded-full bg-gray-950 px-3 py-1 text-[10px] font-black uppercase text-white shadow-sm dark:bg-white dark:text-gray-950">Open form</span>
+        <span class="rounded-full bg-gray-950 px-3 py-1 text-[10px] font-semibold uppercase text-white shadow-sm dark:bg-white dark:text-gray-950">Open form</span>
     </header>
     @endif
 
@@ -184,7 +184,7 @@
 
         @if ($errors->any())
             <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
-                <p class="font-black">Please correct the highlighted monitoring fields.</p>
+                <p class="font-semibold">Please correct the highlighted monitoring fields.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
                     @foreach ($errors->all() as $error)
                         <li>{{ $error }}</li>
@@ -204,7 +204,7 @@
                 </div>
                 <div class="bg-white p-4 dark:bg-slate-900">
                     <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Reporting sequence</p>
-                    <p class="mt-1 text-lg font-black tabular-nums text-slate-950 dark:text-white">
+                    <p class="mt-1 text-lg font-semibold tabular-nums text-slate-950 dark:text-white">
                         Report <span x-text="currentReportNumber()">{{ $selectedReportNumber }}</span>
                         <span class="text-sm font-semibold text-slate-400">of {{ $monitoringReportCount }}</span>
                     </p>
@@ -237,7 +237,7 @@
                         </select>
                     @endif
                 </div>
-                <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100" x-show="hasApprovedEntries()">
+                <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-5 text-slate-900 dark:border-gray-900 dark:bg-gray-950/40 dark:text-slate-100" x-show="hasApprovedEntries()">
                     <p class="font-bold">From your approved work plan</p>
                     <p>Evidence is required for reported accomplishments before submission. Submitted evidence appears in the project folder and the College Accomplishment Report supporting documentation. Progress is calculated against each approved target and its activity weight.</p>
                 </div>
@@ -267,23 +267,23 @@
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-bold text-white dark:bg-white dark:text-slate-950">Activity <span x-text="index + 1"></span></span>
-                                        <span x-show="isApprovedEntry(entry)" class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">Approved plan</span>
+                                        <span x-show="isApprovedEntry(entry)" class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:border-gray-900 dark:bg-gray-950/50 dark:text-slate-200">Approved plan</span>
                                         <span x-show="isApprovedEntry(entry)" class="text-xs font-semibold text-slate-500" x-text="monthLabel(entry.work_plan_months)"></span>
                                         <span data-monitoring-activity-overdue x-show="isEntryOverdue(entry)" x-cloak role="status" class="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">Past target date</span>
                                     </div>
                                     <template x-if="isApprovedEntry(entry)">
                                         <div class="mt-3 space-y-3">
                                             <div>
-                                                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Objective</p>
+                                                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Objective</p>
                                                 <p class="mt-1 break-words text-sm font-bold leading-6 text-slate-950 dark:text-white" x-text="entry.objective"></p>
                                             </div>
                                             <div class="grid gap-3 sm:grid-cols-2">
                                                 <div>
-                                                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Activity</p>
+                                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Activity</p>
                                                     <p class="mt-1 break-words text-sm leading-6 text-slate-700 dark:text-slate-200" x-text="entry.activity"></p>
                                                 </div>
                                                 <div>
-                                                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Expected Output</p>
+                                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Expected Output</p>
                                                     <p class="mt-1 break-words text-sm leading-6 text-slate-700 dark:text-slate-200" x-text="entry.physical_target"></p>
                                                 </div>
                                             </div>
@@ -329,12 +329,12 @@
                                 <h3 class="text-sm font-bold text-slate-950 dark:text-white">Progress this quarter</h3>
                                 <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Describe the completed work and attach its evidence.</p>
                             </div>
-                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100 sm:col-span-2">Actual Accomplishment
+                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100">Actual Accomplishment
                                 <textarea :name="`work_plan[${index}][actual_accomplishment]`" x-model="entry.actual_accomplishment" rows="3" maxlength="500" required autocomplete="off" placeholder="State the measurable result completed during this reporting period…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
-                            <div class="space-y-3 sm:col-span-2" data-monitoring-evidence>
+                            <div class="min-w-0 space-y-3" data-monitoring-evidence>
                                 <input type="hidden" :name="`work_plan[${index}][activity_id]`" :value="entry.activity_id || ''">
-                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence of completed work (required before submission)</label>
+                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence <span class="font-normal">(required before submission)</span></label>
                                 <input :id="`activity-evidence-${index}`" :name="`activity_evidence[${evidenceKey(entry, index)}][]`" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" @change="setEvidenceFiles(entry, $event)" class="block w-full rounded-lg border border-slate-300 text-sm text-slate-600 file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:font-semibold file:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
                                 <p class="text-sm leading-6 text-slate-500 dark:text-slate-400" x-text="Number(entry.target_units || 1) > 1 ? 'Enter the total completed quantity supported by these files. Extra files do not increase progress.' : 'Attach proof that this activity’s approved output is complete. The milestone is counted once, regardless of file count.'"></p>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">Up to 5 files per activity · PDF, Word, Excel, JPG or PNG · 10 MB each</p>
@@ -372,7 +372,7 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-950">
                 <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Overall project progress, including earlier quarters</p>
-                <p class="text-lg font-black tabular-nums text-slate-950 dark:text-white"><span x-text="totalProjectProgress().toFixed(2)"></span>%</p>
+                <p class="text-lg font-semibold tabular-nums text-slate-950 dark:text-white"><span x-text="totalProjectProgress().toFixed(2)"></span>%</p>
             </div>
         </section>
 
@@ -389,7 +389,7 @@
             <div class="space-y-3">
                 @if ($topic->research_secretary_id)
                     <div class="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
-                        <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-black text-amber-800 ring-1 ring-amber-200">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
                             @if ($topic->researchSecretary?->avatar)
                                 <img src="{{ $topic->researchSecretary->avatar }}" alt="" class="h-full w-full object-cover">
                             @else
@@ -397,7 +397,7 @@
                             @endif
                         </span>
                         <div class="min-w-0">
-                            <p class="text-xs font-black uppercase tracking-wider text-amber-800">Priority project secretary</p>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-amber-800">Priority project secretary</p>
                             <p class="truncate text-sm font-bold text-gray-950 dark:text-white">{{ $topic->researchSecretary?->name }}</p>
                             <p class="truncate text-xs text-gray-500">{{ $topic->researchSecretary?->email }}</p>
                         </div>
