@@ -34,12 +34,12 @@ test('an overdue project displays its computed delay while retaining its editabl
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic))->assertOk();
     $xpath = ($this->monitoringOverview)($response->getContent());
     $overview = $xpath->query('//*[@data-monitoring-overview]')->item(0);
-    $attention = $xpath->query('//details[@data-monitoring-attention]')->item(0);
+    $attention = $xpath->query('//section[@data-monitoring-attention]')->item(0);
 
     expect($overview->textContent)->toContain('Project deadline / reported milestone passed', '1 day overdue')
         ->and($attention)->not->toBeNull()
-        ->and($attention->hasAttribute('open'))->toBeFalse()
-        ->and($xpath->query('//details[@data-monitoring-attention]/summary')->item(0)->textContent)->toContain('Needs attention')
+        ->and($xpath->query('//section[@data-monitoring-attention]//h4')->item(0)->textContent)->toBe('Needs attention')
+        ->and($xpath->query('//section[@data-monitoring-attention]//a[@data-monitoring-task-link]')->item(0)->textContent)->toContain('View quarterly reports')
         ->and($xpath->query('//*[@data-project-status-form]//option[@value="ongoing" and @selected]')->length)->toBe(1)
         ->and($this->topic->fresh()->project_status)->toBe('ongoing');
 });
@@ -55,7 +55,7 @@ test('monitoring budget settings stay collapsed unless an assignment needs corre
         ->and($budget->textContent)->toContain('completes and confirms budget utilization before submission')
         ->and($xpath->query('//*[@data-monitoring-overview]//*[@data-monitoring-notice-link]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="project-files-tab-button"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="terminal-reports"]')->item(0)->textContent)->toContain('Research Head review', 'fully signed PDF');
+        ->and($xpath->query('//*[@id="terminal-reports"]')->item(0)->textContent)->toContain('Research Office Secretary', 'Research Head for acceptance');
 
     $this->patch(route('project-secretary.assign', $this->topic), ['research_secretary_id' => $this->head->id])
         ->assertSessionHasErrors('research_secretary_id');
@@ -111,7 +111,7 @@ test('monitoring summary groups current reviews and identifies the overdue submi
     expect($overview->textContent)->toContain('Q2 · Overdue', 'Missing Progress Reports: Q2')
         ->not->toContain('Reports overdue', 'Open now', 'Awaiting Research Head review', 'completion decision needed', 'Project closeout pending')
         ->and($group)->not->toBeNull()
-        ->and($group->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('.//summary', $group)->length)->toBe(0)
         ->and($group->textContent)->toContain('Head review', '2 reports', 'Q2 Monitoring Tool', 'Q1 Progress Report', '1 day with Research Head')
         ->and($xpath->query('//*[@data-monitoring-task-link][contains(@href, "#monitoring-tool-'.$tool->id.'")]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-monitoring-task-link][contains(@href, "#narrative-report-'.$progress->id.'")]')->length)->toBe(1)

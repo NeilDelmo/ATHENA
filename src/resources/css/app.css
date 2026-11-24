@@ -291,7 +291,7 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
     }
 
     .monitoring-attention-items > [data-monitoring-work-plan-alert] {
-        @apply col-span-full rounded-none border-0 px-0 py-3;
+        @apply rounded-none border-x-0 border-b-0 px-4 py-3;
     }
 
     .quarterly-reports [data-quarter-targets] > .report-review-status {

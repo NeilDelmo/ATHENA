@@ -37,7 +37,7 @@ test('legacy released-document links override a saved project section', async ()
     }
 });
 
-test('the rendered monitoring workspace prioritizes reports and supports disclosure and tab navigation in both themes', async () => {
+test('the rendered monitoring workspace shows actionable rows and supports tab navigation in both themes', async () => {
     if (process.env.ATHENA_MONITORING_FIXTURE_READY !== '1') {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/ProjectMonitoringTest.php', 'tests/Feature/MonitoringObjectiveAlertTest.php', 'tests/Feature/PostApprovalUiDemoSeederTest.php', 'tests/Feature/ProjectReportSecretaryReviewUiTest.php', 'tests/Feature/ProjectMonitoringHealthPresentationTest.php', '--filter=post approval UI|monitoring prioritizes|progress quarter rows|a revised Monitoring Tool remains|monitoring alerts are visible|forwarded reports offer|monitoring summary groups'], {
             encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
@@ -117,7 +117,7 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     await expect(page.locator('[data-project-monitoring-details] dd').first()).toHaveCSS('font-size', '16px');
                     assert.match(await page.locator('[data-project-monitoring-details]').innerText(), /Latest reported progress/);
                     await expect(page.locator('#quarterly-reporting-schedule-heading')).toHaveCSS('font-size', '20px');
-                    await expect(page.locator('[data-monitoring-overview]')).toHaveCSS('background-color', dark ? 'rgb(30, 41, 59)' : 'rgb(254, 242, 244)');
+                    await expect(page.locator('[data-monitoring-overview]')).toHaveCSS('background-color', dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
                     await expect(page.locator('[data-monitoring-overview]')).toHaveCSS('border-top-width', '0px');
                     for (const report of await page.locator('.quarter-report-document').all()) {
                         await expect(report).toHaveCSS('border-left-width', '1px');
@@ -149,30 +149,16 @@ test('the rendered monitoring workspace prioritizes reports and supports disclos
                     assert.doesNotMatch(await overview.innerText(), /completion decision needed|Awaiting required report \/ review|Awaiting Research Head review/);
                     const attention = overview.locator('[data-monitoring-attention]');
                     if (await attention.count()) {
-                        assert.equal(await attention.getAttribute('open'), null);
-                        await expect(attention.locator('[data-monitoring-task-link]').first()).toBeHidden();
-                        await attention.locator(':scope > summary').focus();
-                        await page.keyboard.press('Enter');
-                        assert.equal(await attention.getAttribute('open'), '');
-                    }
-                    for (const group of await overview.locator('[data-monitoring-review-group]').all()) {
-                        assert.equal(await group.getAttribute('open'), null);
-                        const summary = group.locator('summary');
-                        await summary.focus();
-                        await page.keyboard.press('Enter');
-                        assert.equal(await group.getAttribute('open'), '');
-                        for (const link of await group.locator('[data-monitoring-task-link]').all()) {
-                            assert.equal(await link.isVisible(), true);
-                            assert.ok(await link.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
-                            const target = new URL(await link.getAttribute('href'), 'http://localhost').hash;
+                        await expect(attention.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
+                        await expect(attention.locator(':scope > summary, [data-monitoring-review-group] summary')).toHaveCount(0);
+                        for (const link of await attention.locator('[data-monitoring-task-link]').all()) {
+                            await expect(link).toBeVisible();
+                            assert.ok((await link.boundingBox()).height >= 44);
+                            const href = await link.getAttribute('href');
+                            if (!href.startsWith('#')) continue;
+                            const target = href;
                             assert.equal(await page.locator(target).count(), 1, `Task link must have a rendered destination: ${target}`);
                         }
-                        await page.keyboard.press('Space');
-                        assert.equal(await group.getAttribute('open'), null);
-                    }
-                    if (await attention.count()) {
-                        await attention.locator(':scope > summary').click();
-                        assert.equal(await attention.getAttribute('open'), null);
                     }
                     if (width >= 1280 && await overview.locator('[data-project-status-manager]').count()) {
                         const title = await overview.locator('[data-project-monitoring-heading] h3').boundingBox();
