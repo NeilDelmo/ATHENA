@@ -821,6 +821,15 @@ function autoSaveNavigationLink(event) {
     return changesOnlyHash ? null : link;
 }
 
+function setPaperExitStatus(link, message = '') {
+    const status = link.querySelector('[data-paper-exit-status]');
+    if (!status) return;
+
+    status.textContent = message;
+    if (message) link.setAttribute('aria-disabled', 'true');
+    else link.removeAttribute('aria-disabled');
+}
+
 function proposalDialogTheme() {
     const isDark = document.documentElement.classList.contains('dark');
 
@@ -975,6 +984,8 @@ async function initializeProposalAlerts() {
                 const actions = popup.querySelector('.swal2-actions');
                 if (undo && actions) actions.prepend(undo);
             },
+        }).catch(() => {
+            alert.hidden = false;
         });
     }
 }
@@ -1374,6 +1385,11 @@ document.addEventListener('submit', async (event) => {
         return;
     }
 
+    const confirmation = form.querySelector('[data-proposal-confirmation]');
+    if (confirmation instanceof HTMLInputElement) {
+        confirmation.value = '1';
+    }
+
     form.dataset.proposalConfirmAccepted = 'true';
 
     if (event.submitter instanceof HTMLButtonElement || event.submitter instanceof HTMLInputElement) {
@@ -1611,6 +1627,15 @@ document.addEventListener('click', async (event) => {
 
     if (!action) return;
 
+    if (action.matches('[data-paper-cancel-exit]')) {
+        if (action !== navigationLink) return;
+        if (action.getAttribute('aria-disabled') === 'true') {
+            event.preventDefault();
+
+            return;
+        }
+    }
+
     const editor = action.closest('[data-paper-editor]') ?? currentPaperEditor();
 
     if (!editor && navigationLink && backgroundAutoSaveHasPendingChanges()) {
@@ -1638,7 +1663,16 @@ document.addEventListener('click', async (event) => {
         return;
     }
 
-    if (!paperEditorHasUnsavedChanges(editor)) return;
+    if (!paperEditorHasUnsavedChanges(editor)) {
+        setPaperExitStatus(action, 'Returning to draft…');
+
+        return;
+    }
+
+    const returnToDestination = () => {
+        setPaperExitStatus(action, 'Returning to draft…');
+        window.location.assign(action.href);
+    };
 
     const shouldFinishAutoSave = action.matches('[data-paper-cancel-exit]')
         || (action === navigationLink
@@ -1646,13 +1680,15 @@ document.addEventListener('click', async (event) => {
 
     if (shouldFinishAutoSave && autoSaveMethodForPaperEditor(editor)) {
         event.preventDefault();
+        setPaperExitStatus(action, 'Saving draft…');
 
-        if (await finishPaperEditorAutoSave(editor)) {
-            window.location.assign(action.href);
+        if (await finishPaperEditorAutoSave(editor).catch(() => false)) {
+            returnToDestination();
 
             return;
         }
 
+        setPaperExitStatus(action);
         const leaveWithoutSaving = await showProposalConfirmation({
             title: 'Changes were not saved',
             text: 'ATHENA could not finish saving your latest changes. Stay on this page to resolve the issue, or leave without saving them.',
@@ -1662,7 +1698,7 @@ document.addEventListener('click', async (event) => {
 
         if (leaveWithoutSaving) {
             suppressPaperEditorAutoSaveWarnings(editor);
-            window.location.assign(action.href);
+            returnToDestination();
         }
 
         return;
@@ -1676,8 +1712,14 @@ document.addEventListener('click', async (event) => {
 
     if (await confirmPaperEditorNavigation(editor, message)) {
         suppressPaperEditorAutoSaveWarnings(editor);
-        window.location.assign(action.href);
+        returnToDestination();
     }
+});
+
+window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+
+    document.querySelectorAll('[data-paper-cancel-exit][aria-disabled="true"]').forEach(link => setPaperExitStatus(link));
 });
 
 window.addEventListener('beforeunload', (event) => {
@@ -5598,7 +5640,7 @@ Alpine.data('fileDropzone', (config = {}) => ({
 }));
 
 const documentPreviewForm = (config = {}) => {
-    const paperPreview = proposalPaperPreviewWorkspace({ workspaceSelector: '[data-monitoring-paper-workspace]' });
+    const paperPreview = proposalPaperPreviewWorkspace({ canPrint: true, workspaceSelector: '[data-monitoring-paper-workspace]' });
     return {
         ...paperPreview,
         previewTitle: config.previewTitle || 'Report preview',
@@ -7046,21 +7088,6 @@ Alpine.data('workPlanWizard', (config = {}) => ({
         }
     },
 
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        const frame = this.$refs.previewFrame;
-        const body = frame.contentDocument?.body;
-        const zoom = body?.style.zoom;
-        try {
-            if (body) body.style.zoom = '1';
-            frame.contentWindow.focus();
-            frame.contentWindow.print();
-        } finally {
-            if (body) body.style.zoom = zoom;
-        }
-    },
-
     scrollToWizard() {
         const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
@@ -7159,6 +7186,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             months: Array.isArray(values.months)
                 ? values.months.map((month) => Number(month))
                 : [],
+            rangeStart: '',
+            rangeEnd: '',
         };
     },
 
@@ -7194,10 +7223,91 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     clearMonthError(index) {
-        if (this.entries[index]?.months.length === 0) return;
+        const entry = this.entries[index];
+        if (!entry?.months.length) return;
 
         this.monthErrorIndexes = this.monthErrorIndexes.filter((entryIndex) => entryIndex !== index);
         this.validationMessage = '';
+        this.$refs.form?.querySelector(`[data-work-plan-schedule="${entry.id}"]`)
+            ?.removeAttribute('data-work-plan-invalid');
+    },
+
+    scheduleHasGaps(entry) {
+        return entry.months.length > 0 && entry.months.at(-1) - entry.months[0] + 1 !== entry.months.length;
+    },
+
+    missingWorkPlanEntryDetails(entry) {
+        const missing = [];
+        if (!entry.expectedOutput.trim()) missing.push('expected outputs');
+        if (!entry.activity.trim()) missing.push('activities');
+        if (!entry.months.length || this.scheduleHasGaps(entry)) missing.push('a continuous schedule');
+
+        return missing;
+    },
+
+    get workPlanCompletionHint() {
+        if (this.$root.dataset.paperProjectDetailsComplete !== 'true') return '';
+
+        for (const [index, entry] of this.entries.entries()) {
+            const missing = this.missingWorkPlanEntryDetails(entry);
+            if (missing.length) {
+                return `Objective ${index + 1} needs ${new Intl.ListFormat('en').format(missing)}.`;
+            }
+        }
+
+        return '';
+    },
+
+    selectScheduleEnd(index, month) {
+        if (!this.isMonthSelectable(index, month)) return;
+
+        const entry = this.entries[index];
+        entry.rangeStart ||= 1;
+        entry.rangeEnd = month;
+        this.updateMonthRange(index);
+    },
+
+    clearSchedule(index) {
+        const entry = this.entries[index];
+        entry.months = [];
+        entry.rangeStart = '';
+        entry.rangeEnd = '';
+        this.saveScheduleChange(index);
+        this.focusWorkPlanScheduleStart(entry);
+    },
+
+    fillScheduleGaps(index) {
+        const entry = this.entries[index];
+        entry.rangeStart = entry.months[0];
+        this.selectScheduleEnd(index, entry.months.at(-1));
+        this.focusWorkPlanScheduleStart(entry);
+    },
+
+    focusWorkPlanScheduleStart(entry, scroll = false) {
+        this.$nextTick(() => {
+            const field = this.$refs.form
+                ?.querySelector(`[data-work-plan-schedule="${entry.id}"] [data-work-plan-range-start]`);
+
+            if (scroll) field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            field?.focus({ preventScroll: scroll });
+        });
+    },
+
+    saveScheduleChange(index) {
+        this.clearMonthError(index);
+        this.$nextTick(() => this.triggerWorkPlanAutoSave());
+    },
+
+    updateMonthRange(index) {
+        const entry = this.entries[index];
+        if (entry.rangeEnd && entry.rangeEnd < entry.rangeStart) {
+            entry.rangeEnd = entry.rangeStart;
+        }
+
+        if (!entry.rangeStart || !entry.rangeEnd) return;
+
+        entry.months = this.months.slice(entry.rangeStart - 1, entry.rangeEnd);
+        this.saveScheduleChange(index);
     },
 
     isEntryExpanded(entry) {
@@ -7259,6 +7369,12 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         return `Y${this.yearNumberForMonth(month)}/M${this.localMonthNumber(month)} (project M${month})`;
     },
 
+    monthRangeLabel(month) {
+        return this.durationMonths > 12
+            ? `Y${this.yearNumberForMonth(month)} / M${this.localMonthNumber(month)}`
+            : `M${month}`;
+    },
+
     isMonthWithinDuration(month) {
         return Number.isInteger(this.durationMonths)
             && this.durationMonths >= 1
@@ -7272,20 +7388,22 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     isMonthSelectable(entryIndex, month) {
-        return this.isMonthWithinDuration(month);
+        return this.isMonthWithinDuration(month) && month >= (this.entries[entryIndex]?.rangeStart || 1);
     },
 
     monthSelectionTitle(entryIndex, month) {
-        if (!this.isMonthWithinDuration(month)) {
-            return `${this.monthScheduleLabel(month)} is outside the project duration.`;
+        if (!this.isMonthSelectable(entryIndex, month)) {
+            return 'Choose an earlier start month first.';
         }
 
-        return `Assign ${this.monthScheduleLabel(month)} to Objective ${entryIndex + 1}`;
+        return `Set end month to ${this.monthScheduleLabel(month)}`;
     },
 
     limitMonthsToDuration() {
         this.entries.forEach((entry) => {
-            entry.months = entry.months.filter((month) => this.isMonthWithinDuration(month));
+            entry.months = [...new Set(entry.months.filter((month) => this.isMonthWithinDuration(month)))].sort((a, b) => a - b);
+            entry.rangeStart = entry.months[0] ?? '';
+            entry.rangeEnd = entry.months.at(-1) ?? '';
         });
         this.monthErrorIndexes = [];
     },
@@ -7294,7 +7412,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
 
         return this.entries.length > 0 && fields.every((field) => field.checkValidity())
-            && this.entries.every((entry) => entry.months.length > 0);
+            && this.entries.every((entry) => this.missingWorkPlanEntryDetails(entry).length === 0);
     },
 
     clearWorkPlanValidationHighlights() {
@@ -7324,21 +7442,12 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             field.removeAttribute('data-work-plan-invalid');
             field.removeAttribute('aria-invalid');
         }
-
-        const match = String(field.getAttribute('name') || '').match(/^entries\[(\d+)]\[months]/);
-        const entry = this.entries[Number(match?.[1])];
-
-        if (entry?.months.length > 0) {
-            this.$refs.form
-                ?.querySelector(`[data-work-plan-schedule="${entry.id}"]`)
-                ?.removeAttribute('data-work-plan-invalid');
-        }
     },
 
     validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
-        const invalidField = fields.find((field) => !field.checkValidity());
+        const invalidField = fields.find((field) => !field.checkValidity() || (field.required && !field.value.trim()));
 
         this.clearWorkPlanValidationHighlights();
 
@@ -7362,22 +7471,17 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             return false;
         }
 
-        const invalidEntryIndex = this.entries.findIndex((entry) => entry.months.length === 0);
+        const invalidEntryIndex = this.entries.findIndex((entry) => entry.months.length === 0 || this.scheduleHasGaps(entry));
 
         if (invalidEntryIndex !== -1) {
+            const entry = this.entries[invalidEntryIndex];
             this.monthErrorIndexes = [invalidEntryIndex];
-            this.expandedEntryId = this.entries[invalidEntryIndex]?.id ?? null;
-            this.highlightWorkPlanSchedule(this.entries[invalidEntryIndex]);
+            this.expandedEntryId = entry.id;
+            this.highlightWorkPlanSchedule(entry);
             this.validationMessage = forExit
                 ? 'Complete the highlighted required fields before exiting the editor.'
-                : 'Select at least one scheduled month for every objective.';
-            this.$nextTick(() => {
-                const field = this.$refs.form
-                    ?.querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`);
-
-                field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                field?.focus();
-            });
+                : 'Choose a continuous schedule for every objective.';
+            this.focusWorkPlanScheduleStart(entry, true);
 
             return false;
         }
@@ -7399,11 +7503,14 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement)) return;
 
-        this.lastSavedWorkPlan = this.workPlanFingerprint(form);
+        const shouldRecheckCompletion = config.recheckCompletion && !this.workPlanShouldSaveAsDraft();
+        this.lastSavedWorkPlan = shouldRecheckCompletion ? '' : this.workPlanFingerprint(form);
         form.addEventListener('input', () => this.triggerWorkPlanAutoSave());
         form.addEventListener('change', () => this.triggerWorkPlanAutoSave());
         form.addEventListener('input', (event) => this.clearWorkPlanFieldHighlight(event.target));
         form.addEventListener('change', (event) => this.clearWorkPlanFieldHighlight(event.target));
+
+        if (shouldRecheckCompletion) this.scheduleWorkPlanAutoSave();
     },
 
     workPlanAutoSaveForm() {
@@ -7460,7 +7567,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     workPlanShouldSaveAsDraft() {
-        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+        return this.$root.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
     },
 
     async saveWorkPlan() {
@@ -7517,6 +7624,12 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             const documentVersion = form.querySelector('[name="document_version"]');
 
             if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
+
+            const completionStatus = document.querySelector('[data-work-plan-completion-status]');
+            const completionLabel = payload.saved_as_draft ? 'In progress' : 'Complete';
+            if (completionStatus && completionStatus.textContent !== completionLabel) {
+                completionStatus.textContent = completionLabel;
+            }
 
             this.lastSavedWorkPlan = fingerprint;
 
@@ -7656,13 +7769,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         } finally {
             this.downloadLoading = false;
         }
-    },
-
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
     },
 }));
 
@@ -8278,17 +8384,13 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             this.downloadLoading = false;
         }
     },
-
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
-    },
 }));
 
 Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
-    ...proposalPaperPreviewWorkspace({ initiallyOpen: true, workspaceSelector: '[data-expense-breakdown-workspace]' }),
+    ...proposalPaperPreviewWorkspace({
+        initiallyOpen: Array.isArray(config.initialData?.items) && config.initialData.items.length > 0,
+        workspaceSelector: '[data-expense-breakdown-workspace]',
+    }),
     ...(config.proposalDraftId ? proposalPaperAssistantChanges({ paperSlug: 'expense-breakdown', proposalDraftId: config.proposalDraftId, draftVersion: config.draftVersion,
         resolveChange: (selection) => resolveAssistantProposalChange(selection, document.body.dataset.researchAssistantProposalChangesUrl, config.csrfToken),
         changeHandoff: assistantProposalChangeHandoff(), finishSave: finishPaperEditorAutoSave }) : {}),
@@ -8832,13 +8934,6 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         } finally {
             this.downloadLoading = false;
         }
-    },
-
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
     },
 }));
 
@@ -9440,13 +9535,6 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         } finally {
             this.downloadLoading = false;
         }
-    },
-
-    printPreview() {
-        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-        this.$refs.previewFrame.contentWindow.focus();
-        this.$refs.previewFrame.contentWindow.print();
     },
 }));
 

@@ -43,7 +43,7 @@
                     <p class="mt-1 text-sm leading-6 text-[#6B6258] dark:text-slate-400">Drag a name into any signature field, or choose one from its dropdown. You can use the same name in several fields.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                    <button type="button" x-cloak x-show="dirty" x-on:click="reset()" class="min-h-11 rounded-lg px-3 text-sm font-semibold text-[#6B6258] transition hover:bg-[#F4F1EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-slate-300 dark:hover:bg-slate-800">Undo changes</button>
+                    <button type="button" x-cloak x-show="dirty" x-on:click="reset()" class="secondary-action">Undo changes</button>
                     <button type="submit" x-bind:disabled="!dirty" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#C1272D] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#9C1E23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-default disabled:bg-[#F4F1EB] disabled:text-[#8A8178] dark:disabled:bg-slate-800 dark:disabled:text-slate-500 dark:focus-visible:ring-offset-slate-900">Save defaults</button>
                 </div>
             </header>
@@ -204,7 +204,7 @@
         @endif
 
         <details @if ($summary['total'] > 0 || $search !== '' || $selectedRole !== '') open @endif class="rounded-xl border border-[#E7E2D8] bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-            <summary class="disclosure-summary cursor-pointer text-sm font-bold text-[#201A15] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-white">Manage additional directory names <span class="ml-2 font-normal text-[#6B6258] dark:text-slate-400">({{ $summary['total'] }})</span></summary>
+            <summary class="disclosure-summary secondary-action w-full justify-start text-left">Manage additional directory names <span class="ml-2 font-normal text-[#6B6258] dark:text-slate-400">({{ $summary['total'] }})</span></summary>
         <div class="mt-5 grid items-start gap-6 min-[860px]:grid-cols-[15rem_minmax(0,1fr)]">
             <aside class="space-y-2.5 min-[860px]:sticky min-[860px]:top-5" aria-label="Directory summary">
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['total']) }}</strong>total signatories</span>

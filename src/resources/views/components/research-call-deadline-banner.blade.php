@@ -20,18 +20,22 @@
         x-data="{
             dismissed: false,
             dismissing: false,
+            dismissalError: '',
             async dismiss() {
                 if (this.dismissing) return;
 
                 this.dismissing = true;
+                this.dismissalError = '';
 
                 try {
                     const response = await fetch(@js(route('research-calls.deadline-dismissal.store', $researchCall)), {
                         method: 'POST',
                         headers: {
                             'Accept': 'application/json',
+                            'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']')?.content,
                         },
+                        body: JSON.stringify({ deadline_at: @js($researchCall->closes_at->toIso8601String()) }),
                     });
 
                     if (response.ok) {
@@ -39,8 +43,12 @@
 
                         return;
                     }
+                    if (response.status === 409) {
+                        this.dismissalError = 'The submission deadline changed. Reload the page to see the updated reminder.';
+                    }
                 } catch {}
 
+                this.dismissalError ||= 'The reminder could not be dismissed. Try again.';
                 this.dismissing = false;
             },
         }"
@@ -75,6 +83,7 @@
                     </p>
                 </div>
             </div>
+            <p x-show="dismissalError" x-cloak x-text="dismissalError" role="alert" class="text-sm text-red-700 dark:text-red-300"></p>
             <div class="flex shrink-0 items-center gap-2">
                 <a wire:navigate href="{{ route('research-calls.index') }}" @class([
                     'inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-xs font-black text-white shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-950',

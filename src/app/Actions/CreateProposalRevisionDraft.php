@@ -40,7 +40,7 @@ class CreateProposalRevisionDraft
                 if ($existingDraft) {
                     if ($existingDraft->trashed()) {
                         throw ValidationException::withMessages([
-                            'draft' => 'This proposal workspace is in Trash. Restore it from Draft proposals before continuing the revision.',
+                            'draft' => 'Restore the linked proposal workspace below to continue your revision.',
                         ]);
                     }
 

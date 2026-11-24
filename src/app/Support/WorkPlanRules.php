@@ -38,13 +38,13 @@ class WorkPlanRules
     /**
      * @return list<callable(Validator): void>
      */
-    public static function afterCallbacks(mixed $entries, bool $allowDraft = false): array
+    public static function afterCallbacks(mixed $entries, bool $allowDraft = false, bool $requireContinuousRange = false): array
     {
         if ($allowDraft) {
             return [];
         }
 
-        return [function (Validator $validator) use ($entries): void {
+        return [function (Validator $validator) use ($entries, $requireContinuousRange): void {
             if (! is_array($entries)) {
                 return;
             }
@@ -54,6 +54,7 @@ class WorkPlanRules
                     continue;
                 }
 
+                $monthsField = "entries.{$entryIndex}.months";
                 $selectedMonths = [];
                 foreach ($entry['months'] as $month) {
                     if (! is_numeric($month)) {
@@ -63,7 +64,7 @@ class WorkPlanRules
                     $month = (int) $month;
                     if (isset($selectedMonths[$month])) {
                         $validator->errors()->add(
-                            "entries.{$entryIndex}.months",
+                            $monthsField,
                             'M'.$month.' was selected more than once for Objective '.($entryIndex + 1).'.',
                         );
 
@@ -71,6 +72,14 @@ class WorkPlanRules
                     }
 
                     $selectedMonths[$month] = true;
+                }
+
+                $months = array_keys($selectedMonths);
+                if ($requireContinuousRange && $months !== []
+                    && ! $validator->errors()->has($monthsField)
+                    && ! $validator->errors()->has($monthsField.'.*')
+                    && max($months) - min($months) + 1 !== count($months)) {
+                    $validator->errors()->add($monthsField, 'Choose a continuous range of months for Objective '.($entryIndex + 1).'.');
                 }
             }
         }];

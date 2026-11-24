@@ -2,6 +2,7 @@
 
 use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\LinkProposalDraftMemberships;
+use App\Actions\PurgeProposalDraft;
 use App\Exceptions\ResearchAssistantDocumentException;
 use App\Jobs\PrepareProposalDraftPdfs;
 use App\Livewire\ProposalDraftReviewPackage;
@@ -14,6 +15,7 @@ use App\Notifications\ProposalWorkspaceInvitation;
 use App\Services\AccessibleRecordSearch;
 use App\Services\ProposalPdfPreparation;
 use App\Services\ResearchAssistantDocumentService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -37,16 +39,21 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
-test('draft proposals show a labelled trash link with a trash can icon', function () {
-    $response = $this->actingAs($this->owner)->get(route('faculty.proposal-drafts.index'))->assertOk();
+test('draft proposals show Trash beside the draft count', function () {
+    $response = $this->actingAs($this->owner)->get(route('faculty.proposal-drafts.index'))
+        ->assertOk()->assertSeeInOrder(['data-faculty-drafts', '1 draft', 'data-proposal-trash-entry', 'data-proposal-draft='], false);
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
-    $link = $xpath->query('//a[@href="'.route('faculty.proposal-drafts.trash').'"]')->item(0);
+    $links = $xpath->query('//a[@data-proposal-trash-entry]');
+    $link = $xpath->query('//main//section[@data-faculty-drafts]/div/div/a[@data-proposal-trash-entry]')->item(0);
 
-    expect($link)->not->toBeNull()
+    expect($links->length)->toBe(1)
+        ->and($link)->not->toBeNull()
+        ->and($link->getAttribute('href'))->toBe(route('faculty.proposal-drafts.trash'))
+        ->and($link->getAttribute('aria-label'))->toBe('Proposal Trash')
         ->and(trim($link->textContent))->toBe('Trash')
-        ->and($xpath->query('.//svg[@aria-hidden="true"]/path', $link)->length)->toBe(1);
+        ->and($xpath->query('.//svg[@aria-hidden="true"]/path', $link)->length)->toBeGreaterThan(0);
 });
 
 test('deleting a proposal draft preserves its papers history and membership for undo', function () {
@@ -63,7 +70,7 @@ test('deleting a proposal draft preserves its papers history and membership for 
     ]);
     $member = $this->draft->members()->create([
         'user_id' => $this->colleague->id, 'name' => $this->colleague->name,
-        'email' => $this->colleague->email,
+        'email' => $this->colleague->email, 'accepted_at' => null,
     ]);
 
     $this->actingAs($this->owner)->delete(route('faculty.proposal-drafts.destroy', $this->draft))
@@ -78,7 +85,7 @@ test('deleting a proposal draft preserves its papers history and membership for 
     $this->get(route('faculty.proposal-drafts.index'))->assertOk()
         ->assertSee('data-alert-title="Draft moved to Trash"', false)
         ->assertSee('data-proposal-alert-undo', false)
-        ->assertSee('Back to drafts')->assertSee('Undo')->assertDontSee($this->draft->project_title);
+        ->assertSee('data-alert-button="OK"', false)->assertSee('Undo')->assertDontSee($this->draft->project_title);
     $this->post(route('faculty.proposal-drafts.restore', $this->draft))
         ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
     expect($this->draft->fresh()->trashed())->toBeFalse();
@@ -93,13 +100,17 @@ test('trash is owner only and trashed drafts cannot be opened edited downloaded 
     ]);
     $this->draft->delete();
 
-    $trash = $this->actingAs($this->owner)->get(route('faculty.proposal-drafts.trash'))
-        ->assertOk()->assertSee($this->draft->project_title)->assertSee('30 days');
-    File::ensureDirectoryExists(storage_path('framework/testing'));
-    File::put(storage_path('framework/testing/proposal-trash.html'), $trash->getContent());
+    $this->actingAs($this->owner)->get(route('faculty.proposal-drafts.trash'))
+        ->assertOk()->assertSee($this->draft->project_title)
+        ->assertSeeText('30 days to restore a draft')->assertSeeText('Moved to Trash')->assertSeeText('Restore by')
+        ->assertDontSee('data-proposal-alert', false)
+        ->assertSee('data-fixed-back-link', false)
+        ->assertSee('data-confirm-button="Restore draft"', false)
+        ->assertDontSee('data-confirm-button="Delete permanently"', false);
     $this->actingAs($this->colleague)->get(route('faculty.proposal-drafts.trash'))
         ->assertOk()->assertDontSee($this->draft->project_title);
     $this->post(route('faculty.proposal-drafts.restore', $this->draft))->assertNotFound();
+    $this->delete(route('faculty.proposal-drafts.trash.destroy', $this->draft), ['confirmed' => '1'])->assertNotFound();
     foreach ([$this->owner, $this->colleague] as $user) {
         $this->actingAs($user)->get(route('faculty.proposal-drafts.show', $this->draft))->assertNotFound();
         $this->get(route('faculty.proposal-drafts.edit-state', [$this->draft, 'details', 0]))->assertNotFound();
@@ -111,6 +122,56 @@ test('trash is owner only and trashed drafts cannot be opened edited downloaded 
     $this->post(route('notifications.proposal-invitations.accept', $member))->assertForbidden();
     Livewire::actingAs($this->owner)->test(ProposalDraftReviewPackage::class, ['proposalDraft' => $this->draft])->assertForbidden();
 });
+
+test('an owner must confirm permanent deletion and can only purge trashed drafts', function () {
+    $path = $this->draft->storageDirectory().'/paper.pdf';
+    Storage::disk('local')->put($path, 'draft paper');
+    $paper = $this->draft->documents()->create(['document_type' => 'detailed_proposal', 'file_path' => $path]);
+    $history = $this->draft->documentVersions()->create([
+        'proposal_draft_document_id' => $paper->id, 'document_type' => 'detailed_proposal', 'version_number' => 1, 'file_path' => $path,
+    ]);
+    $member = $this->draft->members()->create(['name' => $this->colleague->name, 'email' => $this->colleague->email, 'accepted_at' => null]);
+    $trashUrl = route('faculty.proposal-drafts.trash');
+    $deleteUrl = route('faculty.proposal-drafts.trash.destroy', $this->draft);
+
+    $this->actingAs($this->owner)->delete($deleteUrl, ['confirmed' => '1'])->assertNotFound();
+    $this->draft->delete();
+    $trash = $this->get($trashUrl)->assertOk()->assertSee('data-confirm-button="Delete permanently"', false);
+    File::ensureDirectoryExists(storage_path('framework/testing'));
+    File::put(storage_path('framework/testing/proposal-trash.html'), $trash->getContent());
+
+    $this->from($trashUrl)->delete($deleteUrl, ['confirmed' => '0'])
+        ->assertRedirect($trashUrl)->assertSessionHasErrors('confirmed');
+    $this->assertSoftDeleted($this->draft);
+    Storage::disk('local')->assertExists($path);
+
+    $this->delete($deleteUrl, ['confirmed' => '1'])
+        ->assertRedirect($trashUrl)->assertSessionHas('trash_status', 'Proposal draft permanently deleted.');
+
+    $this->assertModelMissing($this->draft);
+    $this->assertModelMissing($paper);
+    $this->assertModelMissing($history);
+    $this->assertModelMissing($member);
+    Storage::disk('local')->assertMissing($path);
+    $this->get($trashUrl)->assertOk()->assertSeeText('Proposal draft permanently deleted.')
+        ->assertSeeText('Trash is empty')->assertDontSee('data-proposal-alert', false);
+});
+
+test('drafts with a submission link or official history cannot be permanently deleted', function (bool $directLink) {
+    $topic = TopicProposal::create(['user_id' => $this->owner->id, 'title' => 'Official record', 'status' => 'revision_requested']);
+    if ($directLink) {
+        $this->draft->update(['topic_id' => $topic->id]);
+    } else {
+        $this->draft->documentVersions()->create(['topic_id' => $topic->id, 'document_type' => 'detailed_proposal', 'version_number' => 1]);
+    }
+    $this->draft->delete();
+
+    $this->actingAs($this->owner)->get(route('faculty.proposal-drafts.trash'))->assertOk()
+        ->assertSeeText('Linked to a submitted proposal')->assertDontSee('Delete permanently');
+    $this->delete(route('faculty.proposal-drafts.trash.destroy', $this->draft), ['confirmed' => '1'])->assertForbidden();
+    $this->assertSoftDeleted($this->draft);
+    $this->assertModelExists($topic);
+})->with(['direct submission link' => true, 'official document history' => false]);
 
 test('expired drafts cannot be restored and submitting work cannot enter trash', function () {
     $this->draft->delete();
@@ -174,11 +235,35 @@ test('revision creation sends owners to restore their trashed workspace instead 
     ]);
     $this->draft->update(['topic_id' => $topic->id]);
     $this->draft->delete();
+    $this->travel(31)->days();
     $this->actingAs($this->owner);
 
     expect(fn () => app(CreateProposalRevisionDraft::class)->handle($topic, $this->owner))
         ->toThrow(ValidationException::class);
     expect(ProposalDraft::withTrashed()->where('topic_id', $topic->id)->count())->toBe(1);
+    $this->get(route('faculty.proposal-drafts.revision', $topic))->assertRedirect(route('faculty.proposal-drafts.trash'));
+    $this->patch(route('faculty.topics.resubmit', $topic), [
+        'title' => $topic->title, 'estimated_budget' => 1000, 'estimated_duration_months' => 3,
+    ])->assertRedirect(route('faculty.proposal-drafts.trash'));
+    $this->get(route('faculty.proposal-drafts.trash'))->assertOk()->assertSeeText('Available for restoration');
+    $this->post(route('faculty.proposal-drafts.restore', $this->draft))->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
+    expect(app(CreateProposalRevisionDraft::class)->handle($topic, $this->owner)->id)->toBe($this->draft->id);
+});
+
+test('a rolled back purge leaves the trashed draft and its files restorable', function () {
+    $path = $this->draft->storageDirectory().'/paper.pdf';
+    Storage::disk('local')->put($path, 'draft paper');
+    $this->draft->delete();
+
+    expect(fn () => DB::transaction(function () use ($path): void {
+        app(PurgeProposalDraft::class)->handle($this->draft);
+        Storage::disk('local')->assertExists($path);
+
+        throw new RuntimeException('Could not commit purge.');
+    }))->toThrow(RuntimeException::class, 'Could not commit purge.');
+
+    $this->assertSoftDeleted($this->draft);
+    Storage::disk('local')->assertExists($path);
 });
 
 test('purging expires only standalone drafts and retains referenced files and official history', function () {

@@ -32,6 +32,13 @@ class ProposalDraftPolicy
 
     public function delete(User $user, ProposalDraft $proposalDraft): bool
     {
+        return $this->organize($user, $proposalDraft)
+            && ! $proposalDraft->hasAcceptedMembers()
+            && ! $proposalDraft->hasPendingDeletionRequest();
+    }
+
+    public function organize(User $user, ProposalDraft $proposalDraft): bool
+    {
         return $this->owns($user, $proposalDraft)
             && ! $proposalDraft->trashed()
             && $proposalDraft->status === ProposalDraft::STATUS_DRAFT;
@@ -39,10 +46,19 @@ class ProposalDraftPolicy
 
     public function restore(User $user, ProposalDraft $proposalDraft): bool
     {
+        return $this->viewAny($user)
+            && ($proposalDraft->isOwnedBy($user) || ($proposalDraft->shared_trash && $proposalDraft->isSharedWith($user)))
+            && $proposalDraft->status === ProposalDraft::STATUS_DRAFT
+            && $proposalDraft->trashRecoveryIsOpen();
+    }
+
+    public function forceDelete(User $user, ProposalDraft $proposalDraft): bool
+    {
         return $this->owns($user, $proposalDraft)
             && $proposalDraft->trashed()
             && $proposalDraft->status === ProposalDraft::STATUS_DRAFT
-            && $proposalDraft->deleted_at->greaterThan(now()->subDays(ProposalDraft::TRASH_RETENTION_DAYS));
+            && ! $proposalDraft->isLinkedToSubmission()
+            && (! $proposalDraft->trashRecoveryIsOpen() || (! $proposalDraft->shared_trash && ! $proposalDraft->hasAcceptedMembers()));
     }
 
     public function download(User $user, ProposalDraft $proposalDraft): bool

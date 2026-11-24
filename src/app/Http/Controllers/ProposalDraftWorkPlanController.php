@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateProposalDraftWorkPlanRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Services\WorkPlanDocumentService;
+use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
 use App\Support\WorkPlanProposalObjectives;
@@ -25,6 +26,7 @@ class ProposalDraftWorkPlanController extends Controller
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         WorkPlanProposalObjectives $proposalObjectives,
+        ProposalDraftReadiness $readiness,
     ): View {
         Gate::authorize('update', $proposalDraft);
 
@@ -35,6 +37,8 @@ class ProposalDraftWorkPlanController extends Controller
             'entries' => [],
         ];
         $linkedObjectives = $proposalObjectives->forDraft($proposalDraft);
+        $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
+        $workPlanComplete = $readiness->workPlanIsComplete($proposalDraft, $workPlanDocument);
         $proposal = $proposalObjectives->proposalForDraft($proposalDraft);
         $proposalActivities = $proposalObjectives->activities($proposal);
         $proposalOutputs = collect($proposal['expected_outputs'])->filter()->all();
@@ -54,6 +58,8 @@ class ProposalDraftWorkPlanController extends Controller
             'proposalDraft',
             'paper',
             'workPlanDocument',
+            'workPlanComplete',
+            'projectDetailsComplete',
             'sourceData',
             'linkedObjectives',
             'proposalActivities',
@@ -66,10 +72,14 @@ class ProposalDraftWorkPlanController extends Controller
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         SaveProposalDraftDocument $saveProposalDraftDocument,
+        ProposalDraftReadiness $readiness,
     ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
         $paper = $catalog->get('work-plan');
+        $sourceData = Arr::only($request->validated(), ['entries']);
+        $saveAsDraft = $request->boolean('save_as_draft')
+            && ! $readiness->workPlanSourceIsComplete($proposalDraft, $sourceData);
         $savedDocument = $saveProposalDraftDocument->handle(
             $proposalDraft,
             $request->user(),
@@ -77,22 +87,23 @@ class ProposalDraftWorkPlanController extends Controller
             0,
             $request->integer('document_version'),
             [
-                'source_data' => Arr::only($request->validated(), [
-                    'entries',
-                ]),
-                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
+                'source_data' => $sourceData,
+                'completed_at' => $saveAsDraft ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
         );
 
+        $savedAsDraft = $savedDocument->completed_at === null;
+        $message = $savedAsDraft
+            ? 'Attachment A: Work Plan saved as a draft.'
+            : 'Attachment A: Work Plan saved.';
+
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => $request->boolean('save_as_draft')
-                    ? 'Attachment A: Work Plan saved as a draft.'
-                    : 'Attachment A: Work Plan saved.',
+                'message' => $message,
                 'document_version' => $savedDocument->lock_version,
                 'draft_version' => $proposalDraft->fresh()->lock_version,
-                'saved_as_draft' => $request->boolean('save_as_draft'),
+                'saved_as_draft' => $savedAsDraft,
             ]);
         }
 
@@ -104,9 +115,7 @@ class ProposalDraftWorkPlanController extends Controller
                 $proposalDraft,
             )
             ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
-            ->with('success', $request->boolean('save_as_draft')
-                ? 'Attachment A: Work Plan saved as a draft.'
-                : 'Attachment A: Work Plan saved.');
+            ->with('success', $message);
     }
 
     public function preview(

@@ -1,5 +1,5 @@
 @props(['reports', 'compact' => false])
-<section class="secretary-panel" data-secretary-report-queue aria-labelledby="secretary-review-heading" @unless ($compact) data-automatic-assessment-preview x-data="proposalAssessmentPreview()" @resize.window.debounce.150ms="resizeProposalPaperPreview()" @endunless>
+<section class="secretary-panel" data-secretary-report-queue aria-labelledby="secretary-review-heading" @unless ($compact) data-automatic-assessment-preview x-data="proposalAssessmentPreview({ canPrint: true })" @resize.window.debounce.150ms="resizeProposalPaperPreview()" @endunless>
     <div @unless ($compact) :inert="previewFullscreen" @endunless>
         <header class="secretary-section-heading">
             <div><h2 id="secretary-review-heading" class="flex items-center gap-2.5"><x-report-library-icon name="list" class="h-5 w-5" /> {{ $compact ? 'Report reviews' : 'Submitted reports' }}</h2></div>

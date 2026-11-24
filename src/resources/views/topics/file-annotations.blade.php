@@ -146,7 +146,7 @@
                         </label>
                         <p x-show="saveError" role="alert" class="mt-2 text-sm text-red-700 dark:text-red-300" x-text="saveError"></p>
                         <div class="mt-4 flex justify-end gap-2">
-                            <button type="button" @click="cancelDraft()" :disabled="saving" class="min-h-11 rounded-xl px-4 py-2 text-base font-semibold text-gray-600 disabled:opacity-40 dark:text-gray-300">Cancel</button>
+                            <button type="button" @click="cancelDraft()" :disabled="saving" class="secondary-action">Cancel</button>
                             <button type="button" @click="saveAnnotation()" :disabled="saving || !draftComment.trim()" class="min-h-11 rounded-xl bg-red-700 px-5 py-2 text-base font-bold text-white disabled:cursor-not-allowed disabled:opacity-40" x-text="saving ? 'Saving…' : (editingAnnotationId ? 'Save changes' : 'Add comment')"></button>
                         </div>
                     </section>

@@ -32,21 +32,31 @@ class ProposalDraftSubmissionController extends Controller
     ): View|JsonResponse {
         Gate::authorize('view', $proposalDraft);
 
-        $proposalDraft->load(['researchCall', 'documents', 'owner', 'members.user']);
+        $proposalDraft->load(['researchCall', 'documents', 'owner', 'members.user', 'pendingDeletionRequest']);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft, $checklist);
         $readinessBlockers = $readiness->blockers($proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
         $readyToPrepare = $readinessErrors === [];
-        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
+        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared && ! $proposalDraft->hasPendingDeletionRequest();
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
 
         if ($request->expectsJson()) {
             $canGuide = Gate::allows('update', $proposalDraft);
             $hasFacultyBlocker = collect($readinessBlockers)->contains('owner', 'faculty');
-            $status = $readyToSubmit ? 'ready' : ($readyToPrepare ? 'prepare' : ($hasFacultyBlocker ? 'incomplete' : 'office'));
+            $status = match (true) {
+                $proposalDraft->hasPendingDeletionRequest() => 'deletion_pending',
+                $readyToSubmit => 'ready',
+                $readyToPrepare => 'prepare',
+                $hasFacultyBlocker => 'incomplete',
+                default => 'office',
+            };
             $blockers = array_map(function (array $blocker) use ($proposalDraft, $canGuide): array {
+                if ($blocker['key'] === 'deletion_request') {
+                    return [...$blocker, 'url' => route('faculty.proposal-drafts.deletion.show', [$proposalDraft, $proposalDraft->pendingDeletionRequest])];
+                }
+
                 $parameters = ['proposalDraft' => $proposalDraft, 'proposal_requirement' => $blocker['field'] ?? '__paper__'];
                 $url = $canGuide && $blocker['owner'] === 'faculty' ? match ($blocker['paper']) {
                     'details' => route('faculty.proposal-drafts.show', $parameters).'#project-details',

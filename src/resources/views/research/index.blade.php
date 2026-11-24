@@ -66,7 +66,7 @@
                             type="button"
                             @click="filter = '{{ $filter['key'] }}'"
                             :class="filter === '{{ $filter['key'] }}' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-900 hover:bg-white'"
-                            class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-bold transition sm:flex-none"
+                            class="border border-slate-400 dark:border-slate-500 inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-bold transition sm:flex-none"
                             :aria-pressed="filter === '{{ $filter['key'] }}'"
                         >
                             <span>{{ $filter['label'] }}</span>
@@ -144,7 +144,7 @@
                                     </div>
 
                                     <h3 class="text-lg font-bold leading-snug text-slate-950 transition-colors group-hover:text-[#7A0019] sm:text-xl">
-                                        <a href="{{ $projectUrl }}" class="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-700">{{ $topic->title }}</a>
+                                        <a href="{{ $projectUrl }}" class="secondary-action justify-start text-left">{{ $topic->title }}</a>
                                     </h3>
 
                                     <div class="flex flex-col gap-2">

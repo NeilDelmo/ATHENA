@@ -244,7 +244,7 @@
                         <div class="flex items-center justify-between gap-3">
                             <h4 class="text-base font-semibold text-brand dark:text-red-200" x-text="'Objective ' + (index + 1)"></h4>
                             @unless ($approvedObjectives)
-                                <button type="button" @click="removeAccomplishment(index)" :disabled="accomplishmentRows.length === 1" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-300">Remove row</button>
+                                <button type="button" @click="removeAccomplishment(index)" :disabled="accomplishmentRows.length === 1" class="secondary-action">Remove row</button>
                             @endunless
                         </div>
                         <p x-show="row.activities" x-text="'Planned activities: ' + row.activities" class="whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-slate-300"></p>
@@ -318,7 +318,7 @@
                         <div class="flex flex-wrap gap-2">
                             <button type="button" @click="moveFigure(index, -1)" :disabled="index === 0" aria-label="Move figure earlier" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold disabled:opacity-40 dark:border-slate-700 dark:text-white">Move up</button>
                             <button type="button" @click="moveFigure(index, 1)" :disabled="index === figureRows.length - 1" aria-label="Move figure later" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold disabled:opacity-40 dark:border-slate-700 dark:text-white">Move down</button>
-                            <button type="button" @click="removeFigure(index)" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300">Remove</button>
+                            <button type="button" @click="removeFigure(index)" class="secondary-action">Remove</button>
                         </div>
                     </div>
                     <img x-show="figure.previewUrl" :src="figure.previewUrl" :alt="figure.caption || 'Selected figure preview'" class="max-h-64 max-w-full rounded-lg object-contain">

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ManageProposalDraftDeletion;
+use App\Actions\PurgeProposalDraft;
 use App\Models\ProposalDraft;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,28 +18,36 @@ class ProposalDraftTrashController extends Controller
         Gate::authorize('viewAny', ProposalDraft::class);
 
         $proposalDrafts = ProposalDraft::onlyTrashed()
-            ->whereBelongsTo($request->user(), 'owner')
+            ->trashAccessibleTo($request->user())
             ->where('status', ProposalDraft::STATUS_DRAFT)
+            ->withExists(['submittedDocumentVersions', 'acceptedMembers'])
             ->latest('deleted_at')
             ->paginate(12);
 
         return view('faculty.proposal-drafts.trash', compact('proposalDrafts'));
     }
 
-    public function restore(Request $request, int $proposalDraft): RedirectResponse
+    public function restore(Request $request, int $proposalDraft, ManageProposalDraftDeletion $deletion): RedirectResponse
     {
-        $draft = DB::transaction(function () use ($request, $proposalDraft): ProposalDraft {
+        $draft = $deletion->restore($proposalDraft, $request->user());
+
+        return redirect()->route('faculty.proposal-drafts.show', $draft)
+            ->with('success', 'Proposal draft restored with its saved papers and history.');
+    }
+
+    public function destroy(Request $request, int $proposalDraft, PurgeProposalDraft $purgeDraft): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $proposalDraft, $purgeDraft): void {
             $draft = ProposalDraft::onlyTrashed()
                 ->whereBelongsTo($request->user(), 'owner')
                 ->lockForUpdate()
                 ->findOrFail($proposalDraft);
-            Gate::authorize('restore', $draft);
-            $draft->restore();
-
-            return $draft;
+            Gate::authorize('forceDelete', $draft);
+            $request->validate(['confirmed' => ['accepted']]);
+            $purgeDraft->handle($draft);
         });
 
-        return redirect()->route('faculty.proposal-drafts.show', $draft)
-            ->with('success', 'Proposal draft restored with its saved papers and history.');
+        return redirect()->route('faculty.proposal-drafts.trash')
+            ->with('trash_status', 'Proposal draft permanently deleted.');
     }
 }

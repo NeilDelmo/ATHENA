@@ -111,6 +111,7 @@ test('dissemination validation recovery stays with its project and form', functi
     $target = $destination === 'other' ? TopicProposal::create([
         'user_id' => $this->researcher->id, 'title' => 'Other archived project',
         'status' => 'approved', 'project_status' => 'completed',
+        'notice_to_proceed_issued_at' => now()->subYear(),
     ]) : $this->topic;
     $response = $this->get(route('research.dissemination.show', $target))->assertSuccessful();
     if ($destination === 'other') {
@@ -388,9 +389,12 @@ test('DOI lookup supports confirmed imports and manual entries deduplicate witho
     ])->assertSessionHasNoErrors();
     expect(ResearchPublication::count())->toBe(1);
     $publication = ResearchPublication::firstOrFail();
-    $other = TopicProposal::create(['user_id' => $this->researcher->id, 'title' => 'Related research', 'status' => 'approved', 'project_status' => 'completed']);
-    $this->post(route('research.dissemination.link', $other), ['publication_id' => $publication->id])->assertSessionHasNoErrors();
-    $this->delete(route('research.dissemination.unlink', [$this->topic, $publication]))->assertSessionHasNoErrors();
+    $other = TopicProposal::create([
+        'user_id' => $this->researcher->id, 'title' => 'Related research', 'status' => 'approved', 'project_status' => 'completed',
+        'notice_to_proceed_issued_at' => now()->subYear(),
+    ]);
+    $this->post(route('research.dissemination.link', $other), ['publication_id' => $publication->id])->assertRedirect()->assertSessionHasNoErrors();
+    $this->delete(route('research.dissemination.unlink', [$this->topic, $publication]))->assertRedirect()->assertSessionHasNoErrors();
     expect($this->topic->publications()->count())->toBe(0)->and($other->publications()->count())->toBe(1);
     $this->assertModelExists($publication);
 })->with([

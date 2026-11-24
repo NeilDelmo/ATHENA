@@ -647,15 +647,17 @@ class ProjectMonitoringController extends Controller
             return $topic;
         });
 
-        $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
-            'Project status updated',
-            'Your project “'.$topic->title.'” is now marked '.str_replace('_', ' ', $validated['project_status']).'.',
-            route('topics.show', $topic).'#project-monitoring',
-            $validated['project_status'] === 'completed' ? 'success' : 'info',
-            $topic->id,
-            workspace: User::WORKSPACE_FACULTY_RESEARCHER,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
-        ));
+        if ($topic->wasChanged('project_status')) {
+            rescue(fn () => $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
+                'Project status updated',
+                'Your project "'.$topic->title.'" is now marked '.str_replace('_', ' ', $validated['project_status']).'.',
+                route('topics.show', $topic).'#project-monitoring',
+                $validated['project_status'] === 'completed' ? 'success' : 'info',
+                $topic->id,
+                workspace: User::WORKSPACE_FACULTY_RESEARCHER,
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
+            )));
+        }
 
         return back()->with('success', $topic->isCompletedProject()
             ? 'Project marked Completed. This status is final. Monitoring reports are now read-only.'

@@ -167,7 +167,7 @@
                                     <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ $submission->title }}</h4>
                                     <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $submission->topic->user->name }}</p>
                                     <details class="group/package mt-1 text-sm text-gray-500 dark:text-slate-400">
-                                        <summary class="inline-flex min-h-8 cursor-pointer list-none items-center gap-2 rounded font-medium hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-500 dark:hover:text-white [&::-webkit-details-marker]:hidden"><span class="group-open/package:hidden" aria-hidden="true">+</span><span class="hidden group-open/package:inline" aria-hidden="true">&minus;</span>Submission details</summary>
+                                        <summary class="secondary-action cursor-pointer list-none [&::-webkit-details-marker]:hidden"><span class="group-open/package:hidden" aria-hidden="true">+</span><span class="hidden group-open/package:inline" aria-hidden="true">&minus;</span>Submission details</summary>
                                         <div class="space-y-1 py-2 leading-6">
                                             <p class="break-all">{{ $submission->topic->user->email }}</p>
                                             <p>{{ $submission->topic->researchCall?->title ?? 'Research call unavailable' }}@if ($submission->topic->researchCall?->academic_year) · AY {{ $submission->topic->researchCall->academic_year }}@endif</p>

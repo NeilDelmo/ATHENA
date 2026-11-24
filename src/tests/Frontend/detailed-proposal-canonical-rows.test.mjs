@@ -157,13 +157,19 @@ test('expected outputs keep all eight categories visible with compact add and re
 });
 
 test('specific method groups use compact panels and preserve headings and numbered methods', async () => {
-    execFileSync('php', ['vendor/pestphp/pest/bin/pest', '--compact', 'tests/Feature/ProposalRequiredFieldsTest.php', '--filter=Detailed Proposal'], {
-        encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
-        env: { ...process.env, ATHENA_EXPORT_REQUIRED_FIELDS: '1', ATHENA_TEST_PRESERVE_DATABASE: '1' },
-    });
-    const fixture = readFileSync(new URL('../../storage/framework/testing/proposal-required-detailed-proposal.html', import.meta.url), 'utf8');
+    const markup = execFileSync('php', ['-r', String.raw`
+        require 'vendor/autoload.php'; $app = require 'bootstrap/app.php';
+        $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        preg_match('/<section data-revision-section="section-methodology".*?<\/section>/s', file_get_contents(resource_path('views/faculty/proposal-drafts/detailed-proposal/edit.blade.php')), $section);
+        echo Illuminate\Support\Facades\Blade::render($section[0], [
+            'sectionHeadings' => ['methodology' => 'XII. Methodology:'],
+            'methodologyFields' => ['specific_methods' => 'Specific methods'],
+        ]);
+    `], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
     const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
+    const workspaceCss = readFileSync(resolve('resources/css/proposal-paper-workspace.css'), 'utf8');
+    const readiness = readFileSync(resolve('resources/js/proposal-submission-readiness.js'), 'utf8');
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         for (const width of [390, 1280]) {
@@ -171,9 +177,9 @@ test('specific method groups use compact panels and preserve headings and number
                 const page = await browser.newPage({ viewport: { width, height: 1000 } });
                 const errors = [];
                 page.on('pageerror', error => errors.push(error.message));
-                const markup = await page.evaluate(source => new DOMParser().parseFromString(source, 'text/html').querySelector('[data-specific-methods-editor]')?.outerHTML || '', fixture);
-                assert.ok(markup, 'The specific methods editor must have its own panel');
-                await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${css}</style></head><body class="bg-gray-50 dark:bg-slate-950"><main class="mx-auto max-w-4xl p-4 sm:p-6"><form x-data="methodLayout">${markup}</form></main></body></html>`);
+                await page.route('https://athena.test/editor', route => route.fulfill({ contentType: 'text/html', body: `<html class="${dark ? 'dark' : ''}"><head><style>${css}\n${workspaceCss}</style></head><body class="bg-gray-50 dark:bg-slate-950"><main class="mx-auto max-w-4xl p-4 sm:p-6"><form x-data="methodLayout" x-ref="form" @input="clearDetailedProposalFieldHighlight($event.target)" data-proposal-paper="detailed-proposal" data-proposal-readiness-url="/ready" data-proposal-requirements-on-demand>${markup}</form></main></body></html>` }));
+                await page.route('https://athena.test/readiness.js', route => route.fulfill({ contentType: 'application/javascript', body: readiness }));
+                await page.goto('https://athena.test/editor');
                 await page.addScriptTag({ content: `
                     const proposalSourceWorkspace = () => ({}), proposalPreviewWorkspace = () => ({}), detailedProposalPreviewWorkspace = () => ({});
                     const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
@@ -181,7 +187,8 @@ test('specific method groups use compact panels and preserve headings and number
                     document.addEventListener('alpine:init', () => window.Alpine.data('methodLayout', () => {
                         const state = window.proposalFactory({});
                         state.init = () => {};
-                        state.specificMethodGroups = [{id:'saved-group',heading:'Compare monitoring methods',methods:[{id:'saved-method',description:'Review the reporting records.'}]}];
+                        state.specificMethodGroups = [{id:'saved-group',heading:'',methods:[{id:'saved-method',description:'Review the reporting records.'}]}];
+                        state.closeProposalPreview = () => {};
                         state.saves = 0;
                         state.triggerDetailedProposalAutoSave = function () { this.saves++; };
                         return state;
@@ -190,10 +197,33 @@ test('specific method groups use compact panels and preserve headings and number
                 await page.addScriptTag({ path: new URL('../../node_modules/alpinejs/dist/cdn.js', import.meta.url).pathname.replace(/^\/(.:)/, '$1') });
                 const panel = page.locator('[data-specific-method-group]');
                 await panel.waitFor({ state: 'visible' });
-                assert.equal((await page.locator('button:visible').allTextContents()).join('').trim(), '');
+                const heading = page.getByRole('textbox', { name: 'Method heading A', exact: true });
+                await expect(panel.locator('label', { hasText: 'Method heading A' })).toBeVisible();
                 assert.equal(await panel.evaluate(element => getComputedStyle(element).borderTopWidth), '1px');
-                assert.ok(await page.locator('[data-specific-methods-editor]').evaluate(element => element.getBoundingClientRect().height) < 300);
-                assert.ok((await panel.locator('textarea').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().height))).every(height => height <= 76));
+                await page.evaluate(() => {
+                    const state = window.Alpine.$data(document.querySelector('form'));
+                    state.completionErrors = { 'methodology.specific_methods': ['The specific methods field is required.'] };
+                    state.validateForm({ focus: false });
+                    state.focusProposalRequirement('specific_method_objectives.0.heading');
+                });
+                await expect(heading).toBeFocused();
+                assert.deepEqual(await page.evaluate(() => Object.keys(window.Alpine.$data(document.querySelector('form')).completionErrors).filter(key => key.includes('specific_method'))), ['specific_method_objectives.0.heading']);
+                await page.evaluate(async () => {
+                    const { default: initializeReadiness } = await import('/readiness.js');
+                    initializeReadiness();
+                    window.dispatchEvent(new CustomEvent('proposal-readiness-updated', { detail: {
+                        source: 'pdf', url: 'https://athena.test/ready', data: { can_guide: true, blockers: [{
+                            paper: 'detailed-proposal', owner: 'faculty', field: 'specific_method_objectives.0.heading', message: 'Enter a heading for method group A.',
+                        }] },
+                    } }));
+                });
+                const feedback = panel.getByText('Enter a heading for method group A.', { exact: true });
+                await expect(feedback).toHaveCount(1);
+                await expect(feedback).toBeVisible();
+                const headingBox = await heading.boundingBox();
+                assert.ok((await feedback.boundingBox()).y >= headingBox.y + headingBox.height);
+                await heading.fill('Compare monitoring methods');
+                await expect(feedback).toBeHidden();
                 await page.getByRole('button', { name: 'Add method to group A', exact: true }).click();
                 await page.getByRole('textbox', { name: 'Method 2 for group A', exact: true }).waitFor({ state: 'visible' });
                 await page.getByRole('textbox', { name: 'Method 2 for group A', exact: true }).fill('Compare observations.');
@@ -202,7 +232,7 @@ test('specific method groups use compact panels and preserve headings and number
                 assert.equal(data['specific_method_objectives[0][methods][1][description]'], 'Compare observations.');
                 await page.getByRole('button', { name: 'Remove method 2 from group A', exact: true }).click();
                 await page.getByRole('textbox', { name: 'Method 2 for group A', exact: true }).waitFor({ state: 'detached' });
-                await page.getByRole('button', { name: 'Add method group', exact: true }).click();
+                await page.getByRole('button', { name: 'Add heading', exact: true }).click();
                 await page.getByRole('textbox', { name: 'Method heading B', exact: true }).waitFor({ state: 'visible' });
                 assert.equal(await panel.count(), 2);
                 if (width >= 640) {

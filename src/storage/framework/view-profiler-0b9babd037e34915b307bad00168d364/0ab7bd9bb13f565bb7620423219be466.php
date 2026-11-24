@@ -1,0 +1,119 @@
+<?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
+
+$__newAttributes = [];
+$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames(([
+    'id' => null,
+    'name' => null,
+    'value' => null,
+    'required' => false,
+    'placeholder' => 'Select date and time',
+]));
+
+foreach ($attributes->all() as $__key => $__value) {
+    if (in_array($__key, $__propNames)) {
+        $$__key = $$__key ?? $__value;
+    } else {
+        $__newAttributes[$__key] = $__value;
+    }
+}
+
+$attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
+
+unset($__propNames);
+unset($__newAttributes);
+
+foreach (array_filter(([
+    'id' => null,
+    'name' => null,
+    'value' => null,
+    'required' => false,
+    'placeholder' => 'Select date and time',
+]), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
+    $$__key = $$__key ?? $__value;
+}
+
+$__defined_vars = get_defined_vars();
+
+foreach ($attributes->all() as $__key => $__value) {
+    if (array_key_exists($__key, $__defined_vars)) unset($$__key);
+}
+
+unset($__defined_vars, $__key, $__value); ?>
+
+<div
+    x-data="dateTimePicker({ initialValue: <?php echo \Illuminate\Support\Js::from(old($name, $value))->toHtml() ?>, required: <?php echo \Illuminate\Support\Js::from((bool) $required)->toHtml() ?> })"
+    x-on:click.outside="close"
+    <?php echo e($attributes->class(['relative'])); ?>
+
+>
+    <input type="hidden" name="<?php echo e($name); ?>" x-model="value">
+
+    <div class="relative">
+        <input
+            x-ref="display"
+            type="text"
+            <?php if($id): ?> id="<?php echo e($id); ?>" <?php endif; ?>
+            x-bind:value="formattedValue"
+            x-on:focus="handleFocus"
+            x-on:click="open"
+            x-on:beforeinput.prevent
+            x-on:paste.prevent
+            x-on:keydown.enter.prevent="open"
+            x-on:keydown.space.prevent="open"
+            x-on:keydown.arrow-down.prevent="open"
+            x-on:keydown.escape.prevent.stop="close"
+            x-on:keydown.tab="close"
+            x-bind:aria-controls="panelId"
+            x-bind:aria-expanded="isOpen"
+            aria-haspopup="dialog"
+            aria-autocomplete="none"
+            aria-required="<?php echo e($required ? 'true' : 'false'); ?>"
+            role="combobox"
+            inputmode="none"
+            autocomplete="off"
+            placeholder="<?php echo e($placeholder); ?>"
+            <?php if($required): echo 'required'; endif; ?>
+            class="block w-full cursor-pointer rounded-xl border-gray-300 bg-white py-3 pl-3.5 pr-11 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500"
+        >
+        <button type="button" x-on:click="toggle" class="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-xl text-gray-400 transition hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600" aria-label="Open date and time picker" tabindex="-1">
+            <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 9h16.5M5.25 5.25h13.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z" /></svg>
+        </button>
+    </div>
+
+    <div x-cloak x-show="isOpen" x-transition x-bind:id="panelId" x-on:keydown.escape.prevent.stop="closeAndFocus" role="dialog" aria-label="Choose a date and time" class="absolute left-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm origin-top-left rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div class="flex items-center gap-2">
+            <button type="button" x-on:click="changeMonth(-1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300" aria-label="Previous month"><svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg></button>
+            <div class="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                <select x-model.number="viewMonth" class="min-w-0 rounded-xl border-gray-200 bg-white py-2 pl-3 pr-8 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Calendar month">
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $monthIndex => $month): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <option value="<?php echo e($monthIndex); ?>"><?php echo e($month); ?></option>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                </select>
+                <input x-model.number="viewYear" x-on:change="clampViewYear" type="number" inputmode="numeric" min="1900" max="2100" class="min-w-0 rounded-xl border-gray-200 bg-white px-2 py-2 text-center text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Calendar year">
+            </div>
+            <button type="button" x-on:click="changeMonth(1)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300" aria-label="Next month"><svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg></button>
+        </div>
+
+        <div class="mt-3 grid grid-cols-7 gap-1 text-center" aria-hidden="true"><template x-for="weekday in weekdays" x-bind:key="weekday"><span class="py-1 text-[10px] font-black uppercase tracking-wide text-gray-400" x-text="weekday"></span></template></div>
+        <div class="mt-1 grid grid-cols-7 gap-1" role="grid" aria-label="Calendar days"><template x-for="day in calendarDays" x-bind:key="day.iso"><button type="button" x-on:click="selectDate(day.iso)" x-bind:aria-label="day.label" x-bind:class="{ 'bg-red-600 text-white shadow-sm hover:bg-red-700': day.isSelected, 'text-gray-900 hover:bg-red-50 hover:text-red-700 dark:text-slate-100 dark:hover:bg-red-950/40 dark:hover:text-red-300': day.isCurrentMonth && !day.isSelected, 'text-gray-300 dark:text-slate-600': !day.isCurrentMonth && !day.isSelected, 'ring-1 ring-inset ring-red-300': day.isToday && !day.isSelected }" class="inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1 dark:focus:ring-offset-slate-900" x-text="day.dayNumber"></button></template></div>
+
+        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-slate-800">
+            <p class="text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Submission time</p>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+                <select x-model="hour" x-on:change="setTime" class="rounded-xl border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Hour"><template x-for="option in hourOptions" x-bind:key="option.value"><option x-bind:value="option.value" x-text="option.label"></option></template></select>
+                <select x-model="minute" x-on:change="setTime" class="rounded-xl border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white" aria-label="Minute">
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = range(0, 59); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $minute): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                        <option value="<?php echo e(sprintf('%02d', $minute)); ?>">:<?php echo e(sprintf('%02d', $minute)); ?></option>
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-slate-800">
+            <button x-show="!required && value" type="button" x-on:click="clear" class="secondary-action">Clear</button>
+            <span x-show="required || !value" aria-hidden="true"></span>
+            <button type="button" x-on:click="selectNow" class="secondary-action">Now</button>
+        </div>
+    </div>
+</div>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views\components\date-time-picker.blade.php ENDPATH**/ ?>

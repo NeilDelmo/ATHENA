@@ -9,7 +9,7 @@
         @foreach ($crumbs as $crumb)
             @unless ($loop->first)<span aria-hidden="true" class="text-slate-400">/</span>@endunless
             @if (isset($crumb['url']))
-                <a href="{{ $crumb['url'] }}" class="rounded px-1 text-slate-600 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300">{{ $crumb['label'] }}</a>
+                <a href="{{ $crumb['url'] }}" class="secondary-action">{{ $crumb['label'] }}</a>
             @else
                 <span aria-current="page" class="px-1 font-semibold text-slate-950 dark:text-white">{{ $crumb['label'] }}</span>
             @endif

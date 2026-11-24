@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProposalDraft extends Model
@@ -18,6 +19,8 @@ class ProposalDraft extends Model
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_SUBMITTING = 'submitting';
+
+    public const PENDING_DELETION_SUBMISSION_MESSAGE = 'Resolve the open deletion request before submitting this proposal.';
 
     protected $fillable = [
         'user_id',
@@ -36,6 +39,7 @@ class ProposalDraft extends Model
 
     protected $attributes = [
         'status' => self::STATUS_DRAFT,
+        'shared_trash' => false,
     ];
 
     protected static function booted(): void
@@ -50,6 +54,8 @@ class ProposalDraft extends Model
     protected function casts(): array
     {
         return [
+            'archived_at' => 'datetime',
+            'shared_trash' => 'boolean',
             'duration_months' => 'integer',
             'planned_start' => 'date',
             'planned_end' => 'date',
@@ -144,6 +150,17 @@ class ProposalDraft extends Model
             ->latest();
     }
 
+    public function submittedDocumentVersions(): HasMany
+    {
+        return $this->documentVersions()->whereNotNull('topic_id');
+    }
+
+    public function isLinkedToSubmission(): bool
+    {
+        return $this->topic_id !== null
+            || ($this->submitted_document_versions_exists ?? $this->submittedDocumentVersions()->exists());
+    }
+
     public function literatureSources(): HasMany
     {
         return $this->hasMany(ProposalDraftLiteratureSource::class)
@@ -168,6 +185,49 @@ class ProposalDraft extends Model
     {
         return $this->hasMany(ProposalDraftMember::class)
             ->orderBy('name');
+    }
+
+    public function acceptedMembers(): HasMany
+    {
+        return $this->members()->whereNotNull('accepted_at');
+    }
+
+    public function hasAcceptedMembers(): bool
+    {
+        return $this->accepted_members_exists ?? $this->acceptedMembers()->exists();
+    }
+
+    public function deletionRequests(): HasMany
+    {
+        return $this->hasMany(ProposalDraftDeletionRequest::class);
+    }
+
+    public function pendingDeletionRequest(): HasOne
+    {
+        return $this->hasOne(ProposalDraftDeletionRequest::class)->where('status', ProposalDraftDeletionRequest::STATUS_PENDING);
+    }
+
+    public function hasPendingDeletionRequest(): bool
+    {
+        return $this->relationLoaded('pendingDeletionRequest')
+            ? $this->pendingDeletionRequest !== null
+            : $this->exists && $this->pendingDeletionRequest()->exists();
+    }
+
+    public function trashRecoveryIsOpen(): bool
+    {
+        return $this->trashed()
+            && ($this->deleted_at->greaterThan(now()->subDays(self::TRASH_RETENTION_DAYS)) || $this->isLinkedToSubmission());
+    }
+
+    /** @param Builder<ProposalDraft> $query */
+    public function scopeTrashAccessibleTo(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $trash) use ($user): void {
+            $trash->whereBelongsTo($user, 'owner')
+                ->orWhere(fn (Builder $shared): Builder => $shared->where('shared_trash', true)
+                    ->whereHas('members', fn (Builder $members): Builder => $members->forUser($user)));
+        });
     }
 
     /** @param Builder<ProposalDraft> $query */

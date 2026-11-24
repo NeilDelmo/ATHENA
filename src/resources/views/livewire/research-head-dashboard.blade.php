@@ -199,7 +199,7 @@
             <div class="max-h-96 space-y-4 overflow-y-auto pr-1" role="region" aria-label="Project budget reports" tabindex="0">
                 @forelse ($analytics['projects'] as $project)
                     <article class="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800" data-project-budget="{{ $project['id'] }}" wire:key="project-budget-{{ $project['id'] }}">
-                        <a href="{{ route('topics.show', $project['id']) }}#{{ $project['report_id'] ? 'monitoring-tool-'.$project['report_id'] : 'project-monitoring' }}" class="block break-words font-semibold hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:text-rose-300">{{ $project['title'] }}</a>
+                        <a href="{{ route('topics.show', $project['id']) }}#{{ $project['report_id'] ? 'monitoring-tool-'.$project['report_id'] : 'project-monitoring' }}" class="secondary-action justify-start text-left">{{ $project['title'] }}</a>
                         <p class="break-words text-sm rh-muted">{{ $project['lead'] }}</p>
                         @if ($project['percentage'] !== null)
                             <strong class="block text-2xl font-bold tabular-nums text-brand dark:text-rose-300">{{ number_format($project['percentage'], 1) }}%</strong>

@@ -33,9 +33,9 @@ export async function renderAssessmentPdf(contents) {
     }
 }
 
-export function proposalAssessmentPreview({ initialForm = null } = {}) {
+export function proposalAssessmentPreview({ initialForm = null, canPrint = false } = {}) {
     return {
-        ...proposalPaperPreviewWorkspace(),
+        ...proposalPaperPreviewWorkspace({ canPrint }),
         previewReadOnly: true,
         previewHtml: '',
         previewLoading: false,

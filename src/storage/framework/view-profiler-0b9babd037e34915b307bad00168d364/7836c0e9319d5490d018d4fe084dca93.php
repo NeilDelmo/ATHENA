@@ -1,0 +1,198 @@
+<?php
+    $workPlan = collect($report->work_plan ?? []);
+    $budget = collect($report->budget_utilization ?? [])->keyBy('type');
+    $budgetTypes = ['Purchase Request', 'Cash Advance', 'Request of Payment'];
+    $projectCost = (float) ($report->topic->estimated_budget ?? 0);
+    $requestedTotal = $budget->sum(fn (array $entry): float => (float) ($entry['amount_requested'] ?? 0));
+    $actualTotal = $budget->sum(fn (array $entry): float => (float) ($entry['actual_amount'] ?? 0));
+    $money = fn (float $amount): string => 'PHP '.number_format($amount, 2);
+    $percentage = fn (float $value): string => rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.').'%';
+    $leader = $report->submitter?->name ?? $report->topic->user?->name ?? '';
+?>
+
+<!DOCTYPE html>
+<html lang="<?php echo e(str_replace('_', '-', app()->getLocale())); ?>">
+    <head>
+        <?php if (isset($component)) { $__componentOriginal82e3f864bb766fbb95cb0a10b750823c = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal82e3f864bb766fbb95cb0a10b750823c = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.favicon','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('favicon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal82e3f864bb766fbb95cb0a10b750823c)): ?>
+<?php $attributes = $__attributesOriginal82e3f864bb766fbb95cb0a10b750823c; ?>
+<?php unset($__attributesOriginal82e3f864bb766fbb95cb0a10b750823c); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal82e3f864bb766fbb95cb0a10b750823c)): ?>
+<?php $component = $__componentOriginal82e3f864bb766fbb95cb0a10b750823c; ?>
+<?php unset($__componentOriginal82e3f864bb766fbb95cb0a10b750823c); ?>
+<?php endif; ?>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Monitoring Tool Preview</title>
+        <?php echo app('Illuminate\Foundation\Vite')(['resources/css/monitoring-tool-print.css', 'resources/js/paper-preview-pagination.js']); ?>
+    </head>
+    <body class="monitoring-preview-page">
+        <main data-paper-sheet class="monitoring-sheet" aria-label="BatStateU monitoring tool preview">
+            <div data-paper-footer class="monitoring-paper-footer">Tracking No. __________________________</div>
+            <table class="monitoring-table monitoring-header">
+                <colgroup><col style="width: 8.548%"><col style="width: 35.116%"><col style="width: 40.365%"><col style="width: 15.971%"></colgroup>
+                <tbody>
+                    <tr>
+                        <td class="monitoring-logo"><img src="<?php echo e(asset('images/batstateu-logo.png')); ?>" alt="Batangas State University seal"></td>
+                        <td><strong>Reference No.:</strong> BatStateU-REC-RES-03</td>
+                        <td><strong>Effectivity Date:</strong> May 18, 2022</td>
+                        <td><strong>Revision No.:</strong> 03</td>
+                    </tr>
+                    <tr><td colspan="4"><h1>MONITORING TOOL FOR ONGOING RESEARCH PROJECT</h1></td></tr>
+                </tbody>
+            </table>
+
+            <table class="monitoring-table monitoring-metadata-table">
+                <colgroup><col style="width: 46.613%"><col style="width: 53.387%"></colgroup>
+                <tbody>
+                    <tr><td colspan="2">Date: <?php echo e($report->reporting_date?->format('F j, Y')); ?></td></tr>
+                    <tr>
+                        <td>Research Project Title: <?php echo e($report->topic->title); ?></td>
+                        <td>Project Leader: <?php echo e(\Illuminate\Support\Str::upper($leader)); ?></td>
+                    </tr>
+                    <tr>
+                        <td>Total Project Cost: <?php echo e($money($projectCost)); ?></td>
+                        <td>Duration: <?php echo e((int) $report->topic->estimated_duration_months); ?> <?php echo e((int) $report->topic->estimated_duration_months === 1 ? 'month' : 'months'); ?></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <section class="monitoring-section">
+                <h2 class="monitoring-section-heading">Work Plan</h2>
+                <table class="monitoring-table monitoring-work-plan-table">
+                    <colgroup>
+                        <col class="activity-column">
+                        <col class="weight-column">
+                        <col class="target-column">
+                        <col class="date-column">
+                        <col class="accomplishment-column">
+                        <col class="progress-column">
+                        <col class="findings-column">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">Activities</th>
+                            <th scope="col">Percent Weight of the Activity</th>
+                            <th scope="col">Physical Targets<br><span class="monitoring-regular">(Quantifiable)</span></th>
+                            <th scope="col">Target Date of Completion based on the Approved Work Plan</th>
+                            <th scope="col">Actual Accomplishment</th>
+                            <th scope="col">*Percentage of the Accomplished Tasks</th>
+                            <th scope="col">Notable findings or challenges encountered</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $workPlan; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $entry): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                            <tr>
+                                <td class="monitoring-activity">
+                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(filled($entry['objective'] ?? null)): ?>
+                                        Objective: <?php echo e($entry['objective']); ?><br>
+                                        Activity:
+                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                    <?php echo e($entry['activity'] ?? ''); ?>
+
+                                </td>
+                                <td class="monitoring-number"><?php echo e(isset($entry['percent_weight']) ? $percentage((float) $entry['percent_weight']) : ''); ?></td>
+                                <td class="monitoring-pre-line monitoring-number"><?php echo e($entry['physical_target'] ?? ''); ?></td>
+                                <td class="monitoring-date"><?php echo e(filled($entry['target_completion_date'] ?? null) ? \Illuminate\Support\Carbon::parse($entry['target_completion_date'])->format('M j, Y') : ''); ?></td>
+                                <td class="monitoring-pre-line monitoring-number"><?php echo e($entry['actual_accomplishment'] ?? ''); ?></td>
+                                <td class="monitoring-number"><?php echo e(isset($entry['accomplished_percentage']) ? $percentage((float) $entry['accomplished_percentage']) : ''); ?></td>
+                                <td class="monitoring-pre-line monitoring-number"><?php echo e($entry['findings'] ?? ''); ?></td>
+                            </tr>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php for($index = $workPlan->count(); $index < 11; $index++): ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                            <tr class="monitoring-empty-row"><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php for($column = 0; $column < 7; $column++): ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?><td></td><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endfor; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?></tr>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endfor; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                    </tbody>
+                </table>
+                <table class="monitoring-table monitoring-total-table">
+                    <colgroup><col style="width: 73.753%"><col style="width: 26.247%"></colgroup>
+                    <tbody>
+                        <tr><td>Total accomplishment as of <?php echo e($report->reporting_date?->format('F j, Y')); ?>:</td><td class="monitoring-number"><?php echo e($percentage((float) $report->progress_percentage)); ?></td></tr>
+                        <tr><td colspan="2">* = (actual accomplishment ÷ physical target) x percent weight of the activity</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="monitoring-section">
+                <h2 class="monitoring-section-heading">Budget Utilization</h2>
+                <table class="monitoring-table monitoring-budget-table">
+                    <colgroup><col style="width: 16.477%"><col style="width: 29.553%"><col style="width: 10.752%"><col style="width: 11.205%"><col style="width: 10.765%"><col style="width: 21.248%"></colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">Type of Request</th>
+                            <th scope="col">Details of Request</th>
+                            <th scope="col">Amount Requested</th>
+                            <th scope="col">Actual Amount<br><span class="monitoring-regular">(Amount disbursed)</span></th>
+                            <th scope="col">Budget Utilized (%)</th>
+                            <th scope="col">Remarks / Challenges Encountered</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::openLoop(); ?><?php endif; ?><?php $__currentLoopData = $budgetTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::startLoopIteration(); ?><?php endif; ?>
+                            <?php
+                                $entry = $budget->get($type, []);
+                                $amountRequested = (float) ($entry['amount_requested'] ?? 0);
+                                $actualAmount = (float) ($entry['actual_amount'] ?? 0);
+                                $utilization = $projectCost > 0 ? ($actualAmount / $projectCost) * 100 : 0;
+                            ?>
+                            <tr>
+                                <th scope="row"><?php echo e($type); ?></th>
+                                <td class="monitoring-request-details"><?php echo e($entry['details'] ?? ''); ?></td>
+                                <td class="monitoring-money"><?php echo e(isset($entry['amount_requested']) ? $money($amountRequested) : ''); ?></td>
+                                <td class="monitoring-money"><?php echo e(isset($entry['actual_amount']) ? $money($actualAmount) : ''); ?></td>
+                                <td class="monitoring-number"><?php echo e(isset($entry['actual_amount']) ? $percentage($utilization) : ''); ?></td>
+                                <td><?php echo e($entry['remarks'] ?? ''); ?></td>
+                            </tr>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::endLoop(); ?><?php endif; ?><?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::closeLoop(); ?><?php endif; ?>
+                        <tr class="monitoring-total-row">
+                            <th scope="row" colspan="2">Total</th>
+                            <td class="monitoring-money"><?php echo e($money($requestedTotal)); ?></td>
+                            <td class="monitoring-money"><?php echo e($money($actualTotal)); ?></td>
+                            <td class="monitoring-number"><?php echo e($percentage($projectCost > 0 ? ($actualTotal / $projectCost) * 100 : 0)); ?></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <footer class="monitoring-signatures">
+                <section class="monitoring-signature">
+                    <p>Prepared by:</p>
+                    <div class="monitoring-signature-line">_____________________________________</div>
+                    <p><?php echo e(\Illuminate\Support\Str::upper($leader)); ?></p>
+                    <p>Project Leader</p>
+                    <p class="monitoring-date-signed">Date Signed: <?php echo e($report->prepared_by_date_signed?->format('F j, Y')); ?></p>
+                </section>
+                <section class="monitoring-signature">
+                    <p>Monitored by:</p>
+                    <div class="monitoring-signature-line">_____________________________________</div>
+                    <p><?php echo e(config('work_plan.verifier.name')); ?></p>
+                    <p>Head, Research</p>
+                    <p class="monitoring-date-signed">Date Signed:</p>
+                </section>
+                <section class="monitoring-signature">
+                    <p>Reviewed &amp; Evaluated by:</p>
+                    <div class="monitoring-signature-line">___________________________________</div>
+                    <p><?php echo e(config('notice_to_proceed.issuing_officer.name')); ?></p>
+                    <p>Vice Chancellor for Research, Development and Extension Services</p>
+                    <p class="monitoring-date-signed">Date Signed:</p>
+                </section>
+            </footer>
+        </main>
+    </body>
+</html>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views\faculty\monitoring-tools\preview.blade.php ENDPATH**/ ?>

@@ -59,7 +59,7 @@
                 @if ($submission->notes)<p class="mt-2 whitespace-pre-line text-sm text-gray-600 dark:text-slate-300">{{ $submission->notes }}</p>@endif
                 @if ($canTrackJournals)
                     <details class="mt-3" @if ($hasJournalErrors && data_get($validationContext, 'record_id') === $submission->id) open @endif>
-                        <summary class="disclosure-summary cursor-pointer text-sm font-semibold text-gray-700 dark:text-slate-200">Update stage or details</summary>
+                        <summary class="disclosure-summary secondary-action w-full justify-start text-left">Update stage or details</summary>
                         <div class="mt-4"><x-journal-submission-form :topic="$topic" :submission="$submission" :return-to-finder="$returnToFinder" /></div>
                     </details>
                 @endif

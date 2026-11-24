@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\SidebarAttentionService;
 use Illuminate\Notifications\ChannelManager;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
@@ -102,6 +103,36 @@ test('coordinators have read only access restricted to their college', function 
     $this->leader->update(['college' => 'CTE']);
     $this->get(route('research-outcomes.projects.show', $this->topic))->assertForbidden();
     $this->get(route('research-outcomes.index'))->assertOk()->assertDontSee($this->topic->title);
+});
+
+test('coordinators can open standalone outcomes for their college under either college name', function () {
+    $this->coordinator->update(['college' => User::COLLEGES['CICS']]);
+    $outcome = ResearchOutcome::factory()->create(['leader_id' => $this->leader->id]);
+    $otherLeader = User::factory()->create(['college' => 'CTE']);
+    $other = ResearchOutcome::factory()->create(['leader_id' => $otherLeader->id]);
+
+    $this->put(route('research-outcomes.update', $outcome), [
+        'title' => $outcome->title, 'funding_source' => 'unfunded', 'labels' => ['patent'], 'lock_version' => $outcome->lock_version,
+    ])->assertSessionHasNoErrors();
+    Notification::assertSentTo($this->coordinator, ProposalActivityNotification::class, fn ($notice) => $notice->url === $outcome->detailUrl());
+
+    $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
+    $this->get(route('research-outcomes.index'))->assertOk()->assertSee($outcome->title)->assertDontSee($other->title);
+    $this->get($outcome->detailUrl())->assertOk();
+    $this->get($other->detailUrl())->assertForbidden();
+});
+
+test('outcome changes are saved before coordinator notification delivery is attempted', function () {
+    Exceptions::fake();
+    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Notification unavailable'));
+
+    $this->put(route('research-outcomes.projects.update', $this->topic), [
+        'labels' => ['publication'], 'lock_version' => 0,
+    ])->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Labels saved. Some coordinator notifications could not be sent.');
+
+    expect(ResearchOutcome::sole()->labels)->toBe(['publication']);
+    Exceptions::assertReported(RuntimeException::class);
 });
 
 test('unrelated researchers and wrong workspaces cannot access labels', function () {

@@ -48,8 +48,10 @@ test('the Work Plan editor imports proposal objectives and preserves existing ac
         'source_data' => ['entries' => $this->entries],
     ]);
     $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
-        ->assertOk()->assertSee('Objective from Detailed Proposal')
-        ->assertSee('readonly required', false)->assertDontSee('Add another objective')
+        ->assertOk()->assertSee('From Detailed Proposal')
+        ->assertDontSee('Add another objective')
+        ->assertViewHas('workPlanComplete', true)
+        ->assertViewHas('workPlanDocument', fn ($document): bool => $document->completed_at === null)
         ->assertViewHas('sourceData', fn (array $source): bool => $source['entries'] == $this->entries);
 });
 
@@ -68,7 +70,7 @@ test('the Work Plan starts with matching proposal methods and shows overall outp
 
     $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
         ->assertOk()
-        ->assertSee('Overall outputs from Detailed Proposal')
+        ->assertSee('Proposal outputs')
         ->assertSee('One journal article')
         ->assertViewHas('sourceData', fn (array $source): bool => $source['entries'][0]['activity'] === "Conduct interviews\nValidate the dataset"
             && $source['entries'][1]['activity'] === 'Compare outcomes'
@@ -115,6 +117,41 @@ test('work plans save overlapping months without replacing edited activities fro
     expect($this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole()->source_data['entries'])
         ->toEqual($entries);
 });
+
+test('a new Work Plan stays complete after reopening following the final autosave', function (string $saveAsDraft) {
+    $editor = route('faculty.proposal-drafts.work-plan.edit', $this->draft);
+    $autosave = route('faculty.proposal-drafts.work-plan.update', $this->draft);
+    $this->actingAs($this->faculty)->get($editor)
+        ->assertOk()
+        ->assertViewHas('workPlanDocument', fn ($document): bool => $document === null)
+        ->assertViewHas('workPlanComplete', false);
+
+    $completedEntries = array_map(fn (array $entry): array => [
+        ...$entry,
+        'months' => array_map('strval', $entry['months']),
+    ], $this->entries);
+    $partialEntries = $completedEntries;
+    $partialEntries[0]['months'] = [];
+    $partial = $this->put($autosave, [
+        'document_version' => '0',
+        'save_as_draft' => '1',
+        'entries' => $partialEntries,
+    ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('saved_as_draft', true);
+    $this->get($editor)->assertOk()->assertViewHas('workPlanComplete', false);
+
+    $this->put($autosave, [
+        'document_version' => (string) $partial->json('document_version'),
+        'save_as_draft' => $saveAsDraft,
+        'entries' => $completedEntries,
+    ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('saved_as_draft', false);
+
+    $reopened = $this->get($editor)
+        ->assertOk()
+        ->assertViewHas('workPlanComplete', true);
+    expect($reopened->viewData('workPlanDocument')->completed_at)->not->toBeNull()
+        ->and($reopened->viewData('sourceData')['entries'])->toEqual($completedEntries)
+        ->and(app(ProposalDraftReadiness::class)->checklist($this->draft->fresh())['work-plan']['status'])->toBe('Complete');
+})->with(['complete save' => '0', 'draft save with complete content' => '1']);
 
 test('proposal narrative edits preserve the prepared Work Plan unless its objectives change', function (bool $objectivesChanged) {
     Storage::fake('local');

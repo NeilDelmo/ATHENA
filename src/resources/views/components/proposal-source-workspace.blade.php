@@ -14,7 +14,7 @@
         <header class="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-700 sm:px-6">
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-3">
-                    <button x-show="sourceWorkspaceView !== 'list'" type="button" @click="sourceWorkspaceView = 'list'; sourceWorkspaceError = ''; invalidateSourceWorkspaceDraft()" :disabled="sourceWorkspaceBusy()" class="rounded-lg px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:text-red-200 dark:hover:bg-red-950/40">Back to sources</button>
+                    <button x-show="sourceWorkspaceView !== 'list'" type="button" @click="sourceWorkspaceView = 'list'; sourceWorkspaceError = ''; invalidateSourceWorkspaceDraft()" :disabled="sourceWorkspaceBusy()" class="secondary-action">Back to sources</button>
                     <h2 id="proposal-source-dialog-heading" class="text-lg font-semibold text-slate-950 dark:text-white" x-text="sourceWorkspaceCitationMode ? (citationPickerSelection?.editing ? 'Edit citation' : 'Insert citation') : 'Sources'">Sources</h2>
                 </div>
                 <p x-show="sourceWorkspaceCitationMode" class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="citationPickerSelection?.sectionLabel"></p>
@@ -193,7 +193,7 @@
                                         <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400" x-text="sourceWorkspacePassageLabel(passage)"></p>
                                         <blockquote x-show="passage.quote" class="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200" x-text="passage.quote"></blockquote>
                                         <p x-show="passage.note" class="whitespace-pre-wrap break-words text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="passage.note"></p>
-                                        <button type="button" @click="deleteSourceWorkspacePassage(passage)" :disabled="sourceWorkspaceBusy()" class="self-start rounded px-1 py-1 text-xs text-slate-500 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-40 dark:text-slate-400 dark:hover:text-red-200">Delete excerpt or note</button>
+                                        <button type="button" @click="deleteSourceWorkspacePassage(passage)" :disabled="sourceWorkspaceBusy()" class="secondary-action self-start">Delete excerpt or note</button>
                                     </div>
                                 </article>
                             </template>

@@ -86,7 +86,7 @@
                     <svg x-show="isLoading" x-cloak class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path></svg>
                     <span x-text="isLoading ? 'Finding journal matches…' : 'Recommend journals'"></span>
                 </button>
-                <button type="button" x-show="hasSearched || query || context" @click="clear()" class="min-h-11 rounded-xl px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-red-700 dark:text-slate-300 dark:hover:bg-slate-900">Clear search</button>
+                <button type="button" x-show="hasSearched || query || context" @click="clear()" class="secondary-action">Clear search</button>
             </div>
         </form>
 

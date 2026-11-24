@@ -79,7 +79,7 @@ class ResearchManualGuidanceCheck
 
         $reply = $response->json('choices.0.message.content');
         if ($response->failed() || ! is_string($reply) || trim($reply) === '') {
-            return ['status' => 502, 'payload' => ['message' => 'Guidance checking could not answer right now. Please try again.', 'sources' => $sources]];
+            return ['status' => 502, 'payload' => ['message' => $this->ai->failureMessage($response, 'Guidance checking could not answer right now. Please try again.'), 'sources' => $sources]];
         }
 
         return ['status' => 200, 'payload' => [

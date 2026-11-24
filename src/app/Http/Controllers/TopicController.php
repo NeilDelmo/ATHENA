@@ -636,6 +636,13 @@ class TopicController extends Controller
         ]);
 
         $revisionDraft = $this->revisionDraftForResubmission($request, $topic);
+        if ($revisionDraft?->trashed()) {
+            return redirect()->route('faculty.proposal-drafts.trash')
+                ->with('trash_warning', 'Restore the linked proposal workspace to continue your revision.');
+        }
+        if ($revisionDraft?->pendingDeletionRequest) {
+            return redirect()->route('faculty.proposal-drafts.deletion.show', [$revisionDraft, $revisionDraft->pendingDeletionRequest]);
+        }
         $revisionDraftVersion = $revisionDraft?->lock_version;
         $revisionDocumentVersions = $revisionDraft?->documents->pluck('lock_version', 'id')->all() ?? [];
         $stagedRevisionFiles = ($revisionDraft?->documents ?? collect())
@@ -727,6 +734,12 @@ class TopicController extends Controller
                     ])->errorBag('resubmission');
                 }
 
+                if ($lockedRevisionDraft?->hasPendingDeletionRequest()) {
+                    throw ValidationException::withMessages([
+                        'deletion_request' => ProposalDraft::PENDING_DELETION_SUBMISSION_MESSAGE,
+                    ])->errorBag('resubmission');
+                }
+
                 $review = $revisedTopic->reviews()->where('decision', 'revision_requested')->latest('id')->lockForUpdate()->firstOrFail();
                 $feedbackRows = app(CommentResponseFeedback::class)->rows($review);
                 if ($feedbackRows !== [] && (int) ($validated['feedback_review_id'] ?? 0) !== $review->id) {
@@ -745,16 +758,17 @@ class TopicController extends Controller
                 $nextVersion = ((int) $revisedTopic->versions()->max('version_number')) + 1;
                 $previousVersion = $revisedTopic->latestVersion()->with('files')->first();
                 $snapshotFiles = $packageService->revisionSnapshot($previousVersion, $replacementFiles, $revisedTopic);
+                $archiveHistory = app(ArchiveProposalDraftDocumentHistory::class);
                 if ($revisionDraft) {
                     foreach ($snapshotFiles as &$snapshotFile) {
                         if ($snapshotFile['document_type'] === ProposalVersionFile::TYPE_DETAILED_PROPOSAL) {
-                            $snapshotFile['source_data'] = [
+                            $snapshotFile['source_data'] = $archiveHistory->archiveFigureSources($revisionDraft, [
                                 ...($snapshotFile['source_data'] ?? []),
                                 'comment_response_signatory_selections' => array_intersect_key(
                                     $revisionDraft->resolvedSignatorySelections(),
                                     ProposalSignatory::FIELDS['comment_response_form'],
                                 ),
-                            ];
+                            ], $permanentDirectory);
                         }
                     }
                     unset($snapshotFile);
@@ -834,7 +848,7 @@ class TopicController extends Controller
 
                 if ($revisionDraft) {
                     $syncTopicCollaborators->handle($revisionDraft, $revisedTopic);
-                    app(ArchiveProposalDraftDocumentHistory::class)->handle($revisionDraft, $revisedTopic, $permanentDirectory);
+                    $archiveHistory->handle($revisionDraft, $revisedTopic, $permanentDirectory);
                     $revisionDraft->forceDelete();
                 }
 
@@ -1589,7 +1603,8 @@ class TopicController extends Controller
     private function revisionDraftForResubmission(Request $request, TopicProposal $topic): ?ProposalDraft
     {
         $revisionDraft = $topic->revisionDraft()
-            ->with('documents')
+            ->withTrashed()
+            ->with(['documents', 'pendingDeletionRequest'])
             ->first();
 
         if (! $revisionDraft) {

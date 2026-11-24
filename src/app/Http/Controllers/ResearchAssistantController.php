@@ -728,7 +728,7 @@ class ResearchAssistantController extends Controller
                 }
             }
         } catch (ConnectionException $exception) {
-            Log::warning('Gemini research assistant connection failed.', [
+            Log::warning('AI research assistant connection failed.', [
                 'exception' => $exception::class,
             ]);
 
@@ -738,7 +738,7 @@ class ResearchAssistantController extends Controller
         } catch (Throwable $exception) {
             report($exception);
 
-            Log::error('Gemini research assistant request encountered an unexpected error.', [
+            Log::error('AI research assistant request encountered an unexpected error.', [
                 'exception' => $exception::class,
             ]);
 
@@ -755,7 +755,7 @@ class ResearchAssistantController extends Controller
         }
 
         if ($response->failed()) {
-            Log::warning('Gemini research assistant request failed.', [
+            Log::warning('AI research assistant request failed.', [
                 'status' => $response->status(),
                 'model' => $response->json('model'),
                 'request_id' => $response->header('x-request-id'),
@@ -763,12 +763,12 @@ class ResearchAssistantController extends Controller
             ]);
 
             return response()->json([
-                'message' => match ($response->status()) {
+                'message' => $this->ai->failureMessage($response, match ($response->status()) {
                     401, 403 => 'The research assistant credentials need attention.',
                     404 => 'The configured research model is unavailable.',
                     default => 'The research assistant could not answer right now. Please try again.',
-                },
-            ], 502);
+                }),
+            ], $response->paymentRequired() ? 503 : 502);
         }
 
         $reply = trim((string) $response->json('choices.0.message.content'));

@@ -291,7 +291,7 @@ class DetailedProposalData
         return self::narrative($html);
     }
 
-    private static function alphabeticLabel(int $index): string
+    public static function alphabeticLabel(int $index): string
     {
         $value = $index + 1;
         $label = '';

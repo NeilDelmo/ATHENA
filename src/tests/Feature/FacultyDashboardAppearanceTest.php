@@ -209,6 +209,8 @@ test('draft list keeps resume aligned for owners and collaborators with clear pa
         $draft->updated_at = now();
         $draft->setRelation('owner', $index === 0 ? $faculty : $owner);
         $draft->setRelation('researchCall', null);
+        $draft->setRelation('pendingDeletionRequest', null);
+        $draft->accepted_members_exists = $index !== 0;
     }
     $this->mock(ProposalDraftReadiness::class)
         ->shouldReceive('checklist')->twice()->andReturn(
@@ -219,6 +221,7 @@ test('draft list keeps resume aligned for owners and collaborators with clear pa
     view()->share('errors', new ViewErrorBag);
     $html = view('faculty.proposal-drafts.index', [
         'proposalDrafts' => new LengthAwarePaginator($drafts, 2, 12),
+        'archived' => false,
     ])->render();
     $document = new DOMDocument;
     @$document->loadHTML($html);
@@ -226,12 +229,12 @@ test('draft list keeps resume aligned for owners and collaborators with clear pa
     $actions = $xpath->query('//*[@data-draft-actions]');
 
     expect($actions)->toHaveCount(2)
-        ->and($actions->item(0)->getAttribute('class'))->toContain('grid-cols-2')
-        ->and($actions->item(1)->getAttribute('class'))->toContain('grid-cols-2')
-        ->and($xpath->query('.//a', $actions->item(0))->item(0)->getAttribute('class'))->toContain('col-start-1')
-        ->and($xpath->query('.//a', $actions->item(1))->item(0)->getAttribute('class'))->toContain('col-start-1')
-        ->and($xpath->query('.//form', $actions->item(0))->length)->toBe(1)
+        ->and($actions->item(0)->getAttribute('class'))->toContain('grid-cols-[max-content_2.75rem]')
+        ->and($actions->item(1)->getAttribute('class'))->toBe($actions->item(0)->getAttribute('class'))
+        ->and(trim($xpath->query('./*[1]', $actions->item(0))->item(0)->textContent))->toBe('Resume')
+        ->and(trim($xpath->query('./*[1]', $actions->item(1))->item(0)->textContent))->toBe('Resume')
+        ->and($xpath->query('.//form', $actions->item(0))->length)->toBe(2)
         ->and($xpath->query('.//form', $actions->item(1))->length)->toBe(0)
-        ->and($html)->toContain('7 of 7 papers ready', '0 of 7 papers ready', 'data-proposal-confirm')
-        ->not->toContain('Package progress', '<progress');
+        ->and($html)->toContain('All 7 papers ready', '0 of 7 papers ready', 'data-proposal-confirm')
+        ->not->toContain('Review project', 'Package progress', '<progress');
 });

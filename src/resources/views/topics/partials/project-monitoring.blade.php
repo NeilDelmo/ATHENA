@@ -172,7 +172,7 @@
         @endif
         @if ($monitoringIssues->isNotEmpty() || count($overdueWorkPlanActivities ?? []) > 0)
             <details data-monitoring-attention class="monitoring-disclosure mt-4 border-t border-brand/10 dark:border-slate-700">
-                <summary class="py-2">
+                <summary class="secondary-action w-full">
                     <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span class="text-red-700 dark:text-red-300">Needs attention</span><span class="font-normal text-slate-600 dark:text-slate-400">{{ $monitoringIssues->count() + count($overdueWorkPlanActivities ?? []) }} {{ Str::plural('item', $monitoringIssues->count() + count($overdueWorkPlanActivities ?? [])) }}</span></span>
                     <svg class="h-4 w-4 shrink-0 transition-transform [[open]>summary>&]:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
                 </summary>
@@ -193,7 +193,7 @@
                 @endforeach
                 @foreach ($reviewGroups as $label => $issues)
                     <details data-monitoring-review-group="{{ $label }}" class="monitoring-disclosure group min-w-0">
-                        <summary>
+                        <summary class="secondary-action w-full">
                             <span class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><span>{{ $label }}</span><span class="font-normal text-slate-600 dark:text-slate-300">{{ $issues->count() }} {{ str('report')->plural($issues->count()) }}</span></span>
                             <svg class="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
                         </summary>

@@ -33,7 +33,13 @@ test('trash archive and automatic manual results fit both themes and retain keyb
                 const restore = page.getByRole('button', { name: 'Restore', exact: true });
                 await expect(restore).toBeVisible();
                 await expect(restore.locator('xpath=..')).toHaveAttribute('method', 'POST');
+                await expect(restore.locator('xpath=..')).toHaveAttribute('data-confirm-button', 'Restore draft');
                 await expect(restore.locator('xpath=..').locator('[name="_token"]')).toHaveCount(1);
+                const permanentDelete = page.getByRole('button', { name: 'Delete permanently', exact: true });
+                await expect(permanentDelete).toBeVisible();
+                await expect(permanentDelete.locator('xpath=..').locator('[name="confirmed"]')).toHaveValue('0');
+                await expect(page.locator('[data-proposal-alert]')).toHaveCount(0);
+                await expect(page.getByRole('link', { name: 'Back to drafts' })).toHaveCSS('position', 'fixed');
                 await restore.focus();
                 await expect(restore).toBeFocused();
             } else if (name === 'manual-pending') {

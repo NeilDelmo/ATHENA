@@ -145,6 +145,7 @@ test('the built app loads history and dialogs on demand across page navigation',
             }
             if (path === 'action') {
                 actionRequests++;
+                assert.equal(new URLSearchParams(route.request().postData()).get('confirmed'), '1');
                 await route.fulfill({ body: '<p>Action completed</p>', contentType: 'text/html' });
                 return;
             }
@@ -157,7 +158,10 @@ test('the built app loads history and dialogs on demand across page navigation',
                 <button @click="$store.researchAssistant.openWorkspace()">Open history</button>
                 <template x-for="item in $store.researchAssistant.history"><p x-text="item.title"></p></template>
                 <a href="/second" ${resumeNavigation}>Resume</a>
-                <form action="/action" method="post" data-proposal-confirm><button type="submit">Check confirmation</button></form>
+                <form action="/action" method="post" data-proposal-confirm>
+                    <input type="hidden" name="confirmed" value="0" data-proposal-confirmation>
+                    <button type="submit">Check confirmation</button>
+                </form>
                 <time id="manila-system-time"></time>
             </body></html>` });
         });
@@ -185,6 +189,7 @@ test('the built app loads history and dialogs on demand across page navigation',
         await page.locator('.swal2-cancel').click();
         await page.locator('.swal2-container').waitFor({ state: 'detached' });
         assert.equal(actionRequests, 0);
+        assert.equal(await page.locator('[name="confirmed"]').inputValue(), '0');
         await page.getByRole('button', { name: 'Check confirmation' }).click();
         await page.locator('.swal2-confirm').click();
         await page.getByText('Action completed', { exact: true }).waitFor();

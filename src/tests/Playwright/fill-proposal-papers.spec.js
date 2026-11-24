@@ -132,11 +132,14 @@ async function fillWorkPlan(page, draftId) {
     const form = page.locator('[data-work-plan-autosave-form]');
     await expect(form).toBeVisible();
 
-    await fillValue(form.locator('textarea[name="entries[0][objective]"]'), 'Develop and evaluate the integrated monitoring prototype.');
+    await expect(form.locator('input[type="hidden"][name="entries[0][objective]"]')).not.toHaveValue('');
+    const firstEntry = form.locator('[data-work-plan-entry-id="1"]');
+    const edit = firstEntry.getByRole('button', { name: 'Edit', exact: true });
+    if (await edit.isVisible()) await edit.click();
     await fillValue(form.locator('textarea[name="entries[0][expected_output]"]'), 'Validated prototype, evaluation results, and technical documentation.');
     await fillValue(form.locator('textarea[name="entries[0][activity]"]'), 'Requirements analysis, interface design, implementation, testing, user evaluation, and report preparation.');
-    if (await form.locator('input[name="entries[0][months][]"]:checked').count() === 0) {
-        await form.locator('input[name="entries[0][months][]"]:not([disabled])').first().check({ force: true });
+    if (await form.locator('input[name="entries[0][months][]"]').count() === 0) {
+        await firstEntry.locator('[data-work-plan-month="1"]').click();
     }
     await waitForAutosave(page);
 }

@@ -69,13 +69,29 @@ class AiChatCompletionService
         return $this->providers($usesVision) !== [];
     }
 
+    public function failureMessage(Response $response, string $fallback): string
+    {
+        if (! $response->paymentRequired()) {
+            return $fallback;
+        }
+
+        return match ($response->json('error.metadata.limit_source')) {
+            'openrouter_key_limit' => 'The AI API key has reached its spending limit. Ask the administrator to review the limit before retrying.',
+            'openrouter_in_flight_budget' => 'The AI spending allowance is temporarily occupied by other requests. Wait a moment, then retry.',
+            default => 'The AI service has insufficient credits for this request. Ask the administrator to review the credit balance or reduce the request size.',
+        };
+    }
+
     /** @return list<array{name: string, key: string, model: string, base_url: string}> */
     private function providers(bool $usesVision): array
     {
-        return collect([
-            $this->provider('openrouter', $usesVision),
-            $this->provider('gemini', $usesVision),
-        ])->filter()->values()->all();
+        $names = config('services.ai.provider', 'openrouter') === 'gemini'
+            ? ['gemini', 'openrouter']
+            : ['openrouter', 'gemini'];
+
+        return collect($names)
+            ->map(fn (string $name): ?array => $this->provider($name, $usesVision))
+            ->filter()->values()->all();
     }
 
     /** @return array{name: string, key: string, model: string, base_url: string}|null */
@@ -100,7 +116,8 @@ class AiChatCompletionService
 
     private function shouldFailOver(Response $response): bool
     {
-        return $response->status() === 408
+        return $response->paymentRequired()
+            || $response->status() === 408
             || $response->status() === 429
             || $response->serverError();
     }

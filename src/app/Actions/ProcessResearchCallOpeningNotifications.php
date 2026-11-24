@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Notifications\ResearchCallDeadlineReminderNotification;
 use App\Notifications\ResearchCallOpeningReminderNotification;
 use App\Notifications\ResearchCallPublishedNotification;
+use App\Support\ResearchCallDeadlineNotice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,7 @@ class ProcessResearchCallOpeningNotifications
 
         ResearchCall::query()
             ->acceptingSubmissions()
-            ->where('closes_at', '<=', $now->copy()->addDays(7))
+            ->where('closes_at', '<=', $now->copy()->addDays(ResearchCallDeadlineNotice::LOOKAHEAD_DAYS))
             ->eachById(function (ResearchCall $researchCall) use (&$processed): void {
                 $processed += $this->processDeadlineReminder($researchCall);
             });
@@ -124,7 +125,8 @@ class ProcessResearchCallOpeningNotifications
                 ->lockForUpdate()
                 ->find($researchCall->id);
 
-            if ($lockedCall === null || ! $lockedCall->isAcceptingSubmissions()) {
+            if ($lockedCall === null || ! $lockedCall->isAcceptingSubmissions()
+                || $lockedCall->closes_at->gt(now()->addDays(ResearchCallDeadlineNotice::LOOKAHEAD_DAYS))) {
                 return null;
             }
 
@@ -159,18 +161,23 @@ class ProcessResearchCallOpeningNotifications
         /** @var ResearchCall $lockedCall */
         $lockedCall = $notification['researchCall'];
 
-        Notification::send(
-            $notification['recipients'],
-            new ResearchCallDeadlineReminderNotification(
-                $lockedCall->id,
-                $lockedCall->title,
-                $lockedCall->closes_at,
-                $notification['stage'],
-                route('research-calls.index'),
-            ),
+        $reminder = new ResearchCallDeadlineReminderNotification(
+            $lockedCall->id,
+            $lockedCall->title,
+            $lockedCall->closes_at,
+            $notification['stage'],
+            route('research-calls.index'),
         );
+        $processed = 0;
+        foreach ($notification['recipients'] as $recipient) {
+            $processed += rescue(function () use ($recipient, $reminder): int {
+                Notification::send($recipient, $reminder);
 
-        return $notification['recipients']->count();
+                return 1;
+            }, 0);
+        }
+
+        return $processed;
     }
 
     /** @return Collection<int, User> */

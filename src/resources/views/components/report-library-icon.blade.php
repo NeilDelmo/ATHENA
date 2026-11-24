@@ -20,6 +20,7 @@
             'actions' => 'M6 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm7 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm7 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z',
             'rename' => 'm15 4 5 5M4 20l4-1L21 6l-5-5L3 14l1 6Z',
             'remove' => 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
+            'archive' => 'M3 4h18v5H3zM5 9v11h14V9m-9 4h4',
             'new' => 'M3 7V5h7l2 3h9v13H3V7Zm9 5v6m-3-3h6',
             'move' => 'M3 7V5h7l2 3h9v13H3V7Zm4 7h10m-3-3 3 3-3 3',
             'refresh' => 'M21 3v6h-6M3 21v-6h6M5 9a8 8 0 0 1 13-5l3 5M3 15l3 5a8 8 0 0 0 13-5',

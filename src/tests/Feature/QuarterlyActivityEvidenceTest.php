@@ -189,11 +189,12 @@ test('selecting a project after saving proof files the retained images into that
     $owner = User::factory()->create(['college' => $this->coordinator->college]);
     $project = TopicProposal::create(['user_id' => $owner->id, 'title' => 'Newly selected project', 'status' => 'approved']);
     $this->post(route('research_coordinator.reports.store'), [...($this->input)(), 'intent' => 'submit', 'presentations' => [[...$this->row, 'project_id' => $project->id]]])
-        ->assertSessionHasNoErrors();
+        ->assertRedirect()->assertSessionHasNoErrors();
     $proof = CollegeQuarterlyReport::sole()->evidence[0];
     expect($proof['project_id'] ?? null)->toBe($project->id)->and($proof['path'])->toStartWith('project-documents/'.$project->id.'/accomplishment-evidence/')
         ->and(ProjectDocument::sole()->file_path)->toBe($proof['path']);
     Storage::disk('local')->assertExists([$originalPath, $proof['path']]);
+    expect(Storage::disk('local')->get($proof['path']))->toBe(Storage::disk('local')->get($originalPath));
 });
 
 test('external faculty research saves prints exports and submits without an Athena project or activity proof', function () {

@@ -27,6 +27,8 @@ beforeEach(function () {
             $table->integer('topic_id');
             $table->string('submission_status')->default('submitted');
             $table->string('review_status')->default('pending');
+            $table->string('review_stage')->nullable()->default('head');
+            $table->timestamp('forwarded_at')->nullable();
             $table->timestamp('submitted_at')->nullable();
             $table->timestamp('created_at')->default('2026-09-01 12:00:00');
             if ($name === 'project_progress_reports') {
@@ -35,6 +37,10 @@ beforeEach(function () {
             } else {
                 $table->string('report_type')->default('progress');
                 $table->date('submission_date')->default('2026-09-01');
+                $table->unsignedInteger('reporting_quarter')->nullable();
+                $table->date('reporting_date')->nullable();
+                $table->date('period_start')->nullable();
+                $table->date('period_end')->nullable();
             }
         });
     }
@@ -46,26 +52,30 @@ beforeEach(function () {
     ]);
 });
 
-test('report queue excludes drafts, unissued projects and superseded submitted versions', function () {
+test('report queue counts only reviewable versions and keeps different quarters separate', function () {
     DB::table('project_progress_reports')->insert([
         ['id' => 1, 'topic_id' => 1, 'submission_status' => 'submitted', 'supersedes_report_id' => null],
         ['id' => 2, 'topic_id' => 1, 'submission_status' => 'submitted', 'supersedes_report_id' => 1],
         ['id' => 3, 'topic_id' => 1, 'submission_status' => 'prepared', 'supersedes_report_id' => 2],
         ['id' => 4, 'topic_id' => 2, 'submission_status' => 'submitted', 'supersedes_report_id' => null],
         ['id' => 5, 'topic_id' => 3, 'submission_status' => 'submitted', 'supersedes_report_id' => null],
+        ['id' => 6, 'topic_id' => 1, 'submission_status' => 'submitted', 'supersedes_report_id' => null],
     ]);
     DB::table('project_narrative_reports')->insert([
-        ['id' => 1, 'topic_id' => 1, 'report_type' => 'terminal', 'submission_status' => 'submitted'],
-        ['id' => 2, 'topic_id' => 1, 'report_type' => 'terminal', 'submission_status' => 'submitted'],
-        ['id' => 3, 'topic_id' => 1, 'report_type' => 'terminal', 'submission_status' => 'prepared'],
-        ['id' => 4, 'topic_id' => 1, 'report_type' => 'progress', 'submission_status' => 'submitted'],
-        ['id' => 5, 'topic_id' => 2, 'report_type' => 'progress', 'submission_status' => 'submitted'],
+        ['id' => 1, 'topic_id' => 1, 'report_type' => 'terminal', 'submission_status' => 'submitted', 'reporting_quarter' => null],
+        ['id' => 2, 'topic_id' => 1, 'report_type' => 'terminal', 'submission_status' => 'submitted', 'reporting_quarter' => null],
+        ['id' => 4, 'topic_id' => 1, 'report_type' => 'progress', 'submission_status' => 'submitted', 'reporting_quarter' => 1],
+        ['id' => 5, 'topic_id' => 2, 'report_type' => 'progress', 'submission_status' => 'submitted', 'reporting_quarter' => 1],
+        ['id' => 6, 'topic_id' => 1, 'report_type' => 'progress', 'submission_status' => 'submitted', 'reporting_quarter' => 1],
+        ['id' => 7, 'topic_id' => 1, 'report_type' => 'progress', 'submission_status' => 'submitted', 'reporting_quarter' => 2],
+        ['id' => 8, 'topic_id' => 1, 'report_type' => 'progress', 'submission_status' => 'submitted', 'reporting_quarter' => 3],
+        ['id' => 9, 'topic_id' => 1, 'report_type' => 'progress', 'submission_status' => 'prepared', 'reporting_quarter' => 3],
     ]);
     $queue = app(ResearchHeadReportQueue::class);
-    expect($queue->pendingCount())->toBe(3)
-        ->and($queue->query('quarterly')->pluck('id')->all())->toBe([2])
+    expect($queue->pendingCount())->toBe(4)
+        ->and($queue->query('quarterly')->pluck('id')->all())->toBe([6])
         ->and($queue->query('terminal')->pluck('id')->all())->toBe([2])
-        ->and($queue->query('progress')->pluck('id')->all())->toBe([4]);
+        ->and($queue->query('progress')->orderBy('id')->pluck('id')->all())->toBe([6, 7]);
 });
 
 test('report queue filters status and faculty or project search before paginating', function () {

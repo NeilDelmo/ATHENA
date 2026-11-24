@@ -4,6 +4,7 @@ import { proposalCitationSelection } from './proposal-semantic-editor';
 export function detailedProposalPreviewWorkspace() {
     return {
         ...proposalPaperPreviewWorkspace({ initiallyOpen: true, workspaceSelector: '[data-detailed-proposal-workspace]' }),
+        previewFullscreenReturnLabel: 'Back to editor',
         initializeDetailedProposalPreview() { this.initializeProposalPaperPreview(); },
         scheduleDetailedProposalPreview(delay) { this.scheduleProposalPaperPreview(delay); },
         destroyDetailedProposalPreview() { this.destroyProposalPaperPreview(); },

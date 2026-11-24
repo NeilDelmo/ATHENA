@@ -15,22 +15,26 @@ class AcceptProposalWorkspaceInvitation
 {
     public function handle(User $user, ProposalDraftMember $proposalDraftMember): ProposalDraft
     {
-        $proposalDraft = DB::transaction(function () use ($user, $proposalDraftMember): ProposalDraft {
-            $membership = ProposalDraftMember::query()
-                ->whereKey($proposalDraftMember->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
+        [$proposalDraft, $accepted] = DB::transaction(function () use ($user, $proposalDraftMember): array {
+            $draft = $proposalDraftMember->draft()->lockForUpdate()->firstOrFail();
+            $membership = $draft->members()->lockForUpdate()->findOrFail($proposalDraftMember->getKey());
 
             if ($membership->user_id !== $user->getKey()) {
                 throw new AuthorizationException;
             }
 
-            if (! $membership->isAccepted()) {
-                $membership->update(['accepted_at' => now()]);
+            if ($membership->isAccepted()) {
+                return [$draft, false];
             }
 
-            return $membership->draft()->firstOrFail();
+            $membership->update(['accepted_at' => now()]);
+
+            return [$draft, true];
         }, 3);
+
+        if (! $accepted) {
+            return $proposalDraft;
+        }
 
         $proposalDraft->loadMissing('owner:id,name');
 

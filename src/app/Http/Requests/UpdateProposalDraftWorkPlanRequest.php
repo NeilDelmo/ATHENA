@@ -75,6 +75,7 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
         return [...WorkPlanRules::afterCallbacks(
             $this->input('entries'),
             $this->allowsDraftValidation(),
+            requireContinuousRange: ! $this->routeIs('faculty.proposal-drafts.work-plan.preview'),
         ), function (Validator $validator): void {
             if ($this->linkedObjectives === [] && ! $this->allowsDraftValidation()) {
                 $validator->errors()->add('entries', 'Save the specific objectives in the Detailed Proposal before preparing the Work Plan.');

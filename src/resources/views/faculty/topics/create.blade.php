@@ -179,7 +179,7 @@
                                         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-red-600">Objective <span x-text="index + 1"></span></p>
                                         <h5 class="mt-1 text-sm font-black text-gray-900">Output, activities, and timing</h5>
                                     </div>
-                                    <button x-show="entries.length > 1" type="button" @click="removeEntry(index)" class="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wide text-gray-400 transition hover:bg-red-50 hover:text-red-600">Remove</button>
+                                    <button x-show="entries.length > 1" type="button" @click="removeEntry(index)" class="secondary-action">Remove</button>
                                 </div>
 
                                 <div class="mt-4 grid gap-4 lg:grid-cols-3">
@@ -260,7 +260,7 @@
                                         <p id="{{ $packageInput['name'] }}_help" class="mt-1 text-[11px] leading-4 text-gray-500">{{ $packageInput['help'] }}</p>
                                     </div>
                                     @if ($proposalSamples->contains($packageInput['sample']))
-                                        <a href="{{ route('proposal-samples.show', $packageInput['sample']) }}" target="_blank" rel="noopener" class="shrink-0 text-[10px] font-black uppercase tracking-wide text-blue-700 hover:text-blue-900">View sample &nearr;</a>
+                                        <a href="{{ route('proposal-samples.show', $packageInput['sample']) }}" target="_blank" rel="noopener" class="secondary-action shrink-0">View sample &nearr;</a>
                                     @endif
                                 </div>
                                 <input
@@ -323,7 +323,6 @@
                         <button x-show="step === 3" x-cloak type="button" @click="generatePreview()" class="rounded-xl bg-red-600 px-6 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-700">Review proposal</button>
                         <button x-show="step === 4" x-cloak type="button" @click="generatePreview()" :disabled="previewLoading" class="rounded-xl border border-gray-200 px-5 py-3 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60">Refresh preview</button>
                         <button x-show="step === 4" x-cloak type="button" @click="downloadDocument()" :disabled="downloadLoading" class="rounded-xl border border-red-200 px-5 py-3 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-wait disabled:opacity-60" x-text="downloadLoading ? 'Preparing Word file…' : 'Download Word file'"></button>
-                        <button x-show="step === 4" x-cloak type="button" @click="printPreview()" :disabled="!previewReady || previewLoading" class="rounded-xl border border-gray-200 px-5 py-3 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">Print / Save PDF</button>
                         <button x-show="step === 4" x-cloak type="submit" class="rounded-xl bg-red-600 px-6 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-700">Submit project</button>
                     </div>
                 </div>

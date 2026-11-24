@@ -97,6 +97,11 @@ test('report review filters identify the selected view using the existing tab fo
     expect($selected->length)->toBe(1)
         ->and(trim($selected->item(0)->textContent))->toBe($label)
         ->and($selected->item(0)->getAttribute('href'))->toBe(route('research_secretary.reports.index', $type ? ['type' => $type] : []));
+    $inactiveFilters = $xpath->query('//nav[@data-report-review-filters]//a[not(@aria-current)]');
+    expect($inactiveFilters->length)->toBe(4);
+    foreach ($inactiveFilters as $filter) {
+        expect($filter->getAttribute('class'))->toContain('border-slate-400');
+    }
     if (getenv('ATHENA_EXPORT_SECRETARY_WORKSPACE') === '1') {
         File::ensureDirectoryExists(storage_path('framework/testing'));
         File::put(storage_path('framework/testing/secretary-reports-'.($type ?: 'all').'.html'), $response->getContent());

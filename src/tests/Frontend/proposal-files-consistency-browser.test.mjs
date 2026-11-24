@@ -11,6 +11,45 @@ import loadConfig from 'tailwindcss/loadConfig.js';
 const read = path => readFileSync(resolve(path), 'utf8');
 const script = path => read(path).replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
 
+test('draft row actions open and close by keyboard on desktop and mobile', async () => {
+    if (process.env.ATHENA_CONSISTENCY_FIXTURE_READY !== '1') {
+        execFileSync('php', ['vendor/pestphp/pest/bin/pest', '--compact', 'tests/Feature/ProposalDraftWorkflowTest.php', '--filter=draft attachment previews use stored prepared PDFs'], {
+            encoding: 'utf8',
+            env: { ...process.env, ATHENA_EXPORT_PROPOSAL_CONSISTENCY: '1', ATHENA_TEST_PRESERVE_DATABASE: '1' },
+        });
+    }
+    const fixture = read('storage/framework/testing/proposal-consistency-drafts.html');
+    const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(read('resources/css/app.css'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const { width, dark } of [{ width: 390, dark: false }, { width: 1440, dark: true }]) {
+            const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
+            const draftList = await page.evaluate(source => new DOMParser().parseFromString(source, 'text/html')
+                .querySelector('[data-faculty-drafts]').outerHTML, fixture);
+            await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${css}</style></head><body class="p-4">${draftList}</body></html>`);
+            await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
+            const draft = page.locator('[data-proposal-draft]').first();
+            const moreActions = draft.getByRole('button', { name: /^More actions for/ });
+            const moveToTrash = draft.getByRole('button', { name: 'Move to Trash', exact: true });
+            await expect(draft.getByRole('link', { name: 'Resume', exact: true })).toBeVisible();
+            await expect(moveToTrash).toBeHidden();
+            await moreActions.press('Enter');
+            await expect(moreActions).toHaveAttribute('aria-expanded', 'true');
+            await expect(moveToTrash).toBeVisible();
+            await expect(draft.getByRole('button', { name: 'Archive draft' })).toBeVisible();
+            await moveToTrash.focus();
+            await page.keyboard.press('Escape');
+            await expect(moreActions).toBeFocused();
+            await expect(moveToTrash).toBeHidden();
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
 test('required attachment actions align across different paper labels and screen widths', async () => {
     const fixture = read('storage/framework/testing/proposal-consistency-draft.html');
     const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
@@ -191,7 +230,7 @@ test('proposal lists and required papers share readable file icons while retaini
                 await expect(resume).toBeVisible();
                 await readable(resume, 16);
                 assert.match(await resume.getAttribute('href'), /\/proposal-drafts\/\d+/);
-                await expect(draft.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
+                await expect(draft.getByRole('button', { name: /^More actions for/ })).toBeVisible();
                 await screenshot('drafts');
 
                 await initialize('draft', '[data-workspace-palette]', true);

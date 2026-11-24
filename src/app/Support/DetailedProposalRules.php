@@ -142,7 +142,8 @@ class DetailedProposalRules
                     }
 
                     if (blank($group['heading'] ?? null)) {
-                        $validator->errors()->add('specific_method_objectives.'.$index.'.heading', 'Add a heading for method group '.($index + 1).'.');
+                        $letter = DetailedProposalData::alphabeticLabel((int) $index);
+                        $validator->errors()->add('specific_method_objectives.'.$index.'.heading', 'Enter a heading for method group '.$letter.'.');
                     }
 
                     if (empty($group['methods'])) {
@@ -154,6 +155,11 @@ class DetailedProposalRules
                             $validator->errors()->add('specific_method_objectives.'.$index.'.methods.'.$methodIndex.'.description', 'Describe method '.($methodIndex + 1).' in group '.($index + 1).'.');
                         }
                     }
+                }
+
+                if ($validator->errors()->get('specific_method_objectives.*') !== []
+                    && isset($validator->failed()['methodology.specific_methods']['Required'])) {
+                    $validator->errors()->forget('methodology.specific_methods');
                 }
 
                 $responsibilities = Arr::wrap($validator->getData()['responsibilities'] ?? []);

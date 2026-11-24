@@ -181,7 +181,7 @@ class NoticeToProceedController extends Controller
             ->unique(fn (User $user): int => $user->getKey())
             ->values();
 
-        Notification::send($recipients, new ProposalActivityNotification(
+        $notification = new ProposalActivityNotification(
             'Signed papers and Notice to Proceed released',
             'Your signed proposal papers and Notice to Proceed for "'.$issuedTopic->title.'" is ready. Project monitoring is now open.',
             route('topics.show', $issuedTopic).'#project-monitoring',
@@ -192,7 +192,10 @@ class NoticeToProceedController extends Controller
                 User::WORKSPACE_FACULTY,
             ],
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
-        ));
+        );
+        foreach ($recipients as $recipient) {
+            rescue(fn () => Notification::send($recipient, $notification));
+        }
 
         return redirect()
             ->to(route('topics.show', $topic).'#notice-to-proceed')

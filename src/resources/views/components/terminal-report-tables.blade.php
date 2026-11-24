@@ -66,7 +66,7 @@
                                         </td>
                                     </template>
                                     <td class="p-3">
-                                        <button type="button" @click="table.rows.splice(ri, 1); $dispatch('input')" :disabled="table.rows.length === 1" class="min-h-11 rounded-lg px-3 py-2 font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-300">Remove row</button>
+                                        <button type="button" @click="table.rows.splice(ri, 1); $dispatch('input')" :disabled="table.rows.length === 1" class="secondary-action">Remove row</button>
                                     </td>
                                 </tr>
                             </template>

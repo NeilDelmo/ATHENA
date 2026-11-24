@@ -188,14 +188,14 @@
                 x-show="!required && value"
                 type="button"
                 x-on:click="clear"
-                class="rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                class="secondary-action"
             >Clear</button>
             <span x-show="required || !value" aria-hidden="true"></span>
             <button
                 type="button"
                 x-on:click="selectToday"
                 x-bind:disabled="!todaySelectable"
-                class="rounded-lg px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                class="secondary-action"
             >Today</button>
         </div>
     </div>

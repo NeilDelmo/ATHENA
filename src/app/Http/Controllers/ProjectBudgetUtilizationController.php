@@ -189,7 +189,7 @@ class ProjectBudgetUtilizationController extends Controller
             ? 'The assigned project secretary'
             : $budgetPreparer->name;
 
-        $report->submitter->notify(new ProposalActivityNotification(
+        rescue(fn () => $report->submitter->notify(new ProposalActivityNotification(
             title: $report->quarter_label.' Budget Utilization Completed',
             message: $preparerLabel.' completed the budget utilization for '.$topic->title.'. The prepared Monitoring Tool is ready for submission.',
             url: route('project-progress.create', ['topic' => $topic, 'reporting_date' => $report->reporting_date->toDateString()]),
@@ -197,7 +197,7 @@ class ProjectBudgetUtilizationController extends Controller
             topicId: $topic->id,
             workspace: 'faculty_researcher',
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
-        ));
+        )));
 
         $destination = $request->routeIs('project-budget.update')
             ? route('research.show', $topic).'#project-monitoring'

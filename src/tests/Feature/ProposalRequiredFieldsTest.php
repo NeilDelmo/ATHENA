@@ -89,9 +89,8 @@ test('proposal pages mark required fields immediately and keep optional fields u
         'label[@for="general-objective"]', 'label[@for="methodology-data_analysis"]',
     ]],
     'Work Plan' => ['work-plan', [
-        'label[starts-with(normalize-space(.), "Objective from Detailed Proposal")]',
-        'label[starts-with(normalize-space(.), "Expected Output")]',
-        'label[starts-with(normalize-space(.), "Activities or Workplan")]',
+        'label[starts-with(normalize-space(.), "Expected outputs")]',
+        'label[starts-with(normalize-space(.), "Activities")]',
         'legend[starts-with(normalize-space(.), "Gantt Schedule")]',
     ], []],
     'Line-Item Budget' => ['line-item-budget', [

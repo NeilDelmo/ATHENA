@@ -101,7 +101,7 @@ test('Google sign-in returns to an ATHENA invitation without following external 
         $this->get($url)->assertRedirect(route('login'));
     }
 
-    $this->get(route('auth.google.callback'))->assertRedirect($external ? route('dashboard') : $url);
+    $this->get(route('auth.google.callback'))->assertRedirect($external ? route('faculty.dashboard') : $url);
 })->with([true, false]);
 
 test('a Google callback with invalid state cannot authenticate or provision an account', function () {
@@ -132,14 +132,15 @@ test('a Google callback with invalid state cannot authenticate or provision an a
     expect(User::where('email', 'invalid-state@g.batstate-u.edu.ph')->exists())->toBeFalse();
 });
 
-test('a BatStateU Google account is provisioned as faculty and authenticated', function () {
+test('a BatStateU Google account is provisioned as faculty and authenticated', function (bool $expectsJson) {
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     mockGoogleUser('faculty@g.batstate-u.edu.ph');
 
-    $response = $this->get('/auth/google/callback');
+    $callbackUrl = route('auth.google.callback');
+    $response = $expectsJson ? $this->getJson($callbackUrl) : $this->get($callbackUrl);
 
     $response
-        ->assertRedirect('/dashboard')
+        ->assertRedirectToRoute($expectsJson ? 'dashboard' : 'faculty.dashboard')
         ->assertCookieMissing(Auth::guard('web')->getRecallerName());
     $this->assertAuthenticated();
 
@@ -148,7 +149,7 @@ test('a BatStateU Google account is provisioned as faculty and authenticated', f
         ->and($user->email_verified_at)->not->toBeNull()
         ->and($user->hasRole('faculty'))->toBeTrue()
         ->and($user->getRememberToken())->toBeEmpty();
-});
+})->with(['browser' => false, 'JSON' => true]);
 
 test('Google account switching uses the selected account even if the previous login is restored', function (bool $restored, bool $remember) {
     $this->withoutVite();
@@ -180,7 +181,7 @@ test('Google account switching uses the selected account even if the previous lo
     mockGoogleUser($selected->email);
 
     $response = $this->get(route('auth.google.callback'))
-        ->assertRedirect(route('dashboard'))
+        ->assertRedirectToRoute('faculty.dashboard')
         ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, 'faculty')
         ->assertSessionMissing('url.intended')
         ->assertSessionMissing('workspace_resume')
@@ -248,7 +249,7 @@ test('Google sign in restores the account workspace without a browser preference
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     mockGoogleUser($user->email);
 
-    $this->get('/auth/google/callback')->assertRedirect(route('dashboard'))
+    $this->get('/auth/google/callback')->assertRedirectToRoute('faculty.dashboard')
         ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, 'faculty');
     $this->assertAuthenticatedAs($user);
     $this->get(route('dashboard'))->assertRedirect(route('faculty.dashboard'));
@@ -266,7 +267,7 @@ test('Google first sign in links a proposal invitation without accepting it', fu
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     mockGoogleUser($membership->email);
 
-    $this->get('/auth/google/callback')->assertRedirect(route('dashboard'));
+    $this->get('/auth/google/callback')->assertRedirectToRoute('faculty.dashboard');
     $invitee = User::where('email', $membership->email)->sole();
     $this->assertAuthenticatedAs($invitee);
     expect($membership->fresh()->user_id)->toBe($invitee->id)
@@ -327,7 +328,7 @@ test('Google sign in remembers the user when persistence is enabled', function (
     $response = $this->get('/auth/google/callback');
 
     $response
-        ->assertRedirect('/dashboard')
+        ->assertRedirectToRoute('faculty.dashboard')
         ->assertCookie(Auth::guard('web')->getRecallerName())
         ->assertCookieNotExpired(Auth::guard('web')->getRecallerName());
     $this->assertAuthenticated();
@@ -371,7 +372,7 @@ test('remembered users stay in their selected workspace after session loss', fun
 
     $rememberCookieName = Auth::guard('web')->getRecallerName();
     $rememberCookie = $this->get('/auth/google/callback')
-        ->assertRedirect(route($user->hasMultipleWorkspaces() ? 'workspace.select' : 'dashboard'))
+        ->assertRedirectToRoute($user->hasMultipleWorkspaces() ? 'workspace.select' : $dashboard)
         ->getCookie($rememberCookieName);
     $preferenceCookie = $this->post(route('workspace.store'), ['workspace' => $workspace])
         ->assertRedirect(route($dashboard))
@@ -431,7 +432,7 @@ test('Google sign in restores the same account workspace preference after logout
         'active_role' => 'research_coordinator',
         'url.intended' => route('research_head.dashboard'),
     ])->get('/auth/google/callback')
-        ->assertRedirect(route('dashboard'))
+        ->assertRedirectToRoute($dashboard)
         ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace)
         ->assertSessionMissing('url.intended');
 
@@ -474,7 +475,7 @@ test('a Google avatar URL longer than 255 characters is stored', function () {
     $avatar = 'https://lh3.googleusercontent.com/a/'.str_repeat('a', 300).'=s96-c';
     mockGoogleUser('long-avatar@g.batstate-u.edu.ph', $avatar);
 
-    $this->get('/auth/google/callback')->assertRedirect('/dashboard');
+    $this->get('/auth/google/callback')->assertRedirectToRoute('faculty.dashboard');
 
     expect(strlen($avatar))->toBeGreaterThan(255)
         ->and(User::where('email', 'long-avatar@g.batstate-u.edu.ph')->firstOrFail()->avatar)
@@ -517,7 +518,7 @@ test('Google sign in ignores a saved page for another role', function () {
 
     $this->withSession(['url.intended' => route('research_head.dashboard')])
         ->get('/auth/google/callback')
-        ->assertRedirect(route('dashboard'))
+        ->assertRedirectToRoute('faculty.dashboard')
         ->assertSessionMissing('url.intended');
 });
 
@@ -603,7 +604,7 @@ test('an older Google callback preserves the newer sign-in and a replay cannot r
         ->assertRedirect(route('login'))->assertSessionHas('state', $latestState);
     $this->assertGuest();
     expect($requests)->toBeEmpty();
-    $this->get(route('auth.google.callback', ['state' => $latestState, 'code' => 'latest-code']))->assertRedirect(route('dashboard'));
+    $this->get(route('auth.google.callback', ['state' => $latestState, 'code' => 'latest-code']))->assertRedirectToRoute('faculty.dashboard');
     $selected = User::where('email', 'latest@g.batstate-u.edu.ph')->firstOrFail();
     $this->assertAuthenticatedAs($selected);
     expect($requests)->toHaveCount(2);
@@ -623,7 +624,7 @@ test('session expiry after switching accounts restores only the new remember coo
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     config()->set('services.google.remember_login', true);
     mockGoogleUser('new.remembered@g.batstate-u.edu.ph');
-    $newCookie = $this->get(route('auth.google.callback'))->assertRedirect(route('dashboard'))->getCookie($cookieName)->getValue();
+    $newCookie = $this->get(route('auth.google.callback'))->assertRedirectToRoute('faculty.dashboard')->getCookie($cookieName)->getValue();
     $selected = User::where('email', 'new.remembered@g.batstate-u.edu.ph')->firstOrFail();
 
     $this->flushSession();
@@ -663,7 +664,7 @@ test('a Google callback holds the session lock while resolving the selected acco
     Socialite::shouldReceive('driver')->once()->with('google')->andReturn($provider);
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
 
-    $this->get(route('auth.google.callback'))->assertRedirect(route('dashboard'));
+    $this->get(route('auth.google.callback'))->assertRedirectToRoute('faculty.dashboard');
     foreach (['auth.google.redirect', 'auth.google.callback', 'logout'] as $name) {
         expect(Route::getRoutes()->getByName($name)->locksFor())->toBe(60);
     }

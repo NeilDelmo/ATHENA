@@ -6,6 +6,8 @@ use App\Models\ResearchPublication;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\PresenceVerifierInterface;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -17,6 +19,7 @@ beforeEach(function () {
     $this->topic = TopicProposal::create([
         'user_id' => $this->researcher->id, 'title' => 'Community health and diabetes',
         'status' => 'approved', 'project_status' => 'completed',
+        'notice_to_proceed_issued_at' => now()->subYear(),
     ]);
     $this->actingAs($this->researcher)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'faculty_researcher']);
     $this->entry = ['journal_name' => 'Community Health Journal', 'manuscript_title' => $this->topic->title, 'status' => 'shortlisted'];
@@ -60,9 +63,28 @@ test('duplicate entries cannot reset an existing manuscript stage', function () 
     expect(ProjectJournalSubmission::count())->toBe(1);
 });
 
+test('a simultaneous journal submission receives the duplicate warning without replacing the saved entry', function () {
+    $url = route('research.dissemination.journal-submissions.store', $this->topic);
+    $this->postJson($url, array_replace($this->entry, [
+        'status' => 'submitted', 'submitted_on' => now()->toDateString(),
+    ]))->assertCreated();
+
+    $earlierValidation = Mockery::mock(PresenceVerifierInterface::class);
+    $earlierValidation->shouldReceive('getCount')->once()->andReturn(0);
+    Validator::setPresenceVerifier($earlierValidation);
+
+    $this->postJson($url, $this->entry)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('fingerprint');
+    expect(ProjectJournalSubmission::sole()->status)->toBe('submitted');
+});
+
 test('unrelated researchers cross-project edits and research head access are denied', function () {
     $entry = ProjectJournalSubmission::factory()->create(['topic_id' => $this->topic->id, 'added_by' => $this->researcher->id]);
-    $other = TopicProposal::create(['user_id' => $this->researcher->id, 'title' => 'Other', 'status' => 'approved', 'project_status' => 'completed']);
+    $other = TopicProposal::create([
+        'user_id' => $this->researcher->id, 'title' => 'Other', 'status' => 'approved', 'project_status' => 'completed',
+        'notice_to_proceed_issued_at' => now()->subYear(),
+    ]);
     $this->patch(route('research.dissemination.journal-submissions.update', [$other, $entry]), $this->entry)->assertForbidden();
     $outsider = User::factory()->create();
     $outsider->assignRole('faculty_researcher');

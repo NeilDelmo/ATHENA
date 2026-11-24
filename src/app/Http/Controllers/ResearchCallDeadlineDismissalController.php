@@ -16,6 +16,11 @@ class ResearchCallDeadlineDismissalController extends Controller
     ): JsonResponse {
         abort_unless($deadlineNotice->canBeDismissedBy($request->user(), $researchCall), 404);
 
+        $validated = $request->validate(['deadline_at' => ['required', 'string', 'max:35']]);
+        if ($validated['deadline_at'] !== $researchCall->closes_at->toIso8601String()) {
+            return response()->json(['message' => 'The submission deadline changed. Reload the page to see the updated reminder.'], 409);
+        }
+
         $deadlineNotice->dismissForToday($request->user(), $researchCall);
 
         return response()->json(['dismissed' => true]);

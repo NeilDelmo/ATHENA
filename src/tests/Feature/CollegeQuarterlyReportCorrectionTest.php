@@ -3,9 +3,11 @@
 use App\Models\CollegeQuarterlyReport;
 use App\Models\CollegeQuarterlyReportSubmission;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -63,7 +65,11 @@ test('returning a submission preserves its snapshot and lets the coordinator cor
     Storage::disk('local')->assertExists($originalPath);
     $this->get(route('college-quarterly-submissions.print', $submission))->assertOk()
         ->assertSeeText('Original submitted narrative')->assertDontSeeText('Corrected narrative');
-    $this->get(route('college-quarterly-submissions.evidence', ['submission' => $submission, 'index' => 0]))->assertOk();
+    $evidenceResponse = $this->get(route('college-quarterly-submissions.evidence', ['submission' => $submission, 'index' => 0]))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png')
+        ->assertHeader('Cache-Control', 'no-store, private');
+    expect($evidenceResponse->streamedContent())->toBe(Storage::disk('local')->get($originalPath));
     $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(), 'other_accomplishments' => 'Corrected narrative'])
         ->assertSessionHasNoErrors();
     $report->refresh();
@@ -142,6 +148,24 @@ test('submission history and its photos are limited to the college coordinator a
     foreach ($urls as $url) {
         $this->getJson($url)->assertForbidden();
     }
+});
+
+test('a returned college report notifies its coordinators and links directly to the correction quarter', function () {
+    Notification::fake();
+    $otherCoordinator = User::factory()->create(['college' => User::COLLEGES['CTE']]);
+    $otherCoordinator->assignRole('research_coordinator');
+    $this->post(route('research_coordinator.reports.store'), ($this->reportInput)())->assertSessionHasNoErrors();
+    $report = CollegeQuarterlyReport::sole();
+    ($this->asHead)();
+
+    $this->patch(route('research_head.quarterly-reports.return', $report), [
+        'submission_id' => $report->latestSubmission->id, 'reason' => 'Update the research totals.',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    Notification::assertSentTo($this->coordinator, ProposalActivityNotification::class, fn (ProposalActivityNotification $notice): bool => $notice->title === 'Quarterly accomplishment report returned'
+        && $notice->workspace === User::WORKSPACE_RESEARCH_OFFICE
+        && $notice->url === route('research_coordinator.reports.index', ['year' => 2026, 'quarter' => 3]));
+    Notification::assertNotSentTo($otherCoordinator, ProposalActivityNotification::class);
 });
 
 test('college report history loads version metadata while archived documents retain their snapshots', function (string $viewer) {

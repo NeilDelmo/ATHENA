@@ -3,7 +3,7 @@
         <x-page-header :title="$paper['label']" subtitle="Create one official CV form for every member of the research team.">
             <x-slot name="actions">
                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700' }}">{{ $curriculumVitaeDocument?->completed_at ? 'Complete' : ($curriculumVitaeDocument ? 'In progress' : 'Not started') }}</span>
-                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to attachments</x-back-link>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -158,11 +158,11 @@
                 <article x-show="person.id === activeCvPersonId" x-cloak class="cv-writing-member space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex" :data-cv-person-id="person.id" :aria-label="`CV for ${personLabel(person)}`">
                     <div class="flex flex-col gap-3 border-b border-gray-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
                         <div><p class="text-[10px] font-black uppercase tracking-wider text-red-600">CV <span x-text="personIndex + 1"></span> of <span x-text="people.length"></span></p><h3 class="mt-1 text-lg font-black text-gray-900" x-text="personLabel(person)"></h3></div>
-                        <button type="button" x-on:click="removePerson(personIndex)" x-bind:disabled="people.length === 1" class="rounded-xl px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove member</button>
+                        <button type="button" x-on:click="removePerson(personIndex)" x-bind:disabled="people.length === 1" class="secondary-action">Remove member</button>
                     </div>
 
                     <details data-cv-section="personal" :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
-                        <summary class="disclosure-summary cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
+                        <summary class="disclosure-summary secondary-action w-full justify-start text-left">Personal Information</summary>
                         <div class="cv-writing-fields grid gap-4 border-t border-gray-100 p-4">
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
                                 @php($isContactNumber = in_array($key, ['landline', 'cellphone'], true))
@@ -187,7 +187,7 @@
 
                     @foreach ($sections as $sectionKey => $section)
                         <details data-cv-section="{{ $sectionKey }}" :data-revision-section="`section-cv-${personIndex + 1}-{{ $sectionKey }}`" :id="`cv-${person.id}-{{ $sectionKey }}`" class="rounded-xl border border-gray-200">
-                            <summary class="disclosure-summary cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">{{ $section['label'] }} <span class="font-semibold text-gray-400" x-text="`(${person.{{ $sectionKey }}.length})`"></span></summary>
+                            <summary class="disclosure-summary secondary-action w-full justify-start text-left">{{ $section['label'] }} <span class="font-semibold text-gray-400" x-text="`(${person.{{ $sectionKey }}.length})`"></span></summary>
                             <div class="space-y-4 border-t border-gray-100 p-4">
                                 <div class="flex justify-end"><button type="button" x-on:click="addSectionRow(personIndex, '{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 sm:w-auto">{{ $section['add_label'] }}</button></div>
                                 <p x-show="person.{{ $sectionKey }}.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">No entries. Preview and Word output will retain {{ $section['default_rows'] }} blank rows for this section.</p>
@@ -228,7 +228,7 @@
                                                 </div>
                                             @endforeach
                                         </div>
-                                        <div class="mt-3 flex justify-end"><button type="button" x-on:click="removeSectionRow(personIndex, '{{ $sectionKey }}', rowIndex)" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600">Remove entry</button></div>
+                                        <div class="mt-3 flex justify-end"><button type="button" x-on:click="removeSectionRow(personIndex, '{{ $sectionKey }}', rowIndex)" class="secondary-action">Remove entry</button></div>
                                     </div>
                                 </template>
                             </div>

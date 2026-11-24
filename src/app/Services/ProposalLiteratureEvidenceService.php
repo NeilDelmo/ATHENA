@@ -211,7 +211,7 @@ PROMPT],
         }
 
         if ($response->failed()) {
-            throw new LiteratureSynthesisException('The evidence assistant could not prepare a response. Your saved passages are unchanged.', $response->status() === 429 ? 429 : 502);
+            throw new LiteratureSynthesisException($this->ai->failureMessage($response, 'The evidence assistant could not prepare a response. Your saved passages are unchanged.'), $response->status() === 429 ? 429 : 502);
         }
 
         $content = trim((string) $response->json('choices.0.message.content'));

@@ -325,14 +325,17 @@ PROMPT;
     /** @return array<string, mixed> */
     private function readinessContext(ProposalDraft $draft): array
     {
+        $draft->loadMissing('pendingDeletionRequest');
         $checklist = $this->draftReadiness->checklist($draft);
+        $problems = $this->draftReadiness->errors($draft, $checklist);
+        if ($draft->hasPendingDeletionRequest()) {
+            $problems = ['deletion_request' => ProposalDraft::PENDING_DELETION_SUBMISSION_MESSAGE, ...$problems];
+        }
 
         return [
             'ready_to_submit' => $this->draftReadiness->isReady($draft),
             'submission_files_prepared' => $this->draftReadiness->submissionFilesArePrepared($draft),
-            'problems' => collect($this->draftReadiness->errors($draft))
-                ->take(10)
-                ->all(),
+            'problems' => array_slice($problems, 0, 10, preserve_keys: true),
             'papers_needing_attention' => $checklist
                 ->filter(fn (array $item): bool => ! $item['complete'] || $item['needs_attention'])
                 ->map(fn (array $item, string $slug): array => [

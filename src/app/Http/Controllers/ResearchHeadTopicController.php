@@ -16,7 +16,6 @@ use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -356,7 +355,7 @@ class ResearchHeadTopicController extends Controller
             }
         }
 
-        $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
+        rescue(fn () => $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
             $notificationDetails[0],
             $notificationDetails[1],
             $this->revisionDeepLinkUrl($topic, $latestVersion, $validated['status']),
@@ -364,7 +363,7 @@ class ResearchHeadTopicController extends Controller
             $topic->id,
             workspace: User::WORKSPACE_FACULTY,
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
-        ));
+        )));
 
         if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE) {
             $colleges = TopicProposal::collegeAliases($topic->projectCollege());
@@ -383,14 +382,17 @@ class ResearchHeadTopicController extends Controller
                 })
                 ->get();
 
-            Notification::send($staff, new ProposalActivityNotification(
+            $releaseNotification = new ProposalActivityNotification(
                 'Notice to Proceed ready to prepare',
                 'The Research Head cleared “'.$topic->title.'”. Prepare the Notice to Proceed and upload the signed documents for release.',
                 route('topics.show', $topic).'#notice-to-proceed',
                 'info',
                 $topic->id,
                 workspace: User::WORKSPACE_RESEARCH_SECRETARY,
-            ));
+            );
+            foreach ($staff as $secretary) {
+                rescue(fn () => $secretary->notify($releaseNotification));
+            }
         }
 
         $message = match ($validated['status']) {
@@ -400,7 +402,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. The Research Secretary will prepare and release the signed documents and Notice to Proceed.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
-                : 'Revision request sent to the faculty member.',
+                : 'Revision requested. The faculty member can review the feedback in ATHENA.',
             'rejected' => 'Proposal rejected.',
         };
 

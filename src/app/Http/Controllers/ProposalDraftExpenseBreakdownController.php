@@ -7,7 +7,6 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftExpenseBreakdownRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
-use App\Models\ResearchCall;
 use App\Services\ExpenseBreakdownDocumentService;
 use App\Support\ExpenseBreakdownData;
 use App\Support\LineItemBudgetData;
@@ -30,12 +29,14 @@ class ProposalDraftExpenseBreakdownController extends Controller
         ProposalBudgetConsistency $proposalBudgetConsistency,
     ): View {
         Gate::authorize('update', $proposalDraft);
-        $proposalDraft->loadMissing('researchCall');
+        $proposalDraft->loadMissing(['documents', 'researchCall']);
         $paper = $catalog->get('expense-breakdown');
-        $expenseBreakdownDocument = $this->document($proposalDraft);
+        $expenseBreakdownDocument = $proposalDraft->documents->first(
+            fn (ProposalDraftDocument $document): bool => $document->document_type === $paper['document_type'] && $document->position === 0,
+        );
         $sourceData = $expenseBreakdownDocument?->source_data ?? ['items' => []];
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
-        $budgetCeiling = $proposalDraft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET;
+        $budgetCeiling = $budgetConsistency['budget_ceiling'];
 
         return view('faculty.proposal-drafts.expense-breakdown.edit', compact(
             'proposalDraft',
@@ -152,14 +153,6 @@ class ProposalDraftExpenseBreakdownController extends Controller
             $filenameBase.'-estimated-expense-breakdown.pdf',
             ['Content-Type' => 'application/pdf'],
         );
-    }
-
-    private function document(ProposalDraft $proposalDraft): ?ProposalDraftDocument
-    {
-        return $proposalDraft->documents()
-            ->where('document_type', config('proposal_papers.expense-breakdown.document_type'))
-            ->where('position', 0)
-            ->first();
     }
 
     private function lineItemBudgetDocument(ProposalDraft $proposalDraft): ?ProposalDraftDocument

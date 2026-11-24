@@ -251,6 +251,10 @@ class SubmitProposalDraft
                     ]);
                 }
 
+                if ($lockedDraft->hasPendingDeletionRequest()) {
+                    throw ValidationException::withMessages(['deletion_request' => ProposalDraft::PENDING_DELETION_SUBMISSION_MESSAGE]);
+                }
+
                 $existingTopic = $lockedDraft->topic_id !== null
                     ? TopicProposal::query()->whereKey($lockedDraft->topic_id)->lockForUpdate()->firstOrFail()
                     : null;
@@ -297,6 +301,7 @@ class SubmitProposalDraft
                             $paper,
                             $permanentDirectory,
                             array_intersect_key($lockedDraft->resolvedSignatorySelections(), ProposalSignatory::FIELDS['comment_response_form']),
+                            $lockedDraft,
                         );
                     }
                 }
@@ -397,6 +402,7 @@ class SubmitProposalDraft
         array $paper,
         string $permanentDirectory,
         array $commentResponseSelections,
+        ProposalDraft $draft,
     ): array {
         $extension = strtolower(pathinfo($document->original_filename, PATHINFO_EXTENSION));
         $path = $permanentDirectory.'/'.$paper['slug'].'/'.Str::uuid().'.'.$extension;
@@ -419,7 +425,10 @@ class SubmitProposalDraft
             'file_size' => Storage::disk('local')->size($path),
             'checksum' => hash_file('sha256', $absolutePath) ?: null,
             'source_data' => $document->document_type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL
-                ? [...($document->source_data ?? []), 'comment_response_signatory_selections' => $commentResponseSelections]
+                ? $this->archiveDocumentHistory->archiveFigureSources($draft, [
+                    ...($document->source_data ?? []),
+                    'comment_response_signatory_selections' => $commentResponseSelections,
+                ], $permanentDirectory)
                 : $document->source_data,
             'is_carried_forward' => false,
         ];
@@ -521,7 +530,7 @@ class SubmitProposalDraft
             [],
             WorkPlanRules::attributes(),
         );
-        $validator->after(WorkPlanRules::afterCallbacks($sourceData['entries']));
+        $validator->after(WorkPlanRules::afterCallbacks($sourceData['entries'], requireContinuousRange: true));
         $validated = $validator->validate();
         $workPlan = WorkPlanData::fromValidated($validated);
 

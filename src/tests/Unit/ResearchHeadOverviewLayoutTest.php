@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\TopicProposal;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
@@ -42,3 +44,39 @@ test('Research Head overview shows truthful priority counts and scoped reporting
         File::put(storage_path('framework/testing/head-overview-'.($hasData ? 'populated' : 'empty').'.html'), $html);
     }
 })->with([true, false]);
+
+test('calendar shortcuts render as outlined actions with their existing handlers', function () {
+    $document = new DOMDocument;
+    @$document->loadHTML(Blade::render('<x-date-time-picker /> <x-date-picker />'));
+    $xpath = new DOMXPath($document);
+
+    foreach (['Now' => 'selectNow', 'Today' => 'selectToday', 'Clear' => 'clear'] as $label => $handler) {
+        $controls = $xpath->query('//button[normalize-space(.)="'.$label.'"]');
+
+        expect($controls)->toHaveCount($label === 'Clear' ? 2 : 1);
+
+        foreach ($controls as $control) {
+            expect($control->getAttribute('class'))->toContain('secondary-action')
+                ->and($control->getAttribute('x-on:click'))->toBe($handler);
+        }
+    }
+});
+
+test('submitted proposal history renders as an outlined disclosure', function () {
+    $topic = (new TopicProposal)->setRelation('versions', collect());
+    $document = new DOMDocument;
+    @$document->loadHTML(view('topics.partials.version-history', compact('topic'))->render());
+    $summary = (new DOMXPath($document))->query('//details/summary')->item(0);
+
+    expect($summary->getAttribute('class'))->toContain('disclosure-summary', 'secondary-action')
+        ->and($summary->textContent)->toContain('Submitted proposal versions');
+});
+
+test('Blade view lookup and cache warming resolve the same compiled path', function () {
+    $view = app('view.finder')->find('topics.partials.live-status-notice');
+    $source = realpath(resource_path('views/topics/partials/live-status-notice.blade.php'));
+    $compiler = app('blade.compiler');
+
+    expect($source)->not->toBeFalse()
+        ->and($compiler->getCompiledPath($view))->toBe($compiler->getCompiledPath($source));
+});

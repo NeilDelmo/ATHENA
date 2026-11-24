@@ -150,7 +150,7 @@ test('older proposal-workspace notifications stay in Faculty even when they were
         ->assertJsonPath('notifications.0.data.title', 'Queued for LREC');
 });
 
-test('accepting an invitation keeps the notification but removes its review action', function () {
+test('accepting an invitation resolves every copy of its alert and preserves unrelated invitations', function () {
     $owner = User::factory()->create();
     $owner->assignRole('faculty');
     $collaborator = User::factory()->create();
@@ -178,15 +178,19 @@ test('accepting an invitation keeps the notification but removes its review acti
         'email' => $collaborator->email,
         'accepted_at' => null,
     ]);
-    $collaborator->notify(new ProposalActivityNotification(
+    $invitation = new ProposalActivityNotification(
         'Proposal workspace invitation',
         'You were invited to collaborate.',
         route('faculty.proposal-drafts.show', $draft),
         'info',
         null,
         route('notifications.proposal-invitations.accept', $membership),
-    ));
+    );
+    $collaborator->notify($invitation);
+    $collaborator->notify($invitation);
     $notification = $collaborator->notifications()->firstOrFail();
+    $otherAction = route('notifications.proposal-invitations.accept', $membership->id + 1);
+    $collaborator->notify(new ProposalActivityNotification('Another invitation', 'Another project.', route('notifications.index'), actionUrl: $otherAction));
     $this->actingAs($collaborator);
     $response = $this->postJson(
         route('notifications.proposal-invitations.accept', $membership),
@@ -196,16 +200,14 @@ test('accepting an invitation keeps the notification but removes its review acti
     );
     $response->assertOk();
 
-    $notification->refresh();
-
-    expect($notification->data)->toMatchArray([
-        'title' => 'Proposal workspace invitation',
-        'action_completed' => true,
-    ])
-        ->and($notification->data)->not->toHaveKey('action_url')
-        ->and($notification->data)->not->toHaveKey('action_data')
-        ->and($notification->read_at)->not->toBeNull()
-        ->and($collaborator->notifications()->count())->toBe(1);
+    $copies = $collaborator->notifications()->where('data->title', 'Proposal workspace invitation')->get();
+    expect($copies)->toHaveCount(2);
+    foreach ($copies as $copy) {
+        expect($copy->data['action_completed'])->toBeTrue()
+            ->and($copy->data)->not->toHaveKeys(['action_url', 'action_data'])
+            ->and($copy->read_at)->not->toBeNull();
+    }
+    expect($collaborator->notifications()->whereNull('read_at')->sole()->data['action_url'])->toBe($otherAction);
 });
 test('the notification inbox segregates activity and marks an opened item as read', function () {
     $this->withoutVite();

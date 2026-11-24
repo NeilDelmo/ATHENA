@@ -191,17 +191,19 @@ test('unsupported claims return a review explanation that cannot be inserted', f
 
 test('unavailable AI providers leave saved evidence unchanged', function (string $failure) {
     $quote = saveEvidenceQuote($this->draft, $this->source, 'Community monitoring improved local reporting.', null);
-    $ai = mock(AiChatCompletionService::class);
+    $ai = mock(AiChatCompletionService::class)->makePartial();
     $ai->shouldReceive('isConfigured')->once()->andReturn($failure !== 'unconfigured');
     if ($failure !== 'unconfigured') {
-        $ai->shouldReceive('complete')->once()->andReturn(new Illuminate\Http\Client\Response(new Response($failure === 'rate_limit' ? 429 : 500)));
+        $ai->shouldReceive('complete')->once()->andReturn(new Illuminate\Http\Client\Response(new Response(match ($failure) {
+            'rate_limit' => 429, 'credits' => 402, default => 500,
+        })));
     }
     $this->postJson(route('faculty.proposal-drafts.literature-evidence-assistance', $this->draft), evidenceAssistancePayload($this->source, $quote['id']))
         ->assertStatus(match ($failure) {
             'unconfigured' => 503, 'rate_limit' => 429, default => 502
         });
     expect($this->source->fresh()->evidence_passages[0]['id'])->toBe($quote['id'])->and($this->source->fresh()->rrl_note)->toBeNull();
-})->with(['unconfigured', 'rate_limit', 'provider_failure']);
+})->with(['unconfigured', 'rate_limit', 'provider_failure', 'credits']);
 
 test('evidence selection rejects a passage from a different proposal and client evidence content', function () {
     $quote = saveEvidenceQuote($this->draft, $this->source, 'Community monitoring improved local reporting.', null);

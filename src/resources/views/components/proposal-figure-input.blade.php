@@ -29,7 +29,7 @@
                             <label :for="`methodology-image-file-${image.clientId}`" class="cursor-pointer rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 dark:border-slate-600 dark:text-slate-200">Replace image</label>
                             <button type="button" x-on:click="moveMethodologyImage(image, -1)" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 dark:border-slate-600 dark:text-slate-200">Move up</button>
                             <button type="button" x-on:click="moveMethodologyImage(image, 1)" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 dark:border-slate-600 dark:text-slate-200">Move down</button>
-                            <button type="button" x-on:click="removeMethodologyImage(image)" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 dark:text-red-300">Remove</button>
+                            <button type="button" x-on:click="removeMethodologyImage(image)" class="secondary-action">Remove</button>
                         </div>
                     </div>
                 </div>

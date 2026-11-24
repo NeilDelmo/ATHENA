@@ -1879,6 +1879,18 @@ test('a research head can review a report and update project status', function (
         ->and($otherNotification->fresh()->read_at)->toBeNull();
 });
 
+test('saving the same monitoring status twice sends one status update', function () {
+    Notification::fake();
+    $this->actingAs($this->head);
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $this->patch(route('research_head.projects.update-status', $this->topic), ['project_status' => 'delayed'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+    }
+
+    expect($this->topic->fresh()->project_status)->toBe('delayed');
+    Notification::assertSentToTimes($this->topic->user, ProposalActivityNotification::class, 1);
+});
+
 test('revision requests require Research Head remarks', function () {
     $report = ProjectProgressReport::create([
         'topic_id' => $this->topic->id,

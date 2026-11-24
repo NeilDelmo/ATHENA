@@ -1379,6 +1379,8 @@ test('faculty researchers can browse and open only their own approved research r
         'estimated_budget' => 14500,
         'initial_file_path' => 'proposals/own.pdf',
         'status' => 'approved',
+        'project_status' => TopicProposal::PROJECT_STATUS_ONGOING,
+        'notice_to_proceed_issued_at' => now()->subMonth(),
     ]);
 
     $ownTopic->versions()->create([
@@ -1401,29 +1403,23 @@ test('faculty researchers can browse and open only their own approved research r
         'title' => 'Another faculty research',
         'estimated_budget' => 9000,
         'initial_file_path' => 'proposals/other.pdf',
-        'status' => 'pending',
+        'status' => 'approved',
+        'project_status' => TopicProposal::PROJECT_STATUS_ONGOING,
+        'notice_to_proceed_issued_at' => now()->subMonth(),
     ]);
 
     $this->actingAs($faculty)
         ->get('/research')
         ->assertOk()
         ->assertSee('My catalogued research')
-        ->assertSee('Awaiting NTP')
+        ->assertSee('Ongoing monitoring')
         ->assertDontSee('Another faculty research');
 
     $this->actingAs($faculty)
         ->get("/research/{$ownTopic->id}")
         ->assertOk()
-        ->assertSee('Final signing')
-        ->assertSee('PHP 14,500.00')
-        ->assertSee('Project')
-        ->assertSee('Decision history')
-        ->assertSee('id="notice-to-proceed-tab-button"', false)
-        ->assertSee('id="notice-to-proceed-tab"', false)
-        ->assertSee('@click="setTopicTab(\'notice\', \'notice-to-proceed\')"', false)
-        ->assertSee('Submitted version comparison')
-        ->assertSee('Submitted proposal versions')
-        ->assertSee('Version 1');
+        ->assertSee($ownTopic->title)
+        ->assertViewHas('latestVersion', fn ($version): bool => $version->version_number === 1);
 
     $this->actingAs($faculty)
         ->get("/research/{$otherTopic->id}")
@@ -2211,7 +2207,7 @@ test('research heads review and request changes only against the latest resubmit
         ])
         ->assertRedirect(route('topics.show', $topic).'#proposal-review')
         ->assertSessionHas('topic_tab', 'review')
-        ->assertSessionHas('success', 'Revision request sent to the faculty member.');
+        ->assertSessionHas('success', 'Revision requested. The faculty member can review the feedback in ATHENA.');
 
     expect($topic->fresh()->status)->toBe('revision_requested')
         ->and($topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole()->proposal_version_file_id)

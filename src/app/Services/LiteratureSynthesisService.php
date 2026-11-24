@@ -100,7 +100,7 @@ class LiteratureSynthesisService
                 'model' => $response->json('model'),
                 'request_id' => $response->header('x-request-id'),
             ]);
-            throw new LiteratureSynthesisException('The synthesis service could not prepare a draft right now. Review the evidence and try again.', 502);
+            throw new LiteratureSynthesisException($this->ai->failureMessage($response, 'The synthesis service could not prepare a draft right now. Review the evidence and try again.'), 502);
         }
 
         return $response;

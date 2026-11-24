@@ -4,7 +4,7 @@
             <h3 class="text-lg font-bold">Find a conference for this project</h3>
             <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">Start with the suggested topic words. Compare the scope and dates on the official call before making a submission.</p>
             <details class="mt-3 text-sm">
-                <summary class="disclosure-summary cursor-pointer font-semibold">Project context</summary>
+                <summary class="disclosure-summary secondary-action w-full justify-start text-left">Project context</summary>
                 <p class="mt-2 whitespace-pre-line text-gray-600 dark:text-slate-300">{{ $projectAbstract ?: 'Use the project title and your manuscript keywords to narrow the search.' }}</p>
             </details>
             <form @submit.prevent="searchConferences" class="mt-5 grid gap-3 sm:grid-cols-2">
@@ -74,14 +74,14 @@
                 </dl>
                 <p class="mt-3 text-xs text-gray-500">{{ $conference->source }} @if ($conference->source_checked_at) · Listing retrieved {{ $conference->source_checked_at->format('M j, Y H:i') }} @endif · Tracking details supplied by the research team</p>
                 <div class="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-red-700 dark:text-red-300">
-                    <a href="{{ $conference->url }}" target="_blank" rel="noopener noreferrer">Source listing ↗</a>
-                    @if ($conference->official_url)<a href="{{ $conference->official_url }}" target="_blank" rel="noopener noreferrer">Official website ↗</a>@endif
-                    @if ($conference->evidence_url)<a href="{{ $conference->evidence_url }}" target="_blank" rel="noopener noreferrer">Supporting evidence ↗</a>@endif
+                    <a href="{{ $conference->url }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Source listing ↗</a>
+                    @if ($conference->official_url)<a href="{{ $conference->official_url }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Official website ↗</a>@endif
+                    @if ($conference->evidence_url)<a href="{{ $conference->evidence_url }}" target="_blank" rel="noopener noreferrer" class="secondary-action">Supporting evidence ↗</a>@endif
                 </div>
                 @if ($conference->notes)<p class="mt-3 whitespace-pre-line text-sm text-gray-600 dark:text-slate-300">{{ $conference->notes }}</p>@endif
                 @if ($canEdit)
                     <details class="mt-4 border-t border-gray-200 pt-4 dark:border-slate-700" @if ($restoreConferenceInput && data_get($validationContext, 'record_id') === $conference->id) open @endif>
-                        <summary class="disclosure-summary cursor-pointer text-sm font-bold">Update details or submission progress</summary>
+                        <summary class="disclosure-summary secondary-action w-full justify-start text-left">Update details or submission progress</summary>
                         <form method="POST" action="{{ route('research.dissemination.conferences.update', [$topic, $conference]) }}" class="mt-4 space-y-4">
                             @csrf @method('PATCH')
                             <x-project-conference-fields :conference="$conference" />

@@ -22,20 +22,24 @@ class LinkProposalDraftMemberships
 
         foreach ($memberships as $membership) {
             DB::transaction(function () use ($membership, $user): void {
-                $existing = ProposalDraftMember::query()
-                    ->where('proposal_draft_id', $membership->proposal_draft_id)
+                $draft = $membership->draft()->lockForUpdate()->first();
+                $unlinked = $draft?->members()->whereNull('user_id')->lockForUpdate()->find($membership->getKey());
+                if ($unlinked === null) {
+                    return;
+                }
+
+                $existing = $draft->members()
                     ->where('user_id', $user->getKey())
-                    ->whereKeyNot($membership->getKey())
                     ->lockForUpdate()
                     ->first();
 
                 if ($existing) {
-                    $membership->delete();
+                    $unlinked->delete();
 
                     return;
                 }
 
-                $membership->update([
+                $unlinked->update([
                     'user_id' => $user->getKey(),
                     'name' => $user->name,
                     'email' => mb_strtolower(trim($user->email)),

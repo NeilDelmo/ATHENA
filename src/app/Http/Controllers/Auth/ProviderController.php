@@ -73,19 +73,20 @@ class ProviderController extends Controller
             Auth::login($user, (bool) config('services.google.remember_login', false));
             $request->session()->regenerateToken();
 
-            if (WorkspacePreference::restore($request)) {
-                return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('dashboard');
+            if (! WorkspacePreference::restore($request)) {
+                $workspaces = $user->availableWorkspaceKeys();
+                if (count($workspaces) > 1) {
+                    return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('workspace.select');
+                }
+
+                if ($workspace = $workspaces[0] ?? null) {
+                    $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+                }
             }
 
-            if ($user->hasMultipleWorkspaces()) {
-                return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('workspace.select');
-            }
+            $dashboardRoute = $request->expectsJson() ? 'dashboard' : ($user->dashboardRouteName() ?? 'dashboard');
 
-            if ($workspace = $user->availableWorkspaceKeys()[0] ?? null) {
-                $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
-            }
-
-            return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route('dashboard');
+            return $invitationUrl ? redirect()->to($invitationUrl) : redirect()->route($dashboardRoute);
         } catch (\Exception $e) {
             Log::warning('Google authentication failed.', [
                 'message' => $e->getMessage(),

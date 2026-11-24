@@ -107,6 +107,7 @@ class ProposalDraftReviewPackage extends Component
         $this->proposalDraft->load([
             'researchCall',
             'documents',
+            'pendingDeletionRequest',
             'owner:id,name,email',
             'members.user:id,name,email',
         ]);
@@ -116,7 +117,7 @@ class ProposalDraftReviewPackage extends Component
         $readinessBlockers = $readiness->blockers($this->proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($this->proposalDraft);
         $readyToPrepare = $readinessErrors === [];
-        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
+        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared && ! $this->proposalDraft->hasPendingDeletionRequest();
         $budgetConsistency = $proposalBudgetConsistency->compare($this->proposalDraft);
 
         return view('livewire.proposal-draft-review-package', compact(

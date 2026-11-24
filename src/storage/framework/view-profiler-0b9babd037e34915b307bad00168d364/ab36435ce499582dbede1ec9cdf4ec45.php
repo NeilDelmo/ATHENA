@@ -1,0 +1,122 @@
+<section x-show="message.proposal_changes" x-cloak <?php echo e($attributes->merge(['class' => 'mt-4 overflow-hidden rounded-xl border border-stone-300 text-sm leading-6 dark:border-stone-700'])); ?> aria-label="Review proposal changes" data-assistant-proposal-changes>
+    <template x-if="message.proposal_changes">
+        <div>
+            <header class="border-b border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-700 dark:bg-stone-800">
+                <h4 class="font-semibold text-stone-950 dark:text-stone-100" x-text="message.proposal_changes.assessment?.rrl?.study_check ? 'Saved RRL check' : (message.proposal_changes.suggestions.length ? 'Review proposal changes' : 'Saved proposal check')"></h4>
+                <p class="mt-1 break-words text-xs text-stone-600 dark:text-stone-300" x-text="message.proposal_changes.proposal_title"></p>
+                <p x-show="message.proposal_changes.suggestions.length" class="mt-1 text-xs text-stone-600 dark:text-stone-300">Revisions change written content only. Names, dates, amounts, signatures, and approvals stay unchanged. Review each suggestion before applying it to your proposal document.</p>
+            </header>
+            <div x-show="message.proposal_changes.assessment?.rrl" class="border-b border-stone-200 px-4 py-3 dark:border-stone-700">
+                <p class="text-stone-800 dark:text-stone-200" x-text="$store.researchAssistant.proposalRrlAssessmentText(message)"></p>
+                <p class="mt-1 text-xs text-stone-600 dark:text-stone-300">A source count does not verify quality or guarantee approval.</p>
+                <p x-show="$store.researchAssistant.proposalRrlRequirementSource(message)" class="mt-1 break-words text-xs text-stone-600 dark:text-stone-300" x-text="'Manual basis: ' + ($store.researchAssistant.proposalRrlRequirementSource(message)?.title || '')"></p>
+                <template x-if="message.proposal_changes.assessment?.rrl?.study_check?.entries.length">
+                    <details class="mt-3 rounded-lg border border-stone-200 dark:border-stone-700">
+                        <summary class="disclosure-summary cursor-pointer px-3 py-2 text-xs font-semibold text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-stone-100">See studies and citations</summary>
+                        <ul class="divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-700 dark:border-stone-700">
+                            <template x-for="(entry, index) in message.proposal_changes.assessment.rrl.study_check.entries" :key="index">
+                                <li class="break-words px-3 py-2.5">
+                                    <span class="text-xs font-semibold text-stone-600 dark:text-stone-300" x-text="({supported: 'Discussion found', needs_review: 'Needs review', references_only: 'No matching citation in Section XI'})[entry.status]"></span>
+                                    <p class="font-medium text-stone-900 dark:text-stone-100" x-text="entry.label"></p>
+                                    <p x-show="entry.reason" class="text-xs text-stone-600 dark:text-stone-300" x-text="entry.reason"></p>
+                                    <blockquote x-show="entry.excerpt" class="mt-1 border-l-2 border-stone-300 pl-2 text-xs text-stone-700 dark:border-stone-600 dark:text-stone-200" x-text="entry.excerpt"></blockquote>
+                                </li>
+                            </template>
+                        </ul>
+                        <p x-show="message.proposal_changes.assessment.rrl.study_check.more" class="px-3 py-2 text-xs text-stone-600 dark:text-stone-300" x-text="`${message.proposal_changes.assessment.rrl.study_check.more} more entries in the saved paper`"></p>
+                    </details>
+                </template>
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" @click="$store.researchAssistant.checkProposalRrl(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><?php if (isset($component)) { $__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.assistant-icon','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('assistant-icon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b)): ?>
+<?php $attributes = $__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b; ?>
+<?php unset($__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b)): ?>
+<?php $component = $__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b; ?>
+<?php unset($__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b); ?>
+<?php endif; ?><span x-text="message.proposal_changes.assessment?.rrl?.study_check ? 'Run RRL check again' : 'Check my RRL'"></span></button>
+                    <button type="button" x-show="!message.proposal_changes.assessment?.rrl?.study_check || message.proposal_changes.assessment.rrl.minimum_satisfied !== true" @click="$store.researchAssistant.findProposalStudies(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><?php if (isset($component)) { $__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.assistant-icon','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('assistant-icon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b)): ?>
+<?php $attributes = $__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b; ?>
+<?php unset($__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b)): ?>
+<?php $component = $__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b; ?>
+<?php unset($__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b); ?>
+<?php endif; ?>Find additional studies</button>
+                </div>
+            </div>
+            <div class="divide-y divide-stone-200 dark:divide-stone-700">
+                <template x-for="suggestion in message.proposal_changes.suggestions" :key="suggestion.id">
+                    <article class="min-w-0 px-4 py-4" data-proposal-change-suggestion>
+                        <h5 class="font-semibold text-stone-950 dark:text-stone-100" x-text="suggestion.label"></h5>
+                        <p x-show="suggestion.field === 'related_literature'" class="mt-1 text-xs text-stone-600 dark:text-stone-300">Wording and paragraph order only. Compare the claims with your sources before accepting; this does not read or verify the cited papers.</p>
+                        <p x-show="suggestion.reason" class="mt-1 text-xs text-stone-600 dark:text-stone-300" x-text="suggestion.reason"></p>
+                        <details x-show="suggestion.before" class="mt-3 text-xs text-stone-600 dark:text-stone-300">
+                            <summary class="disclosure-summary cursor-pointer py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">Current saved text</summary>
+                            <p class="whitespace-pre-wrap break-words leading-6" x-text="$store.researchAssistant.proposalChangeBeforeText(suggestion)"></p>
+                        </details>
+                        <p class="mt-3 text-xs font-semibold text-stone-700 dark:text-stone-300">Suggested replacement</p>
+                        <p class="mt-1 whitespace-pre-wrap break-words rounded-lg bg-stone-50 p-3 text-stone-900 dark:bg-stone-800 dark:text-stone-100" x-text="$store.researchAssistant.proposalChangeReplacementText(suggestion)"></p>
+                        <button type="button" @click="$store.researchAssistant.applyProposalChange(message, suggestion)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!suggestion.applied || !!suggestion.stale" class="mt-3 inline-flex min-h-11 items-center rounded-lg bg-red-900 px-3 py-2 text-xs font-semibold text-white hover:bg-red-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-stone-900" x-text="suggestion.saved ? 'Applied and saved' : suggestion.applied ? 'Added to editor' : suggestion.is_working ? 'Applying…' : 'Apply to proposal'"></button>
+                        <button type="button" x-show="!suggestion.applied" @click="$store.researchAssistant.keepCurrentProposalText(message, suggestion)" :disabled="$store.researchAssistant.proposalChangesBusy()" class="mt-3 inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700">Keep current</button>
+                        <p x-show="suggestion.notice" role="status" class="mt-2 text-xs text-stone-600 dark:text-stone-300" x-text="suggestion.notice"></p>
+                        <p x-show="suggestion.error" role="alert" class="mt-2 text-xs text-red-800 dark:text-red-200" x-text="suggestion.error"></p>
+                    </article>
+                </template>
+            </div>
+            <div x-show="message.proposal_changes.suggestions.some(suggestion => suggestion.stale)" class="border-t border-stone-200 px-4 py-3 dark:border-stone-700">
+                <button type="button" @click="$store.researchAssistant.refreshProposalChanges(message)" :disabled="$store.researchAssistant.proposalChangesBusy() || !!$store.researchAssistant.draft.trim()" class="gap-2 inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:text-red-200 dark:hover:bg-stone-800"><?php if (isset($component)) { $__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.assistant-icon','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('assistant-icon'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b)): ?>
+<?php $attributes = $__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b; ?>
+<?php unset($__attributesOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b)): ?>
+<?php $component = $__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b; ?>
+<?php unset($__componentOriginal846fbd08f18f9e2d3bcd1a7a7e8e9d1b); ?>
+<?php endif; ?>Request updated suggestions</button>
+            </div>
+        </div>
+    </template>
+</section>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views\components\research-assistant-proposal-changes.blade.php ENDPATH**/ ?>

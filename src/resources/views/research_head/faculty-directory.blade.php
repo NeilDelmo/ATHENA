@@ -74,7 +74,7 @@
                     x-on:click="setCollege('all')"
                     x-bind:aria-selected="selectedCollege === 'all'"
                     x-bind:class="selectedCollege === 'all' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'"
-                    class="rounded-xl px-4 py-2.5 text-xs font-black transition"
+                    class="border border-slate-400 dark:border-slate-500 rounded-xl px-4 py-2.5 text-xs font-black transition"
                     data-college-tab="all"
                 >
                     All
@@ -86,7 +86,7 @@
                         x-on:click="setCollege(@js($acronym))"
                         x-bind:aria-selected="selectedCollege === @js($acronym)"
                         x-bind:class="selectedCollege === @js($acronym) ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'"
-                        class="rounded-xl px-4 py-2.5 text-xs font-black transition"
+                        class="border border-slate-400 dark:border-slate-500 rounded-xl px-4 py-2.5 text-xs font-black transition"
                         title="{{ $college }}"
                         data-college-tab="{{ $acronym }}"
                     >

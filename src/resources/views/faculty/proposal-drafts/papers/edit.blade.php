@@ -3,7 +3,7 @@
         <x-page-header :title="$paper['label']" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $documents->count() >= $paper['min_files'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $documents->count() >= $paper['min_files'] ? 'Uploaded' : 'Upload required' }}</span>
-                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to attachments</x-back-link>
             </x-slot>
         </x-page-header>
     </x-slot>

@@ -62,6 +62,12 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .proposal-writing-buttons button:disabled, .proposal-preview-dock button:disabled { opacity: .45; cursor: not-allowed; }
 .proposal-writing-toolbar :is(button, input):focus-visible,
 .proposal-preview-dock :is(button, a):focus-visible, .proposal-writing-preview-launcher:focus-visible { outline: 2px solid var(--proposal-writing-accent); outline-offset: 3px; }
+[data-work-plan-writing-toolbar] :is(.proposal-writing-target, .proposal-writing-hint, button),
+[data-work-plan-workspace] [data-proposal-autosave-status],
+[data-expense-breakdown-workspace] :is([data-proposal-autosave-status], .proposal-writing-preview-launcher) { font-size: 1rem; }
+[data-work-plan-writing-toolbar] .proposal-writing-buttons { flex-wrap: wrap; gap: .5rem; overflow: visible; }
+[data-work-plan-writing-toolbar] button { min-height: 2.75rem; padding-inline: .75rem; }
+[data-work-plan-writing-toolbar] [data-writing-toolbar-close] { width: 2.75rem; height: 2.75rem; padding-inline: .5rem; }
 .proposal-writing-action-group { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
 .proposal-writing-action-group + .proposal-writing-action-group { padding-left: .375rem; border-left: 1px solid var(--proposal-writing-border); }
 .proposal-writing-toolbar.detailed-proposal-writing-toolbar { display: flex; flex-direction: column; align-items: start; gap: .5rem; padding: 0; border: 0; background: transparent; box-shadow: none; }
@@ -120,16 +126,12 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .specific-method-description { field-sizing: content; min-height: 6rem; max-height: 14rem; }
 @container (min-width: 48rem) { .specific-methods-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .work-plan-writing-fields { grid-template-columns: minmax(0, 1fr); }
-.work-plan-writing-objective { grid-column: 1 / -1; }
 .work-plan-writing-fields textarea { border-radius: .375rem; box-shadow: none; }
 .work-plan-writing-months { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.work-plan-writing-months label { min-width: 0; overflow-wrap: anywhere; }
+.work-plan-writing-months button { min-width: 0; overflow-wrap: anywhere; }
 .work-plan-writing-entry, .work-plan-writing-fields textarea { scroll-margin-top: calc(var(--proposal-writing-sticky-top) + var(--proposal-toolbar-height, 7rem) + 1rem); }
 @container (min-width: 18rem) { .work-plan-writing-months { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@container (min-width: 30rem) {
-    .work-plan-writing-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .work-plan-writing-months { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-}
+@container (min-width: 30rem) { .work-plan-writing-months { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 @container (min-width: 48rem) { .work-plan-writing-months { grid-template-columns: repeat(12, minmax(0, 1fr)); } }
 .budget-writing-section { container-type: inline-size; min-width: 0; }
 [data-line-item-budget-workspace] .proposal-edit-pane { width: 100%; }
@@ -138,10 +140,8 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
 .budget-writing-fields, .budget-writing-staff, .budget-writing-amount-row, .budget-writing-custom-row { grid-template-columns: minmax(0, 1fr); }
 [data-line-item-budget-workspace] .proposal-edit-pane :is(input:not([type='checkbox']), select) { min-width: 0; border-radius: .375rem; box-shadow: none; }
 .budget-writing-amount-row label { overflow-wrap: anywhere; }
-.budget-writing-limit-warning { color: #b45309; font-weight: 600; }
-html.dark .budget-writing-limit-warning { color: #fcd34d; }
 .cv-writing-member, .cv-writing-member-manager { container-type: inline-size; min-width: 0; }
-[data-monitoring-paper-workspace] { --proposal-toolbar-height: 0rem; }
+[data-expense-breakdown-workspace], [data-line-item-budget-workspace], [data-monitoring-paper-workspace] { --proposal-toolbar-height: 0rem; }
 .expense-writing-item { container-type: inline-size; min-width: 0; }
 .expense-writing-grouping, .expense-writing-costs, .expense-writing-details, .expense-writing-contingency { grid-template-columns: minmax(0, 1fr); }
 .expense-writing-item :is(input, select, textarea) { min-width: 0; }
@@ -187,7 +187,28 @@ html.dark .budget-writing-limit-warning { color: #fcd34d; }
 .proposal-preview-dock-heading { display: flex; align-items: start; justify-content: space-between; gap: .5rem; padding: .875rem; background: var(--proposal-writing-surface); }
 .proposal-preview-dock-heading h3 { margin: 0; font-size: .9375rem; font-weight: 600; }
 .proposal-preview-dock-heading p { margin: .25rem 0 0; color: var(--proposal-writing-muted); font-size: .8125rem; }
-.proposal-preview-dock-actions { display: flex; flex-wrap: wrap; gap: .375rem; padding: 0 .875rem .75rem; background: var(--proposal-writing-surface); }
+.proposal-preview-dock-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem; padding: 0 .875rem .75rem; background: var(--proposal-writing-surface); }
+.proposal-preview-dock button.proposal-preview-action {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 2.75rem;
+    padding: .375rem .875rem;
+    border-radius: .5rem;
+}
+.proposal-preview-dock button.proposal-preview-print {
+    border-color: var(--proposal-writing-accent);
+    background: var(--proposal-writing-accent);
+    color: var(--proposal-writing-surface);
+    box-shadow: 0 1px 2px rgb(15 23 42 / .16);
+}
+.proposal-preview-dock button.proposal-preview-print:hover { background: var(--proposal-writing-accent); }
+.proposal-preview-dock button.proposal-preview-print:not(:disabled):hover { background: color-mix(in srgb, var(--proposal-writing-accent), var(--proposal-writing-ink) 14%); }
+.proposal-preview-dock button.proposal-preview-dismiss { background: var(--proposal-writing-workspace); }
+.proposal-preview-dock button.proposal-preview-dismiss:hover { background: var(--proposal-writing-wash); }
+.proposal-preview-dismiss .proposal-preview-icon { color: var(--proposal-writing-muted); }
 .proposal-preview-paper { position: relative; flex: 1; min-height: 8rem; min-width: 0; }
 .proposal-preview-paper > p { padding: 1.5rem; color: var(--proposal-writing-muted); font-size: .875rem; }
 .proposal-preview-paper iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
@@ -207,7 +228,7 @@ html.dark .proposal-preview-error { color: #fda4af; }
 .submitted-report-preview .proposal-preview-dock-heading { flex-wrap: nowrap; background: var(--proposal-writing-wash); }
 .submitted-report-preview .proposal-preview-dock-heading h3 { font-size: 1.25rem; }
 .submitted-report-preview .proposal-preview-dock-heading p { font-size: .875rem; }
-.submitted-report-preview .proposal-preview-dock-actions { align-items: center; background: var(--proposal-writing-wash); }
+.submitted-report-preview .proposal-preview-dock-actions { background: var(--proposal-writing-wash); }
 .submitted-report-preview :is(button:not(.proposal-preview-paper-open), .proposal-preview-download) { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; min-height: 2.75rem; font-size: 1rem; line-height: 1.25; }
 .proposal-preview-icon { width: 1rem; height: 1rem; flex-shrink: 0; }
 .submitted-report-preview .proposal-preview-download { border-color: var(--proposal-writing-accent); background: var(--proposal-writing-accent); color: var(--proposal-writing-surface); }

@@ -7,12 +7,19 @@ use App\Models\ProjectJournalSubmission;
 use App\Models\TopicProposal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
 
 class ProjectJournalSubmissionController extends Controller
 {
     public function store(SaveProjectJournalSubmissionRequest $request, TopicProposal $topic): RedirectResponse|JsonResponse
     {
-        $submission = $topic->journalSubmissions()->create($request->safe()->except('return_to_finder') + ['added_by' => $request->user()->id]);
+        $submission = $topic->journalSubmissions()->createOrFirst(
+            ['fingerprint' => $request->validated('fingerprint')],
+            $request->safe()->except(['return_to_finder', 'fingerprint']) + ['added_by' => $request->user()->id],
+        );
+        if (! $submission->wasRecentlyCreated) {
+            throw ValidationException::withMessages(['fingerprint' => $request->messages()['fingerprint.unique']]);
+        }
 
         if ($request->expectsJson()) {
             return response()->json(['id' => $submission->id, 'message' => 'Journal submission added.'], 201);

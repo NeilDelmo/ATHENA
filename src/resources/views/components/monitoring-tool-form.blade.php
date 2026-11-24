@@ -320,7 +320,7 @@
                                         </div>
                                     </template>
                                 </div>
-                                <button type="button" @click="removeEntry(index)" x-show="!isApprovedEntry(entry) && entries.length > 1" class="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
+                                <button type="button" @click="removeEntry(index)" x-show="!isApprovedEntry(entry) && entries.length > 1" class="secondary-action">Remove</button>
                             </div>
                         </div>
 

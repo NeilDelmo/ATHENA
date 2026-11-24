@@ -141,7 +141,7 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertDontSee('Project leader campus <span', false)
         ->assertDontSee('Project leader college <span', false)
         ->assertDontSee('Ctrl + S')
-        ->assertSee('Exit editor')
+        ->assertSee('Back to attachments')
         ->assertSee('#required-pdf-attachments', false)
         ->assertSee('Changes save automatically.')
         ->assertSee('data-line-item-budget-autosave="true"', false)
@@ -149,12 +149,13 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('line-item-budget-preview-panel')
         ->assertSee('data-proposal-paper-workspace', false)
         ->assertSee('data-line-item-budget-workspace', false)
-        ->assertSee('data-line-item-budget-writing-toolbar', false)
-        ->assertSee('data-line-item-budget-toolbar-total', false)
+        ->assertDontSee('data-line-item-budget-writing-toolbar', false)
+        ->assertSee('Budget sections')
+        ->assertSee('Total Project Cost')
         ->assertSee('proposal-writing-preview-launcher', false)
         ->assertSee('proposal-preview-dock', false)
         ->assertSee('budget-writing-amount-row', false)
-        ->assertSee('View full paper')
+        ->assertSee('Enlarge the paper preview')
         ->assertDontSee('data-proposal-preview-drag-handle', false)
         ->assertDontSee('Download PDF')
         ->assertDontSee('data-paper-save-exit', false)
@@ -351,7 +352,7 @@ test('the line item budget pre-fills matching amounts from an expense breakdown 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
         ->assertOk()
-        ->assertSee('Budget amounts synchronized');
+        ->assertDontSeeText('Budget amounts synchronized');
 });
 
 test('completing the expense breakdown completes the synchronized line-item budget', function () {
@@ -464,8 +465,7 @@ test('the line item budget refreshes standard amounts after the expense breakdow
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
         ->assertOk()
-        ->assertSee('Budget amounts synchronized')
-        ->assertSee('whenever this paper opens, previews, or saves.');
+        ->assertDontSeeText('Budget amounts synchronized');
 });
 
 test('an empty saved expense breakdown clears stale line item amounts from the warning', function () {

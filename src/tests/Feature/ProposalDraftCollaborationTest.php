@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\AcceptProposalWorkspaceInvitation;
 use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\LinkProposalDraftMemberships;
 use App\Actions\SaveProposalDraftDocument;
@@ -426,6 +427,24 @@ test('already accepted invitation links keep the selected workspace', function (
     }
 })->with('collaboration invitation workspaces');
 
+test('a second acceptance of the same invitation leaves one acknowledgement', function () {
+    Notification::fake();
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => null,
+    ]);
+    $accept = app(AcceptProposalWorkspaceInvitation::class);
+
+    $accept->handle($this->collaborator, $membership);
+    $acceptedAt = $membership->fresh()->accepted_at;
+    $accept->handle($this->collaborator, $membership);
+
+    expect($membership->fresh()->accepted_at->eq($acceptedAt))->toBeTrue();
+    Notification::assertSentToTimes($this->owner, ProposalActivityNotification::class, 1);
+});
+
 test('a selected workspace does not grant access to another persons invitation', function () {
     $this->outsider->assignRole('research_head');
     $membership = $this->draft->members()->create([
@@ -555,6 +574,12 @@ test('late invitation acceptance follows the current submitted project roster', 
 
     if ($retained) {
         expect($topic->collaborators()->sole()->user_id)->toBe($invitee->id);
+        $acceptedAt = $topic->collaborators()->sole()->accepted_at;
+        $this->travel(1)->minute();
+        $this->postJson(route('notifications.proposal-invitations.accept', $membership))->assertOk()->assertJsonPath('accepted', true);
+        $this->postJson(route('notifications.proposal-invitations.decline', $membership))->assertForbidden();
+        expect($topic->collaborators()->sole()->accepted_at->equalTo($acceptedAt))->toBeTrue();
+        Notification::assertSentToTimes($this->owner, ProposalActivityNotification::class, 1);
     } else {
         expect($topic->collaborators()->count())->toBe(0);
     }

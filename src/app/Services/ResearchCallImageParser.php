@@ -114,11 +114,11 @@ class ResearchCallImageParser
         }
 
         if ($response->failed()) {
-            throw new ResearchCallImageExtractionException(match ($response->status()) {
+            throw new ResearchCallImageExtractionException($this->ai->failureMessage($response, match ($response->status()) {
                 401, 403 => 'The configured image reader credentials need attention.',
                 429 => 'The image reader is receiving too many requests. Please try again shortly.',
                 default => 'The image could not be read right now. You can still complete the form manually.',
-            });
+            }));
         }
 
         $content = $this->responseText($response->json('choices.0.message.content'));

@@ -14,23 +14,29 @@ test('proposal notifications show compact branded feedback and preserve Undo and
     const initialize = app.slice(start, app.indexOf('void initializeProposalAlerts();', start));
     const { css } = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(readFileSync(resolve('resources/css/app.css'), 'utf8'), { from: undefined });
+    const restoreUrl = 'http://athena.test/drafts/42/restore';
+    const notification = `
+        <div role="status" data-proposal-alert data-alert-icon="success" data-alert-title="Draft moved to Trash" data-alert-button="OK">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <span>You can restore this proposal draft from Trash within 30 days.</span>
+                <form data-proposal-alert-undo method="POST" action="${restoreUrl}">
+                    <input type="hidden" name="_token" value="test-csrf-token">
+                    <button type="submit" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-4 font-semibold text-brand"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m7 4-4 4 4 4M3 8h10a7 7 0 1 1 0 14" /></svg>Undo</button>
+                </form>
+            </div>
+        </div>`;
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
         for (const width of [360, 1280]) {
             for (const dark of [false, true]) {
                 await t.test(`${width}px ${dark ? 'dark' : 'light'}`, async () => {
                     const page = await browser.newPage({ viewport: { width, height: 800 }, reducedMotion: 'reduce' });
-                    await page.route('http://athena.test/drafts/42/restore', route => route.fulfill({ body: 'Draft restored.' }));
-                    await page.setContent(`<html class="${dark ? 'dark' : ''}"><body class="font-sans">
-                        <div data-proposal-alert data-alert-icon="success" data-alert-title="Draft moved to Trash" data-alert-button="Back to drafts">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <span>You can restore this proposal draft from Trash within 30 days.</span>
-                                <form data-proposal-alert-undo method="POST" action="http://athena.test/drafts/42/restore">
-                                    <input type="hidden" name="_token" value="test-csrf-token">
-                                    <button type="submit" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 px-4 font-semibold text-brand"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m7 4-4 4 4 4M3 8h10a7 7 0 1 1 0 14" /></svg>Undo</button>
-                                </form>
-                            </div>
-                        </div></body></html>`);
+                    let restoreRequests = 0;
+                    await page.route(restoreUrl, route => {
+                        restoreRequests++;
+                        return route.fulfill({ body: 'Draft restored.' });
+                    });
+                    await page.setContent(`<html class="${dark ? 'dark' : ''}"><body class="font-sans">${notification}</body></html>`);
                     await page.addScriptTag({ path: resolve('node_modules/sweetalert2/dist/sweetalert2.all.min.js') });
                     await page.addStyleTag({ content: css });
                     await page.addScriptTag({ content: `${theme}\n${initialize}\nvoid initializeProposalAlerts();` });
@@ -39,7 +45,7 @@ test('proposal notifications show compact branded feedback and preserve Undo and
                     await dialog.locator('.swal2-actions form').waitFor({ state: 'visible' });
                     await dialog.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {}))));
                     assert.equal(await dialog.evaluate(element => element.classList.contains('athena-alert-dialog')), true);
-                    const dismiss = dialog.getByRole('button', { name: 'Back to drafts' });
+                    const dismiss = dialog.getByRole('button', { name: 'OK', exact: true });
                     const undo = dialog.getByRole('button', { name: 'Undo', exact: true });
                     assert.equal(await dialog.locator('.swal2-actions form').count(), 1);
                     assert.equal(await dialog.locator('.swal2-success-ring').count(), 0);
@@ -53,14 +59,17 @@ test('proposal notifications show compact branded feedback and preserve Undo and
                         await dialog.screenshot({ path: resolve(`storage/framework/testing/proposal-trash-dialog-${dark ? 'dark' : 'light'}.png`) });
                     }
                     if (dark) {
-                        const request = page.waitForRequest('http://athena.test/drafts/42/restore');
+                        const request = page.waitForRequest(restoreUrl);
                         await undo.click();
                         const restore = await request;
                         assert.equal(restore.method(), 'POST');
                         assert.equal(new URLSearchParams(restore.postData()).get('_token'), 'test-csrf-token');
                     } else {
+                        const draftPage = page.url();
                         await dismiss.click();
                         await dialog.waitFor({ state: 'hidden' });
+                        assert.equal(page.url(), draftPage);
+                        assert.equal(restoreRequests, 0);
                         await page.evaluate(() => void initializeProposalAlerts());
                         assert.equal(await page.getByRole('dialog').count(), 0, 'Handled notifications must not reopen');
                     }
@@ -68,6 +77,26 @@ test('proposal notifications show compact branded feedback and preserve Undo and
                 });
             }
         }
+
+        await t.test('Undo remains available when the popup script fails to load', async () => {
+            const page = await browser.newPage();
+            await page.route(restoreUrl, route => route.fulfill({ body: 'Draft restored.' }));
+            await page.setContent(notification);
+            await page.addScriptTag({ content: `
+                const Swal = { async fire() { throw new Error('Script failed to load'); } };
+                ${theme}
+                ${initialize}
+            ` });
+            await page.evaluate(() => initializeProposalAlerts());
+
+            const notice = page.getByRole('status');
+            await notice.waitFor({ state: 'visible' });
+            const request = page.waitForRequest(restoreUrl);
+            await notice.getByRole('button', { name: 'Undo', exact: true }).click();
+            assert.equal((await request).method(), 'POST');
+
+            await page.close();
+        });
     } finally {
         await browser.close();
     }

@@ -9,11 +9,50 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
 class StoreProjectDocuments
 {
+    public function copy(TopicProposal $topic, User $uploader, string $source, string $originalName, string $category, string $note, string $subdirectory): ProjectDocument
+    {
+        $disk = Storage::disk('local');
+        $path = 'project-documents/'.$topic->id.'/'.$subdirectory.'/'.Str::uuid().'.'.pathinfo($source, PATHINFO_EXTENSION);
+        if (! $disk->copy($source, $path)) {
+            throw new RuntimeException('The existing project file could not be copied.');
+        }
+
+        try {
+            $stream = $disk->readStream($path);
+            if (! is_resource($stream)) {
+                throw new RuntimeException('The copied project file could not be read.');
+            }
+            try {
+                $checksum = hash_init('sha256');
+                hash_update_stream($checksum, $stream);
+            } finally {
+                fclose($stream);
+            }
+
+            return $topic->projectDocuments()->create([
+                'uploaded_by' => $uploader->id,
+                'category' => $category,
+                'title' => pathinfo($originalName, PATHINFO_FILENAME),
+                'note' => $note,
+                'file_path' => $path,
+                'original_filename' => $originalName,
+                'mime_type' => $disk->mimeType($path),
+                'file_size' => $disk->size($path),
+                'checksum' => hash_final($checksum),
+            ]);
+        } catch (Throwable $exception) {
+            $disk->delete($path);
+
+            throw $exception;
+        }
+    }
+
     /**
      * @param  array<int, UploadedFile>  $files
      * @return Collection<int, ProjectDocument>

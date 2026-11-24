@@ -183,13 +183,13 @@ test('RMS status notifications wait for a successful commit and are discarded on
     expect($this->head->notifications()->count())->toBe(1);
 });
 
-test('a notification failure cannot delete evidence already saved with a submitted report', function () {
+test('a notification failure still confirms a submitted report and keeps its evidence', function () {
     mock(NotifyRmsQuarterlyReportStatus::class)->shouldReceive('handle')->once()
         ->with(2026, 3)->andThrow(new RuntimeException('Notification delivery failed.'));
     $this->actingAs($this->coordinator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
     $this->post(route('research_coordinator.reports.store'), [...($this->reportInput)(),
         'evidence_images' => [UploadedFile::fake()->image('submitted-evidence.png')],
-    ])->assertServerError();
+    ])->assertRedirect()->assertSessionHas('status', 'Quarterly accomplishment report submitted.');
 
     $report = CollegeQuarterlyReport::sole();
     expect($report->submitted_at)->not->toBeNull()

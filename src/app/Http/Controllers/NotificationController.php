@@ -166,7 +166,7 @@ class NotificationController extends Controller
             $request->user(),
             $proposalDraft->researchCall,
         );
-        $this->completeInvitationNotification($request, $proposalDraftMember);
+        $this->completeInvitationNotifications($request->user(), $proposalDraftMember);
 
         $usingFaculty = $request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY);
         $url = $usingFaculty
@@ -206,7 +206,7 @@ class NotificationController extends Controller
 
             return $draft;
         }, 3);
-        $this->completeInvitationNotification($request, $proposalDraftMember, declined: true);
+        $this->completeInvitationNotifications($request->user(), $proposalDraftMember, declined: true);
 
         try {
             $draft->owner->notify(new ProposalActivityNotification(
@@ -245,10 +245,15 @@ class NotificationController extends Controller
     private function respondToSubmittedInvite(Request $request, int $invitationId, bool $accept): JsonResponse|RedirectResponse
     {
         $user = $request->user();
-        $topic = DB::transaction(function () use ($user, $invitationId, $accept): TopicProposal {
+        [$topic, $changed] = DB::transaction(function () use ($user, $invitationId, $accept): array {
             $collaborator = $this->submittedInvite($user, $invitationId, lock: true);
-            abort_if($collaborator->accepted_at !== null, 403);
             $topic = $collaborator->topic;
+            if ($collaborator->accepted_at !== null) {
+                abort_unless($accept, 403);
+
+                return [$topic, false];
+            }
+
             $pendingRevisionMemberships = ProposalDraftMember::query()
                 ->whereHas('draft', fn ($query) => $query->withTrashed()->where('topic_id', $topic->id))
                 ->where('email', $collaborator->email)->whereNull('accepted_at');
@@ -269,25 +274,23 @@ class NotificationController extends Controller
                 $collaborator->delete();
             }
 
-            return $topic;
+            return [$topic, true];
         }, 3);
 
-        $this->completeInvitationNotification($request, $invitationId, declined: ! $accept);
+        $this->completeInvitationNotifications($user, $invitationId, declined: ! $accept);
         $message = $accept ? 'Invitation accepted.' : 'Invitation declined.';
         $request->session()->flash('status', $message);
         $response = $accept
             ? $this->submittedInviteDestination($user, $topic)
             : redirect()->route($user->dashboardRouteName() ?? 'workspace.select');
 
-        try {
-            $topic->user->notify(new ProposalActivityNotification(
+        if ($changed) {
+            rescue(fn () => $topic->user->notify(new ProposalActivityNotification(
                 title: 'Project staff invitation '.($accept ? 'accepted' : 'declined'),
                 message: $user->name.($accept ? ' accepted' : ' declined').' the project staff invitation for "'.$topic->title.'".',
                 url: route('topics.show', $topic),
                 topicId: $topic->id,
-            ));
-        } catch (Throwable $exception) {
-            report($exception);
+            )));
         }
 
         return $request->expectsJson()
@@ -305,19 +308,17 @@ class NotificationController extends Controller
             ->with('status', 'Switch to the Faculty workspace to view the submitted proposal.');
     }
 
-    private function completeInvitationNotification(Request $request, int $proposalDraftMember, bool $declined = false): void
+    private function completeInvitationNotifications(User $user, int $invitationId, bool $declined = false): void
     {
-        $notificationId = $request->string('notification_id')->toString();
-        $expectedActionUrl = route('notifications.proposal-invitations.accept', $proposalDraftMember);
-        foreach ($request->user()->notifications()->where('data->action_url', $expectedActionUrl)
-            ->when($notificationId !== '' && ! $declined, fn ($query) => $query->whereKey($notificationId))->get() as $notification) {
+        $expectedActionUrl = route('notifications.proposal-invitations.accept', $invitationId);
+        foreach ($user->notifications()->where('data->action_url', $expectedActionUrl)->get() as $notification) {
             $data = $notification->data;
             unset($data['action_url'], $data['action_data']);
             $data['action_completed'] = true;
             if ($declined) {
                 $data['url'] = route('notifications.index');
             }
-            $notification->forceFill(['data' => $data, 'read_at' => now()])->save();
+            $notification->forceFill(['data' => $data, 'read_at' => $notification->read_at ?? now()])->save();
         }
     }
 

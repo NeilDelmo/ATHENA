@@ -16,6 +16,8 @@ use App\Services\ResearchHeadReportQueue;
 use App\Services\SidebarAttentionService;
 use App\Services\WorkspaceActionItems;
 use App\Support\ResearchCallDeadlineNotice;
+use App\Support\WindowsFileViewFinder;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Queue\Events\JobPopping;
 use Illuminate\Support\Arr;
@@ -33,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->app->bind('view.finder', fn (Application $app): WindowsFileViewFinder => new WindowsFileViewFinder(
+                $app['files'],
+                $app['config']['view.paths'],
+            ));
+        }
     }
 
     /**

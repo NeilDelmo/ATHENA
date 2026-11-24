@@ -10,7 +10,7 @@
             <x-dashboard-calendar-grid :days="$days" :month-label="$monthLabel" :selected-date="$selectedDate" monochrome />
             <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300">{{ $selectedLabel }}</h3>
-                <button type="button" wire:click="addReminder" class="rounded-lg px-2 py-1.5 text-sm font-semibold text-[#7A0019] hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:text-red-300 dark:hover:bg-red-950/30">+ Add reminder</button>
+                <button type="button" wire:click="addReminder" class="secondary-action">+ Add reminder</button>
             </div>
             <x-dashboard-calendar-events :events="$selectedEvents" monochrome />
             <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">

@@ -93,12 +93,7 @@ class WorkspaceActionItems
                 } else {
                     $query->addSelect('supersedes_report_id');
                 }
-                if ($model === ProjectProgressReport::class) {
-                    $query->latestSubmittedVersion();
-                } else {
-                    $query->where(fn (Builder $report): Builder => $report->where(fn (Builder $progress): Builder => $progress->where('report_type', 'progress')->latestSubmittedVersion())
-                        ->orWhere(fn (Builder $terminal): Builder => $terminal->where('report_type', 'terminal')->whereIn('id', ProjectNarrativeReport::query()->where('report_type', 'terminal')->selectRaw('MAX(id)')->groupBy('topic_id'))));
-                }
+                $query->latestSubmittedVersion();
                 if ($workspace === User::WORKSPACE_FACULTY_RESEARCHER) {
                     $query->whereHas('topic', fn (Builder $topic): Builder => $topic->whereBelongsTo($user));
                 } elseif ($workspace === User::WORKSPACE_RESEARCH_SECRETARY) {

@@ -26,6 +26,7 @@ use App\Http\Controllers\ProjectReportDraftEditStateController;
 use App\Http\Controllers\ProjectWorkspaceController;
 use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
+use App\Http\Controllers\ProposalDraftDeletionRequestController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftDocumentVersionController;
@@ -154,8 +155,16 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
         Route::get('/', [ProposalDraftController::class, 'index'])->name('index');
         Route::get('/trash', [ProposalDraftTrashController::class, 'index'])->name('trash');
         Route::post('/trash/{proposalDraft}/restore', [ProposalDraftTrashController::class, 'restore'])->whereNumber('proposalDraft')->name('restore');
+        Route::delete('/trash/{proposalDraft}', [ProposalDraftTrashController::class, 'destroy'])->whereNumber('proposalDraft')->name('trash.destroy');
         Route::get('/create', [ProposalDraftController::class, 'create'])->name('create');
         Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
+        Route::patch('/{proposalDraft}/archive', [ProposalDraftController::class, 'archive'])->name('archive');
+        Route::get('/{proposalDraft}/deletion-requests/create', [ProposalDraftDeletionRequestController::class, 'create'])->name('deletion.create');
+        Route::post('/{proposalDraft}/deletion-requests', [ProposalDraftDeletionRequestController::class, 'store'])->name('deletion.store');
+        Route::get('/{proposalDraft}/deletion-requests/{deletionRequest}', [ProposalDraftDeletionRequestController::class, 'show'])
+            ->whereNumber('deletionRequest')->withTrashed()->name('deletion.show');
+        Route::patch('/{proposalDraft}/deletion-requests/{deletionRequest}', [ProposalDraftDeletionRequestController::class, 'update'])
+            ->whereNumber('deletionRequest')->withTrashed()->name('deletion.update');
         Route::get('/revision/{topic}', [ProposalDraftController::class, 'revision'])->name('revision');
         Route::post('/{proposalDraft}/revision-files', [ProposalDraftController::class, 'storeRevisionFile'])->name('revision-files.store');
         Route::get('/{proposalDraft}/revision-files/{document}', [ProposalDraftController::class, 'revisionFile'])->name('revision-files.show');

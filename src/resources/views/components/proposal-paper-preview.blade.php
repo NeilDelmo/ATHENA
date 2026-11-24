@@ -6,11 +6,29 @@
                 <h3 id="{{ $panelId }}-heading" x-text="previewTitle">Paper preview</h3>
                 <p x-show="previewLoading || previewReadOnly || (previewStale && !previewError && !validationMessage)" x-cloak role="status" x-text="!previewLoading && previewReadOnly ? 'Read-only form' : 'Updating preview…'"></p>
             </div>
-            <button type="button" x-ref="previewClose" @click="previewFullscreen ? returnToProposalPaperEditor() : closeProposalPreview()" :aria-label="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize preview' : 'Collapse preview'"><span x-text="previewReadOnly ? 'Close preview' : previewFullscreen ? 'Minimize' : 'Hide'"></span></button>
+            <button type="button" class="proposal-preview-action proposal-preview-dismiss" x-ref="previewClose" @click="previewFullscreen ? returnToProposalPaperEditor() : closeProposalPreview()" :aria-label="previewReadOnly ? 'Close preview' : previewFullscreen ? ($data.previewFullscreenReturnLabel || 'Minimize preview') : 'Collapse preview'">
+                <svg x-show="!previewReadOnly && !(previewFullscreen && $data.previewFullscreenReturnLabel)" class="proposal-preview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+                    <path d="M5 12h14" />
+                </svg>
+                <svg x-show="!previewReadOnly && previewFullscreen && $data.previewFullscreenReturnLabel" x-cloak class="proposal-preview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 12H5m6 6-6-6 6-6" />
+                </svg>
+                <svg x-show="previewReadOnly" x-cloak class="proposal-preview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+                    <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+                <span x-text="previewReadOnly ? 'Close preview' : previewFullscreen ? ($data.previewFullscreenReturnLabel || 'Minimize') : 'Hide'"></span>
+            </button>
         </header>
         <div class="proposal-preview-dock-actions">
-            <button type="button" x-show="previewError || validationMessage" x-cloak @click="$refs.previewClose.focus({ preventScroll: true }); generatePreview()" :disabled="previewLoading">Retry preview</button>
-            <button type="button" @click="printPreview()" :disabled="!previewReady || previewStale || previewLoading">Print</button>
+            <button type="button" class="proposal-preview-action" x-show="previewError || validationMessage" x-cloak @click="$refs.previewClose.focus({ preventScroll: true }); generatePreview()" :disabled="previewLoading">Retry preview</button>
+            <template x-if="$data.previewCanPrint === true">
+                <button type="button" class="proposal-preview-action proposal-preview-print" @click="printPreview()" :disabled="!previewReady || previewStale || previewLoading">
+                    <svg class="proposal-preview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6zM6 12h1" />
+                    </svg>
+                    <span>Print</span>
+                </button>
+            </template>
             <x-paper-preview-pagination />
             <a x-show="previewReadOnly && previewDownloadUrl" x-cloak :href="previewDownloadUrl" class="proposal-preview-download">Download Word</a>
         </div>

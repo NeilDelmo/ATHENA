@@ -130,7 +130,8 @@ class ProposalDraftReadiness
 
     public function isReady(ProposalDraft $draft): bool
     {
-        return $this->projectDetailsAreComplete($draft)
+        return ! $draft->hasPendingDeletionRequest()
+            && $this->projectDetailsAreComplete($draft)
             && $this->allPapersAreComplete($draft)
             && $this->proposalBudgetConsistency->compare($draft)['consistent']
             && $this->commentResponseSignatoriesAreComplete($draft)
@@ -214,6 +215,17 @@ class ProposalDraftReadiness
     {
         $checklist ??= $this->checklist($draft);
         $blockers = [];
+
+        if ($draft->hasPendingDeletionRequest()) {
+            $blockers[] = [
+                'key' => 'deletion_request',
+                'paper' => null,
+                'field' => null,
+                'owner' => 'faculty',
+                'reason' => 'validation',
+                'message' => ProposalDraft::PENDING_DELETION_SUBMISSION_MESSAGE,
+            ];
+        }
 
         foreach ($this->errors($draft, $checklist) as $key => $message) {
             $paper = null;
@@ -337,7 +349,7 @@ class ProposalDraftReadiness
                 $rules = WorkPlanRules::rules();
                 $rules['entries.*.objective'] = ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')];
                 $attributes = WorkPlanRules::attributes();
-                $callbacks = WorkPlanRules::afterCallbacks($source['entries']);
+                $callbacks = WorkPlanRules::afterCallbacks($source['entries'], requireContinuousRange: true);
             } elseif ($paper['slug'] === 'line-item-budget') {
                 $expenseSource = $draft->documents->firstWhere('document_type', config('proposal_papers.expense-breakdown.document_type'))?->source_data;
                 $source = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown($source, is_array($expenseSource['items'] ?? null) ? $expenseSource['items'] : null);
@@ -402,12 +414,15 @@ class ProposalDraftReadiness
                 return $this->detailedProposalIsComplete($draft, $document);
             }
 
+            if ($paper['slug'] === 'work-plan') {
+                return $this->workPlanIsComplete($draft, $document);
+            }
+
             if ($document->completed_at === null) {
                 return false;
             }
 
             return match ($paper['slug']) {
-                'work-plan' => $this->workPlanIsComplete($draft, $document),
                 'expense-breakdown' => is_array($document->source_data['items'] ?? null)
                     && $document->source_data['items'] !== [],
                 'curriculum-vitae' => is_array($document->source_data['people'] ?? null)
@@ -432,14 +447,21 @@ class ProposalDraftReadiness
         });
     }
 
-    private function workPlanIsComplete(ProposalDraft $draft, ProposalDraftDocument $document): bool
+    public function workPlanIsComplete(ProposalDraft $draft, ?ProposalDraftDocument $document): bool
     {
-        if (! is_array($document->source_data['entries'] ?? null)) {
+        return is_array($document?->source_data)
+            && $this->workPlanSourceIsComplete($draft, $document->source_data);
+    }
+
+    /** @param array<string, mixed> $source */
+    public function workPlanSourceIsComplete(ProposalDraft $draft, array $source): bool
+    {
+        if (! is_array($source['entries'] ?? null)) {
             return false;
         }
 
         $entries = $this->workPlanProposalObjectives->entries(
-            $document->source_data['entries'] ?? [],
+            $source['entries'],
             $this->workPlanProposalObjectives->forDraft($draft),
         );
 
@@ -453,7 +475,7 @@ class ProposalDraftReadiness
             'prepared_by' => $draft->project_leader,
             'entries' => $entries,
         ], $rules, [], WorkPlanRules::attributes());
-        $validator->after(WorkPlanRules::afterCallbacks($entries));
+        $validator->after(WorkPlanRules::afterCallbacks($entries, requireContinuousRange: true));
 
         return $validator->passes();
     }

@@ -135,9 +135,11 @@ test('the header limits loaded history while preserving the full unread count an
     DB::enableQueryLog();
     $this->getJson(route('notifications.index'))->assertOk()->assertJsonCount(15, 'notifications')
         ->assertJsonPath('unread_count', 751);
-    $historyQuery = collect(DB::getQueryLog())->first(fn (array $query): bool => str_starts_with($query['query'], 'select * from `notifications`'));
+    $notificationsTable = DB::connection()->getQueryGrammar()->wrapTable('notifications');
+    $historyQuery = collect(DB::getQueryLog())->first(fn (array $query): bool => str_starts_with($query['query'], 'select * from '.$notificationsTable));
     DB::disableQueryLog();
-    expect($historyQuery['query'])->toContain('limit 750');
+    expect($historyQuery)->not->toBeNull()
+        ->and($historyQuery['query'])->toContain('limit 750');
 
     $response = $this->get(route('notifications.index'))->assertOk();
     expect($response->viewData('notificationItems')->sum('update_count'))->toBe(751)

@@ -28,7 +28,8 @@ test('every logout form uses the shared SweetAlert confirmation', function () {
 });
 test('proposal draft action forms use SweetAlert2 confirmations', function () {
     $viewPaths = [
-        'resources/views/faculty/proposal-drafts/index.blade.php' => 'Delete draft',
+        'resources/views/faculty/proposal-drafts/index.blade.php' => 'Move to Trash',
+        'resources/views/faculty/proposal-drafts/trash.blade.php' => 'Delete permanently',
         'resources/views/faculty/proposal-drafts/show.blade.php' => 'Remove project staff',
         'resources/views/faculty/proposal-drafts/_review-package.blade.php' => '{{ $submitLabel }}',
         'resources/views/faculty/proposal-drafts/papers/edit.blade.php' => 'Remove file',
@@ -353,7 +354,7 @@ test('proposal editors use a protected header exit and save actions that match t
             ->and($exitPosition)->toBeInt()
             ->and($exitPosition)->toBeLessThan($headerEndPosition)
             ->and($view)
-            ->toContain('Exit editor')
+            ->toContain(str_contains($editorView, '/details/') ? 'Exit editor' : 'Back to attachments')
             ->toContain($autoSaveMarker)
             ->toContain('<x-proposal-autosave-status />')
             ->not->toContain('data-paper-save-exit')

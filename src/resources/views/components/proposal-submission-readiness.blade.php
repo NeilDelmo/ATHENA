@@ -2,8 +2,14 @@
 
 @php
     $hasFacultyBlocker = collect($blockers)->contains('owner', 'faculty');
-    $status = $readyToSubmit ? 'ready' : ($readyToPrepare ? 'prepare' : ($hasFacultyBlocker || $blockers === [] ? 'incomplete' : 'office'));
-    $labels = ['incomplete' => 'Complete these fields', 'office' => 'Awaiting Research Office setup', 'prepare' => 'Content complete · PDFs need preparation', 'ready' => 'Ready to turn in'];
+    $status = match (true) {
+        collect($blockers)->contains('key', 'deletion_request') => 'deletion_pending',
+        $readyToSubmit => 'ready',
+        $readyToPrepare => 'prepare',
+        $hasFacultyBlocker || $blockers === [] => 'incomplete',
+        default => 'office',
+    };
+    $labels = ['incomplete' => 'Complete these fields', 'office' => 'Awaiting Research Office setup', 'prepare' => 'Content complete · PDFs need preparation', 'ready' => 'Ready to turn in', 'deletion_pending' => 'Submission paused for deletion request'];
 @endphp
 
 <section data-proposal-readiness data-proposal-readiness-url="{{ $url }}" data-proposal-readiness-state="{{ json_encode(['status' => $status, 'blockers' => $blockers], JSON_THROW_ON_ERROR) }}" aria-live="polite" class="rounded-lg border border-slate-200 bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">

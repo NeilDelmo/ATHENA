@@ -234,7 +234,7 @@ PROMPT],
             throw new LiteratureSynthesisException($failure);
         }
         if (! $response->successful() || in_array($response->json('choices.0.finish_reason'), ['length', 'max_tokens', 'content_filter', 'error'], true)) {
-            throw new LiteratureSynthesisException($failure, $response->status() === 429 ? 429 : 502);
+            throw new LiteratureSynthesisException($this->ai->failureMessage($response, $failure), $response->status() === 429 ? 429 : 502);
         }
         try {
             $plan = json_decode((string) $response->json('choices.0.message.content'), true, flags: JSON_THROW_ON_ERROR);

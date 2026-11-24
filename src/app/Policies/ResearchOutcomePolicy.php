@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\ResearchOutcome;
+use App\Models\TopicProposal;
 use App\Models\User;
 
 class ResearchOutcomePolicy
@@ -28,7 +29,7 @@ class ResearchOutcomePolicy
 
         if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE)) {
             return $outcome->topic_id ? $outcome->topic->belongsToCollege($user->college)
-                : filled($user->college) && $outcome->projectLeader()->college === $user->college;
+                : in_array(mb_strtolower($outcome->projectCollege() ?? ''), array_map(mb_strtolower(...), TopicProposal::collegeAliases($user->college)), true);
         }
 
         return $outcome->topic_id

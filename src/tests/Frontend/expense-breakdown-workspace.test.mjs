@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { chromium } from '@playwright/test';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
@@ -30,6 +31,51 @@ const items = [{
     unit: 'pc', quantity: 12, unit_cost: 300,
 }];
 
+test('a blank expense breakdown skips the startup preview and opens it on demand', () => {
+    assert.doesNotMatch(edit, /expense-breakdown-writing-toolbar|data-proposal-preview-toggle/);
+
+    let createEditor;
+    const scheduled = new Map();
+    let nextTimer = 0;
+    runInNewContext(`${preview}\n${workspace}\n${controller}`, {
+        Alpine: { data: (_name, factory) => { createEditor = factory; } },
+        window: {
+            matchMedia: () => ({ matches: true }),
+            setTimeout(callback) {
+                scheduled.set(++nextTimer, callback);
+                return nextTimer;
+            },
+            clearTimeout: (id) => scheduled.delete(id),
+        },
+    });
+
+    for (const savedItems of [[], items]) {
+        let previewRequests = 0;
+        const state = createEditor({ initialData: { items: savedItems } });
+        Object.assign(state, {
+            $el: { matches: () => true, querySelector: () => null, closest: () => null },
+            $refs: {},
+            $nextTick: (callback) => callback(),
+            startExpenseBreakdownAutoSave() {},
+            applyProposalPreviewZoom() {},
+            generatePreview() { previewRequests++; },
+        });
+        state.init();
+        assert.equal(state.previewPaneOpen, savedItems.length > 0);
+        assert.equal(scheduled.size, savedItems.length > 0 ? 1 : 0);
+
+        if (savedItems.length > 0) {
+            for (const callback of scheduled.values()) callback();
+        } else {
+            state.markProposalPreviewStale();
+            assert.equal(scheduled.size, 0);
+            state.showProposalPreview();
+        }
+        assert.equal(previewRequests, 1);
+        assert.equal(state.previewPaneOpen, true);
+    }
+});
+
 test('expense edits retain calculations and autosave with the Detailed Proposal docked preview', async () => {
     const rendered = JSON.parse(execFileSync('php', ['-r', `
         require 'vendor/autoload.php';
@@ -38,7 +84,6 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
         $input = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
         $draft = (new \\App\\Models\\ProposalDraft)->forceFill(['id' => 100, 'project_title' => 'Community Survey']);
         echo json_encode([
-            'toolbar' => view('components.expense-breakdown-writing-toolbar')->render(),
             'editor' => \\Illuminate\\Support\\Facades\\Blade::render($input['editor'], [
                 'proposalDraft' => $draft, 'expenseBreakdownDocument' => null, 'sampleAvailable' => false,
                 'budgetCeiling' => 100000,
@@ -73,7 +118,6 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                         <div style="position:sticky;top:0;height:120px">Application header</div>
                         <main class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8" data-proposal-paper-workspace data-expense-breakdown-workspace data-paper-project-details-complete="true" x-data='proposalDraftExpenseBreakdown(${JSON.stringify(config)})'>
                             <div data-proposal-autosave-status><span data-proposal-autosave-message>Changes save automatically.</span><span data-proposal-autosave-indicator></span></div>
-                            ${rendered.toolbar}
                             <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
                                 <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen">${rendered.editor}</div>${previewView}
                             </div>
@@ -107,6 +151,9 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                 await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
                 await page.locator('#expense-unit-cost-1').waitFor();
                 assert.deepEqual(errors, []);
+                for (const selector of ['label[for="expense-account-1"]', '#expense-account-1', '#expense-unit-cost-1', '[data-proposal-required-legend]', '[data-proposal-autosave-status]']) {
+                    assert.equal(await page.locator(selector).evaluate((element) => getComputedStyle(element).fontSize), '16px', selector);
+                }
                 if (width >= 1024) {
                     await page.waitForFunction(() => window.expenseState.previewReady && !window.expenseState.previewLoading);
                     assert.equal(await page.locator('.proposal-preview-dock-expanded').count(), 0);
@@ -121,6 +168,7 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                 await page.locator('#expense-unit-cost-1').fill('400');
                 await page.waitForFunction(() => window.savedBodies.at(-1)?.some(([name,value]) => name==='items[0][unit_cost]' && value==='400') && !window.expenseState.autoSaveInFlight);
                 assert.equal(await page.evaluate(() => window.expenseState.grandTotal()), 4800);
+                assert.match(await page.locator('[data-revision-section="section-totals"]').textContent(), /Php 4,800\.00/);
                 if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
                 await page.waitForFunction(() => !window.expenseState.previewStale && window.expenseState.previewHtml.includes('Current cost: 400'));
                 assert.equal(await page.getByRole('button', { name: 'Refresh preview', exact: true }).count(), 0);
@@ -148,9 +196,7 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                 await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
                 assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '110%');
                 if (process.env.ATHENA_EDITOR_VISUAL_DIR) await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `expense-breakdown-full-${width}-${dark ? 'dark' : 'light'}.png`) });
-                await page.evaluate(() => { window.printCalls=0; window.expenseState.$refs.previewFrame.contentWindow.print=()=>window.printCalls++; });
-                await page.getByRole('button', { name: 'Print', exact: true }).click();
-                assert.equal(await page.evaluate(() => window.printCalls), 1);
+                assert.equal(await page.getByRole('button', { name: 'Print', exact: true, includeHidden: true }).count(), 0);
                 await page.emulateMedia({ media: 'print' });
                 assert.equal(await page.locator('iframe').evaluate((frame) => getComputedStyle(frame.contentDocument.body).zoom), '1');
                 await page.emulateMedia({ media: 'screen' });
@@ -162,14 +208,17 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                     && document.activeElement === window.expenseState.previewReturnFocus);
                 const focusTarget = width >= 1024 ? page.getByRole('button', { name: 'Enlarge the paper preview' }) : page.locator('.proposal-writing-preview-launcher');
                 assert.equal(await focusTarget.evaluate((element) => element===document.activeElement), true);
-                if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
+                if (width >= 1024) await page.getByRole('button', { name: 'Collapse preview', exact: true }).click();
+                await page.locator('.proposal-preview-dock').waitFor({ state: 'hidden' });
+                await page.getByRole('button', { name: 'Preview paper', exact: true }).click();
+                await page.locator('.proposal-preview-dock').waitFor();
 
                 const previousPreview = await page.evaluate(() => window.expenseState.previewHtml);
                 await page.evaluate(() => { window.previewFailure=true; });
                 if (width < 1024) await page.evaluate(() => window.expenseState.closeProposalPreview());
                 await page.locator('#expense-unit-cost-1').fill('401');
                 if (width < 1024) await page.locator('.proposal-writing-preview-launcher').click();
-                await page.waitForFunction(() => !window.expenseState.previewLoading && window.expenseState.validationMessage);
+                await page.waitForFunction(() => !window.expenseState.previewLoading && window.expenseState.previewError);
                 assert.equal(await page.evaluate(() => window.expenseState.previewHtml), previousPreview);
                 assert.equal(await page.locator('.proposal-preview-error').textContent(), 'Please review this expense item.');
                 const retryPreview = page.getByRole('button', { name: 'Retry preview', exact: true });
@@ -186,6 +235,21 @@ test('expense edits retain calculations and autosave with the Detailed Proposal 
                 await page.evaluate(() => window.expenseState.closeProposalPreview());
                 await page.getByRole('button', { name: 'Add another expense item', exact: true }).click();
                 assert.equal(await page.locator('#expense-particulars-2').evaluate((element) => element===document.activeElement), true);
+                const account = page.locator('#expense-account-2');
+                const subAccount = page.locator('#expense-sub-account-2');
+                const accountPrompt = account.locator('option[value=""]:checked');
+                const subAccountPrompt = subAccount.locator('option[value=""]:checked');
+                assert.equal(await account.inputValue(), items[0].account);
+                assert.equal(await subAccount.inputValue(), items[0].sub_account);
+                const category = page.locator('#expense-category-2');
+                await category.selectOption('capital_outlay');
+                assert.equal(await accountPrompt.isDisabled(), true);
+                assert.equal(await subAccountPrompt.isDisabled(), true);
+                await category.selectOption('mooe');
+                await account.selectOption(items[0].account);
+                await subAccount.selectOption(items[0].sub_account);
+                assert.equal(await account.inputValue(), items[0].account);
+                assert.equal(await subAccount.inputValue(), items[0].sub_account);
                 await page.getByRole('button', { name: 'Remove', exact: true }).last().click();
                 assert.equal(await page.evaluate(() => window.expenseState.items.length), 1);
                 await page.locator('#expense-unit-cost-1').fill('10000');

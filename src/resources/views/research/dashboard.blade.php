@@ -64,7 +64,7 @@
                             <div class="space-y-3">
                                 <div class="flex min-w-0 items-start gap-3">
                                     <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center text-brand dark:text-red-300" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8M8 17h5" /></svg></span>
-                                    <h3 class="min-w-0 break-words text-lg font-semibold leading-7 text-stone-950 dark:text-white"><a wire:navigate href="{{ route('research.show', $topic) }}#project-monitoring" class="hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:hover:text-red-300 dark:focus-visible:outline-red-400">{{ $topic->title }}</a></h3>
+                                    <h3 class="min-w-0 break-words text-lg font-semibold leading-7 text-stone-950 dark:text-white"><a wire:navigate href="{{ route('research.show', $topic) }}#project-monitoring" class="secondary-action justify-start text-left">{{ $topic->title }}</a></h3>
                                 </div>
                                 <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs leading-5 text-stone-600 dark:text-stone-400">
                                     <p>{{ $topic->latestProgressReport ? 'Monitoring Tool · '.$topic->latestProgressReport->reporting_date->format('M j, Y') : 'No submitted Monitoring Tool' }}</p>

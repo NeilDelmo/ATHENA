@@ -121,7 +121,7 @@ class ResearchAssistantReportAssistanceService
         } catch (ConnectionException) {
             abort(502, 'Athena could not prepare this review. Your report is unchanged.');
         }
-        abort_unless($response->successful() && ! in_array($response->json('choices.0.finish_reason'), ['length', 'max_tokens', 'content_filter', 'error'], true), 502, 'Athena could not finish this report review.');
+        abort_unless($response->successful() && ! in_array($response->json('choices.0.finish_reason'), ['length', 'max_tokens', 'content_filter', 'error'], true), 502, $this->ai->failureMessage($response, 'Athena could not finish this report review.'));
         try {
             $result = json_decode((string) $response->json('choices.0.message.content'), true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException) {

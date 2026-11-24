@@ -33,7 +33,7 @@
                         :aria-selected="activeResearchTool === 'rrl'"
                         @click="window.location.hash = 'rrl-finder'"
                         :class="activeResearchTool === 'rrl' ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
-                        class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
+                        class="border border-slate-400 dark:border-slate-500 flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
                     >
                         <x-assistant-icon />
                         Literature search
@@ -45,7 +45,7 @@
                         :aria-selected="activeResearchTool === 'turnitin'"
                         @click="window.location.hash = 'turnitin'"
                         :class="activeResearchTool === 'turnitin' ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
-                        class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
+                        class="border border-slate-400 dark:border-slate-500 flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
                     >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12.8 2.3 2.2L15 9.8M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path></svg>
                         Turnitin
@@ -58,7 +58,7 @@
                             :aria-selected="activeResearchTool === 'journal'"
                             @click="window.location.hash = 'journal-finder'"
                             :class="activeResearchTool === 'journal' ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
-                            class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
+                            class="border border-slate-400 dark:border-slate-500 flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
                         >
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 4.75A1.75 1.75 0 0 1 6.75 3h10.5A1.75 1.75 0 0 1 19 4.75v14.5A1.75 1.75 0 0 1 17.25 21H6.75A1.75 1.75 0 0 1 5 19.25V4.75Z"></path><path stroke-linecap="round" d="M8.5 7.5h7M8.5 11h7M8.5 14.5H13"></path></svg>
                             Journal Finder

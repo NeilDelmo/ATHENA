@@ -4,7 +4,7 @@
         <h4 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ $monthLabel }}</h4>
         <div class="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
             <button type="button" wire:click="moveMonth(-1)" aria-label="Previous month" class="inline-flex h-11 w-11 items-center justify-center rounded-md text-2xl text-slate-600 hover:bg-red-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-red-950/30">&lsaquo;</button>
-            <button type="button" wire:click="today" class="min-h-11 rounded-md px-3 text-sm font-semibold text-slate-700 hover:bg-red-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-red-950/30">Today</button>
+            <button type="button" wire:click="today" class="secondary-action">Today</button>
             <button type="button" wire:click="moveMonth(1)" aria-label="Next month" class="inline-flex h-11 w-11 items-center justify-center rounded-md text-2xl text-slate-600 hover:bg-red-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-red-950/30">&rsaquo;</button>
         </div>
     </div>

@@ -237,13 +237,13 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                                 this.previewHtml='<html><body style="width:816px"><h1>Detailed Research Proposal</h1><div style="height:2000px"></div><section data-proposal-preview-section="rationale">'+this.rationale+'</section><div style="height:2000px"></div></body></html>';
                                 this.previewLoading=false; this.previewStale=false;
                             },
-                            printPreview() {},
                             destroy() { this.cleanup?.(); this.destroyDetailedProposalPreview(); }
                         }));
                     });` });
                 await page.addScriptTag({ content: readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8') });
                 const rationale = page.getByRole('textbox', { name: 'Rationale', exact: true });
                 await rationale.waitFor();
+                await expect(page.locator('.proposal-preview-dock').getByRole('button', { name: 'Print', exact: true, includeHidden: true })).toHaveCount(0);
                 const previewStatus = page.locator('.proposal-preview-dock-heading p');
                 await expect(previewStatus).toBeHidden();
                 if (width >= 1024) {
@@ -436,6 +436,7 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 await page.getByRole('button', { name: 'Preview paper', exact: true }).click();
                 if (width >= 1024) await page.getByRole('button', { name: 'Enlarge the paper preview' }).click();
                 await page.locator('.proposal-preview-dock-expanded').waitFor({ state: 'visible' });
+                await expect(page.locator('.proposal-preview-dock-expanded').getByRole('button', { name: 'Print', exact: true })).toHaveCount(0);
                 assert.equal(await page.locator('.proposal-preview-dock-expanded').isVisible(), true);
                 assert.equal(await page.locator('.proposal-edit-pane').evaluate((element) => element.inert), true);
                 await page.waitForFunction(() => !window.writingState.previewLoading
@@ -445,9 +446,13 @@ test('shared writing tools preserve selection, serialize tables, target figures,
                 await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeFocused();
                 await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
                 assert.equal(await page.locator('.proposal-preview-zoom output').textContent(), '110%');
-                await page.keyboard.press('Escape');
+                await page.getByRole('button', { name: 'Back to editor', exact: true }).click();
                 await page.waitForFunction(() => !window.writingState.previewFullscreen);
                 const focusTarget = width >= 1024 ? page.getByRole('button', { name: 'Enlarge the paper preview' }) : page.getByRole('button', { name: 'Preview paper', exact: true });
+                await expect(focusTarget).toBeFocused();
+                await focusTarget.click();
+                await expect(page.getByRole('button', { name: 'Back to editor', exact: true })).toBeFocused();
+                await page.keyboard.press('Escape');
                 await expect(focusTarget).toBeFocused();
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                 if (process.env.ATHENA_EDITOR_VISUAL_DIR) {

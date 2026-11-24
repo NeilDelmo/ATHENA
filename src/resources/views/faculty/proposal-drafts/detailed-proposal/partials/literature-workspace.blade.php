@@ -8,7 +8,7 @@
                     <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Find verified evidence, then connect it to claims throughout the proposal. Nothing is cited automatically.</p>
                 </div>
                 <div x-show="literatureWorkspaceView === 'review'" x-cloak>
-                    <button type="button" x-on:click="returnToLiteratureResults()" class="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">
+                    <button type="button" x-on:click="returnToLiteratureResults()" class="secondary-action">
                         <span aria-hidden="true">←</span> Back to results
                     </button>
                     <h3 id="literature-workspace-title" class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">Review source and RRL</h3>
@@ -39,7 +39,7 @@
                     </button>
                 </div>
                 <div class="mt-3">
-                    <button type="button" @click="searchSettingsOpen = !searchSettingsOpen" :aria-expanded="searchSettingsOpen.toString()" aria-controls="proposal-literature-settings" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-medium text-slate-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-300 dark:hover:text-red-200">Search settings <span aria-hidden="true" x-text="searchSettingsOpen ? '−' : '+'"></span></button>
+                    <button type="button" @click="searchSettingsOpen = !searchSettingsOpen" :aria-expanded="searchSettingsOpen.toString()" aria-controls="proposal-literature-settings" class="secondary-action">Search settings <span aria-hidden="true" x-text="searchSettingsOpen ? '−' : '+'"></span></button>
                     <div id="proposal-literature-settings" x-show="searchSettingsOpen" x-cloak class="mt-2 flex flex-col gap-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-900/60">
                         <label class="flex items-start gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
                             <input type="checkbox" x-model="literatureSearchUseContext" class="mt-0.5 rounded border-slate-300 text-red-700 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950">
@@ -64,7 +64,7 @@
                         <div class="flex flex-wrap items-center gap-3">
                             <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" x-model="literatureSearchFilters.open_access" class="rounded border-slate-300 text-red-700 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950"> Open access only</label>
                             <button type="button" x-on:click="literatureSearchFilters.year_from = '{{ now()->year - 4 }}'; literatureSearchFilters.year_to = '{{ now()->year }}'" class="rounded-lg px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Last 5 years</button>
-                            <button type="button" x-on:click="literatureSearchFilters = { year_from: '', year_to: '', min_citations: '', open_access: false }" class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800">Clear filters</button>
+                            <button type="button" x-on:click="literatureSearchFilters = { year_from: '', year_to: '', min_citations: '', open_access: false }" class="secondary-action">Clear filters</button>
                         </div>
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <button type="button" x-on:click="refreshSuggestedLiteratureQuery()" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[10px] font-semibold text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">Refresh from proposal</button>
@@ -109,7 +109,7 @@
                                 <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                                     <button type="button" x-on:click="prepareSuggestedLiteratureReview(result)" x-bind:disabled="isSavingSuggestedLiterature(result)" class="gap-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 text-[10px] font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40"><x-assistant-icon /><span x-text="isSavingSuggestedLiterature(result) ? 'Opening…' : 'Review evidence'"></span></button>
                                     <button type="button" x-on:click="saveSuggestedLiterature(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || result._linked" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[10px] font-semibold text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200" x-text="result._linked ? 'Saved' : 'Save source'"></button>
-                                    <a x-show="result.url" x-bind:href="result.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-9 items-center justify-center rounded-lg px-2 text-[10px] font-semibold text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Open source</a>
+                                    <a x-show="result.url" x-bind:href="result.url" target="_blank" rel="noopener noreferrer" class="secondary-action">Open source</a>
                                     <p x-show="result._actionNotice" x-cloak class="basis-full text-[10px] font-semibold text-slate-700 dark:text-slate-200" x-text="result._actionNotice" role="status"></p>
                                 </div>
                             </article>
@@ -118,7 +118,7 @@
                 </div>
 
                 <div x-show="literatureSearchHistory.length" x-cloak class="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
-                    <button type="button" @click="searchHistoryOpen = !searchHistoryOpen" :aria-expanded="searchHistoryOpen.toString()" aria-controls="proposal-literature-history" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-300">Recent searches <span aria-hidden="true" x-text="searchHistoryOpen ? '−' : '+'"></span></button>
+                    <button type="button" @click="searchHistoryOpen = !searchHistoryOpen" :aria-expanded="searchHistoryOpen.toString()" aria-controls="proposal-literature-history" class="secondary-action">Recent searches <span aria-hidden="true" x-text="searchHistoryOpen ? '−' : '+'"></span></button>
                     <div id="proposal-literature-history" x-show="searchHistoryOpen" x-cloak class="mt-3 space-y-2">
                         <template x-for="entry in literatureSearchHistory" :key="entry.id">
                             <div class="flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
@@ -164,7 +164,7 @@
                             </div>
                             <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                                 <button x-show="!literatureSourceUsage(source).usedInRrl" type="button" x-on:click="source.rrl_draft_status === 'confirmed' ? addLiteratureSourceToRrl(source) : prepareLinkedLiteratureReview(source)" class="gap-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 text-[10px] font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600"><x-assistant-icon x-show="source.rrl_draft_status !== 'confirmed'" /><span x-text="source.rrl_draft_status === 'confirmed' ? 'Add to Section XI' : (source.rrl_draft_status === 'draft' ? 'Review research notes' : 'Review evidence')"></span></button>
-                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-9 items-center justify-center rounded-lg px-2 text-[10px] font-semibold text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Open source</a>
+                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="secondary-action">Open source</a>
                                 <button x-show="literatureSourceUsage(source).usedInProposal" type="button" x-on:click="removeCitationSource(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-red-200 bg-white px-3 text-[10px] font-semibold text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-red-900 dark:bg-slate-950">Remove proposal citations</button>
                             </div>
                         </article>

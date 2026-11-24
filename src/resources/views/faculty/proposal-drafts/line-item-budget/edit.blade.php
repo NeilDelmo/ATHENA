@@ -3,7 +3,7 @@
         <x-page-header :title="$paper['label']" subtitle="Use MOOE, Capital Outlay, or both. Leave any category that does not apply empty; its total will be zero.">
             <x-slot name="actions">
                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($lineItemBudgetDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700') }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($lineItemBudgetDocument?->completed_at ? 'Complete' : ($lineItemBudgetDocument ? 'In progress' : 'Not started')) }}</span>
-                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to attachments</x-back-link>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -16,9 +16,6 @@
             && isset($sampleDefinition['path'])
             && \Illuminate\Support\Facades\Storage::disk('local')->exists($sampleDefinition['path']);
         $sections = config('line_item_budget.sections');
-        $expenseBreakdownHasDraft = is_array($expenseBreakdownDocument?->source_data)
-            && is_array($expenseBreakdownDocument->source_data['items'] ?? null)
-            && $expenseBreakdownDocument->source_data['items'] !== [];
     @endphp
 
     <div
@@ -79,8 +76,6 @@
             :label="$paper['label']"
         />
 
-        <x-line-item-budget-writing-toolbar />
-
         <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
         <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen" aria-label="Line-Item Budget editing form">
 
@@ -92,32 +87,29 @@
             </div>
         @endunless
 
-        @if ($expenseBreakdownHasDraft)
-            <div role="status" class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                <p class="font-black">Budget amounts synchronized</p>
-                <p class="mt-1 leading-6">Matching amounts are refreshed from the saved Estimated Expense Breakdown whenever this paper opens, previews, or saves. Use custom rows or total overrides for intentional adjustments.</p>
-            </div>
-        @endif
-
         <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h3 class="text-base font-black text-gray-900">Shared project information</h3>
-                    <p class="mt-1 text-xs text-gray-500">Program Title stays empty. Project title, duration, dates, and project leader come from Project Details.</p>
-                    <p data-proposal-required-legend class="mt-2 text-[11px] text-gray-500"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required shared project detail.</p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">View sample</a>@endif
-                    <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit details</a>
-                </div>
-            </div>
+            <h3 class="text-base font-bold text-gray-900">Shared project information</h3>
+            <p class="mt-1 text-sm text-gray-600">Program Title stays empty. Project title, duration, dates, and project leader come from Project Details.</p>
+            <p data-proposal-required-legend class="mt-2 text-sm text-gray-600"><span class="font-bold text-red-700 dark:text-red-400" aria-hidden="true">*</span> Required shared project detail.</p>
             <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <x-required-mark /></dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader <x-required-mark /></dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration on paper <x-required-mark /></dt><dd class="mt-1 text-sm italic text-gray-900">{{ $proposalDraft->planned_start?->format('F j, Y') ?? 'Not provided' }} - {{ $proposalDraft->planned_end?->format('F j, Y') ?? 'Not provided' }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Institutional budget limit</dt><dd class="mt-1 text-sm font-semibold text-gray-900">PHP {{ number_format($budgetCeiling, 2) }}</dd></div>
             </dl>
+            <div class="mt-5 grid w-fit max-w-full auto-cols-fr grid-flow-col gap-2">
+                @if ($sampleAvailable)
+                    <a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="secondary-action">View sample</a>
+                @endif
+                <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="secondary-action">Edit details</a>
+            </div>
         </section>
+
+        <nav aria-label="Budget sections" class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <span class="text-gray-600">Jump to</span>
+            <a href="#line-item-budget-section-mooe" @click.prevent="focusLineItemBudgetSection('mooe')" class="font-semibold text-red-700 underline underline-offset-4 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200">MOOE</a>
+            <a href="#line-item-budget-section-co" @click.prevent="focusLineItemBudgetSection('co')" class="font-semibold text-red-700 underline underline-offset-4 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200">Capital Outlays</a>
+        </nav>
 
         <form data-paper-form data-line-item-budget-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.line-item-budget.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
             @csrf
@@ -148,7 +140,7 @@
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-name-${member.id}`">Name</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" list="proposal-workspace-member-names" maxlength="120" x-model="member.name" x-on:change="syncStaff(member)" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-campus-${member.id}`">Campus</label><input :id="`staff-campus-${member.id}`" :name="`staff[${index}][campus]`" type="text" maxlength="120" x-model="member.campus" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-college-${member.id}`">College</label><input :id="`staff-college-${member.id}`" :name="`staff[${index}][college]`" type="text" list="line-item-budget-colleges" maxlength="120" x-model="member.college" placeholder="Select or type" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                            <button type="button" x-on:click="removeStaff(index)" class="rounded-xl px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
+                            <button type="button" x-on:click="removeStaff(index)" class="secondary-action">Remove</button>
                         </div>
                     </template>
                 </div>
@@ -185,7 +177,7 @@
                             <div x-bind:data-repeatable-entry="`line-item-budget-custom-${item.id}`" class="budget-writing-custom-row grid gap-3 border-t border-gray-100 bg-red-50/40 px-4 py-3">
                                 <input :id="`custom-{{ $sectionKey }}-particular-${item.id}`" :name="`custom_{{ $sectionKey }}_items[${index}][particular]`" x-bind:data-line-item-budget-custom-input="item.id" type="text" maxlength="255" x-model="item.particular" aria-label="Custom {{ strtoupper($sectionKey) }} particular" placeholder="Custom category or sub-category" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 <input :id="`custom-{{ $sectionKey }}-amount-${item.id}`" :name="`custom_{{ $sectionKey }}_items[${index}][amount]`" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="item.amount" aria-label="Custom {{ strtoupper($sectionKey) }} amount" class="block w-full rounded-lg border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
-                                <button type="button" x-on:click="removeCustomItem('{{ $sectionKey }}', index)" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
+                                <button type="button" x-on:click="removeCustomItem('{{ $sectionKey }}', index)" class="secondary-action">Remove</button>
                             </div>
                         </template>
                     </div>

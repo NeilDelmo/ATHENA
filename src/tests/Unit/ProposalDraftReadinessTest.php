@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDeletionRequest;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalVersionFile;
+use App\Services\ProposalAssistantContextService;
 use App\Support\ProposalDraftReadiness;
 use Tests\TestCase;
 
@@ -31,6 +33,33 @@ test('submission blockers identify exact project details without repeating autom
         ->and($blockers->whereIn('paper', ['gad-checklist', 'initial-screening-form']))->toBeEmpty()
         ->and($blockers->where('paper', 'details')->every('owner', 'faculty'))->toBeTrue()
         ->and($this->readiness->errors($this->draft))->toHaveKey('project_details');
+});
+
+test('deletion approval affects turn in guidance without blocking PDF preparation', function () {
+    $this->draft->setRelation('pendingDeletionRequest', new ProposalDraftDeletionRequest);
+
+    expect($this->readiness->blockers($this->draft)[0])->toMatchArray([
+        'key' => 'deletion_request',
+        'paper' => null,
+        'field' => null,
+        'message' => ProposalDraft::PENDING_DELETION_SUBMISSION_MESSAGE,
+    ])->and($this->readiness->errors($this->draft))->not->toHaveKey('deletion_request');
+
+    expect(app(ProposalAssistantContextService::class)->promptContext($this->draft, [], 'Is the proposal ready to submit?'))
+        ->toContain('"ready_to_submit": false', ProposalDraft::PENDING_DELETION_SUBMISSION_MESSAGE);
+});
+
+test('linked submission workspaces remain recoverable after standalone drafts expire', function () {
+    $this->freezeTime();
+    $this->draft->forceFill(['deleted_at' => now()->subDays(30), 'submitted_document_versions_exists' => false]);
+    expect($this->draft->trashRecoveryIsOpen())->toBeFalse();
+
+    $this->draft->topic_id = 12;
+    expect($this->draft->trashRecoveryIsOpen())->toBeTrue();
+
+    $this->draft->topic_id = null;
+    $this->draft->submitted_document_versions_exists = true;
+    expect($this->draft->trashRecoveryIsOpen())->toBeTrue();
 });
 
 test('detailed proposal blockers reuse completion validation with fields that can be focused', function () {

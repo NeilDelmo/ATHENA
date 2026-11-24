@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CollegeQuarterlyReportSubmissionController extends Controller
@@ -46,11 +45,12 @@ class CollegeQuarterlyReportSubmissionController extends Controller
         ]);
     }
 
-    public function evidence(Request $request, CollegeQuarterlyReportSubmission $submission, int $index, ImagePreviewService $previews): BinaryFileResponse|StreamedResponse
+    public function evidence(Request $request, CollegeQuarterlyReportSubmission $submission, int $index, ImagePreviewService $previews): StreamedResponse
     {
         $this->authorizeReader($request, $submission);
         $image = $submission->snapshot['evidence'][$index] ?? null;
-        abort_unless(is_array($image) && Storage::disk('local')->exists($image['path']), 404);
+        $disk = Storage::disk('local');
+        abort_unless(is_array($image) && $disk->exists($image['path']), 404);
 
         if ($request->boolean('preview') && in_array($image['mime_type'], ['image/jpeg', 'image/png'], true)) {
             return $previews->response($image['path'], $image['original_filename']);
@@ -61,8 +61,8 @@ class CollegeQuarterlyReportSubmissionController extends Controller
         ];
 
         return in_array($image['mime_type'], ['image/jpeg', 'image/png'], true)
-            ? response()->file(Storage::disk('local')->path($image['path']), $headers)
-            : response()->download(Storage::disk('local')->path($image['path']), $image['original_filename'], $headers);
+            ? $disk->response($image['path'], $image['original_filename'], $headers)
+            : $disk->download($image['path'], $image['original_filename'], $headers);
     }
 
     private function authorizeReader(Request $request, CollegeQuarterlyReportSubmission $submission): void

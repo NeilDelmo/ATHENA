@@ -12,7 +12,8 @@ const editors = [
 const downloadMethods = Object.fromEntries(editors.map((name) => {
     const component = app.indexOf(`Alpine.data('${name}',`);
     const start = app.indexOf('    async downloadDocument()', component);
-    return [name, app.slice(start, app.indexOf('    printPreview()', start))];
+    const [method] = app.slice(start).match(/^    async downloadDocument\(\) \{[\s\S]*?^    },/m);
+    return [name, method];
 }));
 
 test('every generated revision paper waits for its editor and stages only its captured source version', async () => {

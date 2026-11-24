@@ -295,7 +295,19 @@ test('faculty update an unseen submitted package repeatedly without replacing it
     Notification::fake();
     $this->call->update(['max_active_research_per_faculty' => 1]);
     $draft = ($this->completeDraft)(($this->createDraft)());
+    $figureId = (string) Str::uuid();
+    $figurePath = $draft->storageDirectory().'/detailed-proposal/methodology-images/study-flow.png';
+    Storage::disk('local')->put($figurePath, 'Saved proposal figure');
+    $paper = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $figure = [
+        'id' => $figureId, 'path' => $figurePath, 'caption' => 'Study flow', 'section' => 'specific_methods',
+        'alignment' => 'center', 'size' => 'medium', 'mime_type' => 'image/png', 'original_filename' => 'study-flow.png',
+    ];
+    $paper->updateQuietly(['source_data' => [...$paper->source_data, 'methodology_images' => [$figure]]]);
     $topic = app(SubmitProposalDraft::class)->handle($draft, $this->faculty);
+    Storage::disk('local')->assertMissing($figurePath);
+    $archivedFigure = $topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->source_data['methodology_images'][0]['path'];
+    Storage::disk('local')->assertExists($archivedFigure);
     $originalFiles = $topic->latestVersion->files->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]);
     $this->actingAs($this->faculty)->get(route('topics.show', $topic))
         ->assertOk()->assertSee('Update submitted proposal')->assertSee('submit Version 2');
@@ -309,6 +321,8 @@ test('faculty update an unseen submitted package repeatedly without replacing it
         $this->get(route('faculty.proposal-drafts.review', $workingDraft))->assertOk()->assertSee('Submit Version '.$number);
         $document = $workingDraft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
         $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $workingDraft))->assertOk();
+        $this->get(route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$workingDraft, $figureId]))
+            ->assertOk()->assertStreamedContent('Saved proposal figure');
         $this->put(route('faculty.proposal-drafts.submission-files.replace', [$workingDraft, 'detailed-proposal']), [
             'file' => UploadedFile::fake()->createWithContent('updated.pdf', "%PDF-1.7\nUpdated package ".$number),
             'document_version' => $document->lock_version,
@@ -928,6 +942,63 @@ test('rapid repeated create requests reuse the first matching proposal draft', f
     expect($this->faculty->proposalDrafts()->count())->toBe(1);
 });
 
+test('proposal draft creation warns about similar titles and lets the faculty member continue', function (string $title) {
+    $approvedTitle = 'Student Attendance Monitoring System';
+    $this->otherFaculty->proposals()->create(['title' => $approvedTitle, 'status' => 'approved']);
+    $createUrl = route('faculty.proposal-drafts.create');
+    $storeUrl = route('faculty.proposal-drafts.store');
+
+    $this->actingAs($this->faculty)->post($storeUrl, ['project_title' => $title])
+        ->assertRedirect($createUrl)
+        ->assertSessionHas('similar_title_confirmation');
+    $confirmation = session('similar_title_confirmation');
+    expect($this->faculty->proposalDrafts()->count())->toBe(0);
+
+    $this->get($createUrl)->assertOk()
+        ->assertSee('Possible similar project title')
+        ->assertSee('Create draft anyway')
+        ->assertSee('value="'.e($title).'"', false)
+        ->assertDontSee($approvedTitle);
+
+    $response = $this->post($storeUrl, [
+        'project_title' => $title,
+        'similar_title_confirmation' => $confirmation,
+    ]);
+
+    $draft = $this->faculty->proposalDrafts()->sole();
+    $response->assertRedirect(route('faculty.proposal-drafts.show', $draft));
+    expect($draft->project_title)->toBe($title);
+})->with(['student attendance: monitoring system', 'Student Attendance Tracking System']);
+
+test('proposal draft creation checks a changed title again after a similarity warning', function () {
+    $title = 'Coastal Flood Mapping System';
+    $this->faculty->proposalDrafts()->create(['project_title' => $title]);
+    $storeUrl = route('faculty.proposal-drafts.store');
+    $createUrl = route('faculty.proposal-drafts.create');
+
+    $this->actingAs($this->faculty)->post($storeUrl, ['project_title' => 'Coastal Flood Mapping App'])
+        ->assertRedirect($createUrl);
+    $confirmation = session('similar_title_confirmation');
+
+    $this->post($storeUrl, [
+        'project_title' => 'Coastal Flood Mapping Tool',
+        'similar_title_confirmation' => $confirmation,
+    ])->assertRedirect($createUrl)->assertSessionHas('similar_title_confirmation');
+
+    expect($this->faculty->proposalDrafts()->sole()->project_title)->toBe($title);
+});
+
+test('proposal draft creation keeps other teams’ unapproved proposals and private drafts out of title checks', function () {
+    $title = 'Coastal Water Quality Monitoring';
+    $this->otherFaculty->proposalDrafts()->create(['project_title' => $title]);
+    $this->otherFaculty->proposals()->create(['title' => $title, 'status' => 'pending']);
+
+    $response = $this->actingAs($this->faculty)->post(route('faculty.proposal-drafts.store'), ['project_title' => $title]);
+
+    $response->assertRedirect(route('faculty.proposal-drafts.show', $this->faculty->proposalDrafts()->sole()))
+        ->assertSessionMissing('similar_title_confirmation');
+});
+
 test('deleting a draft retains its records and private staged directory for recovery', function () {
     $draft = ($this->createDraft)();
     $path = $draft->storageDirectory().'/detailed-proposal/draft.pdf';
@@ -1015,6 +1086,7 @@ test('the proposal hub separates editable papers from automatically included ass
         ->assertOk()
         ->assertSee('Project Details')
         ->assertSee('Required PDF attachments')
+        ->assertSee('id="required-pdf-attachments"', false)
         ->assertSee('Project team')
         ->assertSee('Changes save automatically.')
         ->assertSee('Proposal summary')
@@ -1108,7 +1180,7 @@ test('upload-only papers use the protected editor exit and one upload and exit a
         ->assertSee('How this paper works')
         ->assertDontSee('Editor shortcuts')
         ->assertDontSee('Ctrl + S')
-        ->assertSee('Exit editor')
+        ->assertSee('Back to attachments')
         ->assertSee('Upload PDF and exit')
         ->assertDontSee('data-paper-shortcuts-trigger', false)
         ->assertSee('data-paper-editor', false)
@@ -1673,7 +1745,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertOk()
         ->assertSee('Detailed Research Proposal')
         ->assertSee('Environment and Climate Change')
-        ->assertSee('Exit editor')
+        ->assertSee('Back to attachments')
         ->assertSee('Changes save automatically.')
         ->assertDontSee('Save and stay')
         ->assertDontSee('Ctrl + S')
@@ -1761,7 +1833,7 @@ test('draft attachment previews use stored prepared PDFs without changing requir
     $index
         ->assertSee('data-document-file-icon', false)
         ->assertSee('Resume')
-        ->assertSee('Delete');
+        ->assertSee('data-confirm-button="Move to Trash"', false);
 
     if ($state === 'prepared PDFs') {
         $previewUrl = route('faculty.proposal-drafts.submission-files.download', [$draft, 'detailed-proposal']);

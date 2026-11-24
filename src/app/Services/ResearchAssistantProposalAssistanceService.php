@@ -246,7 +246,7 @@ class ResearchAssistantProposalAssistanceService
         } catch (ConnectionException) {
             abort(502, 'Athena could not prepare proposal changes. Please retry.');
         }
-        abort_unless($response->successful() && ! in_array($response->json('choices.0.finish_reason'), ['length', 'max_tokens', 'content_filter', 'error'], true), 502, 'Athena could not complete these suggestions.');
+        abort_unless($response->successful() && ! in_array($response->json('choices.0.finish_reason'), ['length', 'max_tokens', 'content_filter', 'error'], true), 502, $this->ai->failureMessage($response, 'Athena could not complete these suggestions.'));
         try {
             $result = json_decode((string) $response->json('choices.0.message.content'), true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException) {

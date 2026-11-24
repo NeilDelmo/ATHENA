@@ -1,0 +1,2 @@
+<link rel="icon" type="image/png" href="<?php echo e(asset('images/athena-favicon-circle.png')); ?>">
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views\components\favicon.blade.php ENDPATH**/ ?>

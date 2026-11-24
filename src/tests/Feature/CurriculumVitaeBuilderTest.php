@@ -268,7 +268,7 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Changes save automatically.')
         ->assertDontSee('aria-live="assertive"', false)
         ->assertDontSee('Ctrl + S')
-        ->assertSee('Exit editor')
+        ->assertSee('Back to attachments')
         ->assertSee('data-curriculum-vitae-autosave="true"', false)
         ->assertSee('data-curriculum-vitae-autosave-form', false)
         ->assertSee('curriculum-vitae-preview-panel')

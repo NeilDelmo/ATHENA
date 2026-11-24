@@ -82,13 +82,13 @@
         </section>
 
         <details class="dashboard-panel p-5" aria-labelledby="rms-source-heading">
-            <summary class="disclosure-summary rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+            <summary class="disclosure-summary secondary-action w-full justify-start text-left">
                 <span id="rms-source-heading" class="font-semibold text-slate-950 dark:text-white">Source college reports <span class="font-normal text-slate-500 dark:text-slate-400">({{ count($reportData['sources']) }} included · {{ count($reportData['missing_colleges']) }} pending)</span></span>
             </summary>
             <p class="mt-3 max-w-4xl text-base leading-7 text-slate-600 dark:text-slate-400">Records come from submitted coordinator reports. Attached activity proof carries into RMS. Review authors, funding and SDGs before using the report. Blank details stay blank in Excel; you can save an incomplete draft.</p>
             @if ($reportData['sources'] !== [])
                 <details class="mt-4 border-t border-gray-200 pt-3 dark:border-slate-800">
-                    <summary class="disclosure-summary text-base font-semibold text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-white">Included college reports ({{ count($reportData['sources']) }})</summary>
+                    <summary class="disclosure-summary secondary-action w-full justify-start text-left">Included college reports ({{ count($reportData['sources']) }})</summary>
                     <ul class="mt-3 divide-y divide-gray-100 dark:divide-slate-800">
                         @foreach ($reportData['sources'] as $source)
                             <li class="flex flex-wrap items-center justify-between gap-2 py-3 text-base">
@@ -101,7 +101,7 @@
             @endif
             @if ($reportData['missing_colleges'] !== [])
                 <details class="mt-4 border-t border-gray-200 pt-3 dark:border-slate-800" @if ($reportData['sources'] === []) open @endif>
-                    <summary class="disclosure-summary text-base font-semibold text-amber-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-amber-300">Awaiting college reports ({{ count($reportData['missing_colleges']) }})</summary>
+                    <summary class="disclosure-summary secondary-action w-full justify-start text-left">Awaiting college reports ({{ count($reportData['missing_colleges']) }})</summary>
                     <p class="mt-2 text-base text-slate-600 dark:text-slate-400">Drafts and reports returned for correction are excluded until submitted.</p>
                     <ul class="mt-2 list-inside list-disc space-y-1 text-base text-slate-600 dark:text-slate-400">@foreach ($reportData['missing_colleges'] as $college)<li>{{ $college }}</li>@endforeach</ul>
                 </details>
@@ -129,7 +129,7 @@
             <x-assistant-report-editor :context="['report_type' => 'rms-quarterly', 'report_id' => $report?->id]" />
 
             <details class="dashboard-panel p-5" @if ($errors->has('campus') || $errors->has('signatories.*')) open @endif>
-                <summary class="disclosure-summary font-bold text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-white">Report details and signatories</summary>
+                <summary class="disclosure-summary secondary-action w-full justify-start text-left">Report details and signatories</summary>
                 <div class="mt-4 space-y-5">
                     <div class="max-w-lg">
                         <x-input-label class="!text-base" for="rms-campus" value="Campus" />
@@ -162,7 +162,7 @@
                                 $title = $row['values'][match ($section) {'presentations' => 'presentation_title', 'publications' => 'article_title', default => 'title'}] ?: 'Untitled record';
                             @endphp
                             <details class="py-4" @if ($errors->has('row_details.'.$key.'.*') || $errors->has('row_details.'.$key)) open @endif>
-                                <summary class="disclosure-summary rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+                                <summary class="disclosure-summary secondary-action w-full justify-start text-left">
                                     <span class="min-w-0 align-top">
                                         <span class="font-semibold text-gray-900 dark:text-white">{{ $loop->iteration }}. {{ $title }}</span>
                                         <span class="mt-1 block text-base text-slate-500 dark:text-slate-400">{{ $row['college'] }} · {{ count($row['missing']) }} fields to complete</span>

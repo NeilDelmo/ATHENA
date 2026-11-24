@@ -174,11 +174,11 @@
                             </button>
                             </form>
                             @foreach ($item['actions'] as $action)
-                                <a href="{{ $action['url'] }}" class="mx-5 mb-3 inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-300 dark:hover:bg-red-950/30">{{ $action['label'] }}</a>
+                                <a href="{{ $action['url'] }}" class="secondary-action mx-5 mb-3">{{ $action['label'] }}</a>
                             @endforeach
                             @if ($item['update_count'] > 1)
                                 <details class="border-b border-slate-100 px-5 pb-4 dark:border-slate-800" data-notification-history>
-                                    <summary class="disclosure-summary py-3 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-slate-200">View all {{ $item['update_count'] }} updates</summary>
+                                    <summary class="disclosure-summary secondary-action w-full justify-start text-left">View all {{ $item['update_count'] }} updates</summary>
                                     <ol class="space-y-3 border-l border-slate-200 pl-4 dark:border-slate-700">
                                         @foreach ($item['history'] as $update)
                                             <li>

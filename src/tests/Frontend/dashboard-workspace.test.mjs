@@ -8,7 +8,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import loadConfig from 'tailwindcss/loadConfig.js';
 
-test('vcrdes balances maroon summaries with softer panels and icon controls in both themes', { timeout: 120000 }, async () => {
+test('vcrdes uses neutral surfaces and brand accents for key figures and actions in both themes', { timeout: 120000 }, async () => {
     execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/VcrdesWorkspaceTest.php'], {
         encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
         env: { ...process.env, ATHENA_TEST_PRESERVE_DATABASE: '1', ATHENA_EXPORT_DASHBOARD_LAYOUT: '1' },
@@ -28,13 +28,22 @@ test('vcrdes balances maroon summaries with softer panels and icon controls in b
                     const content = await page.evaluate(source => new DOMParser().parseFromString(source, 'text/html').querySelector('[data-vcrdes-dashboard]').outerHTML, source);
                     await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles}</style><body class="bg-slate-50 p-4 font-sans dark:bg-slate-950"><main>${content}</main></body></html>`);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${fixture}: ${width}px overflow`);
-                    for (const selector of ['#overview', '#projects > div:first-child']) {
-                        assert.equal(await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(122, 0, 25)');
+                    for (const selector of ['#overview', '#budget']) {
+                        const background = await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor);
+                        assert.equal(background, dark ? 'rgb(15, 23, 42)' : 'rgb(238, 240, 242)');
                     }
-                    for (const selector of ['#attention > div:first-child', '#budget', '#colleges > div:first-child', '#colleges a']) {
-                        const background = await page.locator(selector).first().evaluate(element => getComputedStyle(element).backgroundColor);
-                        assert.ok(!['rgb(122, 0, 25)', 'rgb(185, 28, 28)'].includes(background), 'Secondary panels should use softer surfaces');
+                    for (const selector of ['#overview strong', '#projects-heading']) {
+                        const color = await page.locator(selector).first().evaluate(element => getComputedStyle(element).color);
+                        assert.equal(color, dark ? 'rgb(252, 165, 165)' : 'rgb(122, 0, 25)');
                     }
+                    for (const selector of ['#attention', '#projects', '#colleges']) {
+                        const background = await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor);
+                        assert.equal(background, dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)', selector + ' should use a neutral panel surface');
+                    }
+                    const applyFilters = page.getByRole('button', { name: 'Apply project filters' });
+                    assert.equal(await applyFilters.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(122, 0, 25)');
+                    const awaitingLink = page.getByRole('link', { name: /^Awaiting report \/ review:/ });
+                    assert.ok(await awaitingLink.getByText('Awaiting report / review', { exact: true }).isVisible());
                     for (const control of await page.locator('#projects input, #projects select').all()) {
                         assert.equal(await control.evaluate(element => getComputedStyle(element).color), dark ? 'rgb(255, 255, 255)' : 'rgb(15, 23, 42)', 'Filter values must remain readable against their own surfaces');
                     }

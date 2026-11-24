@@ -22,7 +22,7 @@ const flushPreview = () => new Promise((resolve) => setImmediate(resolve));
 test('CV Word downloads negotiate field errors and display them without downloading a file', async () => {
     const componentStart = app.indexOf("Alpine.data('proposalDraftCurriculumVitae',");
     const methodStart = app.indexOf('    async downloadDocument()', componentStart);
-    const method = app.slice(methodStart, app.indexOf('    printPreview()', methodStart));
+    const [method] = app.slice(methodStart).match(/^    async downloadDocument\(\) \{[\s\S]*?^    },/m);
     let requestedAccept;
     const state = runInNewContext(`(config => ({ ${method} }))`, {
         Error,
@@ -96,6 +96,7 @@ function validationResponse() {
 for (const name of papers) {
     test(`${name} displays a successful preview for the current form revision`, async (t) => {
         const { state, requests } = editor(t, name);
+        assert.equal(state.previewCanPrint, false);
         const generation = state.generatePreview();
         assert.equal(state.previewLoading, true);
         assert.equal(requests[0].url, '/preview');

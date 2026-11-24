@@ -2,14 +2,13 @@
     <x-slot name="header">
         <x-page-header :title="$paper['label']" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
-                <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }}">{{ $workPlanDocument?->completed_at ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started') }}</span>
-                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
+                <span data-work-plan-completion-status role="status" class="text-base font-semibold text-slate-700 dark:text-slate-200">{{ $workPlanComplete ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started') }}</span>
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to attachments</x-back-link>
             </x-slot>
         </x-page-header>
     </x-slot>
 
     @php
-        $projectDetailsComplete = app(\App\Support\ProposalDraftReadiness::class)->projectDetailsAreComplete($proposalDraft);
         $initialEntries = $sourceData['entries'] ?? [];
         $sampleDefinition = config('proposal_samples.'.$paper['sample_slug']);
         $sampleAvailable = is_array($sampleDefinition)
@@ -40,6 +39,7 @@
             initialEntries: @js($initialEntries),
             proposalActivities: @js($proposalActivities),
             objectivesLinked: true,
+            recheckCompletion: @js($workPlanDocument !== null && ($workPlanDocument->completed_at === null || ! $workPlanComplete) && $errors->isEmpty()),
             maxEntries: @js(config('work_plan.max_objectives')),
             durationMonths: @js($proposalDraft->duration_months ?: 12),
             previewUrl: @js(route('faculty.proposal-drafts.work-plan.preview', $proposalDraft)),
@@ -121,20 +121,23 @@
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
             <section data-revision-section="section-schedule" aria-labelledby="work-plan-objectives-heading" class="space-y-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <h3 id="work-plan-objectives-heading" class="text-lg font-black text-gray-900">Objectives and Gantt schedule</h3>
-                        <p class="mt-1 text-sm text-gray-500">Each Specific Objective from your Detailed Proposal gets one row in Attachment A. List its outputs and activities together, then choose the months for that row.</p>
-                        <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="mt-2 secondary-action">Edit objectives in Detailed Proposal</a>
-                        <p class="mt-1 text-xs text-gray-400">The generated paper automatically expands each row to fit the longest objective, output, or activity text.</p>
+                <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                    <div class="min-w-0 flex-1 basis-72">
+                        <h3 id="work-plan-objectives-heading" class="text-xl font-black text-gray-900 dark:text-white">Objectives and Gantt schedule</h3>
+                        <p class="mt-1 text-base text-gray-600 dark:text-slate-400">For each objective, list its outputs and activities, then select the active months.</p>
                     </div>
+                    <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="secondary-action text-base" aria-label="Edit objectives in Detailed Proposal">Edit objectives</a>
                 </div>
 
                 @if ($proposalOutputs !== [])
-                    <details class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-                        <summary class="cursor-pointer text-sm font-semibold text-gray-900 dark:text-white">Overall outputs from Detailed Proposal</summary>
-                        <p class="mt-3 text-sm text-gray-500 dark:text-slate-400">Use these project-wide outputs as a reference. Under each objective below, list the specific deliverables that help achieve them.</p>
-                        <dl class="mt-3 space-y-3 text-sm">
+                    <details class="group">
+                        <summary class="secondary-action w-full cursor-pointer list-none justify-start gap-3 px-4 text-left text-base [&::-webkit-details-marker]:hidden">
+                            <svg class="h-5 w-5 shrink-0 group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="m9 6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span>Proposal outputs</span>
+                        </summary>
+                        <dl class="mt-2 space-y-3 rounded-xl border border-gray-200 bg-white p-4 text-base dark:border-slate-700 dark:bg-slate-800">
                             @foreach ($proposalOutputs as $category => $outputs)
                                 <div>
                                     <dt class="font-semibold text-gray-900 dark:text-white">{{ config('detailed_proposal.expected_outputs.'.$category) }}</dt>
@@ -153,10 +156,16 @@
 
                 <template x-for="(entry, index) in entries" :key="entry.id">
                     <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" :data-work-plan-entry-id="entry.id" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="work-plan-writing-entry rounded-xl border p-4 transition-colors sm:p-5">
+                        <template x-if="objectivesLinked">
+                            <input type="hidden" x-bind:name="`entries[${index}][objective]`" x-bind:value="entry.objective">
+                        </template>
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="min-w-0">
-                                <p class="text-xs font-black uppercase tracking-wider text-gray-500">Objective <span x-text="index + 1"></span></p>
-                                <h4 class="mt-1 truncate text-sm font-black text-gray-900" x-text="entrySummary(entry)"></h4>
+                                <p class="flex flex-wrap items-baseline gap-x-2 text-sm text-gray-600 dark:text-slate-400">
+                                    <span class="font-semibold">Objective <span x-text="index + 1"></span></span>
+                                    <span x-show="objectivesLinked" class="border-l border-gray-300 pl-2 dark:border-slate-600">From Detailed Proposal</span>
+                                </p>
+                                <h4 x-bind:id="objectivesLinked ? `objective-${entry.id}` : null" tabindex="-1" class="mt-1 whitespace-pre-line break-words text-lg font-semibold text-gray-900 dark:text-white" x-text="entrySummary(entry)"></h4>
                                 <p x-show="!isEntryExpanded(entry)" x-cloak class="mt-1 text-xs text-gray-500" x-text="entryScheduleSummary(entry)"></p>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
@@ -169,28 +178,60 @@
 
                         <div x-bind:id="`work-plan-editor-${entry.id}`" x-show="isEntryExpanded(entry)" x-cloak x-transition class="mt-5">
                             <div class="work-plan-writing-fields grid gap-4">
-                                <div class="work-plan-writing-objective">
-                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective from Detailed Proposal <x-required-mark /></label>
-                                    <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="4" readonly required class="mt-2 block w-full rounded-xl border-gray-200 bg-gray-50 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
+                                <template x-if="!objectivesLinked">
+                                    <div>
+                                        <label class="block text-base font-semibold text-gray-900 dark:text-white" x-bind:for="`objective-${entry.id}`">Objective <x-required-mark /></label>
+                                        <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="3" required class="mt-2 block w-full rounded-lg border-gray-300 text-base text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
+                                    </div>
+                                </template>
+                                <div class="min-w-0">
+                                    <label class="block text-base font-semibold text-gray-900 dark:text-white" x-bind:for="`output-${entry.id}`">Expected outputs <x-required-mark /></label>
+                                    <p x-bind:id="`output-help-${entry.id}`" class="text-sm text-gray-600 dark:text-slate-400">Enter this objective’s deliverables, one per line.</p>
+                                    <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-bind:aria-describedby="`output-help-${entry.id}`" x-model="entry.expectedOutput" rows="3" maxlength="500" required class="mt-2 block w-full rounded-lg border-gray-300 text-base text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`output-${entry.id}`">Expected Output <x-required-mark /></label>
-                                    <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-bind:aria-describedby="`output-help-${entry.id}`" x-model="entry.expectedOutput" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                                    <p x-bind:id="`output-help-${entry.id}`" class="mt-2 text-xs text-gray-500">List one deliverable per line. For example, “Usability dataset” and “Evaluation report” can both belong to one objective.</p>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`activity-${entry.id}`">Activities or Workplan <x-required-mark /></label>
-                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-bind:aria-describedby="`activity-help-${entry.id}`" x-model="entry.activity" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                                    <p x-bind:id="`activity-help-${entry.id}`" class="mt-2 text-xs text-gray-500">List one activity per line, such as “Run usability sessions” and “Analyze feedback.” Matching methods from the Detailed Proposal appear here as a starting point.</p>
+                                <div class="min-w-0">
+                                    <label class="block text-base font-semibold text-gray-900 dark:text-white" x-bind:for="`activity-${entry.id}`">Activities <x-required-mark /></label>
+                                    <p x-bind:id="`activity-help-${entry.id}`" class="text-sm text-gray-600 dark:text-slate-400">
+                                        <span x-show="entry.proposalActivity && entry.activity === entry.proposalActivity" x-cloak>Matches the Detailed Proposal methods. You can edit these here.</span>
+                                        <span x-show="!entry.proposalActivity || entry.activity !== entry.proposalActivity">Enter one activity per line.</span>
+                                    </p>
+                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-bind:aria-describedby="`activity-help-${entry.id}`" x-model="entry.activity" rows="3" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-lg border-gray-300 text-base text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
                                     <button type="button" x-show="entry.proposalActivity && entry.activity !== entry.proposalActivity" x-cloak x-on:click="useProposalMethods(entry)" class="mt-2 secondary-action">Replace activities with proposal methods</button>
                                 </div>
                             </div>
 
-                            <fieldset x-bind:data-work-plan-schedule="entry.id" class="mt-5">
-                                <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <x-required-mark /></legend>
-                                <p class="mt-2 text-xs leading-5 text-gray-500">Select the months when any of this objective’s activities will be active. They share one schedule in Attachment A. Objectives may overlap, and M1 is the first month from your planned start date.</p>
+                            <fieldset x-bind:data-work-plan-schedule="entry.id" x-bind:aria-describedby="`schedule-help-${entry.id}`" class="mt-5">
+                                <legend class="text-base font-semibold text-gray-900 dark:text-white">Gantt Schedule <x-required-mark /></legend>
+                                <p x-bind:id="`schedule-help-${entry.id}`" class="mt-2 text-base text-gray-600 dark:text-slate-400">Click a month to set the end. The range starts at M1 unless you choose a different start month.</p>
+                                <template x-for="month in entry.months" :key="month">
+                                    <input type="hidden" x-bind:name="`entries[${index}][months][]`" x-bind:value="month">
+                                </template>
                                 <template x-if="isEntryExpanded(entry)">
                                     <div class="mt-3 grid gap-4">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <label class="grid min-w-0 gap-1.5 text-base font-semibold text-gray-700 dark:text-slate-300">
+                                                <span>Start month</span>
+                                                <select data-work-plan-range-start x-model.number="entry.rangeStart" x-init="$nextTick(() => { $el.value = entry.rangeStart })" x-on:input.stop x-on:change.stop="updateMonthRange(index)" class="block min-h-11 w-full min-w-0 rounded-lg border-gray-300 bg-white text-base font-normal text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                                                    <option value="" disabled>Select</option>
+                                                    <template x-for="month in months" :key="month">
+                                                        <option x-bind:value="month" x-text="monthRangeLabel(month)"></option>
+                                                    </template>
+                                                </select>
+                                            </label>
+                                            <label class="grid min-w-0 gap-1.5 text-base font-semibold text-gray-700 dark:text-slate-300">
+                                                <span>End month</span>
+                                                <select x-model.number="entry.rangeEnd" x-init="$nextTick(() => { $el.value = entry.rangeEnd })" x-on:input.stop x-on:change.stop="selectScheduleEnd(index, Number($event.target.value))" class="block min-h-11 w-full min-w-0 rounded-lg border-gray-300 bg-white text-base font-normal text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                                                    <option value="" disabled>Select</option>
+                                                    <template x-for="month in months" :key="month">
+                                                        <option x-bind:value="month" x-bind:disabled="month < entry.rangeStart" x-text="monthRangeLabel(month)"></option>
+                                                    </template>
+                                                </select>
+                                            </label>
+                                        </div>
+                                        <div x-show="scheduleHasGaps(entry)" x-cloak class="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                                            <p>This saved schedule has gaps. Choose a continuous range before preparing Attachment A.</p>
+                                            <button type="button" class="secondary-action" x-on:click="fillScheduleGaps(index)">Fill gaps</button>
+                                        </div>
                                         <template x-for="yearGroup in yearGroups" :key="yearGroup.year">
                                             <section class="rounded-xl border border-gray-200 bg-gray-50 p-3" x-bind:aria-label="`Year ${yearGroup.year} schedule`">
                                                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -199,29 +240,27 @@
                                                 </div>
                                                 <div class="work-plan-writing-months mt-2 grid gap-2">
                                                     <template x-for="month in yearGroup.months" :key="month">
-                                                        <label
-                                                            class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
-                                                            x-bind:class="entry.months.includes(month) ? 'border-red-600 bg-red-50 text-red-700' : (isMonthSelectable(index, month) ? 'border-gray-200 bg-white text-gray-600 hover:border-gray-300' : 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700')"
+                                                        <button
+                                                            type="button"
+                                                            class="relative flex flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                                            x-bind:class="entry.months.includes(month) ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'"
+                                                            x-bind:data-work-plan-month="month"
+                                                            x-bind:aria-pressed="entry.months.includes(month)"
+                                                            x-bind:disabled="!isMonthSelectable(index, month)"
                                                             x-bind:title="monthSelectionTitle(index, month)"
+                                                            x-on:click="selectScheduleEnd(index, month)"
                                                         >
-                                                            <input type="checkbox" class="sr-only" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
                                                             <span x-text="`M${localMonthNumber(month)}`"></span>
                                                             <span x-show="yearGroup.year > 1" class="mt-0.5 text-[9px] font-semibold text-gray-500" x-text="`Project M${month}`"></span>
-                                                        </label>
+                                                        </button>
                                                     </template>
                                                 </div>
                                             </section>
                                         </template>
+                                        <button type="button" x-show="entry.rangeStart || entry.rangeEnd" x-cloak class="secondary-action justify-self-start" x-on:click="clearSchedule(index)">Clear schedule</button>
                                     </div>
                                 </template>
-                                <template x-if="!isEntryExpanded(entry)">
-                                    <div hidden>
-                                        <template x-for="month in months" :key="month">
-                                            <input type="checkbox" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
-                                        </template>
-                                    </div>
-                                </template>
-                                <p x-show="monthErrorIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">Select at least one month for this objective.</p>
+                                <p x-show="monthErrorIndexes.includes(index) && entry.months.length === 0" x-cloak class="mt-2 text-sm font-semibold text-red-600">Select at least one month for this objective.</p>
                             </fieldset>
                         </div>
                     </article>

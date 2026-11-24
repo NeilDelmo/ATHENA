@@ -50,6 +50,8 @@ test('vcrdes monitors issued projects across colleges using only forwarded progr
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
+    $summary = $xpath->query('//*[@id="project-'.$project->id.'"]/summary')->item(0);
+    expect($summary->getAttribute('class'))->toContain('border-slate-300');
     $links = $xpath->query('//nav[@data-vcrdes-navigation]//a');
     expect($links->length)->toBe(5);
     foreach ($links as $link) {

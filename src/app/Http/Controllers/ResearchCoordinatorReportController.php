@@ -21,7 +21,6 @@ use App\Support\ProposalRichText;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -30,7 +29,6 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -96,7 +94,7 @@ class ResearchCoordinatorReportController extends Controller
         ]);
     }
 
-    public function evidence(Request $request, CollegeQuarterlyReport $report, int $index, ImagePreviewService $previews): BinaryFileResponse|StreamedResponse
+    public function evidence(Request $request, CollegeQuarterlyReport $report, int $index, ImagePreviewService $previews): StreamedResponse
     {
         if ($request->user()->hasRole('research_head') && $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
             abort_unless($report->submitted_at !== null, 403);
@@ -105,7 +103,8 @@ class ResearchCoordinatorReportController extends Controller
             abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE) && $report->college === $request->user()->college, 403);
         }
         $evidence = $report->evidence[$index] ?? null;
-        abort_unless(is_array($evidence) && Storage::disk('local')->exists($evidence['path']), 404);
+        $disk = Storage::disk('local');
+        abort_unless(is_array($evidence) && $disk->exists($evidence['path']), 404);
 
         if ($request->boolean('preview') && in_array($evidence['mime_type'], ['image/jpeg', 'image/png'], true)) {
             return $previews->response($evidence['path'], $evidence['original_filename']);
@@ -116,8 +115,8 @@ class ResearchCoordinatorReportController extends Controller
         ];
 
         return in_array($evidence['mime_type'], ['image/jpeg', 'image/png'], true)
-            ? response()->file(Storage::disk('local')->path($evidence['path']), $headers)
-            : response()->download(Storage::disk('local')->path($evidence['path']), $evidence['original_filename'], $headers);
+            ? $disk->response($evidence['path'], $evidence['original_filename'], $headers)
+            : $disk->download($evidence['path'], $evidence['original_filename'], $headers);
     }
 
     public function store(SaveCollegeQuarterlyReportRequest $request, CollegeQuarterlyReportData $data, MonitoringQuarterService $quarters, ProposalRichText $richText, StoreProjectDocuments $storeProjectDocuments, NotifyRmsQuarterlyReportStatus $notifyRmsStatus): RedirectResponse
@@ -231,7 +230,7 @@ class ResearchCoordinatorReportController extends Controller
         }
         Storage::disk('local')->delete($removedPaths);
         if ($submitting) {
-            $notifyRmsStatus->handle($validated['reporting_year'], $validated['reporting_quarter']);
+            rescue(fn () => $notifyRmsStatus->handle($validated['reporting_year'], $validated['reporting_quarter']));
         }
 
         $period = ['year' => $validated['reporting_year'], 'quarter' => $validated['reporting_quarter']];
@@ -349,38 +348,52 @@ class ResearchCoordinatorReportController extends Controller
                 $project = filled($row['project_id'] ?? null) ? TopicProposal::query()->whereIn('status', [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'])
                     ->accessibleForDocumentRelease($request->user())->findOrFail($row['project_id']) : null;
                 $subdirectory = $report->reporting_year.'/q'.$report->reporting_quarter.'/'.$section.'/'.$row['id'];
-                $copyCaptions = [];
+                $disk = Storage::disk('local');
+                $directory = 'college-quarterly-reports/'.$report->id.'/'.$report->reporting_year.'/q'.$report->reporting_quarter.'/'.(Str::limit(Str::slug($folder), 80, '') ?: 'activity').'/'.$section.'/'.$row['id'];
+                $projectDirectory = 'accomplishment-evidence/'.$subdirectory;
+                $note = $report->reporting_year.' Q'.$report->reporting_quarter.' · '.Str::headline($section).' · '.$folder;
                 foreach ($retained as $index => $image) {
                     $folderChanged = ($image['project_id'] ?? null) !== $project?->id
                         || ($project === null && ($image['folder'] ?? null) !== $folder);
-                    if ($folderChanged && Storage::disk('local')->exists($image['path'])
-                        && in_array(Storage::disk('local')->mimeType($image['path']), ['image/jpeg', 'image/png'], true)) {
-                        $copyCaptions[count($files)] = $image['caption'] ?? '';
-                        $files[] = new UploadedFile(Storage::disk('local')->path($image['path']), $image['original_filename'], $image['mime_type'], null, true);
-                        unset($evidence[$index]);
+                    if (! $folderChanged || ! $disk->exists($image['path'])
+                        || ! in_array($mime = $disk->mimeType($image['path']), ['image/jpeg', 'image/png'], true)) {
+                        continue;
                     }
+
+                    unset($image['project_id'], $image['document_id']);
+                    if ($project !== null) {
+                        $document = $storeProjectDocuments->copy($project, $request->user(), $image['path'], $image['original_filename'], ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE, $note, $projectDirectory);
+                        $path = $document->file_path;
+                        $image['project_id'] = $project->id;
+                        $image['document_id'] = $document->id;
+                    } else {
+                        $path = $directory.'/'.Str::uuid().($mime === 'image/png' ? '.png' : '.jpg');
+                        if (! $disk->copy($image['path'], $path)) {
+                            throw new RuntimeException('The existing activity proof could not be copied.');
+                        }
+                    }
+                    $storedPaths[] = $path;
+                    $evidence[$index] = [...$image, 'path' => $path, 'folder' => $folder];
                 }
                 if ($project !== null && $files !== []) {
-                    $documents = $storeProjectDocuments->handle($project, $request->user(), $files, ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE,
-                        $report->reporting_year.' Q'.$report->reporting_quarter.' · '.Str::headline($section).' · '.$folder, 'accomplishment-evidence/'.$subdirectory);
-                    foreach ($documents as $index => $document) {
+                    $documents = $storeProjectDocuments->handle($project, $request->user(), $files, ProjectDocument::CATEGORY_ACCOMPLISHMENT_EVIDENCE, $note, $projectDirectory);
+                    foreach ($documents as $document) {
                         $storedPaths[] = $document->file_path;
                         $evidence[] = [
-                            'path' => $document->file_path, 'caption' => $copyCaptions[$index] ?? '', 'mime_type' => $document->mime_type,
+                            'path' => $document->file_path, 'caption' => '', 'mime_type' => $document->mime_type,
                             'original_filename' => $document->original_filename, 'section' => $section, 'row_id' => $row['id'],
                             'folder' => $folder, 'project_id' => $project->id, 'document_id' => $document->id,
                         ];
                     }
                 } else {
-                    foreach ($files as $index => $file) {
-                        $directory = 'college-quarterly-reports/'.$report->id.'/'.$report->reporting_year.'/q'.$report->reporting_quarter.'/'.(Str::limit(Str::slug($folder), 80, '') ?: 'activity').'/'.$section.'/'.$row['id'];
+                    foreach ($files as $file) {
                         $path = $file->store($directory, 'local');
                         if ($path === false) {
                             throw new RuntimeException('The activity proof could not be stored.');
                         }
                         $storedPaths[] = $path;
                         $evidence[] = [
-                            'path' => $path, 'caption' => $copyCaptions[$index] ?? '', 'mime_type' => $file->getMimeType(), 'original_filename' => $file->getClientOriginalName(),
+                            'path' => $path, 'caption' => '', 'mime_type' => $file->getMimeType(), 'original_filename' => $file->getClientOriginalName(),
                             'section' => $section, 'row_id' => $row['id'], 'folder' => $folder,
                         ];
                     }

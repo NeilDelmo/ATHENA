@@ -169,6 +169,11 @@ class ProposalDraftMemberController extends Controller
             $membership = $lockedDraft->members()->lockForUpdate()->findOrFail($member);
             $membership->setRelation('draft', $lockedDraft);
             Gate::authorize('remove', $membership);
+            if ($membership->isAccepted() && $lockedDraft->hasPendingDeletionRequest()) {
+                throw ValidationException::withMessages([
+                    'member' => 'Cancel the pending deletion request before removing an accepted teammate.',
+                ]);
+            }
             $membership->delete();
 
             return $membership->name;

@@ -227,7 +227,7 @@
                             >
                             <span role="status" class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
                         </label>
-                        <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-300 dark:hover:bg-red-950">Remove image</button>
+                        <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="secondary-action">Remove image</button>
                         <label class="block font-bold">
                             Or reuse earlier evidence
                             <select
@@ -376,7 +376,7 @@
                                 Upload a new image
                                 <input type="file" name="photo_{{ $index }}" accept=".jpg,.jpeg,.png" class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-red-800" @change="if ($event.target.files[0]) { if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; imageId = ''; }">
                                 <span role="status" class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
-                                <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="mt-2 min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-red-300 dark:hover:bg-red-950">Remove image</button>
+                                <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="secondary-action mt-2">Remove image</button>
                             </label>
                             <label class="block font-bold">
                                 Or reuse earlier evidence

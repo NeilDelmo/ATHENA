@@ -445,6 +445,11 @@ test('adding reordering and removing objectives trigger autosave without needing
     state.moveSpecificObjective(0, 1);
     assert.equal(state.specificObjectives[1].id, firstId);
     state.removeSpecificObjective(0);
+    state.specificObjectives[0].description = 'Measure habitat recovery.';
+    state.removeSpecificObjective(0);
+    assert.equal(state.specificObjectives.length, 1);
+    assert.equal(state.specificObjectives[0].id, firstId);
+    assert.equal(state.specificObjectives[0].description, 'Measure habitat recovery.');
     assert.equal(changes, 4);
 });
 
@@ -648,7 +653,7 @@ test('missing objective links focus an empty specific field instead of the fille
     assert.equal(focused, empty);
 });
 
-test('the objective editor shows and focuses the required field when only a general objective is saved', async () => {
+test('the objective editor focuses the required field and only offers row actions for multiple objectives', async () => {
     const app = (readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../resources/js/detailed-proposal-editor.js', import.meta.url), 'utf8').replace(/^ {4}/gm, ''));
     const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
     const end = app.indexOf('\n}));', start) + '\n}));'.length;
@@ -686,7 +691,12 @@ test('the objective editor shows and focuses the required field when only a gene
                 });` });
             await page.addScriptTag({ content: alpine });
             const required = page.locator('textarea[name="specific_objectives[0][description]"]');
+            const specificObjectives = page.locator('[data-specific-objectives-fields]');
+            const objectiveRows = specificObjectives.locator('article');
             await required.waitFor({ state: 'visible' });
+            for (const name of ['Up', 'Down', 'Remove']) {
+                await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
+            }
             assert.equal(await page.locator('#general-objective').inputValue(), 'samplee');
             assert.equal(await required.evaluate((field) => field.required), true);
             await page.locator('#missing-objective').click();
@@ -698,9 +708,20 @@ test('the objective editor shows and focuses the required field when only a gene
             const saved = await page.evaluate(() => Object.fromEntries(window.objectiveState.detailedProposalFormData()));
             assert.equal(saved.general_objective, 'samplee');
             assert.equal(saved['specific_objectives[0][description]'], 'Measure habitat recovery.');
-            await page.getByRole('button', { name: 'Remove', exact: true }).click();
-            assert.equal(await required.count(), 1);
-            assert.equal(await required.inputValue(), '');
+            await specificObjectives.getByRole('button', { name: 'Add specific objective', exact: true }).click();
+            await expect(objectiveRows).toHaveCount(2);
+            await expect(page.locator('#general-objective')).toHaveValue('samplee');
+            await expect(objectiveRows.first().getByRole('button', { name: 'Up' })).toBeDisabled();
+            await expect(objectiveRows.last().getByRole('button', { name: 'Down' })).toBeDisabled();
+            await objectiveRows.last().getByRole('textbox').fill('Record species diversity.');
+            await objectiveRows.first().getByRole('button', { name: 'Down' }).click();
+            await expect(required).toHaveValue('Record species diversity.');
+            await objectiveRows.first().getByRole('button', { name: 'Remove' }).click();
+            await expect(objectiveRows).toHaveCount(1);
+            await expect(required).toHaveValue('Measure habitat recovery.');
+            for (const name of ['Up', 'Down', 'Remove']) {
+                await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
+            }
             assert.deepEqual(errors, []);
             await page.close();
         }

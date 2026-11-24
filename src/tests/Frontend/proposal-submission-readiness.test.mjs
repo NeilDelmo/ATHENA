@@ -189,6 +189,19 @@ test('readiness automatically reveals exact fields, saves before guidance, and n
         assert.deepEqual(hub.errors, []);
         await hub.page.close();
 
+        const requestUrl = 'https://athena.test/deletion-requests/1';
+        const deletion = await fixture(`${panel}<button data-proposal-readiness-continue data-url="/ready">Review submission</button>`, {
+            value: state([blocker(null, {
+                key: 'deletion_request', paper: null, url: requestUrl,
+                message: 'Resolve the open deletion request before submitting this proposal.',
+            })], { status: 'deletion_pending', ready_to_prepare: true }),
+        });
+        await deletion.page.getByRole('button', { name: 'Review submission' }).click();
+        await expect(deletion.page.locator('[data-proposal-readiness-label]')).toHaveText('Submission paused for deletion request');
+        await expect.poll(() => deletion.page.evaluate(() => window.navigations)).toEqual([requestUrl]);
+        assert.deepEqual(deletion.errors, []);
+        await deletion.page.close();
+
         const lazyResponse = { value: state([], { status: 'prepare', ready_to_submit: false }) };
         const lazy = await fixture('<button data-proposal-readiness-continue data-url="/ready">Review submission</button>', lazyResponse);
         await lazy.page.evaluate(html => {

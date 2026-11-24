@@ -141,7 +141,7 @@ class ProjectReportReviewService
     private function notify(Collection $recipients, ProjectProgressReport|ProjectNarrativeReport $report, string $title, string $message, string $workspace, string $level = 'info'): void
     {
         $anchor = $report instanceof ProjectProgressReport ? 'monitoring-tool-'.$report->id : 'project-monitoring';
-        $recipients->each->notify(new ProposalActivityNotification(
+        $notification = new ProposalActivityNotification(
             title: $title,
             message: $message.' Project: '.$report->topic->title,
             url: route('topics.show', $report->topic).'#'.$anchor,
@@ -151,6 +151,10 @@ class ProjectReportReviewService
             sidebarArea: $workspace === User::WORKSPACE_FACULTY_RESEARCHER
                 ? ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS
                 : ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
-        ));
+        );
+
+        foreach ($recipients as $recipient) {
+            rescue(fn () => $recipient->notify($notification));
+        }
     }
 }

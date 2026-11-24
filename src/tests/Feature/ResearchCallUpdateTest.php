@@ -1,13 +1,17 @@
 <?php
 
+use App\Http\Controllers\ResearchCallController;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Notifications\ResearchCallPublishedNotification;
 use App\Notifications\ResearchCallUpdatedNotification;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -140,4 +144,22 @@ test('other workspaces cannot edit a research call', function () {
     $this->actingAs($this->faculty)
         ->put(route('research-calls.update', $this->call), [])
         ->assertForbidden();
+});
+
+test('publishing a stale copy uses the current schedule and does not repeat an opening notice', function () {
+    Notification::fake();
+    $this->call->update(['status' => 'closed']);
+    $staleCall = $this->call->fresh();
+    $this->actingAs($this->head)
+        ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])
+        ->assertSessionHasNoErrors();
+    $publish = Request::create('/', 'PATCH', ['status' => 'open']);
+    $controller = app(ResearchCallController::class);
+    $controller->updateStatus($publish, $staleCall);
+
+    Notification::assertSentToTimes($this->faculty, ResearchCallPublishedNotification::class, 1);
+
+    $this->call->refresh()->forceFill(['status' => 'closed', 'closes_at' => now()->subMinute()])->save();
+    expect(fn () => $controller->updateStatus($publish, $staleCall))->toThrow(ValidationException::class)
+        ->and($this->call->fresh()->status)->toBe('closed');
 });

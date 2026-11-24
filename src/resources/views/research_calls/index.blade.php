@@ -60,7 +60,7 @@
 
         <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Research call records">
             <div class="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-                <div class="inline-flex min-w-0 flex-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950" role="tablist" aria-label="Research call status">
+                <div class="inline-flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950" role="tablist" aria-label="Research call status">
                     @foreach ($callTabs as $tabKey => $tab)
                         <button
                             type="button"
@@ -68,7 +68,7 @@
                             x-on:click="activeTab = '{{ $tabKey }}'"
                             x-bind:aria-selected="activeTab === '{{ $tabKey }}'"
                             x-bind:class="activeTab === '{{ $tabKey }}' ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-slate-500 hover:bg-white/60 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
-                            class="inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-slate-950"
+                            class="border border-slate-400 dark:border-slate-500 inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-slate-950"
                         >
                             {{ $tab['label'] }}
                             <span x-bind:class="activeTab === '{{ $tabKey }}' ? 'bg-white/15 text-white dark:bg-gray-900/10 dark:text-gray-950' : 'bg-slate-200/80 text-slate-600 dark:bg-slate-800 dark:text-slate-400'" class="rounded-full px-2 py-0.5 text-[10px]">{{ $tab['calls']->count() }}</span>

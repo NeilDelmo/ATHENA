@@ -3,6 +3,7 @@
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\ResearchCallDeadlineNotice;
 use Carbon\CarbonImmutable;
 use Spatie\Permission\Models\Role;
 
@@ -48,9 +49,9 @@ test('research call date inputs are saved in the exact Manila date and time sele
         ->assertSee('2026-09-05T17:45');
 });
 
-test('a header banner shows the nearest research call deadline within seven days', function () {
-    $faculty = User::factory()->create();
-    $faculty->assignRole(User::WORKSPACE_FACULTY);
+test('the Research Head banner shows the nearest research call deadline within seven days', function () {
+    $head = User::factory()->create();
+    $head->assignRole(User::WORKSPACE_RESEARCH_HEAD);
 
     ResearchCall::create([
         'title' => 'Later Closing Call',
@@ -67,19 +68,20 @@ test('a header banner shows the nearest research call deadline within seven days
         'status' => 'open',
     ]);
 
-    $this->actingAs($faculty)
-        ->get(route('faculty.dashboard'))
+    $this->actingAs($head)
+        ->get(route('research-calls.index'))
         ->assertOk()
         ->assertSee('data-research-call-deadline-banner', false)
         ->assertSee($nearestCall->title)
         ->assertSee('Aug 27, 2026 at 5:30 PM PHT')
-        ->assertDontSee('Later Closing Call')
         ->assertSee(route('research-calls.index'), false);
+
+    expect(app(ResearchCallDeadlineNotice::class)->forUser($head)->id)->toBe($nearestCall->id);
 });
 
 test('the deadline banner stays hidden when no open call is due within seven days', function () {
-    $faculty = User::factory()->create();
-    $faculty->assignRole(User::WORKSPACE_FACULTY);
+    $head = User::factory()->create();
+    $head->assignRole(User::WORKSPACE_RESEARCH_HEAD);
 
     ResearchCall::create([
         'title' => 'Future Research Call',
@@ -96,17 +98,17 @@ test('the deadline banner stays hidden when no open call is due within seven day
         'status' => 'draft',
     ]);
 
-    $this->actingAs($faculty)
-        ->get(route('faculty.dashboard'))
+    $this->actingAs($head)
+        ->get(route('research-calls.index'))
         ->assertOk()
         ->assertDontSee('data-research-call-deadline-banner', false);
 });
 
-test('faculty who did not submit see an ended-call message without a proposal creation shortcut', function () {
+test('faculty can open the draft form after a call ends without seeing the Research Head banner', function () {
     $faculty = User::factory()->create();
     $faculty->assignRole(User::WORKSPACE_FACULTY);
 
-    $endedCall = ResearchCall::create([
+    ResearchCall::create([
         'title' => 'Ended Research Call',
         'academic_year' => '2026-2027',
         'opens_at' => now()->subMonth(),
@@ -117,19 +119,13 @@ test('faculty who did not submit see an ended-call message without a proposal cr
     $this->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('data-research-call-notice-state="ended"', false)
-        ->assertSee('Submission period ended')
-        ->assertSee($endedCall->title)
-        ->assertSee('New proposals cannot be started or submitted until the Research Office opens another call.')
-        ->assertSee('View research calls')
-        ->assertSee('href="'.route('research-calls.index').'"', false)
+        ->assertDontSee('data-research-call-deadline-banner', false)
         ->assertDontSee('Start next-call draft');
 
     $this->actingAs($faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
-        ->assertSee('Proposal submissions are closed')
-        ->assertDontSee('Create preparation draft');
+        ->assertSee('Create draft and continue');
 });
 
 test('faculty who submitted do not see an ended-call message', function () {

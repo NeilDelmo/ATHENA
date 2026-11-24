@@ -75,9 +75,9 @@
         </div>
 
         <div class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-slate-800">
-            <button x-show="!required && value" type="button" x-on:click="clear" class="rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:hover:bg-slate-800 dark:hover:text-white">Clear</button>
+            <button x-show="!required && value" type="button" x-on:click="clear" class="secondary-action">Clear</button>
             <span x-show="required || !value" aria-hidden="true"></span>
-            <button type="button" x-on:click="selectNow" class="rounded-lg px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Now</button>
+            <button type="button" x-on:click="selectNow" class="secondary-action">Now</button>
         </div>
     </div>
 </div>

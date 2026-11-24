@@ -19,7 +19,8 @@ class MeasureRequestPerformance
     {
         if (! $request->routeIs('workspace.store', 'role-selection.store', 'search.index', 'research.index', 'research.show',
             'research_head.projects.index', 'research_head.completed-projects.index', '*.projects.workspace.documents',
-            'topics.show', 'notifications.index', 'faculty.proposal-drafts.index')) {
+            'topics.show', 'notifications.index', 'faculty.proposal-drafts.index',
+            'faculty.proposal-drafts.show', 'faculty.proposal-drafts.detailed-proposal.edit')) {
             return $next($request);
         }
 

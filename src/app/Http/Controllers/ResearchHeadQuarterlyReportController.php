@@ -7,6 +7,7 @@ use App\Http\Requests\ReturnCollegeQuarterlyReportRequest;
 use App\Http\Requests\UpdateCollegeReportLibraryRequest;
 use App\Models\CollegeQuarterlyReport;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use App\Services\CollegeReportLibrary;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Http\JsonResponse;
@@ -113,7 +114,17 @@ class ResearchHeadQuarterlyReportController extends Controller
                 'snapshot' => Arr::only($submission->snapshot, ['presentations', 'publications', 'research', 'undated_publications']),
             ]);
         });
-        $notifyRmsStatus->handle($report->reporting_year, $report->reporting_quarter);
+        $notification = new ProposalActivityNotification(
+            title: 'Quarterly accomplishment report returned',
+            message: 'Your college report for Q'.$report->reporting_quarter.' '.$report->reporting_year.' was returned for correction. Open the report to review the reason.',
+            url: route('research_coordinator.reports.index', ['year' => $report->reporting_year, 'quarter' => $report->reporting_quarter]),
+            level: 'warning',
+            workspace: User::WORKSPACE_RESEARCH_OFFICE,
+        );
+        foreach (User::assignedToRole('research_coordinator')->where('college', $report->college)->get() as $coordinator) {
+            rescue(fn () => $coordinator->notify($notification));
+        }
+        rescue(fn () => $notifyRmsStatus->handle($report->reporting_year, $report->reporting_quarter));
 
         return redirect()->route('research_head.quarterly-reports.index', ['year' => $report->reporting_year, 'college' => $report->college, 'quarter' => $report->reporting_quarter])
             ->with('status', 'Quarterly report returned to the coordinator for correction.');

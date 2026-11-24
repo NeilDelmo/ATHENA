@@ -88,13 +88,21 @@ export default function initProposalSubmissionReadiness({
     function renderCues(root, data, focusedBlocker = null, focusedTarget = null) {
         clearCues(root);
         if (!data.can_guide) return;
+        const editor = window.Alpine?.$data(root);
         if (root.hasAttribute('data-proposal-requirements-on-demand')
-            && !window.Alpine?.$data(root)?.requirementsReviewed) return;
+            && !editor?.requirementsReviewed) return;
         const rendered = [];
         for (const blocker of data.blockers || []) {
             if (blocker.owner !== 'faculty' || blocker.paper !== root.dataset.proposalPaper) continue;
             const target = blocker === focusedBlocker ? focusedTarget : fieldTarget(root, blocker.field);
             if (!target) continue;
+            if (blocker.field?.startsWith('specific_method_objectives.')
+                && target.name?.replace(/\[([^\]]+)\]/g, '.$1') === blocker.field
+                && target.validity?.valid === false
+                && typeof editor?.highlightDetailedProposalField === 'function') {
+                editor.highlightDetailedProposalField(target);
+                continue;
+            }
             const existing = rendered.find(item => item.target === target);
             if (existing) {
                 existing.cue.textContent += ` ${blocker.message}`;
@@ -121,6 +129,7 @@ export default function initProposalSubmissionReadiness({
             const label = panel.querySelector('[data-proposal-readiness-label]');
             if (label) label.textContent = {
                 incomplete: 'Complete these fields', office: 'Awaiting Research Office setup',
+                deletion_pending: 'Submission paused for deletion request',
                 prepare: 'Content complete · PDFs need preparation', ready: 'Ready to turn in',
             }[data.status] || 'Review submission requirements';
             const list = panel.querySelector('[data-proposal-readiness-issues]');

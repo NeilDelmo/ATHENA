@@ -152,6 +152,7 @@ test('prepared proposal PDFs are fetched and rendered in the review dialog', asy
             await trigger.click();
             await page.waitForFunction(() => window.assessmentState.previewReady || window.assessmentState.previewError);
             assert.equal(await page.evaluate(() => window.assessmentState.previewError), '');
+            assert.equal(await page.getByRole('button', { name: 'Print', exact: true, includeHidden: true }).count(), 0);
             const iframe = page.locator('iframe');
             await iframe.contentFrame().locator('.assessment-page img').waitFor();
             assert.ok(await iframe.evaluate((frame) => frame.contentDocument.querySelector('img').naturalWidth > 1000));
@@ -230,7 +231,7 @@ test('review assessment statuses and preview buttons align without crowding on n
     }
 });
 
-test('both assessment forms open the shared viewer with working zoom, print, download and position restoration in both themes', async () => {
+test('both assessment forms open the shared viewer with zoom, Word download and position restoration in both themes', async () => {
     const forms = renderForms();
     const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
     try {
@@ -309,16 +310,7 @@ test('both assessment forms open the shared viewer with working zoom, print, dow
                     }
                     const download = page.getByRole('link', { name: 'Download Word', exact: true });
                     assert.ok((await download.getAttribute('href')).endsWith(`${name === 'GAD Generic Checklist' ? 'gad-checklist' : 'initial-screening-form'}/download`));
-                    await page.evaluate(() => {
-                        window.printCalls = 0;
-                        window.assessmentState.$refs.previewFrame.contentWindow.print = () => {
-                            window.printCalls++;
-                            window.printZoom = window.assessmentState.$refs.previewFrame.contentDocument.body.style.zoom;
-                        };
-                    });
-                    await page.getByRole('button', { name: 'Print', exact: true }).click();
-                    assert.equal(await page.evaluate(() => window.printCalls), 1);
-                    assert.equal(await page.evaluate(() => window.printZoom), '1');
+                    assert.equal(await page.getByRole('button', { name: 'Print', exact: true, includeHidden: true }).count(), 0);
                     await download.focus();
                     await page.keyboard.press('Tab');
                     assert.equal(await iframe.evaluate((frame) => frame === document.activeElement), true);
@@ -414,7 +406,7 @@ test('loading failures can be retried and closing or switching forms discards la
         await page.route('**/gad-checklist/preview', (route) => route.fulfill({ status: 500, contentType: 'text/html', body: 'Error' }));
         await page.getByRole('button', { name: 'Preview GAD Generic Checklist', exact: true }).click();
         await page.getByRole('alert').waitFor();
-        assert.equal(await page.getByRole('button', { name: 'Print', exact: true }).isDisabled(), true);
+        assert.equal(await page.getByRole('button', { name: 'Print', exact: true, includeHidden: true }).count(), 0);
         assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), true);
         await page.route('**/gad-checklist/preview', (route) => route.fulfill({ contentType: 'text/html', body: forms.gad }));
         await page.getByRole('button', { name: 'Retry preview', exact: true }).click();

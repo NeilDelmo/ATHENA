@@ -11,6 +11,7 @@ use App\Services\ProjectDocumentLibrary;
 use App\Services\ResearchHeadReportQueue;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -84,6 +85,18 @@ beforeEach(function () {
 });
 
 dataset('secretary reviewed report types', ['Monitoring Tool' => 'monitoring', 'Progress Report' => 'progress', 'Terminal Report' => 'terminal']);
+
+test('a notification error does not negate a recorded report acceptance', function (string $type) {
+    Exceptions::fake();
+    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Report delivery failed.'));
+    $report = ($this->makeReport)($type, ['review_stage' => 'head', 'forwarded_at' => now()]);
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route(($this->reportRoutes)($type)['head'], $report), ['review_status' => 'reviewed'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($report->fresh()->review_status)->toBe('reviewed');
+    Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === 'Report delivery failed.');
+})->with('secretary reviewed report types');
 
 test('a changed prepared PDF cannot be submitted as the original report', function (string $type, string $change) {
     $report = ($this->makeReport)($type, ['submission_status' => 'prepared', 'prepared_at' => now(), 'submitted_at' => null]);

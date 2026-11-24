@@ -95,7 +95,6 @@ class ProposalDraftLineItemBudgetController extends Controller
             'proposalDraft',
             'paper',
             'lineItemBudgetDocument',
-            'expenseBreakdownDocument',
             'sourceData',
             'workspacePeople',
             'budgetConsistency',

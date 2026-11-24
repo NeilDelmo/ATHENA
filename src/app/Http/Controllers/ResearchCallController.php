@@ -17,10 +17,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -107,7 +109,7 @@ class ResearchCallController extends Controller
             throw $exception;
         }
         if ($call->isAcceptingSubmissions()) {
-            $this->openingNotifications->process($call, includeReminder: false);
+            rescue(fn () => $this->openingNotifications->process($call, includeReminder: false));
         }
 
         return redirect()->route('research-calls.index')->with('success', 'Research call created successfully.');
@@ -116,7 +118,6 @@ class ResearchCallController extends Controller
     public function update(UpdateResearchCallRequest $request, ResearchCall $researchCall): RedirectResponse
     {
         $validated = $request->validated();
-        $oldImagePath = $researchCall->reference_image_path;
         $newImagePath = $request->file('reference_image')?->store('research-calls', 'local');
 
         if ($newImagePath === false) {
@@ -125,19 +126,25 @@ class ResearchCallController extends Controller
 
         $attributes = collect($validated)->except('reference_image')->all();
         $attributes['maximum_budget'] = ResearchCall::MAXIMUM_BUDGET;
-        $attributes['reference_image_path'] = $newImagePath ?? $oldImagePath;
-
-        $researchCall->fill($attributes);
+        if ($newImagePath !== null) {
+            $attributes['reference_image_path'] = $newImagePath;
+        }
 
         try {
-            if ($researchCall->isDirty('opens_at')) {
-                $researchCall->fill([
-                    'opening_reminder_sent_at' => null,
-                    'faculty_open_notification_sent_at' => null,
-                ]);
-            }
+            [$researchCall, $oldImagePath] = DB::transaction(function () use ($researchCall, $attributes): array {
+                $lockedCall = ResearchCall::query()->lockForUpdate()->findOrFail($researchCall->id);
+                $oldImagePath = $lockedCall->reference_image_path;
+                $lockedCall->fill($attributes);
+                if ($lockedCall->isDirty('opens_at')) {
+                    $lockedCall->fill([
+                        'opening_reminder_sent_at' => null,
+                        'faculty_open_notification_sent_at' => null,
+                    ]);
+                }
+                $lockedCall->save();
 
-            $researchCall->save();
+                return [$lockedCall, $oldImagePath];
+            }, 3);
         } catch (Throwable $exception) {
             if ($newImagePath) {
                 Storage::disk('local')->delete($newImagePath);
@@ -147,24 +154,24 @@ class ResearchCallController extends Controller
         }
 
         if ($newImagePath && $oldImagePath && $oldImagePath !== $newImagePath) {
-            Storage::disk('local')->delete($oldImagePath);
+            DB::afterCommit(fn () => rescue(fn () => Storage::disk('local')->delete($oldImagePath)));
         }
 
         $hasChanges = $researchCall->wasChanged();
 
         if ($researchCall->isAcceptingSubmissions()) {
-            $this->openingNotifications->process($researchCall, includeReminder: false);
+            rescue(fn () => $this->openingNotifications->process($researchCall, includeReminder: false));
         }
 
         if ($hasChanges && $researchCall->status !== 'draft') {
-            Notification::send(
+            rescue(fn () => Notification::send(
                 User::assignedToRole(User::WORKSPACE_FACULTY)->get(),
                 new ResearchCallUpdatedNotification(
                     $researchCall->id,
                     $researchCall->title,
                     route('research-calls.index'),
                 ),
-            );
+            ));
         }
 
         return back()->with('success', 'Research call updated successfully.');
@@ -305,25 +312,27 @@ class ResearchCallController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::in(['draft', 'open', 'closed'])],
         ]);
-        $wasPublished = $researchCall->status === 'open';
+        $researchCall = DB::transaction(function () use ($researchCall, $validated): ResearchCall {
+            $lockedCall = ResearchCall::query()->lockForUpdate()->findOrFail($researchCall->id);
+            $publishing = $validated['status'] === 'open';
+            if ($publishing && $lockedCall->closes_at->lessThanOrEqualTo(now('Asia/Manila'))) {
+                throw ValidationException::withMessages([
+                    'status' => 'This call cannot be reopened because its submission end date has passed.',
+                ]);
+            }
 
-        if ($validated['status'] === 'open' && $researchCall->closes_at->lessThanOrEqualTo(now('Asia/Manila'))) {
-            return back()->withErrors([
-                'status' => 'This call cannot be reopened because its submission end date has passed.',
-            ]);
-        }
+            $attributes = ['status' => $validated['status']];
+            if ($publishing && $lockedCall->status !== 'open') {
+                $attributes['opening_reminder_sent_at'] = null;
+                $attributes['faculty_open_notification_sent_at'] = null;
+            }
+            $lockedCall->update($attributes);
 
-        $attributes = ['status' => $validated['status']];
-
-        if ($validated['status'] === 'open' && ! $wasPublished) {
-            $attributes['opening_reminder_sent_at'] = null;
-            $attributes['faculty_open_notification_sent_at'] = null;
-        }
-
-        $researchCall->update($attributes);
+            return $lockedCall;
+        }, 3);
 
         if ($researchCall->isAcceptingSubmissions()) {
-            $this->openingNotifications->process($researchCall, includeReminder: false);
+            rescue(fn () => $this->openingNotifications->process($researchCall, includeReminder: false));
         }
 
         $message = match ($validated['status']) {

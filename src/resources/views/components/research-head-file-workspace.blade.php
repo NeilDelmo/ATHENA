@@ -81,7 +81,7 @@
             </p>
             @if (! $gadPassed || $gadUploadHasErrors)
             <section id="gad-office-review" data-gad-review-card data-initially-expanded="{{ $expandGadReview ? 'true' : 'false' }}" x-data="{ expanded: @js($expandGadReview) }" aria-labelledby="gad-review-heading" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
-                <button type="button" @click="expanded = ! expanded" aria-expanded="{{ $expandGadReview ? 'true' : 'false' }}" :aria-expanded="expanded" aria-controls="gad-review-content" class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
+                <button type="button" @click="expanded = ! expanded" aria-expanded="{{ $expandGadReview ? 'true' : 'false' }}" :aria-expanded="expanded" aria-controls="gad-review-content" class="secondary-action w-full justify-between text-left">
                     <span class="flex flex-wrap items-center gap-3">
                         <span id="gad-review-heading" class="text-lg font-bold text-gray-950 dark:text-white">GAD Office review</span>
                         @if ($gadPassed)
@@ -214,7 +214,7 @@
             @endif
             @if ($gadPassed)
                 <section id="co-evaluator-review" data-co-evaluator-review-card data-initially-expanded="{{ $expandCoEvaluatorReview ? 'true' : 'false' }}" x-data="{ expanded: @js($expandCoEvaluatorReview) }" aria-labelledby="co-evaluator-review-heading" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
-                <button type="button" @click="expanded = ! expanded" aria-expanded="{{ $expandCoEvaluatorReview ? 'true' : 'false' }}" :aria-expanded="expanded" aria-controls="co-evaluator-review-content" class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
+                <button type="button" @click="expanded = ! expanded" aria-expanded="{{ $expandCoEvaluatorReview ? 'true' : 'false' }}" :aria-expanded="expanded" aria-controls="co-evaluator-review-content" class="secondary-action w-full justify-between text-left">
                     <span class="flex flex-wrap items-center gap-3">
                         <span id="co-evaluator-review-heading" class="text-lg font-bold text-gray-950 dark:text-white">Co-evaluator review</span>
                         @if ($coEvaluatorReviewComplete)

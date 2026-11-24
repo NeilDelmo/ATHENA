@@ -3,6 +3,7 @@
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
+use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -10,6 +11,8 @@ use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Js;
@@ -651,6 +654,30 @@ test('an assigned secretary can prepare and release a notice across colleges', f
         ->and($this->topic->reviews()->latest('id')->first()->decision)->toBe('documents_released');
     $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertForbidden();
     $this->get(route('research_secretary.dashboard'))->assertOk()->assertDontSee('Prepare Notice to Proceed');
+});
+
+test('a failed notice notification does not interrupt release or notifications to other team members', function () {
+    $collaborator = User::factory()->create();
+    TopicCollaborator::factory()->create(['topic_id' => $this->topic->id, 'user_id' => $collaborator->id, 'accepted_at' => now()]);
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->staff);
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+
+    $this->actingAs($this->staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
+    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertSessionHasNoErrors();
+
+    Exceptions::fake();
+    Notification::shouldReceive('send')->once()->withArgs(fn ($user, $notice) => $user->is($this->faculty) && $notice instanceof ProposalActivityNotification)
+        ->andThrow(new RuntimeException('Notification unavailable'));
+    Notification::shouldReceive('send')->once()->withArgs(fn ($user, $notice) => $user->is($collaborator) && $notice instanceof ProposalActivityNotification);
+
+    $this->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
+        'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
+    ])->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')->assertSessionHas('success');
+
+    expect($this->topic->fresh()->isMonitoringAvailable())->toBeTrue()
+        ->and($collaborator->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+    Exceptions::assertReported(RuntimeException::class);
 });
 
 test('only the secretary can upload signed papers and cannot record Research Head assessments', function (string $role, string $workspace) {

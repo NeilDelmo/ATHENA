@@ -3,7 +3,7 @@
         <x-page-header :title="$paper['label']" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
                 <span data-detailed-proposal-completion-status class="text-base text-slate-700 dark:text-slate-200">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
-                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to attachments</x-back-link>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -262,7 +262,7 @@
                         <div class="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-2">
                             <div class="flex items-center justify-between gap-3 sm:col-span-2">
                                 <p class="text-base font-semibold text-gray-900 dark:text-white" x-text="'Staff member ' + (index + 1)">Staff member</p>
-                                <button type="button" x-on:click="removeStaff(index)" :aria-label="'Remove ' + (member.name || 'staff member ' + (index + 1))" class="h-11 shrink-0 rounded-lg px-3 text-base font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
+                                <button type="button" x-on:click="removeStaff(index)" :aria-label="'Remove ' + (member.name || 'staff member ' + (index + 1))" class="secondary-action shrink-0">Remove</button>
                             </div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:text-slate-400">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-name-${member.id}`">Project Staff (s): <x-required-mark /></label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
@@ -300,27 +300,27 @@
 
             <section data-revision-section="section-objectives" id="specific-objectives" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <input type="hidden" name="specific_objectives_present" value="1">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['objectives'] }}</h3>
-                        <p class="mt-1 text-xs text-gray-500">Enter at least one specific objective in the required fields below. The general objective is optional. Numbering is generated automatically.</p>
-                    </div>
-                    <button type="button" x-on:click="addSpecificObjective" class="inline-flex shrink-0 rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50">Add specific objective</button>
+                <div>
+                    <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['objectives'] }}</h3>
+                    <p class="mt-1 text-xs text-gray-500">Enter at least one specific objective in the required fields below. The general objective is optional. Numbering is generated automatically.</p>
                 </div>
                 <label for="general-objective" class="mt-5 block text-xs font-black uppercase tracking-wider text-gray-600">General objective <span class="font-normal normal-case text-gray-400">Optional</span></label>
                 <textarea id="general-objective" name="general_objective" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="generalObjective" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                 <div class="mt-5 space-y-3" data-specific-objectives-fields>
-                    <h4 class="text-xs font-black uppercase tracking-wider text-gray-600">Specific objectives <x-required-mark /> <span class="font-normal normal-case text-gray-500">At least one</span></h4>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h4 class="text-xs font-black uppercase tracking-wider text-gray-600">Specific objectives <x-required-mark /> <span class="font-normal normal-case text-gray-500">At least one</span></h4>
+                        <button type="button" x-on:click="addSpecificObjective" class="inline-flex shrink-0 rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50">Add specific objective</button>
+                    </div>
                     <p class="text-xs leading-5 text-gray-500">Describe the concrete results or tasks your project will achieve. Text in General objective does not fill these fields.</p>
                     <p x-show="requirementsReviewed && completionErrors.specific_objectives" x-cloak class="text-xs font-semibold text-red-700 dark:text-red-300" x-text="(completionErrors.specific_objectives || []).join(' ')"></p>
                     <template x-for="(objective, index) in specificObjectives" :key="objective.id">
                         <article class="rounded-xl border border-gray-200 p-4">
-                            <div class="flex items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
                                 <label class="text-xs font-black uppercase tracking-wider text-gray-600" :for="`specific-objective-${objective.id}`"><span x-text="`${index + 1}. Specific objective`"></span> <x-required-mark /></label>
-                                <div class="flex gap-1">
-                                    <button type="button" x-on:click="moveSpecificObjective(index, -1)" :disabled="index === 0" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-40">Up</button>
-                                    <button type="button" x-on:click="moveSpecificObjective(index, 1)" :disabled="index === specificObjectives.length - 1" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-40">Down</button>
-                                    <button type="button" x-on:click="removeSpecificObjective(index)" class="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>
+                                <div x-show="specificObjectives.length > 1" x-cloak class="flex flex-wrap gap-1">
+                                    <button type="button" x-on:click="moveSpecificObjective(index, -1)" :disabled="index === 0" class="secondary-action">Up</button>
+                                    <button type="button" x-on:click="moveSpecificObjective(index, 1)" :disabled="index === specificObjectives.length - 1" class="secondary-action">Down</button>
+                                    <button type="button" x-on:click="removeSpecificObjective(index)" class="secondary-action">Remove</button>
                                 </div>
                             </div>
                             <textarea :id="`specific-objective-${objective.id}`" :name="`specific_objectives[${index}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="objective.description" placeholder="e.g. Identify the needs of the target community." class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
@@ -411,7 +411,7 @@
                             @if ($key === 'specific_methods')
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Specific methods <x-required-mark /></h4>
-                                    <button type="button" x-on:click="addSpecificMethodGroup()" :disabled="specificMethodGroups.length >= 20" class="inline-flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-[#800020] transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-300 dark:hover:bg-slate-800">
+                                    <button type="button" x-on:click="addSpecificMethodGroup()" :disabled="specificMethodGroups.length >= 20" class="secondary-action">
                                         <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
                                         Add heading
                                     </button>
@@ -426,16 +426,19 @@
                                     <div class="specific-methods-grid grid items-start gap-2">
                                         <template x-for="(group, groupIndex) in specificMethodGroups" :key="`specific-method-group-${group.id}`">
                                             <article data-specific-method-group class="min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-white dark:border-slate-600 dark:bg-slate-900" :aria-label="`Methods: ${group.heading || 'Untitled heading'}`">
-                                                <header class="flex items-center gap-2 bg-gray-50 px-3 py-1.5 dark:bg-slate-800">
-                                                    <span class="shrink-0 text-xs font-semibold text-[#800020] dark:text-red-300" aria-hidden="true" x-text="`${specificMethodGroupLetter(groupIndex)}.`"></span>
-                                                    <label :for="`method-heading-${group.id}`" class="sr-only">Method heading <x-required-mark /></label>
-                                                    <textarea :id="`method-heading-${group.id}`" :name="`specific_method_objectives[${groupIndex}][heading]`" rows="1" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="group.heading" :aria-label="`Method heading ${specificMethodGroupLetter(groupIndex)}`" placeholder="Method heading" class="specific-method-heading block min-w-0 flex-1 rounded border-0 bg-transparent px-0 py-3 text-base font-semibold leading-6 text-gray-900 placeholder:text-gray-500 focus:ring-red-700 dark:text-white dark:placeholder:text-slate-400"></textarea>
-                                                    <button type="button" x-on:click="addSpecificMethod(group)" :disabled="group.methods.length >= 20" :aria-label="`Add method to group ${specificMethodGroupLetter(groupIndex)}`" title="Add method" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#800020] text-white transition hover:bg-[#600018] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600">
-                                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
-                                                    </button>
-                                                    <button x-show="specificMethodGroups.length > 1" type="button" x-on:click="removeSpecificMethodGroup(groupIndex)" :aria-label="`Remove method group ${specificMethodGroupLetter(groupIndex)}`" title="Remove heading" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-red-300">
-                                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                                    </button>
+                                                <header class="bg-gray-50 p-3 dark:bg-slate-800">
+                                                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                                        <label :for="`method-heading-${group.id}`" class="text-sm font-semibold text-gray-900 dark:text-white"><span x-text="`Method heading ${specificMethodGroupLetter(groupIndex)}`"></span> <x-required-mark /></label>
+                                                        <div class="flex gap-2">
+                                                            <button type="button" x-on:click="addSpecificMethod(group)" :disabled="group.methods.length >= 20" :aria-label="`Add method to group ${specificMethodGroupLetter(groupIndex)}`" title="Add method" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#800020] text-white transition hover:bg-[#600018] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600">
+                                                                <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                                            </button>
+                                                            <button x-show="specificMethodGroups.length > 1" type="button" x-on:click="removeSpecificMethodGroup(groupIndex)" :aria-label="`Remove method group ${specificMethodGroupLetter(groupIndex)}`" title="Remove heading" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-red-300">
+                                                                <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <textarea :id="`method-heading-${group.id}`" :name="`specific_method_objectives[${groupIndex}][heading]`" rows="1" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="group.heading" :aria-label="`Method heading ${specificMethodGroupLetter(groupIndex)}`" placeholder="e.g. Data collection" class="specific-method-heading block w-full rounded-md border-gray-300 bg-white px-3 py-2 text-base font-medium leading-6 text-gray-900 placeholder:text-gray-500 focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400"></textarea>
                                                 </header>
                                                 <div class="flex flex-col gap-2 border-t border-gray-200 p-2.5 dark:border-slate-700">
                                                     <template x-for="(method, methodIndex) in group.methods" :key="method.id">
@@ -475,7 +478,7 @@
                             <div class="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
                                 <div><label class="text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`responsibility-name-${responsibility.id}`">Member name <x-required-mark /></label><input :id="`responsibility-name-${responsibility.id}`" :name="`responsibilities[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="responsibility.name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                                 <div><label class="text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`responsibility-percentage-${responsibility.id}`">Responsibility % <x-required-mark /></label><input :id="`responsibility-percentage-${responsibility.id}`" :name="`responsibilities[${index}][percentage]`" type="number" required min="1" :max="availableResponsibilityPercentage(responsibility)" step="1" :value="responsibility.percentage" @input="setResponsibilityPercentage(responsibility, $event.target.value)" :aria-describedby="`responsibility-share-${responsibility.id} responsibility-allocation-status`" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                                <button type="button" x-on:click="removeResponsibility(index)" x-bind:disabled="responsibilities.length === 1" class="rounded-xl px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-40">Remove</button>
+                                <button type="button" x-on:click="removeResponsibility(index)" x-bind:disabled="responsibilities.length === 1" class="secondary-action">Remove</button>
                             </div>
                             <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                                 <p :id="`responsibility-share-${responsibility.id}`" class="text-gray-500 dark:text-slate-400" x-text="`${responsibility.percentageFixed ? 'Fixed' : 'Automatic'} share · Up to ${availableResponsibilityPercentage(responsibility)}% available`"></p>

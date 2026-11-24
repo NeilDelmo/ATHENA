@@ -13,6 +13,7 @@ use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalTemplate;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProposalTitleSimilarity;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
@@ -66,15 +67,18 @@ class ProposalDraftController extends Controller
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', ProposalDraft::class);
+        $archived = $request->query('view') === 'archived';
 
         $proposalDrafts = ProposalDraft::query()
             ->accessibleTo($request->user())
-            ->with(['researchCall', 'documents', 'owner:id,name,email'])
+            ->when($archived, fn ($drafts) => $drafts->whereNotNull('archived_at'), fn ($drafts) => $drafts->whereNull('archived_at'))
+            ->with(['researchCall', 'documents', 'owner:id,name,email', 'pendingDeletionRequest'])
+            ->withExists(['acceptedMembers', 'submittedDocumentVersions'])
             ->latest()
             ->paginate(12)
             ->withQueryString();
 
-        return view('faculty.proposal-drafts.index', compact('proposalDrafts'));
+        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'archived'));
     }
 
     public function create(Request $request): View
@@ -84,7 +88,7 @@ class ProposalDraftController extends Controller
         return view('faculty.proposal-drafts.create');
     }
 
-    public function store(StoreProposalDraftRequest $request): RedirectResponse
+    public function store(StoreProposalDraftRequest $request, ProposalTitleSimilarity $titleSimilarity): RedirectResponse
     {
         Gate::authorize('create', ProposalDraft::class);
 
@@ -92,6 +96,9 @@ class ProposalDraftController extends Controller
         $validated['project_title'] = trim($validated['project_title']);
         $validated['project_leader'] = $request->user()->name;
         $researchCallId = $validated['research_call_id'] ?? null;
+        $confirmation = hash_hmac('sha256', $request->user()->id.'|'.$validated['project_title'], config('app.key'));
+        $providedConfirmation = $request->input('similar_title_confirmation');
+        $confirmedTitle = is_string($providedConfirmation) && hash_equals($confirmation, $providedConfirmation);
         $lockKey = 'proposal-draft-create:'.hash('sha256', implode('|', [
             $request->user()->id,
             Str::lower($validated['project_title']),
@@ -99,8 +106,8 @@ class ProposalDraftController extends Controller
         ]));
 
         try {
-            /** @var array{draft: ProposalDraft, created: bool} $result */
-            $result = Cache::lock($lockKey, 10)->block(3, function () use ($request, $validated, $researchCallId): array {
+            /** @var array{draft: ProposalDraft, created: bool}|null $result */
+            $result = Cache::lock($lockKey, 10)->block(3, function () use ($request, $validated, $researchCallId, $confirmedTitle, $titleSimilarity): ?array {
                 $existingDraft = $request->user()->proposalDrafts()
                     ->where('project_title', $validated['project_title'])
                     ->where('status', ProposalDraft::STATUS_DRAFT)
@@ -117,6 +124,10 @@ class ProposalDraftController extends Controller
                     return ['draft' => $existingDraft, 'created' => false];
                 }
 
+                if (! $confirmedTitle && $titleSimilarity->hasSimilarTitle($validated['project_title'], $request->user())) {
+                    return null;
+                }
+
                 return [
                     'draft' => $request->user()->proposalDrafts()->create($validated),
                     'created' => true,
@@ -128,6 +139,12 @@ class ProposalDraftController extends Controller
                 ->withErrors([
                     'project_title' => 'This draft is already being created. Wait a moment, then open it from your saved drafts.',
                 ]);
+        }
+
+        if ($result === null) {
+            return redirect()->route('faculty.proposal-drafts.create')
+                ->withInput(['project_title' => $validated['project_title']])
+                ->with('similar_title_confirmation', $confirmation);
         }
 
         return redirect()
@@ -149,6 +166,7 @@ class ProposalDraftController extends Controller
         $proposalDraft->load([
             'researchCall',
             'documents',
+            'pendingDeletionRequest',
             'owner:id,name,email,avatar,college,contact_number,professional_title,department',
             'members.user:id,name,email,avatar,college,contact_number,professional_title,department',
             'members.invitationEmail',
@@ -159,7 +177,7 @@ class ProposalDraftController extends Controller
         $readinessBlockers = $readiness->blockers($proposalDraft, $checklist);
         $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
         $readyToPrepare = $readinessErrors === [];
-        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
+        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared && ! $proposalDraft->hasPendingDeletionRequest();
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
         $minimumProjectDate = now()->toDateString();
@@ -246,7 +264,15 @@ class ProposalDraftController extends Controller
                 : null;
         }
 
-        $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        try {
+            $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        } catch (ValidationException $exception) {
+            if (! $exception->validator->errors()->has('draft')) {
+                throw $exception;
+            }
+
+            return redirect()->route('faculty.proposal-drafts.trash')->with('trash_warning', $exception->validator->errors()->first('draft'));
+        }
         if ($request->string('signatories')->toString() === 'comment_response_form') {
             return redirect()->to(route('faculty.topics.revision', $topic).'#revision-feedback');
         }
@@ -271,7 +297,15 @@ class ProposalDraftController extends Controller
     ): RedirectResponse {
         Gate::authorize('updatePackage', $topic);
 
-        $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        try {
+            $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        } catch (ValidationException $exception) {
+            if (! $exception->validator->errors()->has('draft')) {
+                throw $exception;
+            }
+
+            return redirect()->route('faculty.proposal-drafts.trash')->with('trash_warning', $exception->validator->errors()->first('draft'));
+        }
 
         return redirect()->route('faculty.proposal-drafts.show', $proposalDraft);
     }
@@ -377,17 +411,40 @@ class ProposalDraftController extends Controller
         ], fn (mixed $value): bool => filled($value)));
     }
 
+    public function archive(Request $request, ProposalDraft $proposalDraft): RedirectResponse
+    {
+        $request->validate(['archived' => ['required', 'boolean']]);
+        $archived = $request->boolean('archived');
+
+        DB::transaction(function () use ($proposalDraft, $archived): void {
+            $draft = ProposalDraft::query()->lockForUpdate()->findOrFail($proposalDraft->getKey());
+            Gate::authorize('organize', $draft);
+            if (($draft->archived_at !== null) !== $archived) {
+                ProposalDraft::withoutTimestamps(fn (): bool => $draft->forceFill(['archived_at' => $archived ? now() : null])->save());
+            }
+        }, 3);
+
+        return redirect()->route('faculty.proposal-drafts.index', $archived ? [] : ['view' => 'archived'])
+            ->with('draft_list_status', $archived
+                ? 'Draft archived. Its papers are available in Archived drafts.'
+                : 'Draft moved back to Active drafts.');
+    }
+
     public function destroy(ProposalDraft $proposalDraft): RedirectResponse
     {
-        DB::transaction(function () use ($proposalDraft): void {
+        $linkedToSubmission = DB::transaction(function () use ($proposalDraft): bool {
             $lockedDraft = ProposalDraft::query()->lockForUpdate()->findOrFail($proposalDraft->getKey());
             Gate::authorize('delete', $lockedDraft);
             $lockedDraft->delete();
+
+            return $lockedDraft->isLinkedToSubmission();
         });
 
         return redirect()
             ->route('faculty.proposal-drafts.index')
-            ->with('success', 'Proposal draft moved to Trash. You can restore it for 30 days.')
+            ->with('success', $linkedToSubmission
+                ? 'Proposal draft moved to Trash. You can restore the linked workspace to continue revisions.'
+                : 'Proposal draft moved to Trash. You can restore it for 30 days.')
             ->with('deleted_proposal_draft_id', $proposalDraft->getKey());
     }
 

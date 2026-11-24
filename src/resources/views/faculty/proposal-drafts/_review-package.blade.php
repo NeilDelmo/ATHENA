@@ -12,6 +12,7 @@
     $reviewPapers = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
     $assessmentForms = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
     $canSubmitProposal = auth()->user()->can('submit', $proposalDraft);
+    $pendingDeletionRequest = $proposalDraft->pendingDeletionRequest;
     $nextSubmissionNumber = $proposalDraft->topic_id !== null ? (($proposalDraft->topic?->latestVersion?->version_number ?? 1) + 1) : 1;
     $submitLabel = $proposalDraft->topic_id !== null ? 'Submit Version '.$nextSubmissionNumber : 'Turn in proposal';
 @endphp
@@ -206,6 +207,9 @@
             <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $canSubmitProposal ? ($readyToSubmit ? ($proposalDraft->topic_id !== null ? 'This sends a new numbered version to the Research Head and preserves every earlier submission.' : 'Five proposal papers and two automatic assessment forms are ready. Turn in sends all seven PDFs to the Research Head.') : ($readyToPrepare ? 'Your saved content is complete. ATHENA prepares the PDFs automatically; review them before turning in.' : 'Complete the required content. ATHENA prepares the submission PDFs after your changes save.')) : 'Earlier submitted versions remain available. Requested revisions are submitted through the proposal revision page.' }}</p>
         </div>
         <div class="flex w-full shrink-0 flex-col gap-3 sm:w-auto">
+            @if ($pendingDeletionRequest)
+                <a class="secondary-action" href="{{ route('faculty.proposal-drafts.deletion.show', [$proposalDraft, $pendingDeletionRequest]) }}">Review deletion request</a>
+            @endif
             @if ($canSubmitProposal && $submissionFilesPrepared)
                 <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="{{ $submitLabel }}?" data-confirm-text="{{ $proposalDraft->topic_id !== null ? 'This creates Version '.$nextSubmissionNumber.' and keeps the earlier submitted PDFs in Versions.' : 'This sends five proposal papers and two auto-generated assessment forms to the Research Head.' }}" data-confirm-button="{{ $submitLabel }}" data-confirm-icon="question">
                     @csrf

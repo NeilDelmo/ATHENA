@@ -1757,8 +1757,9 @@ export default function registerDetailedProposalEditor(Alpine, {
         },
 
         removeSpecificObjective(index) {
+            if (this.specificObjectives.length <= 1) return;
+
             this.specificObjectives.splice(index, 1);
-            if (!this.specificObjectives.length) this.specificObjectives.push(this.newSpecificObjective());
             this.triggerDetailedProposalAutoSave();
         },
 
@@ -2732,6 +2733,14 @@ export default function registerDetailedProposalEditor(Alpine, {
             return field.checkValidity();
         },
 
+        detailedProposalFieldError(field, requiredMessage) {
+            if (!field.validity.valueMissing) return field.validationMessage;
+
+            const heading = field.name?.match(/^specific_method_objectives\[(\d+)\]\[heading\]$/);
+
+            return heading ? `Enter a heading for method group ${this.specificMethodGroupLetter(heading[1])}.` : requiredMessage;
+        },
+
         detailedProposalHighlightTarget(field) {
             if (!(field instanceof HTMLElement)) return null;
 
@@ -2788,7 +2797,7 @@ export default function registerDetailedProposalEditor(Alpine, {
                     field._proposalFeedbackElement = feedback;
                     field.setAttribute('aria-describedby', [field.getAttribute('aria-describedby'), feedback.id].filter(Boolean).join(' '));
                 }
-                feedback.textContent = field.validity.valueMissing ? 'This field is required before generating the proposal.' : field.validationMessage;
+                feedback.textContent = this.detailedProposalFieldError(field, 'This field is required before generating the proposal.');
                 feedback.hidden = false;
             }
 
@@ -2879,9 +2888,14 @@ export default function registerDetailedProposalEditor(Alpine, {
                 const key = field.name.replace(/\[([^\]]+)\]/g, '.$1');
                 if (invalidFields.includes(field)) {
                     const label = field.getAttribute('aria-label') || field.labels?.[0]?.textContent.trim() || field.name.replaceAll('_', ' ');
-                    completionErrors[key] = [field.validity.valueMissing ? `Complete ${label}.` : field.validationMessage];
+                    completionErrors[key] = [this.detailedProposalFieldError(field, `Complete ${label}.`)];
                 } else delete completionErrors[key];
             });
+            const specificMethods = fields.find(field => field.name === 'methodology[specific_methods]');
+            if (specificMethods && !specificMethods.value
+                && invalidFields.some(field => field.name?.startsWith('specific_method_objectives['))) {
+                delete completionErrors['methodology.specific_methods'];
+            }
             if (hasSdgs) delete completionErrors.sdgs;
             else completionErrors.sdgs = ['Select at least one Sustainable Development Goal.'];
             if (hasExpectedOutput) delete completionErrors.expected_outputs;
@@ -3053,13 +3067,6 @@ export default function registerDetailedProposalEditor(Alpine, {
             } finally {
                 this.downloadLoading = false;
             }
-        },
-
-        printPreview() {
-            if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
-
-            this.$refs.previewFrame.contentWindow.focus();
-            this.$refs.previewFrame.contentWindow.print();
         },
     }));
 }

@@ -20,12 +20,6 @@ const previewView = read('resources/views/components/proposal-paper-preview.blad
     .replaceAll('{{ $panelId }}', 'line-item-budget-preview-panel')
     .replaceAll('{{ $previewLabel }}', 'Line-Item Budget preview')
     .replaceAll('{{ $frameTitle }}', 'Attachment B Line-Item Budget preview');
-const toolbar = execFileSync('php', ['-r', String.raw`
-    require 'vendor/autoload.php';
-    $app = require 'bootstrap/app.php';
-    $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-    echo view('components.line-item-budget-writing-toolbar')->render();
-`], { encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' } });
 const edit = read('resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php');
 const definition = read('config/line_item_budget.php');
 const parseItems = (source) => [...source.matchAll(/\['key' => '([^']+)', 'label' => '([^']+)', 'level' => (\d)\]/g)]
@@ -43,6 +37,22 @@ const sectionView = (marker) => {
     assert.ok(index !== -1);
     return edit.slice(index, edit.indexOf('</section>', index) + '</section>'.length);
 };
+const projectInformation = execFileSync('php', ['-r', String.raw`
+    require 'vendor/autoload.php';
+    $app = require 'bootstrap/app.php';
+    $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+    echo Illuminate\Support\Facades\Blade::render(stream_get_contents(STDIN), [
+        'proposalDraft' => (new App\Models\ProposalDraft)->forceFill(['id' => 100, 'project_title' => 'Community Research']),
+        'sampleAvailable' => true,
+        'paper' => ['sample_slug' => 'line-item-budget'],
+        'budgetCeiling' => 100000,
+    ]);
+`], {
+    input: sectionView('<section data-revision-section="section-project-information"'),
+    encoding: 'utf8', env: { ...process.env, APP_ENV: 'testing' },
+});
+const budgetSections = edit.match(/<nav aria-label="Budget sections"[\s\S]*?<\/nav>/)[0];
+const budgetWarning = edit.match(/<div x-show="isOverBudget\(\)"[\s\S]*?<\/div>/)[0];
 const team = sectionView('<section data-revision-section="section-project-team"')
     .replace(/@foreach[^\n]*\n[\s\S]*?@endforeach/g, '');
 const office = sectionView('<section data-revision-section="section-research-office"')
@@ -79,8 +89,23 @@ const positionBudgetForScreenshot = async (page) => {
         });
     });
 };
+const assertProjectActionsAligned = async (page) => {
+    const projectCard = page.locator('[data-revision-section="section-project-information"]');
+    const [details, sample, editDetails] = await Promise.all([
+        projectCard.locator('dl').boundingBox(),
+        projectCard.getByRole('link', { name: 'View sample' }).boundingBox(),
+        projectCard.getByRole('link', { name: 'Edit details' }).boundingBox(),
+    ]);
+    assert.ok(sample.y >= details.y + details.height, 'Actions sit below the project details');
+    assert.equal(sample.x, details.x);
+    assert.equal(sample.y, editDetails.y);
+    assert.ok(Math.abs(sample.width - editDetails.width) <= 1);
+    assert.equal(sample.height, editDetails.height);
+};
 
-test('Attachment B keeps budget calculations and autosave with responsive paper previews and one floating toolbar', async () => {
+test('Attachment B keeps its section links, budget calculations, and responsive paper preview', async () => {
+    assert.doesNotMatch(edit, /line-item-budget-writing-toolbar|Budget amounts synchronized/);
+
     const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
         .process(read('resources/css/app.css'), { from: undefined });
     const workspaceStyles = read('resources/css/proposal-paper-workspace.css');
@@ -103,12 +128,12 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                         <main class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8" data-proposal-paper-workspace data-line-item-budget-workspace data-paper-project-details-complete="true" x-data='proposalDraftLineItemBudget(${JSON.stringify(config)})'>
                             <h1 class="text-xl font-semibold">Attachment B: Line-Item Budget</h1>
                             <div data-proposal-autosave-status><span data-proposal-autosave-message>Changes save automatically.</span><span data-proposal-autosave-indicator></span></div>
-                            ${toolbar}
                             <div class="proposal-preview-workspace proposal-writing-columns" :class="{ 'proposal-writing-preview-hidden': !previewPaneOpen }" @resize.window.debounce.150ms="resizeProposalPaperPreview()">
                                 <div class="proposal-edit-pane space-y-6" :inert="previewFullscreen">
+                                    ${projectInformation}${budgetSections}
                                     <form x-ref="form" method="POST" action="/save" class="space-y-6" data-line-item-budget-autosave-form>
                                         <input type="hidden" name="_method" value="PUT"><input type="hidden" name="document_version" value="0"><input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
-                                        ${team}${renderCategory('mooe')}${renderCategory('co')}${totals}${office}
+                                        ${team}${renderCategory('mooe')}${renderCategory('co')}${totals}${budgetWarning}${office}
                                     </form>
                                 </div>${previewView}
                             </div>
@@ -139,28 +164,28 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                         ${controller}
                     });` });
                 await page.addScriptTag({ content: read('node_modules/alpinejs/dist/cdn.min.js') });
-                const toolbarTotal = page.locator('[data-line-item-budget-toolbar-total]');
-                await toolbarTotal.waitFor();
-                assert.equal(await toolbarTotal.textContent(), '3,000.00');
-                assert.equal(await page.locator('[data-proposal-workspace-toolbar]').count(), 1);
+                const projectTotal = page.locator('[x-text="formatMoney(projectTotal())"]');
+                await expect(projectTotal).toHaveText('3,000.00');
+                await assertProjectActionsAligned(page);
                 assert.equal(await page.locator('.proposal-preview-dock').isVisible(), false);
 
-                await page.getByRole('button', { name: 'Capital Outlays', exact: true }).click();
+                await page.getByRole('link', { name: 'Capital Outlays', exact: true }).click();
                 assert.equal(await page.locator('#amount-machinery_equipment_outlay').evaluate((element) => element === document.activeElement), true);
-                await page.getByRole('button', { name: 'MOOE', exact: true }).click();
+                const jumpToMooe = page.getByRole('link', { name: 'MOOE', exact: true });
+                await jumpToMooe.click();
                 await page.locator('#amount-travelling_expenses').fill('1500');
                 const mooe = page.locator('#line-item-budget-section-mooe');
                 await mooe.getByRole('button', { name: 'Add category or sub-category', exact: true }).click();
                 await expect(mooe.getByRole('textbox', { name: 'Custom MOOE particular' })).toBeFocused();
                 await mooe.getByRole('textbox', { name: 'Custom MOOE particular' }).fill('Community consultation supplies');
                 await mooe.getByRole('spinbutton', { name: 'Custom MOOE amount' }).fill('500');
-                assert.equal(await toolbarTotal.textContent(), '4,000.00');
+                await expect(projectTotal).toHaveText('4,000.00');
 
                 await mooe.getByRole('checkbox', { name: 'Edit this total manually' }).check();
                 await page.locator('#mooe-total-override').fill('6000');
-                assert.equal(await toolbarTotal.textContent(), '8,000.00');
+                await expect(projectTotal).toHaveText('8,000.00');
                 await mooe.getByRole('checkbox', { name: 'Edit this total manually' }).uncheck();
-                assert.equal(await toolbarTotal.textContent(), '4,000.00');
+                await expect(projectTotal).toHaveText('4,000.00');
                 await page.getByRole('button', { name: 'Add project staff', exact: true }).click();
                 await page.locator('[name="staff[0][name]"]').fill('Workspace Member');
                 await page.locator('[name="staff[0][name]"]').dispatchEvent('change');
@@ -178,6 +203,7 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                 assert.equal(await page.getByRole('button', { name: 'Retry preview', exact: true }).isVisible(), false);
                 assert.equal(await page.evaluate(() => window.previewBodies.at(-1).some(([name]) => name === '_method')), false);
                 if (width >= 1024) {
+                    await assertProjectActionsAligned(page);
                     assert.equal(await page.locator('.proposal-preview-dock-expanded').count(), 0);
                     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                     const editorWidth = await page.locator('.proposal-edit-pane').evaluate((element) => element.getBoundingClientRect().width);
@@ -186,7 +212,7 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                     assert.ok(editorWidth > dock.width, `The editor must stay wider than the compact preview at ${width}px: ${JSON.stringify({ editorWidth, dock })}`);
                     assert.ok(dock.width <= 336, 'The side preview must stay within its compact desktop width');
                     if (process.env.ATHENA_EDITOR_VISUAL_DIR) {
-                        await page.getByRole('button', { name: 'MOOE', exact: true }).click();
+                        await jumpToMooe.click();
                         await positionBudgetForScreenshot(page);
                         await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `line-item-budget-workspace-${width}-${dark ? 'dark' : 'light'}.png`) });
                     }
@@ -223,12 +249,11 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
 
                 await mooe.getByRole('button', { name: 'Remove', exact: true }).click();
                 await mooe.getByRole('textbox', { name: 'Custom MOOE particular' }).waitFor({ state: 'detached' });
-                assert.equal(await toolbarTotal.textContent(), '3,800.00');
+                await expect(projectTotal).toHaveText('3,800.00');
                 await page.getByRole('checkbox', { name: 'Edit project total manually' }).check();
                 await page.locator('#project-total-override').fill('100001');
-                assert.equal(await toolbarTotal.textContent(), '100,001.00');
-                await page.locator('.budget-writing-limit-warning').waitFor({ state: 'visible' });
-                assert.equal(await page.locator('.budget-writing-limit-warning').isVisible(), true);
+                await expect(projectTotal).toHaveText('100,001.00');
+                await expect(page.getByRole('alert').filter({ hasText: 'Budget limit exceeded' })).toBeVisible();
                 await page.waitForFunction(() => window.savedBodies.at(-1)?.some(([name,value]) => name === 'project_total_override' && value === '100001') && !window.budgetState.autoSaveInFlight);
                 assert.ok(await page.evaluate(() => window.savedBodies.at(-1).some(([name,value]) => name === 'save_as_draft' && value === '1')));
                 await page.evaluate(() => window.budgetState.downloadDocument());
@@ -239,7 +264,7 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                 await page.evaluate(() => window.budgetState.closeProposalPreview());
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                 if (process.env.ATHENA_EDITOR_VISUAL_DIR && width < 1024) {
-                    await page.getByRole('button', { name: 'MOOE', exact: true }).click();
+                    await jumpToMooe.click();
                     await positionBudgetForScreenshot(page);
                     await page.screenshot({ path: resolve(process.env.ATHENA_EDITOR_VISUAL_DIR, `line-item-budget-workspace-${width}-${dark ? 'dark' : 'light'}.png`) });
                 }
@@ -249,7 +274,7 @@ test('Attachment B keeps budget calculations and autosave with responsive paper 
                     window.budgetState.showProposalPreview();
                 });
                 assert.equal(await page.evaluate(() => window.budgetState.previewPaneOpen || window.budgetState.previewFullscreen), false);
-                assert.equal(await page.locator('[data-proposal-preview-toggle]').isVisible(), false);
+                assert.equal(await page.locator('.proposal-writing-preview-launcher').isVisible(), false);
                 assert.deepEqual(errors, []);
                 await page.close();
             }

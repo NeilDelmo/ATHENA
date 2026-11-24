@@ -3,7 +3,7 @@ import { renderAssessmentPdf } from './proposal-assessment-preview';
 
 export function reportPaperPreview({ previewUrl, title, readOnly = false, openOnLoad = false }) {
     return {
-        ...proposalPaperPreviewWorkspace({ initiallyOpen: true }),
+        ...proposalPaperPreviewWorkspace({ initiallyOpen: true, canPrint: true }),
         previewTitle: title,
         previewHtml: '',
         previewLoading: false,
