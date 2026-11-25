@@ -17,7 +17,7 @@ beforeEach(function () {
     $this->withoutVite();
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(9, 0));
     Storage::fake('local');
-    foreach (['research_coordinator', 'faculty'] as $role) {
+    foreach (['research_coordinator', 'faculty', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
     $this->coordinator = User::factory()->create(['college' => User::COLLEGES['CICS']]);

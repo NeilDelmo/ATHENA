@@ -20,6 +20,20 @@ const previewHelpers = read('resources/js/document-writing-toolbar.js').replaceA
     + read('resources/js/proposal-paper-workspace.js').replace(/^import .+;\n/gm, '').replaceAll('export ', '');
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1kAAAAASUVORK5CYII=', 'base64');
 
+const longEvidenceName = '918849501_1471841044880672_9045385176500915426_'.repeat(3) + 'evidence.png';
+
+async function assertFilenameFits(locator) {
+    await locator.waitFor();
+    const fits = await locator.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const range = element.ownerDocument.createRange();
+        range.selectNodeContents(element);
+
+        return [...range.getClientRects()].every(rect => rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1);
+    });
+    assert.ok(fits, 'The full filename should wrap inside its control');
+}
+
 const fitStylesheet = 'resources/css/report-preview-fit.css';
 function inlinePreviewStyles(path) {
     const template = read(path);
@@ -143,6 +157,22 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                         assert.ok(accomplishmentBounds.width >= cardBounds.width - 42, 'The accomplishment field should span the available card width');
                         assert.ok(evidenceBounds.y > accomplishmentBounds.y + accomplishmentBounds.height, 'The evidence field should sit below the accomplishment');
                         assert.ok(Math.abs(evidenceBounds.width - accomplishmentBounds.width) <= 1, 'The evidence field should span the same width');
+                    }
+                    if (type === 'monitoring' || type === 'progress') {
+                        await page.evaluate(({ type, name }) => {
+                            const row = (type === 'monitoring' ? window.monitorState.entries : window.monitorState.accomplishmentRows)[0];
+                            (row.evidence ??= []).push({ id: 'filename-test', name });
+                        }, { type, name: longEvidenceName });
+                        const file = form.getByRole('link', { name: longEvidenceName, exact: true });
+                        await assertFilenameFits(file);
+                        const remove = form.getByRole('button', { name: 'Remove ' + longEvidenceName, exact: true });
+                        const fileBounds = await file.boundingBox();
+                        const removeBounds = await remove.boundingBox();
+                        assert.ok(fileBounds.x + fileBounds.width <= removeBounds.x && removeBounds.width >= 35);
+                        await page.evaluate(type => {
+                            const row = (type === 'monitoring' ? window.monitorState.entries : window.monitorState.accomplishmentRows)[0];
+                            row.evidence.pop();
+                        }, type);
                     }
                     if (width >= 1024) {
                         await page.waitForFunction(() => window.monitorState.previewReady);
@@ -345,16 +375,16 @@ test('terminal poster and figure uploads show saved state and delayed text saves
                 await page.waitForFunction(() => Boolean(window.monitorState));
                 const cover = page.locator('[data-terminal-cover-image]');
                 const figure = page.locator('#terminal-figures [data-report-image]').first();
-                await cover.locator('input[type=file]').setInputFiles({ name: 'poster.png', mimeType: 'image/png', buffer: image });
-                await figure.locator('input[type=file]').setInputFiles({ name: 'results.png', mimeType: 'image/png', buffer: image });
+                await cover.locator('input[type=file]').setInputFiles({ name: longEvidenceName, mimeType: 'image/png', buffer: image });
+                await figure.locator('input[type=file]').setInputFiles({ name: longEvidenceName, mimeType: 'image/png', buffer: image });
                 await page.evaluate(() => { void window.monitorState.saveNarrativeDraft(); });
                 await page.waitForFunction(() => typeof window.releaseSave === 'function');
                 await cover.getByText('Image waiting to save…', { exact: true }).waitFor();
                 await page.evaluate(() => window.releaseSave());
                 assert.equal(await page.evaluate(() => window.monitorState.finishNarrativeDraftAutoSave()), true);
                 assert.equal(await page.locator('[name="draft_id"]').inputValue(), '12345');
-                await cover.getByText('Saved with draft: poster.png', { exact: true }).waitFor();
-                await figure.getByText('Saved with draft: results.png', { exact: true }).waitFor();
+                await assertFilenameFits(cover.getByText('Saved with draft: ' + longEvidenceName, { exact: true }));
+                await assertFilenameFits(figure.getByText('Saved with draft: ' + longEvidenceName, { exact: true }));
                 assert.equal(await cover.locator('input[type=file]').evaluate(field => field.files.length), 0);
                 assert.equal(await figure.locator('input[type=file]').evaluate(field => field.files.length), 0);
                 const savedFigure = await figure.locator('input[name=saved_photo_1]').inputValue();

@@ -30,7 +30,7 @@
                         <h4 class="text-base font-semibold text-slate-800 dark:text-slate-100">Evidence · {{ $activity['activity'] }}</h4>
                         <div class="flex flex-wrap gap-2">
                             @foreach ($activity['evidence'] as $file)
-                                <a href="{{ route('project-progress.evidence', ['topic' => $topic, 'evidence' => $file['id']]) }}" class="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-base font-medium text-slate-700 hover:border-red-300 hover:text-red-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">{{ $file['name'] }}</a>
+                                <a href="{{ route('project-progress.evidence', ['topic' => $topic, 'evidence' => $file['id']]) }}" class="inline-block min-h-10 max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base font-medium [overflow-wrap:anywhere] text-slate-700 hover:border-red-300 hover:text-red-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">{{ $file['name'] }}</a>
                             @endforeach
                         </div>
                     </section>

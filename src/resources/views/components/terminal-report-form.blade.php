@@ -155,7 +155,7 @@
                             <h4 class="text-lg font-semibold text-gray-950 dark:text-white">Cover image</h4>
                             <p class="mt-1 text-gray-600 dark:text-slate-300">JPG or PNG, up to 10 MB. Landscape images work best on the cover.</p>
                         </div>
-                        <label class="block font-semibold">
+                        <label class="block min-w-0 font-semibold">
                             Upload a new image
                             <input
                                 type="file"
@@ -164,7 +164,7 @@
                                 class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-red-800"
                                 @change="if ($event.target.files[0]) { if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; imageId = ''; }"
                             >
-                            <span role="status" class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
+                            <span role="status" class="mt-2 block text-sm font-normal text-gray-600 [overflow-wrap:anywhere] dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
                         </label>
                         <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="secondary-action">Remove image</button>
                         <label class="block font-semibold">
@@ -301,10 +301,10 @@
                             <p x-show="!previewUrl" class="text-center font-semibold text-gray-500 dark:text-slate-400">Image preview appears here</p>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-2">
-                            <label class="block font-semibold">
+                            <label class="block min-w-0 font-semibold">
                                 Upload a new image
                                 <input type="file" name="photo_{{ $index }}" accept=".jpg,.jpeg,.png" class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-red-800" @change="if ($event.target.files[0]) { if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; imageId = ''; }">
-                                <span role="status" class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
+                                <span role="status" class="mt-2 block text-sm font-normal text-gray-600 [overflow-wrap:anywhere] dark:text-slate-300" x-text="imageId ? 'Saved with draft: ' + imageName : (previewUrl && !selected ? 'Image waiting to save…' : '')"></span>
                                 <button type="button" x-show="previewUrl" @click="if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); previewUrl = ''; imageId = ''; selected = ''; $el.closest('[data-report-image]').querySelector('input[type=file]').value = ''; $nextTick(() => $dispatch('input'))" class="secondary-action mt-2">Remove image</button>
                             </label>
                             <label class="block font-semibold">

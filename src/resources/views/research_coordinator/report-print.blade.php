@@ -69,7 +69,7 @@
             .narrative p { margin: 0 0 8pt; }
             .narrative ol { list-style: decimal outside; padding-left: 24px; }
             .narrative ul { list-style: disc outside; padding-left: 24px; }
-            figure { margin: 20px 0; text-align: center; }
+            figure { margin: 20px 0; text-align: center; overflow-wrap: anywhere; }
             figure img { max-width: 100%; max-height: 7in; object-fit: contain; }
             figcaption { margin-top: 8px; font-size: 10pt; }
             footer { margin-top: auto; padding-top: 24pt; color: #d2363b; text-align: center; font: italic bold 11pt "Century Gothic", Arial, sans-serif; }

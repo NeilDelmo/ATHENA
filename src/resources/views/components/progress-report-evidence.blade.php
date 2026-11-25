@@ -17,7 +17,7 @@
                 <p class="whitespace-pre-line text-sm font-semibold text-gray-800 dark:text-slate-100">{{ $row['objective'] }}</p>
                 <div class="flex flex-wrap gap-2">
                     @foreach ($row['evidence'] as $file)
-                        <a href="{{ route('project-narrative-reports.evidence', ['topic' => $report->topic_id, 'evidence' => $file['id']]) }}" class="inline-flex min-h-10 max-w-full items-center break-all rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-red-300 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">{{ $file['name'] }}</a>
+                        <a href="{{ route('project-narrative-reports.evidence', ['topic' => $report->topic_id, 'evidence' => $file['id']]) }}" class="inline-block min-h-10 max-w-full [overflow-wrap:anywhere] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-red-300 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">{{ $file['name'] }}</a>
                     @endforeach
                 </div>
             </div>

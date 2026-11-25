@@ -268,12 +268,12 @@
                                 <template x-for="file in row.evidence" :key="file.id">
                                     <div class="flex items-start gap-2 rounded-lg border border-gray-200 p-2 dark:border-slate-700">
                                         <input type="hidden" :name="`accomplishments[${index}][evidence_ids][]`" :value="file.id">
-                                        <a :href="evidenceUrl(file.id)" x-text="file.name" class="min-w-0 flex-1 break-words secondary-action justify-start text-left"></a>
+                                        <a :href="evidenceUrl(file.id)" class="min-w-0 flex-1 secondary-action justify-start text-left"><span class="min-w-0 [overflow-wrap:anywhere]" x-text="file.name"></span></a>
                                         <button type="button" @click="removeAccomplishmentEvidence(row, file.id)" :aria-label="`Remove ${file.name}`" title="Remove evidence" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M6 18 18 6" /></svg></button>
                                     </div>
                                 </template>
                                 <template x-for="(file, fileIndex) in row.pendingEvidenceFiles" :key="fileIndex">
-                                    <p class="break-words text-xs text-gray-600 dark:text-slate-300" x-text="file.name + ' · waiting to save'"></p>
+                                    <p class="[overflow-wrap:anywhere] text-xs text-gray-600 dark:text-slate-300" x-text="file.name + ' · waiting to save'"></p>
                                 </template>
                                 <button type="button" x-show="row.pendingEvidenceFiles.length" @click="clearPendingAccomplishmentEvidence(row)" class="secondary-action">Clear selected files</button>
                             </div>
@@ -324,9 +324,9 @@
                     </div>
                     <img x-show="figure.previewUrl" :src="figure.previewUrl" :alt="figure.caption || 'Selected figure preview'" class="max-h-64 max-w-full rounded-lg object-contain">
                     <div class="grid gap-4 md:grid-cols-2">
-                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Figure image
+                        <label class="min-w-0 text-sm font-semibold text-gray-700 dark:text-slate-200">Figure image
                             <input type="file" :name="'figures[' + index + '][image]'" accept=".jpg,.jpeg,.png" @change="selectFigureFile(figure, $event)" class="mt-2 block w-full rounded-xl border border-gray-200 p-3 text-sm dark:border-slate-700">
-                            <span class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300" role="status" x-text="figure.image_id ? 'Saved with draft: ' + figure.imageName : (figure.previewUrl ? 'Image waiting to save…' : '')"></span>
+                            <span class="mt-2 block text-sm font-normal text-gray-600 [overflow-wrap:anywhere] dark:text-slate-300" role="status" x-text="figure.image_id ? 'Saved with draft: ' + figure.imageName : (figure.previewUrl ? 'Image waiting to save…' : '')"></span>
                         </label>
                         <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Caption
                             <input type="text" :name="'figures[' + index + '][caption]'" x-model="figure.caption" :required="!!figure.previewUrl" maxlength="1000" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Describe what this figure demonstrates">

@@ -24,7 +24,7 @@
                                 @if (in_array($file['mime_type'], ['image/jpeg', 'image/png'], true))
                                     <img src="{{ $url }}?preview=1" alt="" loading="lazy" width="64" height="64" class="h-16 w-16 shrink-0 rounded object-cover">
                                 @endif
-                                <span class="break-all">{{ $file['name'] }}</span>
+                                <span class="min-w-0 [overflow-wrap:anywhere]">{{ $file['name'] }}</span>
                             </a>
                         @endforeach
                     </div>

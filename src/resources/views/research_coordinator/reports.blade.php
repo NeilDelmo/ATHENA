@@ -197,9 +197,9 @@
                         @if ($isImage)
                             <a href="{{ $evidence['download_url'] ?? $evidenceUrl }}" target="_blank" rel="noopener" class="inline-block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><img src="{{ $previewUrl }}" alt="{{ $evidenceLabel }}" class="max-h-64 rounded-lg object-contain" loading="lazy" decoding="async"></a>
                         @else
-                            <a href="{{ $evidenceUrl }}" class="dashboard-action !justify-start break-all !text-left">{{ $evidence['original_filename'] }}</a>
+                            <a href="{{ $evidenceUrl }}" class="dashboard-action max-w-full !justify-start !text-left"><span class="min-w-0 [overflow-wrap:anywhere]">{{ $evidence['original_filename'] }}</span></a>
                         @endif
-                        <figcaption class="text-sm text-gray-600 dark:text-slate-400">{{ $evidenceLabel }}</figcaption>
+                        <figcaption class="text-sm text-gray-600 [overflow-wrap:anywhere] dark:text-slate-400">{{ $evidenceLabel }}</figcaption>
                         @if (filled($evidence['folder'] ?? null))
                             <p class="text-xs text-slate-500 dark:text-slate-400">Evidence folder: {{ $evidence['folder'] }} / {{ $year }} / Q{{ $quarter }}</p>
                         @endif
@@ -220,7 +220,7 @@
                     <input id="evidence-images" type="file" name="evidence_images[]" accept="image/jpeg,image/png" multiple aria-describedby="evidence-help" @change="attachments = Array.from($event.target.files)" class="block max-w-full text-sm text-gray-700 dark:text-slate-300">
                     <template x-for="(attachment, index) in attachments" :key="index">
                         <div>
-                            <label :for="`evidence-caption-${index}`" class="block text-sm font-medium text-gray-700 dark:text-slate-300" x-text="`Caption for ${attachment.name}`"></label>
+                            <label :for="`evidence-caption-${index}`" class="block text-sm font-medium text-gray-700 [overflow-wrap:anywhere] dark:text-slate-300" x-text="`Caption for ${attachment.name}`"></label>
                             <input :id="`evidence-caption-${index}`" :name="`evidence_captions[${index}]`" maxlength="1000" class="{{ $inputClass }} mt-1">
                         </div>
                     </template>
