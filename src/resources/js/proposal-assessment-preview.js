@@ -33,9 +33,9 @@ export async function renderAssessmentPdf(contents) {
     }
 }
 
-export function proposalAssessmentPreview({ initialForm = null, canPrint = false } = {}) {
+export function proposalAssessmentPreview({ initialForm = null } = {}) {
     return {
-        ...proposalPaperPreviewWorkspace({ canPrint }),
+        ...proposalPaperPreviewWorkspace(),
         previewReadOnly: true,
         previewHtml: '',
         previewLoading: false,
@@ -130,21 +130,6 @@ export function proposalAssessmentPreview({ initialForm = null, canPrint = false
 
         returnToProposalPaperEditor() {
             this.closeProposalPreview();
-        },
-
-        printPreview() {
-            if (!this.previewReady) return;
-            const frame = this.$refs.previewFrame;
-            if (!frame?.contentWindow || !frame.contentDocument?.body) return;
-            const body = frame.contentDocument.body;
-            const previousZoom = body.style.zoom;
-            try {
-                body.style.zoom = '1';
-                frame.contentWindow.focus();
-                frame.contentWindow.print();
-            } finally {
-                body.style.zoom = previousZoom;
-            }
         },
 
         destroy() {

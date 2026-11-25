@@ -21,14 +21,6 @@
         </header>
         <div class="proposal-preview-dock-actions">
             <button type="button" class="proposal-preview-action" x-show="previewError || validationMessage" x-cloak @click="$refs.previewClose.focus({ preventScroll: true }); generatePreview()" :disabled="previewLoading">Retry preview</button>
-            <template x-if="$data.previewCanPrint === true">
-                <button type="button" class="proposal-preview-action proposal-preview-print" @click="printPreview()" :disabled="!previewReady || previewStale || previewLoading">
-                    <svg class="proposal-preview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6zM6 12h1" />
-                    </svg>
-                    <span>Print</span>
-                </button>
-            </template>
             <x-paper-preview-pagination />
             <a x-show="previewReadOnly && previewDownloadUrl" x-cloak :href="previewDownloadUrl" class="proposal-preview-download">Download Word</a>
         </div>

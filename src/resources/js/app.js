@@ -5640,7 +5640,7 @@ Alpine.data('fileDropzone', (config = {}) => ({
 }));
 
 const documentPreviewForm = (config = {}) => {
-    const paperPreview = proposalPaperPreviewWorkspace({ initiallyOpen: true, canPrint: true, workspaceSelector: '[data-monitoring-paper-workspace]' });
+    const paperPreview = proposalPaperPreviewWorkspace({ initiallyOpen: true, workspaceSelector: '[data-monitoring-paper-workspace]' });
     return {
         ...(config.writingTools ? documentWritingToolbar() : {}),
         ...paperPreview,
@@ -5786,13 +5786,6 @@ const documentPreviewForm = (config = {}) => {
             } finally {
                 this.previewLoading = false;
             }
-        },
-
-        printPreview() {
-            if (!this.previewReady || this.previewStale || this.previewLoading || !this.$refs.previewFrame?.contentWindow) return;
-
-            this.$refs.previewFrame.contentWindow.focus();
-            this.$refs.previewFrame.contentWindow.print();
         },
 
         destroy() {

@@ -1,6 +1,6 @@
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
 
-export function proposalPaperPreviewWorkspace({ initiallyOpen = false, canPrint = false, workspaceSelector = '[data-proposal-paper-workspace]' } = {}) {
+export function proposalPaperPreviewWorkspace({ initiallyOpen = false, workspaceSelector = '[data-proposal-paper-workspace]' } = {}) {
     const previewWorkspace = proposalPreviewWorkspace();
     return {
         ...previewWorkspace,
@@ -9,7 +9,6 @@ export function proposalPaperPreviewWorkspace({ initiallyOpen = false, canPrint 
         previewReturnFocus: null,
         previewFocusSection: '',
         previewReadOnly: false,
-        previewCanPrint: canPrint,
         previewTitle: 'Paper preview',
         previewDownloadUrl: '',
         writingToolbarOpen: true,

@@ -96,7 +96,7 @@
             </div>
             @if ($submitted)
             <div class="flex flex-wrap gap-2">
-                <button type="button" @click="showProposalPreview(); expandProposalPaperPreview()" aria-controls="quarterly-report-preview-panel" class="dashboard-action">Print preview</button>
+                <button type="button" @click="showProposalPreview(); expandProposalPaperPreview()" aria-controls="quarterly-report-preview-panel" class="dashboard-action">Preview submitted report</button>
                 <a href="{{ route('research_coordinator.reports.download', ['year' => $year, 'quarter' => $quarter]) }}" class="dashboard-action">Download Word</a>
             </div>
             @endif

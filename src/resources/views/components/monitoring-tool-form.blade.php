@@ -261,35 +261,34 @@
 
             <div x-ref="activityList" class="space-y-5">
                 <template x-for="(entry, index) in entries" :key="`${currentPeriodKey}-${entry.source_work_plan_index ?? index}`">
-                    <article data-monitoring-activity class="grid scroll-mt-40 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 xl:grid-cols-2">
-                        <div class="border-b border-slate-200 bg-slate-50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-950/70 xl:border-b-0 xl:border-r">
+                    <article data-monitoring-activity class="min-w-0 scroll-mt-40 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                        <div class="border-b border-slate-200 bg-slate-50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-950/70">
                             <div class="flex flex-wrap items-start justify-between gap-3">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-bold text-white dark:bg-white dark:text-slate-950">Activity <span x-text="index + 1"></span></span>
-                                        <span x-show="isApprovedEntry(entry)" class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:border-gray-900 dark:bg-gray-950/50 dark:text-slate-200">Approved plan</span>
+                                        <h3 class="text-sm font-semibold text-slate-950 dark:text-white">Activity <span x-text="index + 1"></span></h3>
                                         <span x-show="isApprovedEntry(entry)" class="text-xs font-semibold text-slate-500" x-text="monthLabel(entry.work_plan_months)"></span>
                                         <span data-monitoring-activity-overdue x-show="isEntryOverdue(entry)" x-cloak role="status" class="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">Past target date</span>
                                     </div>
                                     <template x-if="isApprovedEntry(entry)">
                                         <div class="mt-3 space-y-3">
                                             <div>
-                                                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Objective</p>
-                                                <p class="mt-1 break-words text-sm font-bold leading-6 text-slate-950 dark:text-white" x-text="entry.objective"></p>
+                                                <p class="text-xs font-medium text-slate-600 dark:text-slate-400">Objective</p>
+                                                <p class="mt-1 break-words text-sm font-semibold leading-6 text-slate-950 dark:text-white" x-text="entry.objective"></p>
                                             </div>
-                                            <div class="grid gap-3 sm:grid-cols-2">
+                                            <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-x-5 gap-y-3">
                                                 <div>
-                                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Activity</p>
+                                                    <p class="text-xs font-medium text-slate-600 dark:text-slate-400">Activity</p>
                                                     <p class="mt-1 break-words text-sm leading-6 text-slate-700 dark:text-slate-200" x-text="entry.activity"></p>
                                                 </div>
                                                 <div>
-                                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Expected Output</p>
+                                                    <p class="text-xs font-medium text-slate-600 dark:text-slate-400">Expected Output</p>
                                                     <p class="mt-1 break-words text-sm leading-6 text-slate-700 dark:text-slate-200" x-text="entry.physical_target"></p>
                                                 </div>
                                             </div>
-                                            <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                <span><span class="text-slate-400">Project Weight:</span> <span class="tabular-nums" x-text="`${entry.percent_weight}%`"></span></span>
-                                                <span><span class="text-slate-400">Target Date:</span> <span class="tabular-nums" x-text="formatPlanDate(entry.target_completion_date)"></span></span>
+                                            <div class="flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-200 pt-3 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-400">
+                                                <span><span>Project weight</span> <span class="font-semibold tabular-nums text-slate-800 dark:text-slate-200" x-text="`${entry.percent_weight}%`"></span></span>
+                                                <span><span>Target date</span> <span class="font-semibold tabular-nums text-slate-800 dark:text-slate-200" x-text="formatPlanDate(entry.target_completion_date)"></span></span>
                                             </div>
 
                                             <input type="hidden" :name="`work_plan[${index}][source_work_plan_index]`" :value="entry.source_work_plan_index">
@@ -324,20 +323,16 @@
                             </div>
                         </div>
 
-                        <div class="grid content-start gap-4 p-4 sm:p-5 sm:grid-cols-2">
-                            <div class="sm:col-span-2">
-                                <h3 class="text-sm font-bold text-slate-950 dark:text-white">Progress this quarter</h3>
-                                <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Describe the completed work and attach its evidence.</p>
-                            </div>
-                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100">Actual Accomplishment
-                                <textarea :name="`work_plan[${index}][actual_accomplishment]`" x-model="entry.actual_accomplishment" rows="3" maxlength="500" required autocomplete="off" placeholder="State the measurable result completed during this reporting period…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+                        <div class="grid gap-4 p-4 sm:p-5">
+                            <h4 class="text-sm font-semibold text-slate-950 dark:text-white">Progress this quarter</h4>
+                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100">Actual accomplishment
+                                <textarea :name="`work_plan[${index}][actual_accomplishment]`" x-model="entry.actual_accomplishment" rows="3" maxlength="500" required autocomplete="off" placeholder="Describe what you completed this quarter" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
                             <div class="min-w-0 space-y-3" data-monitoring-evidence>
                                 <input type="hidden" :name="`work_plan[${index}][activity_id]`" :value="entry.activity_id || ''">
-                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence <span class="font-normal">(required before submission)</span></label>
+                                <label class="block text-sm font-semibold text-slate-800 dark:text-slate-100" :for="`activity-evidence-${index}`">Evidence <span class="font-normal text-slate-600 dark:text-slate-400">(required to submit progress)</span></label>
                                 <input :id="`activity-evidence-${index}`" :name="`activity_evidence[${evidenceKey(entry, index)}][]`" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" @change="setEvidenceFiles(entry, $event)" class="block w-full rounded-lg border border-slate-300 text-sm text-slate-600 file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:font-semibold file:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-600 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-white">
-                                <p class="text-sm leading-6 text-slate-500 dark:text-slate-400" x-text="Number(entry.target_units || 1) > 1 ? 'Enter the total completed quantity supported by these files. Extra files do not increase progress.' : 'Attach proof that this activity’s approved output is complete. The milestone is counted once, regardless of file count.'"></p>
-                                <p class="text-xs text-slate-500 dark:text-slate-400">Up to 5 files per activity · PDF, Word, Excel, JPG or PNG · 10 MB each</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Up to 5 files · PDF, Word, Excel, JPG or PNG · 10 MB each</p>
                                 <p x-show="entry.evidenceError" x-text="entry.evidenceError" role="alert" class="text-sm font-semibold text-red-700 dark:text-red-300"></p>
                                 <template x-for="file in (entry.evidence || [])" :key="file.id">
                                     <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-950">
@@ -351,15 +346,16 @@
                                     <input :name="`work_plan[${index}][completed_units]`" type="number" inputmode="numeric" x-model="entry.completed_units" @input="updateEntryProgress(entry)" min="0" :max="entry.target_units || 1" step="1" required autocomplete="off" class="mt-1 block w-full rounded-xl border-slate-300 text-base shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                                 </label>
                                 <input type="hidden" :name="`work_plan[${index}][accomplished_percentage]`" :value="entry.accomplished_percentage">
-                                <div class="flex items-baseline justify-between gap-3 border-t border-slate-200 pt-3 dark:border-slate-700" role="status" aria-live="polite">
-                                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Calculated completion</span>
-                                    <span class="text-xl font-bold tabular-nums text-slate-950 dark:text-white"><span x-text="Number(entry.completion || 0).toFixed(2)"></span>%</span>
-                                </div>
-                                <p class="text-sm text-slate-500 dark:text-slate-400"><span x-text="Number(entry.accomplished_percentage || 0).toFixed(2)"></span>% toward overall project progress</p>
                             </div>
-                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100 sm:col-span-2">Findings or Challenges <span class="font-normal text-slate-400">(optional)</span>
-                                <textarea :name="`work_plan[${index}][findings]`" x-model="entry.findings" rows="2" maxlength="500" autocomplete="off" placeholder="Describe a blocker, variance, or finding that needs attention…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+                            <label class="text-sm font-semibold text-slate-800 dark:text-slate-100">Findings or challenges <span class="font-normal text-slate-400">(optional)</span>
+                                <textarea :name="`work_plan[${index}][findings]`" x-model="entry.findings" rows="2" maxlength="500" autocomplete="off" placeholder="Note any blockers or significant findings" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
+                            <div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-slate-200 pt-3 text-sm dark:border-slate-700" role="status" aria-live="polite">
+                                <span class="font-medium text-slate-700 dark:text-slate-200">
+                                    Calculated completion <strong class="ml-1 tabular-nums text-slate-950 dark:text-white"><span x-text="Number(entry.completion || 0).toFixed(2)"></span>%</strong>
+                                </span>
+                                <span class="text-slate-600 dark:text-slate-400"><span x-text="Number(entry.accomplished_percentage || 0).toFixed(2)"></span>% toward overall project progress</span>
+                            </div>
                         </div>
                     </article>
                 </template>

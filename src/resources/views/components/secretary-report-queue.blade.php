@@ -1,5 +1,5 @@
 @props(['reports', 'compact' => false])
-<section @if ($compact) id="secretary-report-reviews" @endif class="{{ $compact ? 'dashboard-panel scroll-mt-40' : 'secretary-panel' }}" data-secretary-report-queue aria-labelledby="secretary-review-heading" @unless ($compact) data-automatic-assessment-preview x-data="proposalAssessmentPreview({ canPrint: true })" @resize.window.debounce.150ms="resizeProposalPaperPreview()" @endunless>
+<section @if ($compact) id="secretary-report-reviews" @endif class="{{ $compact ? 'dashboard-panel scroll-mt-40' : 'secretary-panel' }}" data-secretary-report-queue aria-labelledby="secretary-review-heading" @unless ($compact) data-automatic-assessment-preview x-data="proposalAssessmentPreview()" @resize.window.debounce.150ms="resizeProposalPaperPreview()" @endunless>
     <div @unless ($compact) :inert="previewFullscreen" @endunless>
         <header class="{{ $compact ? 'dashboard-panel-heading' : 'secretary-section-heading' }}">
             <div><h2 id="secretary-review-heading" @class(['dashboard-section-title' => $compact, 'flex items-center gap-2.5' => ! $compact])>@unless ($compact)<x-report-library-icon name="list" class="h-5 w-5" />@endunless {{ $compact ? 'Report reviews' : 'Submitted reports' }}</h2></div>

@@ -132,6 +132,18 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     const form = workspace.locator('form[x-ref="form"]');
                     const draftDock = workspace.locator('.proposal-preview-dock');
                     await draftDock.waitFor({ state: width >= 1024 ? 'visible' : 'hidden' });
+                    assert.equal(await draftDock.getByRole('button', { name: 'Print', exact: true }).count(), 0);
+                    if (type === 'monitoring') {
+                        const activity = form.locator('[data-monitoring-activity]').first();
+                        const accomplishment = activity.locator('textarea[name$="[actual_accomplishment]"]');
+                        const evidence = activity.locator('[data-monitoring-evidence] input[type="file"]');
+                        const cardBounds = await activity.boundingBox();
+                        const accomplishmentBounds = await accomplishment.boundingBox();
+                        const evidenceBounds = await evidence.boundingBox();
+                        assert.ok(accomplishmentBounds.width >= cardBounds.width - 42, 'The accomplishment field should span the available card width');
+                        assert.ok(evidenceBounds.y > accomplishmentBounds.y + accomplishmentBounds.height, 'The evidence field should sit below the accomplishment');
+                        assert.ok(Math.abs(evidenceBounds.width - accomplishmentBounds.width) <= 1, 'The evidence field should span the same width');
+                    }
                     if (width >= 1024) {
                         await page.waitForFunction(() => window.monitorState.previewReady);
                         await draftDock.getByRole('button', { name: 'Collapse preview', exact: true }).click();
@@ -242,9 +254,12 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                         await dock.screenshot({ path: resolve(process.env.MONITORING_PREVIEW_SCREENSHOT_DIRECTORY, `preview-zoom-50-${type}-${width}-${dark ? 'dark' : 'light'}.png`) });
                     }
                     for (let step = 0; step < 5; step++) await dock.getByRole('button', { name: 'Zoom in', exact: true }).click();
-                    await dock.getByRole('button', { name: 'Print', exact: true }).focus();
+                    const backToEditor = dock.getByRole('button', { name: 'Back to editor', exact: true });
+                    await backToEditor.focus();
                     await page.keyboard.press('Shift+Tab');
-                    assert.equal(await dock.getByRole('button', { name: 'Back to editor', exact: true }).evaluate((element) => element === document.activeElement), true);
+                    assert.equal(await dock.getByRole('button', { name: 'Fit width', exact: true }).evaluate((element) => element === document.activeElement), true);
+                    await page.keyboard.press('Tab');
+                    assert.equal(await backToEditor.evaluate((element) => element === document.activeElement), true);
                     await frame.locator('body').press('Escape');
                     assert.equal(await page.evaluate(() => window.monitorState.previewFullscreen), false);
                     assert.equal(await field.inputValue(), 'First field notes.');
@@ -254,7 +269,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await field.fill('Updated field notes.');
                     assert.equal(await page.evaluate(() => window.monitorState.previewStale), true);
                     if (width < 1024) await previewButton.click();
-                    assert.equal(await dock.getByRole('button', { name: 'Print', exact: true }).isDisabled(), true);
+                    assert.equal(await dock.getByRole('button', { name: 'Print', exact: true }).count(), 0);
                     await page.waitForFunction(() => window.monitorState.previewHtml.includes('Updated field notes.') && window.monitorState.previewReady && !window.monitorState.previewLoading);
                     await frame.getByText(/Updated field notes/).waitFor();
                     await page.waitForFunction(() => window.savedDrafts.some((fields) => fields.some(([,value]) => value === 'Updated field notes.')));

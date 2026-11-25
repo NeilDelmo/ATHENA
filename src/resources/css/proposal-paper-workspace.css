@@ -202,14 +202,6 @@ html.dark [data-proposal-paper-workspace], html.dark [data-editable-proposal-pap
     padding: .375rem .875rem;
     border-radius: .5rem;
 }
-.proposal-preview-dock button.proposal-preview-print {
-    border-color: var(--proposal-writing-accent);
-    background: var(--proposal-writing-accent);
-    color: var(--proposal-writing-surface);
-    box-shadow: 0 1px 2px rgb(15 23 42 / .16);
-}
-.proposal-preview-dock button.proposal-preview-print:hover { background: var(--proposal-writing-accent); }
-.proposal-preview-dock button.proposal-preview-print:not(:disabled):hover { background: color-mix(in srgb, var(--proposal-writing-accent), var(--proposal-writing-ink) 14%); }
 .proposal-preview-dock button.proposal-preview-dismiss { background: var(--proposal-writing-workspace); }
 .proposal-preview-dock button.proposal-preview-dismiss:hover { background: var(--proposal-writing-wash); }
 .proposal-preview-dismiss .proposal-preview-icon { color: var(--proposal-writing-muted); }

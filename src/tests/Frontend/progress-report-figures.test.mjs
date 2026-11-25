@@ -78,24 +78,6 @@ test('changing figure order invalidates the rendered preview before saving the d
     assert.equal(saves, 1);
 });
 
-test('printing uses the current report preview and waits for edits or an in-progress refresh', () => {
-    const { state } = createState();
-    let printed = 0;
-    state.$refs = { previewFrame: { contentWindow: { focus() {}, print() { printed++; } } } };
-    state.previewReady = true;
-    state.printPreview();
-    assert.equal(printed, 1);
-    state.previewStale = true;
-    state.printPreview();
-    state.previewStale = false;
-    state.previewLoading = true;
-    state.printPreview();
-    state.previewLoading = false;
-    state.previewReady = false;
-    state.printPreview();
-    assert.equal(printed, 1);
-});
-
 test('draft autosave retains figure files captions and placement', () => {
     const { state } = createState();
     const form = [

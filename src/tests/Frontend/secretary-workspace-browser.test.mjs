@@ -175,7 +175,7 @@ test('secretary pages stay focused, navigate in one tab, and work on phones and 
                         await trigger.click();
                         const panel = page.locator('#secretary-report-preview-panel');
                         await expect(panel).toBeVisible();
-                        await expect(panel.getByRole('button', { name: 'Print', exact: true })).toBeEnabled();
+                        await expect(panel.getByRole('button', { name: 'Print', exact: true })).toHaveCount(0);
                         await page.getByRole('button', { name: 'Close preview', exact: true }).click();
                         await expect(panel).toBeHidden();
                         for (const type of ['monitoring', 'returned', 'all', 'progress']) {

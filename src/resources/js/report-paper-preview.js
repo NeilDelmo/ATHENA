@@ -3,7 +3,7 @@ import { renderAssessmentPdf } from './proposal-assessment-preview';
 
 export function reportPaperPreview({ previewUrl, title, readOnly = false, openOnLoad = false }) {
     return {
-        ...proposalPaperPreviewWorkspace({ initiallyOpen: true, canPrint: true }),
+        ...proposalPaperPreviewWorkspace({ initiallyOpen: true }),
         previewTitle: title,
         previewHtml: '',
         previewLoading: false,
@@ -57,21 +57,6 @@ export function reportPaperPreview({ previewUrl, title, readOnly = false, openOn
                     this.previewLoading = false;
                     if (revision !== this.previewRevision) this.scheduleProposalPaperPreview(0);
                 }
-            }
-        },
-
-        printPreview() {
-            if (!this.previewReady || this.previewStale || this.previewLoading) return;
-            const frame = this.$refs.previewFrame;
-            const body = frame?.contentDocument?.body;
-            if (!body) return;
-            const zoom = body.style.zoom;
-            try {
-                body.style.zoom = '1';
-                frame.contentWindow.focus();
-                frame.contentWindow.print();
-            } finally {
-                body.style.zoom = zoom;
             }
         },
 

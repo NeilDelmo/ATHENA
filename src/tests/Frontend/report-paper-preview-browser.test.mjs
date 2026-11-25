@@ -84,9 +84,8 @@ test('coordinator and RMS editors share the automatic right-side proposal paper 
                 await expect(panel).toHaveAttribute('role', 'dialog');
                 const print = panel.getByRole('button', { name: 'Print', exact: true });
                 const minimize = panel.getByRole('button', { name: 'Minimize preview', exact: true });
-                await expect(print).toHaveCSS('background-color', 'rgb(122, 0, 25)');
+                await expect(print).toHaveCount(0);
                 await expect(minimize).toHaveCSS('background-color', 'rgb(243, 245, 248)');
-                await expect(print.locator('svg[aria-hidden="true"]')).toBeVisible();
                 await expect(minimize.locator('svg:visible')).toHaveCount(1);
                 await panel.getByRole('button', { name: 'Fit page', exact: true }).click();
                 await panel.getByRole('button', { name: 'Zoom in', exact: true }).click();
@@ -116,9 +115,6 @@ test('coordinator and RMS editors share the automatic right-side proposal paper 
                 rejectPreview = false;
                 await panel.getByRole('button', { name: 'Retry preview', exact: true }).click();
                 await expect.poll(() => page.evaluate(() => window.reportPreview.previewReady)).toBe(true);
-                await panel.locator('iframe').evaluate(frame => { window.reportPrintCalls = 0; frame.contentWindow.print = () => { window.reportPrintCalls++; }; });
-                await print.click();
-                assert.equal(await page.evaluate(() => window.reportPrintCalls), 1);
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
                 assert.deepEqual(errors, []);
                 await page.screenshot({ path: resolve(`storage/framework/testing/${name}-paper-preview-${width}.png`), fullPage: true });

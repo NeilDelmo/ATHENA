@@ -74,8 +74,7 @@
             figcaption { margin-top: 8px; font-size: 10pt; }
             footer { margin-top: auto; padding-top: 24pt; color: #d2363b; text-align: center; font: italic bold 11pt "Century Gothic", Arial, sans-serif; }
             .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; padding: 16px; font: 14px Arial, sans-serif; }
-            .toolbar button, .toolbar a { padding: 10px 14px; border: 1px solid #777; border-radius: 6px; background: #fff; color: #111; text-decoration: none; cursor: pointer; }
-            .toolbar button { background: #800000; border-color: #800000; color: #fff; }
+            .toolbar a { padding: 10px 14px; border: 1px solid #777; border-radius: 6px; background: #fff; color: #111; text-decoration: none; cursor: pointer; }
             @media print { body { min-width: 0; background: white; } main { display: block; width: auto; min-height: auto; margin: 0 1in; padding: 21.3pt 0 0; } header { margin-top: 0; } footer, .toolbar { display: none; } }
             @media screen and (max-width: 850px) { main { margin: 0; } .toolbar { width: 100vw; justify-content: flex-start; } }
         </style>
@@ -88,7 +87,6 @@
         @unless ($embedded ?? request()->boolean('embedded'))
         <nav class="toolbar" aria-label="Report preview actions">
             <a href="{{ $backUrl ?? route('research_coordinator.reports.index', ['year' => $year, 'quarter' => $quarter]) }}">Back to report</a>
-            <button type="button" onclick="window.print()">Print or save PDF</button>
             <span>{{ $report?->submitted_at ? 'Submitted report' : 'Draft preview · Save your draft to include recent changes' }}</span>
         </nav>
         @endunless
