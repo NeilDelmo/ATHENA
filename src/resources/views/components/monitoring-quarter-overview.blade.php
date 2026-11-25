@@ -8,7 +8,7 @@
 
 <section id="progress-reports" class="quarterly-reports overflow-hidden border-t border-slate-200 dark:border-slate-700" aria-labelledby="quarterly-reporting-schedule-heading">
     <header id="quarterly-reports" class="flex items-center gap-3 bg-slate-100 px-5 py-4 dark:bg-slate-800/60 sm:px-6">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand/10 bg-brand-wash text-brand dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm3 9 3 3 5-5"/></svg></span>
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm3 9 3 3 5-5"/></svg></span>
         <div class="min-w-0">
             <h4 id="quarterly-reporting-schedule-heading" class="text-xl font-semibold text-slate-950 dark:text-white">Quarterly reports</h4>
             @if ($canReport && ! $topic->isCompletedProject())

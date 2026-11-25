@@ -2464,6 +2464,7 @@ test('report reviews opens submitted quarterly reports and removes reviewed repo
     ]);
     $this->actingAs($this->head)->get(route('research_head.report-reviews.index'))
         ->assertOk()->assertSee('Reports awaiting review')->assertSee('Approved Community Research')
+        ->assertSee('data-report-review-summary class="overflow-hidden rounded-xl border border-slate-200 bg-white', false)
         ->assertSee(route('topics.show', $this->topic).'#monitoring-tool-'.$report->id, false)
         ->assertSee('Review report')->assertViewHas('reports', fn ($reports) => $reports->total() === 1);
     $this->actingAs($this->head)->patch(route('research_head.progress-reports.review', $report), ['review_status' => 'reviewed', 'research_head_remarks' => 'Accepted.'])->assertRedirect();

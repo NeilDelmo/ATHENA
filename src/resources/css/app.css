@@ -286,6 +286,14 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
         @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
     }
 
+    .monitoring-action-row {
+        @apply flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3;
+    }
+
+    .monitoring-action-copy {
+        @apply min-w-0 flex-1 basis-44 break-words;
+    }
+
     .monitoring-disclosure > summary {
         @apply flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-base font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 dark:text-slate-200;
     }

@@ -1,0 +1,18 @@
+@media screen {
+    html {
+        container-type: inline-size;
+    }
+
+    body {
+        --report-preview-width: calc(var(--report-paper-width) + 2 * var(--report-preview-gutter, 0px));
+        min-width: var(--report-preview-width);
+        /* Fit the full sheet before the iframe's load event and zoom controls are ready. */
+        zoom: min(1, calc(100cqw / var(--report-preview-width)));
+    }
+}
+
+@media print {
+    body {
+        zoom: 1 !important;
+    }
+}

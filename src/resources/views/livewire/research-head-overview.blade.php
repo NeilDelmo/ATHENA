@@ -88,7 +88,7 @@
                             <span class="min-w-0 flex-1">
                                 <strong class="block break-words text-base font-semibold leading-6">{{ $topic->title }}</strong>
                                 <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm rh-muted"><span>{{ $topic->user?->name }}</span><span class="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ $topic->researchHeadQueueStatusLabel($topic->latestVersion) }}</span></span>
-                                <span class="mt-2 block text-sm font-medium text-brand dark:text-rose-300">{{ $waitingDays !== null ? $waitingDays.' '.str('day')->plural($waitingDays).($topic->status_started_at ? ' in this stage' : ' since submission') : 'Stage start date unavailable' }}</span>
+                                <span class="mt-2 block text-sm rh-muted">{{ $waitingDays !== null ? $waitingDays.' '.str('day')->plural($waitingDays).($topic->status_started_at ? ' in this stage' : ' since submission') : 'Stage start date unavailable' }}</span>
                             </span>
                             <a href="{{ route('topics.show', $topic) }}{{ $topic->hasIssuedNoticeToProceed() ? '#project-monitoring' : '#proposal-review' }}"
                                 aria-label="{{ $reviewAction }}: {{ $topic->title }}" class="secondary-action">
@@ -116,13 +116,13 @@
                 $waitingDays = $receivedAt ? (int) max(0, $receivedAt->diffInDays(now(), false)) : null;
                 $reportLabel = ['quarterly' => 'Monitoring tool', 'progress' => 'Progress report', 'terminal' => 'Terminal report'][$report->report_type];
             @endphp
-            <article class="dashboard-queue-row" wire:key="overview-report-{{ $report->report_type }}-{{ $report->id }}">
-                <span class="min-w-0 flex-1">
+            <article class="monitoring-action-row" wire:key="overview-report-{{ $report->report_type }}-{{ $report->id }}">
+                <span class="monitoring-action-copy">
                 <strong class="block break-words text-base font-semibold leading-6">{{ $report->title }}</strong>
-                <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm rh-muted"><span class="rounded-md bg-red-50 px-2 py-1 font-medium text-brand dark:bg-red-950/40 dark:text-rose-200">{{ $reportLabel }}</span><span>{{ $report->faculty_name }}</span></span>
-                <span class="mt-2 block text-sm font-medium text-brand dark:text-rose-300">{{ $waitingDays !== null ? $waitingDays.' '.str('day')->plural($waitingDays).' waiting' : 'Submission date unavailable' }}@if ($report->report_date) <span class="font-normal rh-muted">· Report dated {{ \Carbon\CarbonImmutable::parse($report->report_date)->format('M j, Y') }}</span>@endif</span>
+                <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm rh-muted"><span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">{{ $reportLabel }}</span><span>{{ $report->faculty_name }}</span></span>
+                <span class="mt-2 block text-sm rh-muted">{{ $waitingDays !== null ? $waitingDays.' '.str('day')->plural($waitingDays).' waiting' : 'Submission date unavailable' }}@if ($report->report_date) <span class="font-normal rh-muted">· Report dated {{ \Carbon\CarbonImmutable::parse($report->report_date)->format('M j, Y') }}</span>@endif</span>
                 </span>
-                <a href="{{ route('topics.show', $report->topic_id) }}#{{ $reportAnchor }}" aria-label="Review {{ strtolower($reportLabel) }}: {{ $report->title }}" class="secondary-action">
+                <a href="{{ route('topics.show', $report->topic_id) }}#{{ $reportAnchor }}" aria-label="Review {{ strtolower($reportLabel) }}: {{ $report->title }}" class="monitoring-secondary-action">
                     Review report <x-report-library-icon name="open" class="!h-4 !w-4" />
                 </a>
             </article>
@@ -135,13 +135,16 @@
     </div>
     <aside class="grid min-w-0 items-start gap-5 lg:grid-cols-2" aria-label="Research priorities">
 <section id="needs-attention" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="attention-heading">
-                <div class="rh-panel-heading !gap-2"><h2 id="attention-heading" class="dashboard-section-title">Needs attention</h2><span class="rounded-md bg-red-50 px-2 py-1 text-sm font-semibold text-brand dark:bg-red-950/40 dark:text-rose-200">{{ $attentionItems->total() }} {{ str('issue')->plural($attentionItems->total()) }}</span></div>
+                <div class="rh-panel-heading !gap-2"><h2 id="attention-heading" class="dashboard-section-title">Needs attention</h2><span class="text-sm tabular-nums rh-muted">{{ $attentionItems->total() }} {{ str('issue')->plural($attentionItems->total()) }}</span></div>
                 <div class="divide-y divide-slate-100 dark:divide-slate-800" data-dashboard-queue="attention">
                     @forelse ($attentionItems as $item)
-                        <article class="dashboard-queue-row" wire:key="overview-issue-{{ $item['id'] }}-{{ $item['type'] }}-{{ $item['report_id'] ?? 0 }}">
-                            <span class="min-w-0 flex-1"><strong class="block break-words text-base font-semibold leading-6">{{ $item['title'] }}</strong><span class="mt-1.5 block text-sm text-brand dark:text-rose-200">{{ $item['type'] === 'head_review' ? 'Ready for your review' : $item['issue'] }}</span></span>
-                            @if ($item['days'] !== null)<span class="shrink-0 text-right"><strong class="block text-sm font-semibold tabular-nums">{{ $item['days'] }} {{ str('day')->plural($item['days']) }}</strong><span class="text-sm rh-muted">{{ match ($item['basis']) { 'overdue' => 'overdue', 'since reporting opened' => 'since open', 'since report' => 'since report', default => 'waiting' } }}</span></span>@endif
-                        <a href="{{ $item['url'] }}" class="secondary-action">Open issue <span class="sr-only">for {{ $item['title'] }}</span><x-report-library-icon name="open" class="!h-4 !w-4" /></a>
+                        <article class="monitoring-action-row" wire:key="overview-issue-{{ $item['id'] }}-{{ $item['type'] }}-{{ $item['report_id'] ?? 0 }}">
+                            <div class="monitoring-action-copy">
+                                <h3 class="text-base font-semibold">{{ $item['title'] }}</h3>
+                                <p class="mt-0.5 text-sm rh-muted">{{ $item['type'] === 'head_review' ? 'Ready for your review' : $item['issue'] }}</p>
+                                @if ($item['days'] !== null)<p class="mt-0.5 text-sm tabular-nums rh-muted">{{ $item['days'] }} {{ str('day')->plural($item['days']) }} {{ $item['basis'] }}</p>@endif
+                            </div>
+                            <a href="{{ $item['url'] }}" class="monitoring-secondary-action">{{ $item['type'] === 'head_review' ? 'Review report' : 'View monitoring' }} <span class="sr-only">for {{ $item['title'] }}</span><x-report-library-icon name="open" class="!h-4 !w-4" /></a>
                         </article>
                     @empty
                         <div class="px-5 py-8"><p class="text-sm font-semibold">No items need attention.</p><p class="mt-1 text-sm rh-muted">Follow-up items will appear here when recorded.</p></div>

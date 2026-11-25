@@ -30,7 +30,9 @@ beforeEach(function () {
 });
 
 test('completed projects appear automatically without writing records on read', function () {
-    $this->get(route('research-outcomes.index'))->assertOk()->assertSee($this->topic->title)->assertSee('School-funded');
+    $this->get(route('research-outcomes.index'))->assertOk()
+        ->assertSee($this->topic->title)->assertSee('School-funded')
+        ->assertSee('>Status</th>', false)->assertSee('No status recorded');
     $this->get(route('research-outcomes.projects.show', $this->topic))->assertOk()
         ->assertSee('Publication')->assertSee('Presentation')->assertSee('Patent')
         ->assertSee('Commercialized')->assertSee('Utilization')->assertSee('Save labels');

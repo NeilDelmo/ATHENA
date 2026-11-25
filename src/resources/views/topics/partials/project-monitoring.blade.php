@@ -214,12 +214,12 @@
                                                 default => $issue['issue'],
                                             };
                                         @endphp
-                                        <li class="grid min-w-0 items-center gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
-                                            <div class="min-w-0">
+                                        <li class="monitoring-action-row">
+                                            <div class="monitoring-action-copy">
                                                 <p class="break-words font-semibold text-slate-900 dark:text-slate-100">{{ $issueLabel }}</p>
                                                 <p class="mt-0.5 text-sm text-slate-600 dark:text-slate-400">{{ in_array($type, ['quarterly', 'progress_quarterly']) ? 'Oldest missing report · ' : '' }}{{ $issue['days'] !== null ? $issue['days'].' '.str('day')->plural($issue['days']).' '.$issue['basis'] : $issue['basis'] }}</p>
                                             </div>
-                                            <a data-monitoring-task-link href="{{ $taskUrl }}" aria-label="{{ $taskLabel }} ({{ $issueLabel }})" class="monitoring-secondary-action justify-self-start sm:justify-self-end">{{ $taskLabel }} <span aria-hidden="true">→</span></a>
+                                            <a data-monitoring-task-link href="{{ $taskUrl }}" aria-label="{{ $taskLabel }} ({{ $issueLabel }})" class="monitoring-secondary-action">{{ $taskLabel }} <span aria-hidden="true">→</span></a>
                                         </li>
                                     @endforeach
                                 </ul>

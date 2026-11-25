@@ -1,3 +1,5 @@
+@import './report-preview-fit.css';
+
 @page {
     size: 8.5in 13in;
     margin: 36pt 48.175pt 72pt;
@@ -29,11 +31,13 @@ body {
 }
 
 .progress-report-preview-page {
-    padding: 24px;
+    --report-paper-width: 8.5in;
+    --report-preview-gutter: 24px;
+    padding: var(--report-preview-gutter);
 }
 
 .progress-report-sheet {
-    width: 8.5in;
+    width: var(--report-paper-width);
     min-height: 13in;
     margin: 0 auto;
     padding: 36pt 48.175pt 72pt;

@@ -41,17 +41,6 @@
                     @forelse ($attentionProjects as $topic)
                         @php
                             $health = $projectHealth[$topic->id];
-                            $primaryIssue = $health['actions']->first();
-                            $action = match ($primaryIssue['type']) {
-                                'quarterly' => 'Complete Monitoring Tool',
-                                'progress_quarterly' => 'Complete Progress Report',
-                                'report_review' => 'Correct Monitoring Tool',
-                                'narrative_review' => 'Correct Progress Report',
-                                'terminal_review' => 'Correct Terminal Report',
-                                'terminal' => 'Prepare Terminal Report',
-                                'budget' => 'Review budget',
-                                default => 'Update monitoring',
-                            };
                         @endphp
                         <article data-project-attention="{{ $topic->id }}" @class([
                             'flex min-w-0 flex-col gap-4 dashboard-panel p-5',
@@ -72,11 +61,26 @@
                                 'xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:border-l xl:border-t-0 xl:pl-6' => $singleAttentionProject,
                             ])>
                                 @foreach ($health['actions'] as $issue)
-                                    <li class="grid min-w-0 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-x-4">
-                                        <a wire:navigate href="{{ $issue['url'] }}" class="relative min-w-0 break-words rounded-sm pl-6 text-sm font-medium leading-5 text-slate-800 underline-offset-4 hover:text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-200 dark:hover:text-red-300"><svg class="absolute left-0 top-0.5 h-4 w-4 text-brand dark:text-red-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01M11 11h1v5h1m8-4a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg><span class="min-w-0 break-words">{{ $issue['issue'] }}</span></a>
-                                        @if ($issue['days'] !== null)
-                                            <span class="whitespace-nowrap pl-6 text-sm leading-5 tabular-nums text-slate-500 sm:justify-self-end sm:pl-0 dark:text-slate-400">{{ $issue['days'] }} {{ str('day')->plural($issue['days']) }} {{ $issue['basis'] === 'overdue' ? 'overdue' : 'waiting' }}</span>
-                                        @endif
+                                    @php
+                                        $action = match ($issue['type']) {
+                                            'quarterly' => 'Complete Monitoring Tool',
+                                            'progress_quarterly' => 'Complete Progress Report',
+                                            'report_review' => 'Correct Monitoring Tool',
+                                            'narrative_review' => 'Correct Progress Report',
+                                            'terminal_review' => 'Correct Terminal Report',
+                                            'terminal' => 'Prepare Terminal Report',
+                                            'budget' => 'View reported budget',
+                                            default => 'Update monitoring',
+                                        };
+                                    @endphp
+                                    <li class="monitoring-action-row !px-0">
+                                        <div class="monitoring-action-copy">
+                                            <p class="font-semibold text-slate-900 dark:text-slate-100">{{ $issue['issue'] }}</p>
+                                            @if ($issue['days'] !== null)
+                                                <p class="mt-0.5 text-sm tabular-nums text-slate-600 dark:text-slate-400">{{ $issue['days'] }} {{ str('day')->plural($issue['days']) }} {{ $issue['basis'] }}</p>
+                                            @endif
+                                        </div>
+                                        <a wire:navigate href="{{ $issue['url'] }}" @if ($loop->first) data-project-action @endif aria-label="{{ $action }} ({{ $issue['issue'] }})" class="monitoring-secondary-action">{{ $action }} <span aria-hidden="true">→</span></a>
                                     </li>
                                 @endforeach
                             </ul>
@@ -85,8 +89,7 @@
                                 'xl:col-start-1 xl:row-start-2 xl:mt-0 xl:self-start' => $singleAttentionProject,
                                 'sm:justify-end' => ! $singleAttentionProject,
                             ])>
-                                <a wire:navigate href="{{ route('research.show', $topic) }}#project-monitoring" class="secondary-action">Open project</a>
-                                <a wire:navigate data-project-action href="{{ $primaryIssue['url'] }}" class="dashboard-action max-w-full text-center">{{ $action }}<svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                                <a wire:navigate href="{{ route('research.show', $topic) }}#project-monitoring" class="monitoring-secondary-action">Open project</a>
                             </div>
                         </article>
                     @empty

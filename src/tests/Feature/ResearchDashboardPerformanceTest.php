@@ -114,8 +114,8 @@ test('researcher dashboards load report summaries only for active projects and r
     expect($xpath->query($card)->length)->toBe(1)
         ->and($xpath->query($actions)->item(0)->getAttribute('class'))->not->toContain('xl:grid-cols-2')
         ->and($xpath->query($card)->item(0)->getAttribute('class'))->toContain('xl:grid-cols-2')
-        ->and($xpath->query($card.'//ul[@data-project-issues]//a[contains(@class, "secondary-action")]')->length)->toBe(0)
-        ->and($xpath->query($card.'//ul[@data-project-issues]//li[not(contains(@class, "sm:items-baseline"))]')->length)->toBe(0)
+        ->and($xpath->query($card.'//ul[@data-project-issues]/li[contains(@class, "monitoring-action-row")]')->length)->toBeGreaterThan(0)
+        ->and($xpath->query($card.'//ul[@data-project-issues]/li[not(a[contains(@class, "monitoring-secondary-action") and @aria-label])]')->length)->toBe(0)
         ->and($xpath->query($card.'//a[@data-project-action]')->length)->toBe(1);
 
     $health = $response->viewData('projectHealth')[$active->id];

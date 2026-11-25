@@ -19,8 +19,8 @@
             }
             @page:first { margin-top: 0; }
             * { box-sizing: border-box; }
-            body { min-width: 8.5in; margin: 0; color: #000; background: #e8e8e8; font: 12pt "Times New Roman", Times, serif; line-height: 1.24; }
-            main { display: flex; flex-direction: column; width: 8.5in; min-height: 13in; margin: 24px auto; padding: 1in 1in 35.4pt; background: #fff; }
+            body { --report-paper-width: 8.5in; min-width: var(--report-paper-width); margin: 0; color: #000; background: #e8e8e8; font: 12pt "Times New Roman", Times, serif; line-height: 1.24; }
+            main { display: flex; flex-direction: column; width: var(--report-paper-width); min-height: 13in; margin: 24px auto; padding: 1in 1in 35.4pt; background: #fff; }
             header { position: relative; margin-top: -50.7pt; text-align: center; font-size: 12pt; }
             header img { position: absolute; left: -11.85pt; top: -13.2pt; width: 1.375in; height: auto; }
             header p { margin: 0; line-height: 11.55pt; font-size: 10pt; }
@@ -79,6 +79,9 @@
             @media print { body { min-width: 0; background: white; } main { display: block; width: auto; min-height: auto; margin: 0 1in; padding: 21.3pt 0 0; } header { margin-top: 0; } footer, .toolbar { display: none; } }
             @media screen and (max-width: 850px) { main { margin: 0; } .toolbar { width: 100vw; justify-content: flex-start; } }
         </style>
+        @if ($embedded ?? request()->boolean('embedded'))
+            @vite('resources/css/report-preview-fit.css')
+        @endif
         @vite('resources/js/paper-preview-pagination.js')
     </head>
     <body>

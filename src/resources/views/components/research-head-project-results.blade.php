@@ -32,7 +32,7 @@
                 <p class="break-words text-sm rh-muted">Lead: {{ $project['lead'] }}</p>
                 <strong class="text-sm {{ $project['status'] === 'delayed' ? 'text-red-700 dark:text-red-300' : 'text-brand dark:text-rose-300' }}">{{ $statuses->firstWhere('key', $project['status'])['label'] ?? str($project['status'])->headline() }}</strong>
                 @if ($project['delay_reason'])
-                    <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">{{ $project['delay_reason'] }}<span class="mt-1 block font-semibold">{{ $project['delay_days'] !== null ? $project['delay_days'].' '.str('day')->plural($project['delay_days']).' overdue' : 'Delay start date not recorded' }}</span></p>
+                    <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">{{ $project['delay_reason'] }}<span class="mt-1 block font-semibold">{{ $project['delay_days'] !== null ? $project['delay_days'].' '.str('day')->plural($project['delay_days']).' overdue' : 'Delay start date not recorded' }}</span></p>
                 @endif
                 @if (! $project['has_schedule'])<p class="text-sm text-amber-800 dark:text-amber-300">Schedule not recorded; deadline cannot be checked.</p>@endif
                 <dl class="grid grid-cols-2 gap-3 text-sm">
@@ -43,7 +43,7 @@
                     <div class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label="{{ $project['title'] }} reported completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ min(100, max(0, $project['progress'])) }}"><div class="h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ min(100, max(0, $project['progress'])) }}%"></div></div>
                 @endif
                 @foreach ($project['issues']->reject(fn ($issue) => $issue['type'] === 'delayed')->take(2) as $issue)
-                    <a href="{{ $issue['url'] }}" class="rh-button-secondary !h-auto !justify-start whitespace-normal break-words !text-left">{{ $issue['issue'] }}</a>
+                    <a href="{{ $issue['url'] }}" class="monitoring-secondary-action !justify-start whitespace-normal break-words !text-left">{{ $issue['issue'] }}</a>
                 @endforeach
                 <p class="text-sm rh-muted">{{ $project['report_date'] ? 'Latest Monitoring Tool: '.$project['report_date'] : 'No monitoring tool submitted' }}</p>
                 <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" aria-label="{{ $project['status'] === 'completed' ? 'Open project archive' : 'Inspect monitoring' }}: {{ $project['title'] }}" class="rh-button-secondary mt-auto self-start">{{ $project['status'] === 'completed' ? 'Open project archive' : 'Inspect monitoring' }} <span aria-hidden="true">&rarr;</span></a>

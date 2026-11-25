@@ -10,12 +10,12 @@
     </x-slot>
 
     <div class="mx-auto max-w-6xl space-y-5">
-        <p class="text-sm text-slate-600 dark:text-slate-300">School-funded projects appear first. Team leaders update labels; college coordinators receive the changes.</p>
+        <p class="text-sm text-slate-600 dark:text-slate-300">School-funded projects appear first. College coordinators are notified when team leaders update a project's status.</p>
         <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
             <table class="w-full text-left text-sm">
-                <caption class="sr-only">Completed projects and their post-implementation labels, with school-funded projects first</caption>
+                <caption class="sr-only">Completed projects and their post-implementation status, with school-funded projects first</caption>
                 <thead class="border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                    <tr><th scope="col" class="px-5 py-3 font-semibold">Project / team leader</th><th scope="col" class="px-5 py-3 font-semibold">Funding</th><th scope="col" class="px-5 py-3 font-semibold">Labels</th><th scope="col" class="px-5 py-3 font-semibold">Last update</th></tr>
+                    <tr><th scope="col" class="px-5 py-3 font-semibold">Project / team leader</th><th scope="col" class="px-5 py-3 font-semibold">Funding</th><th scope="col" class="px-5 py-3 font-semibold">Status</th><th scope="col" class="px-5 py-3 font-semibold">Last update</th></tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                     @forelse ($outcomes as $outcome)
@@ -30,7 +30,7 @@
                                     @forelse ($outcome->labels as $label)
                                         <span class="rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-brand dark:bg-red-950/40 dark:text-red-200">{{ App\Models\ResearchOutcome::LABELS[$label] }}</span>
                                     @empty
-                                        <span class="text-slate-500 dark:text-slate-400">No labels recorded</span>
+                                        <span class="text-slate-500 dark:text-slate-400">No status recorded</span>
                                     @endforelse
                                 </div>
                             </td>

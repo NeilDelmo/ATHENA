@@ -253,27 +253,20 @@
                 <h3 id="attention-heading" class="rh-title">Needs attention</h3>
                 <span class="rh-badge">{{ $analytics['attention']->count() }} issues</span>
             </div>
-            <div class="overflow-x-auto">
-                <table class="rh-table" data-dashboard-queue="attention">
-                    <thead><tr><th scope="col" class="w-[72%]">Research / issue</th><th scope="col">Waiting</th></tr></thead>
-                    <tbody>
-                        @forelse ($attentionItems as $item)
-                            <tr>
-                                <td>
-                                    <a href="{{ $item['url'] }}" aria-label="Open {{ $item['title'] }}: {{ $item['issue'] }}" class="line-clamp-2 break-words font-semibold hover:text-brand dark:hover:text-rose-300" title="{{ $item['title'] }}">{{ $item['title'] }}</a>
-                                    <span class="mt-1 block text-sm text-brand dark:text-rose-300">{{ $item['issue'] }}</span>
-                                    <span class="rh-muted block text-sm">{{ $item['status'] }}</span>
-                                </td>
-                                <td>
-                                    <strong class="tabular-nums">{{ $item['days'] !== null ? $item['days'].' days' : '—' }}</strong>
-                                    <span class="rh-muted block text-sm">{{ $item['days'] !== null ? $item['basis'] : 'No recorded date' }}</span>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="2"><p class="rh-muted py-7 text-center">No data yet or no items need attention in this cohort.</p></td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
+            <div class="divide-y divide-slate-100 dark:divide-slate-800" data-dashboard-queue="attention">
+                @forelse ($attentionItems as $item)
+                    <article class="monitoring-action-row">
+                        <div class="monitoring-action-copy">
+                            <h4 class="text-base font-semibold">{{ $item['title'] }}</h4>
+                            <p class="mt-0.5 text-sm rh-muted">{{ $item['issue'] }}</p>
+                            @if ($item['days'] !== null)<p class="mt-0.5 text-sm tabular-nums rh-muted">{{ $item['days'] }} {{ str('day')->plural($item['days']) }} {{ $item['basis'] }}</p>@endif
+                            <p class="mt-0.5 text-sm rh-muted">{{ $item['status'] }}</p>
+                        </div>
+                        <a href="{{ $item['url'] }}" class="monitoring-secondary-action">View monitoring <span class="sr-only">for {{ $item['title'] }}</span><x-report-library-icon name="open" class="!h-4 !w-4" /></a>
+                    </article>
+                @empty
+                    <p class="rh-muted px-4 py-7 text-center">No data yet or no items need attention in this cohort.</p>
+                @endforelse
             </div>
             @if ($attentionItems->hasPages())
                 <div class="border-t border-slate-100 px-5 py-3 dark:border-slate-800">

@@ -1,3 +1,5 @@
+@import './report-preview-fit.css';
+
 @page {
     size: 13in 8.5in;
     margin: 42.55pt 48.325pt 72pt;
@@ -29,12 +31,13 @@ body {
 }
 
 .monitoring-preview-page {
-    min-width: 13in;
-    padding: 24px;
+    --report-paper-width: 13in;
+    --report-preview-gutter: 24px;
+    padding: var(--report-preview-gutter);
 }
 
 .monitoring-sheet {
-    width: 13in;
+    width: var(--report-paper-width);
     min-height: 8.5in;
     margin: 0 auto;
     padding: 42.55pt 48.325pt 72pt;
@@ -225,7 +228,6 @@ body {
         background: #fff;
     }
     .monitoring-preview-page {
-        min-width: 0;
         padding: 0;
     }
     .monitoring-sheet {

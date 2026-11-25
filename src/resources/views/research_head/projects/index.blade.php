@@ -53,7 +53,7 @@
         <section id="project-monitoring-panel" role="tabpanel" aria-labelledby="project-monitoring-tab" x-show="recordsView === 'monitoring'" data-project-monitoring class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800"><h3 id="project-records-heading" class="text-xl font-black text-gray-900 dark:text-white">{{ ($completedOnly ?? false) ? 'Completed project records' : 'Research projects under monitoring' }}</h3><p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Review implementation status and submitted reports. Delayed projects and projects with reports awaiting review appear first.</p></div>
             <div data-project-list-layout="rows" class="overflow-hidden rounded-b-xl border-x border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-                <div aria-hidden="true" class="hidden grid-cols-[minmax(0,1fr)_160px_170px_220px_160px_196px] items-center gap-4 border-b border-brand bg-brand px-4 py-3 text-sm font-semibold text-white dark:border-red-900 2xl:grid">
+                <div aria-hidden="true" class="hidden grid-cols-[minmax(0,1fr)_160px_170px_220px_160px_196px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 2xl:grid">
                     <span>Project and faculty</span><span>Status</span><span>Latest progress</span><span>Project secretary</span><span>Reports</span><span class="text-right">Action</span>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-slate-800">

@@ -197,6 +197,10 @@ test('rendered dashboards stay readable and expose usable actions in both themes
                             for (const issue of await issues.locator('li').all()) {
                                 const issueBox = await issue.boundingBox();
                                 assert.ok(issueBox.x >= box.x && issueBox.x + issueBox.width <= box.x + box.width, 'Issue rows must fit within their project');
+                                const link = issue.getByRole('link');
+                                assert.equal(await link.count(), 1);
+                                assert.ok((await link.boundingBox()).height >= 44, 'Each issue should have a usable action');
+                                assert.equal(await link.evaluate(element => getComputedStyle(element).backgroundColor), dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
                             }
                         }
                         if (width === 1440) {

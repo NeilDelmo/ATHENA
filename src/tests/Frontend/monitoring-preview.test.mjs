@@ -20,6 +20,63 @@ const previewHelpers = read('resources/js/document-writing-toolbar.js').replaceA
     + read('resources/js/proposal-paper-workspace.js').replace(/^import .+;\n/gm, '').replaceAll('export ', '');
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1kAAAAASUVORK5CYII=', 'base64');
 
+const fitStylesheet = 'resources/css/report-preview-fit.css';
+function inlinePreviewStyles(path) {
+    const template = read(path);
+
+    return template.match(/<style>([\s\S]*?)<\/style>/)[1]
+        + (template.includes(fitStylesheet) ? read(fitStylesheet) : '');
+}
+
+const previewSheets = [
+    ['Monitoring Tool', 'monitoring-preview-page', 'monitoring-sheet', 1248, read('resources/css/monitoring-tool-print.css')],
+    ['Progress Report', 'progress-report-preview-page', 'progress-report-sheet', 816, read('resources/css/progress-report-print.css')],
+    ['Terminal Report', '', 'sheet', 794, inlinePreviewStyles('resources/views/faculty/progress-reports/terminal-preview.blade.php')],
+    ['Coordinator Quarterly Report', '', '', 816, inlinePreviewStyles('resources/views/research_coordinator/report-print.blade.php')],
+];
+
+for (const [name, bodyClass, sheetClass, paperWidth, css] of previewSheets) {
+    test('the ' + name + ' fits the iframe before preview scripts run and prints at normal scale', async () => {
+        const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+        try {
+            const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+            await page.setContent('<iframe style="width: 377px; height: 520px; border: 0"></iframe>');
+            const frame = page.locator('iframe');
+            await frame.evaluate((element, { css, bodyClass, sheetClass }) => {
+                element.srcdoc = '<!doctype html><style>' + css + '</style>'
+                    + '<body class="' + bodyClass + '"><main data-paper-sheet class="' + sheetClass + '">'
+                    + '<table><tr><td>Activities</td><td>Findings and recommendations</td></tr></table></main></body>';
+            }, {
+                css: css.replace(/@import ['"]\.\/report-preview-fit\.css['"];/, () => read(fitStylesheet)),
+                bodyClass,
+                sheetClass,
+            });
+            const sheet = frame.contentFrame().locator('[data-paper-sheet]');
+            await sheet.waitFor();
+            for (const width of [377, 310, 516, 900, 1350]) {
+                await frame.evaluate((element, width) => { element.style.width = width + 'px'; }, width);
+                const size = await sheet.evaluate(element => {
+                    const bounds = element.getBoundingClientRect();
+                    const root = element.ownerDocument.documentElement;
+                    return {
+                        left: bounds.left, right: bounds.right, width: bounds.width,
+                        paperWidth: element.offsetWidth, viewport: root.clientWidth, scroll: root.scrollWidth,
+                    };
+                });
+                assert.ok(size.left >= 0 && size.right <= size.viewport + 1, 'The full sheet should be visible at ' + width + 'px: ' + JSON.stringify(size));
+                assert.ok(Math.abs(size.paperWidth - paperWidth) <= 1, 'The sheet should retain its paper layout at ' + width + 'px');
+                assert.ok(size.width >= Math.min(size.viewport, paperWidth) * 0.9, 'The sheet should use the available preview width');
+                assert.ok(size.scroll <= size.viewport + 1, 'Fit width should avoid horizontal scrolling');
+            }
+            await frame.evaluate(element => { element.contentDocument.body.style.zoom = '0.3'; });
+            await page.emulateMedia({ media: 'print' });
+            assert.equal(await sheet.evaluate(element => getComputedStyle(element.ownerDocument.body).zoom), '1');
+        } finally {
+            await browser.close();
+        }
+    });
+}
+
 test('monitoring previews use the proposal paper panel with live edits, images and accessible full view', async () => {
     if (!process.env.ATHENA_MONITORING_USE_EXISTING_FIXTURES) {
         execFileSync('php', ['artisan', 'test', '--compact', 'tests/Feature/MonitoringPageLoadingTest.php', '--filter=monitoring report forms share'], {

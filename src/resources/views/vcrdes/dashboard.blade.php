@@ -47,12 +47,14 @@
                     <h2 id="attention-heading" class="dashboard-section-title flex items-center gap-2.5"><x-report-library-icon name="history" class="h-5 w-5 text-slate-500 dark:text-slate-400" /> Needs attention</h2>
                     <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-bold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-200">{{ $attention->count() }}</span>
                 </div>
-                <div class="max-h-72 overflow-y-auto divide-y divide-slate-100 px-5 dark:divide-slate-800">
+                <div class="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                     @forelse ($attention as $issue)
-                        <article class="flex gap-3 py-3.5">
-                            <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full {{ $issue['type'] === 'delayed' ? 'bg-rose-500' : 'bg-amber-500' }}" aria-hidden="true"></span>
-                            <div class="min-w-0 flex-1"><h3 class="truncate text-sm font-bold" title="{{ $issue['title'] }}">{{ $issue['title'] }}</h3><p class="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">{{ $issue['issue'] }}</p></div>
-                            @if ($issue['days'] !== null)<span class="shrink-0 pt-0.5 text-sm font-semibold text-slate-500 dark:text-slate-400" title="{{ $issue['days'] }} days {{ $issue['basis'] }}">{{ $issue['days'] }}d</span>@endif
+                        <article class="monitoring-action-row">
+                            <div class="monitoring-action-copy">
+                                <h3 class="text-base font-semibold">{{ $issue['title'] }}</h3>
+                                <p class="mt-0.5 text-sm leading-5 text-slate-600 dark:text-slate-400">{{ $issue['issue'] }}</p>
+                                @if ($issue['days'] !== null)<p class="mt-0.5 text-sm tabular-nums text-slate-600 dark:text-slate-400">{{ $issue['days'] }} {{ str('day')->plural($issue['days']) }} {{ $issue['basis'] }}</p>@endif
+                            </div>
                         </article>
                     @empty
                         <div class="flex min-h-52 flex-col items-center justify-center gap-3 px-3 py-7 text-center"><span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"><x-report-library-icon name="preview" /></span><p class="text-sm font-semibold">No flagged items</p><p class="max-w-52 text-sm leading-5 text-slate-500 dark:text-slate-400">{{ $total ? 'No issues found in the current monitoring records.' : 'Monitoring alerts appear when projects are issued.' }}</p></div>

@@ -90,7 +90,7 @@ test('coordinator and RMS editors share the automatic right-side proposal paper 
                 await expect(minimize.locator('svg:visible')).toHaveCount(1);
                 await panel.getByRole('button', { name: 'Fit page', exact: true }).click();
                 await panel.getByRole('button', { name: 'Zoom in', exact: true }).click();
-                await expect(panel.locator('output')).toHaveText('110%');
+                await expect(panel.locator('.proposal-preview-zoom output')).toHaveText('110%');
                 await panel.getByRole('button', { name: 'Fit width', exact: true }).click();
                 if (name === 'rms') await expect(panel.locator('iframe').contentFrame().locator('.assessment-page img')).toBeVisible();
                 if (width >= 1024) {
