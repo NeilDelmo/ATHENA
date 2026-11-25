@@ -45,7 +45,7 @@
             </div>
             <x-monitoring-action-dock :fixed="$standalone">
                 @if ($standalone)
-                    <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+                    <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Back to monitoring</x-back-link>
                 @endif
                 <a href="{{ route('project-progress.monitoring-tool', $preparedReport) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Download prepared PDF</a>
                 @if ($topic->research_secretary_id && ! $preparedReport->hasPreparedBudget())

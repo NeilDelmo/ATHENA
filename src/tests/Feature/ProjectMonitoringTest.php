@@ -1256,7 +1256,7 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview paper')
         ->assertSee('Changes save automatically.')
-        ->assertSee('Exit monitoring')
+        ->assertSee('Back to monitoring')
         ->assertSee('data-paper-cancel-exit', false)
         ->assertSee('data-monitoring-writing-toolbar', false)
         ->assertSee('data-proposal-workspace-toolbar', false)

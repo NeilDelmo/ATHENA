@@ -40,12 +40,13 @@
             @if ($tablesId)
                 <a href="#{{ $tablesId }}" class="proposal-preview-download inline-flex items-center gap-1.5"><x-proposal-writing-icon name="table" />Tables</a>
             @endif
-            @if ($standalone)
-                <a data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring" class="proposal-preview-download inline-flex items-center">Exit monitoring</a>
-            @endif
         </div>
     </div>
     @if ($formatting)
         <x-document-formatting-tools />
     @endif
 </x-proposal-writing-toolbar>
+
+@if ($standalone)
+    <x-back-link fixed data-paper-cancel-exit x-show="!previewFullscreen" href="{{ route('research.show', $topic) }}#project-monitoring">Back to monitoring</x-back-link>
+@endif

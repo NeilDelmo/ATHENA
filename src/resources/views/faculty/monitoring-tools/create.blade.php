@@ -3,7 +3,7 @@
         <x-page-header title="Quarterly monitoring report" :subtitle="$topic->title">
             <x-slot name="actions">
             @unless ($selectedReportingDate || $preparedReport)
-                <x-back-link fixed href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+                <x-back-link fixed href="{{ route('research.show', $topic) }}#project-monitoring">Back to monitoring</x-back-link>
             @endunless
             </x-slot>
         </x-page-header>

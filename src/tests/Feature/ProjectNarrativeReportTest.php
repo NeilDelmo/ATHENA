@@ -360,7 +360,7 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertSee('BatStateU-REC-RES-02')
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview paper')
-        ->assertSee('Exit monitoring')
+        ->assertSee('Back to monitoring')
         ->assertSee('data-paper-cancel-exit', false)
         ->assertSee('data-monitoring-writing-toolbar', false)
         ->assertSee('data-proposal-workspace-toolbar', false)

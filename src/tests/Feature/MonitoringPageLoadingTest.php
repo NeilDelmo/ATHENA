@@ -57,6 +57,7 @@ test('monitoring report forms share the proposal toolbar and paper preview besid
     $editorForm = $xpath->query($workspace.'//form[@x-ref="form"]')->item(0);
     $toolbar = $workspace.'//*[@data-monitoring-writing-toolbar and @data-proposal-workspace-toolbar]';
     $previewToggle = $xpath->query($toolbar.'//button[@data-proposal-preview-toggle]')->item(0);
+    $backLinks = $xpath->query($workspace.'//a[@data-fixed-back-link and @data-paper-cancel-exit]');
     $prepareButton = $xpath->query($toolbar.'//button[@type="submit"]')->item(0);
 
     expect($xpath->query($workspace)->length)->toBe(1)
@@ -64,7 +65,9 @@ test('monitoring report forms share the proposal toolbar and paper preview besid
         ->and($xpath->query($toolbar.'//button[@data-writing-toolbar-close]')->length)->toBe(1)
         ->and($xpath->query($toolbar.'//button[@data-writing-toolbar-open]')->length)->toBe(1)
         ->and($xpath->query($toolbar.'//button[normalize-space(.)="Save draft"]')->length)->toBe(1)
-        ->and($xpath->query($toolbar.'//a[@data-paper-cancel-exit]')->length)->toBe(1)
+        ->and($backLinks->length)->toBe(1)
+        ->and($backLinks->item(0)?->getAttribute('href'))->toBe(route('research.show', $this->topic).'#project-monitoring')
+        ->and($xpath->query($toolbar.'//a[@data-paper-cancel-exit]')->length)->toBe(0)
         ->and($previewToggle)->not->toBeNull()
         ->and($previewToggle->getAttribute(':aria-expanded'))->toBe('previewPaneOpen')
         ->and($xpath->query($workspace.'//aside/section[@id="'.$previewToggle->getAttribute('aria-controls').'"]')->length)->toBe(1)

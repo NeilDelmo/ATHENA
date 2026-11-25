@@ -144,6 +144,10 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await page.waitForFunction(() => Boolean(window.monitorState));
                     const workspace = page.locator('[data-monitoring-paper-workspace]');
                     const form = workspace.locator('form[x-ref="form"]');
+                    const back = workspace.getByRole('link', { name: 'Back to monitoring', exact: true });
+                    await back.waitFor();
+                    assert.equal(await back.evaluate(element => getComputedStyle(element).position), 'fixed');
+                    assert.ok((await back.getAttribute('href')).endsWith('#project-monitoring'));
                     const draftDock = workspace.locator('.proposal-preview-dock');
                     await draftDock.waitFor({ state: width >= 1024 ? 'visible' : 'hidden' });
                     assert.equal(await draftDock.getByRole('button', { name: 'Print', exact: true }).count(), 0);
@@ -238,6 +242,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     await toolbar.locator('[data-writing-toolbar-controls]').waitFor({ state: 'hidden' });
                     await page.waitForFunction(() => document.activeElement?.hasAttribute('data-writing-toolbar-open'));
                     assert.equal(await toolbar.locator('[data-writing-toolbar-controls]').isVisible(), false);
+                    assert.equal(await back.isVisible(), true);
                     assert.equal(await toolbar.locator('[data-writing-toolbar-open]').evaluate((element) => element === document.activeElement), true);
                     assert.equal(await field.inputValue(), 'First field notes.');
                     await toolbar.locator('[data-writing-toolbar-open]').click();
@@ -267,6 +272,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                         await dock.getByRole('button', { name: 'Enlarge the paper preview', exact: true }).click();
                     }
                     assert.equal(await dock.locator('[role="dialog"][aria-modal="true"]').count(), 1);
+                    assert.equal(await back.isVisible(), false);
                     assert.equal(await workspace.locator('.proposal-edit-pane').evaluate((element) => element.inert), true);
                     assert.equal(await toolbar.evaluate((element) => element.inert), true);
                     const zoom = dock.locator('.proposal-preview-zoom output');
@@ -292,6 +298,7 @@ test('monitoring previews use the proposal paper panel with live edits, images a
                     assert.equal(await backToEditor.evaluate((element) => element === document.activeElement), true);
                     await frame.locator('body').press('Escape');
                     assert.equal(await page.evaluate(() => window.monitorState.previewFullscreen), false);
+                    await back.waitFor();
                     assert.equal(await field.inputValue(), 'First field notes.');
                     assert.equal(await workspace.locator('.proposal-edit-pane').getAttribute('inert'), null);
                     assert.equal(await toolbar.evaluate((element) => element.inert), false);
